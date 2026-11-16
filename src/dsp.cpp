@@ -27,6 +27,7 @@
 
 #include "dialog_msg_voice.h"
 #include "dialog_freedv.h"
+#include "dialog_zello.h"
 #include "freedv_tx.h"
 
 extern "C" {
@@ -702,6 +703,10 @@ void dsp_put_audio_samples(size_t nsamples, int16_t *samples) {
     }
     if (dialog_freedv_is_recording()) {     /* RADE: the hand mic goes to the encoder */
         freedv_tx_put_mic(nsamples, samples);
+        return;
+    }
+    if (dialog_zello_mic()) {               /* Zello: the hand mic goes to the channel, never on the air */
+        dialog_zello_put_mic(nsamples, samples);
         return;
     }
     if (recorder_is_on())

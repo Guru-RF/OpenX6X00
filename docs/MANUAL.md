@@ -18,7 +18,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
-- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner)
+- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [Zello](#zello)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
@@ -5403,6 +5403,67 @@ frequency and mode: a band key goes where it went before the scan.
 - Airband has the 25 kHz channels only: in Europe most are 8.33 kHz apart,
   and two in three of those are not in the list. CB is in AM, where CEPT CB
   is mostly FM: put FM channels in the Channels app for those.
+
+### Zello
+
+APP > Zello puts the radio on a channel of Zello, the push-to-talk voice
+service on the internet (the free Zello, as in the app on a phone). It needs
+the network (WiFi, Ethernet or USB) and goes over the internet only: talking
+on Zello never keys the radio's transmitter and never changes a TX setting.
+The name is the service's; the app's icon is a plain cloud, not Zello's logo.
+
+**The account**, on the web configurator's Zello page (Operating > Zello):
+
+- Your Zello user name and password.
+- A developer key, which Zello asks of every program on its Channel API: on
+  developers.zello.com log in with the same account, Keys, Add Key, and copy
+  the Issuer and the Private Key to the page. The radio signs a short token
+  with the key at each logon, so its clock has to be right (Settings >
+  General > DATE / TIME, or the network's time).
+- The channels, one a line, as Zello writes them (20 at most).
+- Save, then Test: the radio logs on with what is saved, on the first
+  channel, and off again ("Logged on: Test channel, 3 online").
+- The password, the Issuer and the key are kept on the radio's DATA
+  partition (`/mnt/zello`), readable by root only, never shown again (the
+  page says Set or Not set; the user name as its first two characters),
+  never written to a log, not in a Backup and not on the Files page. They go
+  to Zello's servers and nowhere else. Clear account takes them away; the
+  channels stay.
+
+**On the radio:**
+
+- The list shows the channels. Turn the MFK to one and press it (or
+  Connect): the radio connects to Zello and joins the channel. The top line
+  says what happens: "Connecting to ...", the channel and how many are
+  online, a channel not online, or "lost: again in 4 s". Press the MFK on
+  the same channel, or Disconnect, to leave it. After a channel change on
+  the web page: Reload channels.
+- What the channel says plays on the speaker at the radio's volume (VOL),
+  or on the Bluetooth headphones while they stand in for the speaker. The
+  line under it says who talks. Between messages the speaker is the
+  receiver's, as without the app.
+- To talk: press and hold the radio's PTT key (or press Talk, and again to
+  end) and speak into the **hand mic, without pressing the hand mic's own
+  PTT**. The hand mic's PTT keys the radio, as always. The built-in
+  microphone can't be used: the baseband keeps it off while receiving (as
+  for [voice messages](#recording-voice-messages)). With no hand mic, after
+  3 seconds the radio says "No audio: talking on Zello uses the hand mic". A
+  message ends after two minutes, as in Zello's own apps.
+- While the app is open the PTT key talks on Zello and never keys the radio.
+  It keys the radio again the moment the app has closed. A PTT key held for
+  the radio when the app opened stays the radio's until it is let go.
+- While the radio transmits for any other reason (the hand mic's PTT, CAT,
+  TCI, the browser's PTT, an app, the tuner) the channel's audio pauses, so
+  none of it goes out with the TX audio, and a message being sent to Zello
+  ends. It comes back half a second after the radio receives again.
+- The radio is connected only while the app is open on a channel. Closing
+  the app (ESC) leaves the channel and closes the connection; nothing
+  connects at power on. A connection lost (the network gone, Zello's server)
+  is tried again by itself, at once and then after 1, 2, 4 ... up to 30 s;
+  an account or key that Zello refuses is said once and not tried again.
+- A report for a problem: `/mnt/app_logs/zello.txt` (Files page), the
+  connections, why they ended and the messages, never a password, key or
+  token.
 
 ## Bluetooth
 

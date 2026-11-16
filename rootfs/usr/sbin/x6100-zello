@@ -1,0 +1,1064 @@
+#!/usr/bin/env python3
+# Zello for the Zello app (APP > Zello, src/dialog_zello.c): the radio joins a channel of Zello, the push-to-talk
+# voice service on the internet, over Zello's Channel API (zello.io, the free "Friends and Family" Zello). Nothing
+# here touches the radio: the voice comes and goes over the network only, never over the air.
+#
+# The GUI starts it when a channel is chosen in the app and ends it when the app closes; nothing starts it at boot:
+#
+#   x6100-zello run <channel>    joins the channel and stays until its stdin ends
+#   x6100-zello test [channel]   logs on, one line: "ok <channel> <users online>" or "error <reason>" (the web page's
+#                                Test, with the account saved there; the first channel when none is named)
+#
+# run: stdin and stdout are one SOCK_SEQPACKET socket from the GUI, a record each. A record that starts with a 0 byte
+# is audio, PCM s16 little-endian mono at 16 kHz after the 0; any other is a line of text.
+#   from the GUI:                         to the GUI:
+#     talk start   start a message          state connecting | online      the connection
+#     talk stop    end it                   state offline <reason>         on Zello, the channel not online
+#                                           state retry <s> <reason>       lost: trying again in <s> s
+#     <audio>      the mic while talking    error <reason>                 given up (account, key, channel): it exits
+#                                           channel <users|-> <name>       the channel's state, users online
+#                                           talker [<name>]                who talks now; none without a name
+#                                           talk on | off                  the message started / ended
+#                                           talk refused <reason>          talk start not taken
+#                                           <audio>                        what the channel says, decoded
+# The end of stdin (the app closed, or the GUI is gone) closes the connection, and it exits.
+#
+# The account: the web page's Zello page writes it on the DATA partition, never shown again (webserver apps.py):
+#   /mnt/zello/account.conf      user=, password=, issuer= (the Zello developer key's Issuer)
+#   /mnt/zello/private_key.pem   the developer key's Private Key, PEM (PKCS#8 or PKCS#1)
+#   /mnt/zello/channels.txt      the channels, one a line (the app lists them)
+# Zello asks every program on its Channel API for a token signed with the developer's own key (developers.zello.com:
+# Keys, Add Key): the radio signs it here, a JWT with RS256 {"iss": <issuer>, "exp": now + 60 s}, so the radio's clock
+# has to be right. The radio has no openssl program: the RSA signature (PKCS#1 v1.5, SHA-256) is done in Python.
+# The user name, the password, the token and the key go to zello.io only, in the logon over TLS; they are never
+# written to the log or sent to the GUI.
+#
+# Zello's protocol (github.com/zelloptt/zello-channel-api, API.md): JSON commands in text frames of one websocket,
+# each with a seq the answer repeats; logon {auth_token or refresh_token, username, password, channels}; the server's
+# on_channel_status, on_stream_start {stream_id, codec "opus", codec_header, packet_duration, from}, on_stream_stop
+# and on_error; the audio in binary frames {type 1, stream_id u32 BE, packet_id u32 BE, an Opus packet}; codec_header
+# is base64 of {sample rate u16 LE, frames per packet u8, frame size ms u8}. To talk: start_stream (a stream_id in
+# the answer), the audio packets, stop_stream. Opus through the system's libopus (ctypes), at 16 kHz.
+#
+# The log, for a report: /mnt/app_logs/zello.txt (connections, their ends and why; never a secret).
+#
+# After the CX8ANM edition's x6100-zello (condoruy/OpenX6X00-CX8ANM 2cfc9264, bec4fb36): the token signed on the radio,
+# the ping and the dead connection, the audio thread, the quick reconnect with the refresh_token, the log.
+#
+# For tests and the bench only: X6100_ZELLO_URL (ws:// or wss://, instead of wss://zello.io/ws), X6100_ZELLO_DIR (the
+# account's folder), X6100_ZELLO_LOG, X6100_ZELLO_PING and X6100_ZELLO_DEAD (s), X6100_ZELLO_RETRY (s, the first wait).
+#
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
+
+import base64
+import ctypes
+import ctypes.util
+import hashlib
+import json
+import os
+import queue
+import socket
+import ssl
+import struct
+import sys
+import threading
+import time
+import traceback
+import urllib.parse
+
+
+def env_float(name, default):
+    try:
+        v = float(os.environ.get(name, ""))
+        return v if v > 0 else default
+    except ValueError:
+        return default
+
+
+URL = os.environ.get("X6100_ZELLO_URL") or "wss://zello.io/ws"
+DIR = os.environ.get("X6100_ZELLO_DIR") or "/mnt/zello"
+ACCOUNT = os.path.join(DIR, "account.conf")
+KEY = os.path.join(DIR, "private_key.pem")
+CHANNELS = os.path.join(DIR, "channels.txt")
+LOG = os.environ.get("X6100_ZELLO_LOG") or "/mnt/app_logs/zello.txt"
+LOG_MAX = 256 * 1024
+AGENT = f"OpenX6X00/{os.environ.get('X6100_FW') or 'unknown'}"
+RATE = 16000                    # Hz: the decoder's and the encoder's, the GUI resamples
+FRAME_MS = 20                   # ms of each packet sent
+FRAME = RATE * FRAME_MS // 1000             # 320 samples
+TALK_MAX = 120.0                # s: a message is cut here, as Zello's own apps cut theirs
+TALK_IDLE = 2.0                 # s without the mic's audio while talking: the GUI is gone, the message ends
+PING = env_float("X6100_ZELLO_PING", 20.0)      # s: a websocket ping keeps the connection open through WiFi and NAT
+DEAD = env_float("X6100_ZELLO_DEAD", 50.0)      # s without a frame from Zello: the connection is dead
+RETRY = env_float("X6100_ZELLO_RETRY", 1.0)     # s: the first wait before a new try, doubled up to RETRY_MAX
+RETRY_MAX = 30.0
+STEADY = 60.0                   # s up: the next drop is tried again at once
+TIMEOUT = 15.0                  # s: each step of a connection, and an answer to a command
+AUDIO_QUEUE = 150               # decoded packets waiting for the GUI (about 3 s): more are dropped
+MAX_MESSAGE = 1 << 20           # bytes: a longer websocket message ends the connection
+GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"   # RFC 6455
+HIDDEN = "(hidden)"
+
+# Zello's error words (API.md) as the app says them; others as Zello says them
+ERRORS = {
+    "not authorized": "user name or password refused",
+    "not enough params": "the account is not complete (web page, Zello)",
+    "invalid username": "user name refused",
+    "invalid password": "password refused",
+    "invalid token": "token refused: check the Issuer, the Private Key and the radio's clock",
+    "token expired": "token expired: check the radio's clock",
+    "channel is not ready": "the channel is not ready yet",
+    "no such channel": "no such channel",
+    "channels limit exceeded": "too many channels",
+    "listen only connection": "this channel is listen only",
+    "failed to start stream": "Zello did not take the message",
+    "server closed connection": "Zello closed the connection",
+}
+# Logon errors no new try will mend: the helper gives up
+FATAL = {"not authorized", "not enough params", "invalid username", "invalid password", "invalid token",
+         "no such channel", "channels limit exceeded"}
+
+
+class Fail(Exception):
+    """A reason the app shows, in a few words: the account, the key, the image"""
+
+
+class Refused(Fail):
+    """Zello's own error word for a logon or a command (API.md)"""
+
+
+class Dropped(Exception):
+    """The connection is no good any more"""
+
+
+def say(error):
+    return ERRORS.get(str(error), str(error))
+
+
+def clean(text, limit=120):
+    """One line of printable text"""
+    return " ".join("".join(c if c.isprintable() else " " for c in str(text)).split())[:limit]
+
+
+# ---------- the account ----------
+
+def read_account(path=ACCOUNT):
+    """user, password and issuer of account.conf; "" for each missing"""
+    acc = {"user": "", "password": "", "issuer": ""}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                k, sep, v = line.rstrip("\r\n").partition("=")
+                if sep and k.strip() in acc:
+                    acc[k.strip()] = v.strip() if k.strip() != "password" else v
+    except OSError:
+        pass
+    return acc
+
+
+def read_channels(path=CHANNELS):
+    out = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                name = clean(line, 64)
+                if name and name not in out:
+                    out.append(name)
+    except OSError:
+        pass
+    return out
+
+
+def secrets_of(acc, key_text=""):
+    """The texts the log and the GUI never get: the user name too (a person's own name, often)"""
+    found = {acc.get("user", ""), acc.get("password", ""), acc.get("issuer", "")}
+    found.update(line.strip() for line in key_text.splitlines() if len(line.strip()) >= 8 and "-----" not in line)
+    return sorted((s for s in found if len(s) >= 3), key=len, reverse=True)
+
+
+class Log:
+    """One dated line each in LOG (the DATA partition: the web page's Files > app_logs), the secrets taken out"""
+
+    def __init__(self, path=LOG):
+        self.path = path
+        self.hide = []
+
+    def __call__(self, msg):
+        for s in self.hide:
+            msg = msg.replace(s, HIDDEN)
+        try:
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            if os.path.exists(self.path) and os.path.getsize(self.path) > LOG_MAX:
+                os.replace(self.path, self.path + ".1")
+            with open(self.path, "a", encoding="utf-8") as f:
+                f.write(time.strftime("%Y-%m-%d %H:%M:%S ") + clean(msg, 400) + "\n")
+        except OSError:
+            pass
+
+
+log = Log()
+
+
+# ---------- the token: a JWT signed with RS256 ----------
+
+def b64url(b):
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+def der_item(buf, i):
+    """One DER item at buf[i]: (tag, contents, the index after it)"""
+    tag, n = buf[i], buf[i + 1]
+    i += 2
+    if n & 0x80:
+        k = n & 0x7F
+        if not 1 <= k <= 4:
+            raise ValueError("DER length")
+        n = int.from_bytes(buf[i:i + k], "big")
+        i += k
+    if i + n > len(buf):
+        raise ValueError("DER past the end")
+    return tag, buf[i:i + n], i + n
+
+
+def der_items(buf):
+    out, i = [], 0
+    while i < len(buf):
+        tag, val, i = der_item(buf, i)
+        out.append((tag, val))
+    return out
+
+
+def parse_rsa_key(pem):
+    """(n, e, d, p, q, dp, dq, qi) of a PEM private key, PKCS#8 ("BEGIN PRIVATE KEY") or PKCS#1 ("BEGIN RSA PRIVATE
+    KEY"); a key pasted with its line breaks as \\n too"""
+    lines = [line.strip() for line in pem.replace("\\n", "\n").splitlines()]
+    try:
+        a = next(i for i, line in enumerate(lines) if line.startswith("-----BEGIN"))
+        b = next(i for i, line in enumerate(lines) if line.startswith("-----END") and i > a)
+        der = base64.b64decode("".join(lines[a + 1:b]), validate=True)
+        tag, body, _ = der_item(der, 0)
+        items = der_items(body)
+        if len(items) >= 3 and items[1][0] == 0x30 and items[2][0] == 0x04:    # PKCS#8: version, algorithm, PKCS#1
+            tag, body, _ = der_item(items[2][1], 0)
+            items = der_items(body)
+        nums = [int.from_bytes(v, "big") for t, v in items if t == 0x02]
+        _, n, e, d, p, q, dp, dq, qi = nums[:9]
+    except (StopIteration, ValueError, IndexError, TypeError):
+        raise Fail("the Private Key can't be read: paste all of it, with its BEGIN and END lines")
+    if n.bit_length() < 1024 or p * q != n:
+        raise Fail("the Private Key can't be read: paste all of it, with its BEGIN and END lines")
+    return n, e, d, p, q, dp, dq, qi
+
+
+SHA256_PREFIX = bytes.fromhex("3031300d060960864801650304020105000420")    # DigestInfo, RFC 8017
+
+
+def rsa_sign_sha256(key, data):
+    n, e, d, p, q, dp, dq, qi = key
+    k = (n.bit_length() + 7) // 8
+    t = SHA256_PREFIX + hashlib.sha256(data).digest()
+    m = int.from_bytes(b"\x00\x01" + b"\xff" * (k - len(t) - 3) + b"\x00" + t, "big")
+    # The Chinese remainder theorem: about four times quicker than pow(m, d, n) on the radio's processor
+    s1, s2 = pow(m, dp, p), pow(m, dq, q)
+    s = s2 + q * ((qi * (s1 - s2)) % p)
+    if pow(s, e, n) != m:
+        raise Fail("the Private Key does not work (its signature does not check)")
+    return s.to_bytes(k, "big")
+
+
+def make_token(issuer, pem, now=None):
+    if not issuer:
+        raise Fail("no Issuer: the web page's Zello page")
+    if not pem.strip():
+        raise Fail("no Private Key: the web page's Zello page")
+    key = parse_rsa_key(pem)
+    head = b64url(json.dumps({"alg": "RS256", "typ": "JWT"}, separators=(",", ":")).encode())
+    body = b64url(json.dumps({"iss": issuer, "exp": int(now or time.time()) + 60}, separators=(",", ":")).encode())
+    data = (head + "." + body).encode()
+    return data.decode() + "." + b64url(rsa_sign_sha256(key, data))
+
+
+# ---------- the websocket (RFC 6455), as much as Zello needs ----------
+
+def ws_frame(op, payload, mask=None):
+    """A client frame: masked, final"""
+    if isinstance(payload, str):
+        payload = payload.encode()
+    n = len(payload)
+    head = bytes([0x80 | op])
+    if n < 126:
+        head += bytes([0x80 | n])
+    elif n < 65536:
+        head += bytes([0x80 | 126]) + struct.pack(">H", n)
+    else:
+        head += bytes([0x80 | 127]) + struct.pack(">Q", n)
+    mask = mask if mask is not None else os.urandom(4)
+    return head + mask + unmask(payload, mask)
+
+
+def unmask(data, mask):
+    n = len(data)
+    if not n:
+        return b""
+    m = (mask * (n // 4 + 1))[:n]
+    return (int.from_bytes(data, "big") ^ int.from_bytes(m, "big")).to_bytes(n, "big")
+
+
+class FrameReader:
+    """Whole messages out of the bytes of a websocket: (op, payload) for text (1) and binary (2), the pings, pongs and
+    the close as they come (9, 10, 8); fragments put together"""
+
+    def __init__(self):
+        self.buf = bytearray()
+        self.part_op = None
+        self.parts = []
+        self.size = 0
+
+    def feed(self, data):
+        self.buf += data
+        out = []
+        while True:
+            if len(self.buf) < 2:
+                return out
+            b0, b1 = self.buf[0], self.buf[1]
+            n, i = b1 & 0x7F, 2
+            if n == 126:
+                if len(self.buf) < 4:
+                    return out
+                n, i = struct.unpack(">H", self.buf[2:4])[0], 4
+            elif n == 127:
+                if len(self.buf) < 10:
+                    return out
+                n, i = struct.unpack(">Q", self.buf[2:10])[0], 10
+            if n > MAX_MESSAGE:
+                raise Dropped("message too long")
+            masked = b1 & 0x80
+            if len(self.buf) < i + (4 if masked else 0) + n:
+                return out
+            mask = bytes(self.buf[i:i + 4]) if masked else None
+            i += 4 if masked else 0
+            data = bytes(self.buf[i:i + n])
+            del self.buf[:i + n]
+            if mask:
+                data = unmask(data, mask)
+            fin, op = b0 & 0x80, b0 & 0x0F
+            if op >= 8:                     # control frames come whole, also between fragments
+                out.append((op, data))
+                continue
+            if op != 0:
+                self.part_op, self.parts, self.size = op, [], 0
+            elif self.part_op is None:
+                raise Dropped("continuation without a start")
+            self.parts.append(data)
+            self.size += len(data)
+            if self.size > MAX_MESSAGE:
+                raise Dropped("message too long")
+            if fin:
+                out.append((self.part_op, b"".join(self.parts)))
+                self.part_op, self.parts = None, []
+
+
+def ws_connect(url, timeout=TIMEOUT):
+    """An open websocket's socket and the bytes after the upgrade's answer"""
+    u = urllib.parse.urlsplit(url)
+    if u.scheme not in ("ws", "wss") or not u.hostname:
+        raise Fail("bad server address")
+    port = u.port or (443 if u.scheme == "wss" else 80)
+    raw = socket.create_connection((u.hostname, port), timeout=timeout)
+    try:
+        raw.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        raw.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    except OSError:
+        pass
+    sock = raw
+    if u.scheme == "wss":
+        ctx = ssl.create_default_context()
+        for ca in ("/etc/ssl/certs/ca-certificates.crt", "/etc/ssl/cert.pem"):
+            if os.path.exists(ca):
+                ctx.load_verify_locations(ca)
+                break
+        sock = ctx.wrap_socket(raw, server_hostname=u.hostname)
+    key = base64.b64encode(os.urandom(16)).decode()
+    path = (u.path or "/") + ("?" + u.query if u.query else "")
+    host = u.hostname + (f":{u.port}" if u.port else "")
+    sock.sendall((f"GET {path} HTTP/1.1\r\nHost: {host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                  f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nUser-Agent: {AGENT}\r\n\r\n").encode())
+    head = b""
+    while b"\r\n\r\n" not in head:
+        c = sock.recv(4096)
+        if not c:
+            raise Dropped("closed before the upgrade")
+        head += c
+        if len(head) > 16384:
+            raise Dropped("no websocket answer")
+    head, rest = head.split(b"\r\n\r\n", 1)
+    lines = head.decode("latin-1").split("\r\n")
+    if " 101 " not in lines[0] + " ":
+        raise Dropped("refused (" + clean(lines[0], 60) + ")")
+    accept = base64.b64encode(hashlib.sha1((key + GUID).encode()).digest()).decode()
+    if not any(line.lower().startswith("sec-websocket-accept:") and line.split(":", 1)[1].strip() == accept
+               for line in lines[1:]):
+        raise Dropped("no websocket answer")
+    return sock, rest
+
+
+# ---------- Zello's messages ----------
+
+def parse_codec_header(text):
+    """(sample rate, frames per packet, frame ms) of a codec_header, None when it is not one"""
+    try:
+        raw = base64.b64decode(text or "", validate=True)
+    except (ValueError, TypeError):
+        return None
+    if len(raw) != 4:
+        return None
+    rate, frames, ms = struct.unpack("<HBB", raw)
+    return (rate, frames, ms) if rate and frames and ms else None
+
+
+def make_codec_header(rate=RATE, frames=1, ms=FRAME_MS):
+    return base64.b64encode(struct.pack("<HBB", rate, frames, ms)).decode()
+
+
+def parse_audio(data):
+    """(stream_id, packet_id, Opus packet) of a binary frame, None when it is not audio"""
+    if len(data) < 10 or data[0] != 1:
+        return None
+    sid, pid = struct.unpack(">II", data[1:9])
+    return sid, pid, data[9:]
+
+
+def make_audio(stream_id, packet_id, opus):
+    return struct.pack(">BII", 1, stream_id, packet_id) + opus
+
+
+class Channel:
+    """What Zello said of the channel and its talkers, from its JSON messages (no network here: the session hands
+    them in). event() gives the lines for the GUI"""
+
+    def __init__(self, name):
+        self.name = name
+        self.status = ""
+        self.users = None
+        self.streams = {}           # stream_id -> (talker, codec header)
+        self.error = ""
+
+    def talker(self):
+        return next(iter(self.streams.values()))[0] if self.streams else ""
+
+    def event(self, m):
+        """Lines for the GUI, and "start"/"stop" with the stream_id for the decoders: (lines, ("start"|"stop", id))"""
+        cmd = m.get("command")
+        lines, stream = [], None
+        if cmd == "on_channel_status":
+            self.status = str(m.get("status", ""))
+            users = m.get("users_online")
+            self.users = users if isinstance(users, int) and users >= 0 else None
+            if isinstance(m.get("channel"), str) and m["channel"]:
+                self.name = clean(m["channel"], 64)
+            lines.append(f"channel {self.users if self.users is not None else '-'} {self.name}")
+            lines.append("state online" if self.status == "online" else
+                         "state offline channel " + clean(self.status or "offline", 40))
+        elif cmd == "on_stream_start":
+            sid = m.get("stream_id")
+            if m.get("type", "audio") != "audio" or m.get("codec", "opus") != "opus" or not isinstance(sid, int):
+                return lines, None
+            was = self.talker()
+            self.streams[sid] = (clean(m.get("from", "?"), 48) or "?", parse_codec_header(m.get("codec_header")))
+            stream = ("start", sid)
+            if self.talker() != was:
+                lines.append("talker " + self.talker())
+        elif cmd == "on_stream_stop":
+            sid = m.get("stream_id")
+            if sid in self.streams:
+                was = self.talker()
+                del self.streams[sid]
+                stream = ("stop", sid)
+                if self.talker() != was:
+                    lines.append(("talker " + self.talker()).rstrip())
+        elif cmd == "on_error":
+            self.error = clean(m.get("error", "error"), 80)
+        return lines, stream
+
+
+# ---------- Opus, from the system's libopus ----------
+
+class Opus:
+    def __init__(self):
+        name = ctypes.util.find_library("opus") or "libopus.so.0"
+        try:
+            lib = ctypes.CDLL(name)
+        except OSError:
+            raise Fail("no libopus in this image")
+        lib.opus_decoder_create.restype = ctypes.c_void_p
+        lib.opus_decoder_create.argtypes = [ctypes.c_int32, ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
+        lib.opus_decode.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int32, ctypes.POINTER(ctypes.c_int16),
+                                    ctypes.c_int, ctypes.c_int]
+        lib.opus_decoder_destroy.argtypes = [ctypes.c_void_p]
+        lib.opus_encoder_create.restype = ctypes.c_void_p
+        lib.opus_encoder_create.argtypes = [ctypes.c_int32, ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
+        lib.opus_encode.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_int16), ctypes.c_int, ctypes.c_char_p,
+                                    ctypes.c_int32]
+        lib.opus_encoder_destroy.argtypes = [ctypes.c_void_p]
+        self.lib = lib
+
+    def decoder(self):
+        return OpusDecoder(self.lib)
+
+    def encoder(self):
+        return OpusEncoder(self.lib)
+
+
+class OpusDecoder:
+    MAX = RATE * 120 // 1000        # samples: the longest Opus packet, 120 ms
+
+    def __init__(self, lib):
+        err = ctypes.c_int()
+        self.lib, self.d = lib, lib.opus_decoder_create(RATE, 1, ctypes.byref(err))
+        if not self.d or err.value != 0:
+            raise Fail("Opus: no decoder")
+        self.pcm = (ctypes.c_int16 * self.MAX)()
+
+    def decode(self, packet):
+        """PCM bytes, b"" for a packet that is not Opus"""
+        n = self.lib.opus_decode(self.d, packet, len(packet), self.pcm, self.MAX, 0)
+        return bytes(memoryview(self.pcm).cast("B")[:n * 2]) if n > 0 else b""
+
+    def close(self):
+        if self.d:
+            self.lib.opus_decoder_destroy(self.d)
+            self.d = None
+
+
+class OpusEncoder:
+    def __init__(self, lib):
+        err = ctypes.c_int()
+        self.lib, self.e = lib, lib.opus_encoder_create(RATE, 1, 2048, ctypes.byref(err))     # OPUS_APPLICATION_VOIP
+        if not self.e or err.value != 0:
+            raise Fail("Opus: no encoder")
+        self.out = ctypes.create_string_buffer(1500)
+
+    def encode(self, pcm):
+        """An Opus packet of one frame of FRAME samples (bytes)"""
+        buf = (ctypes.c_int16 * FRAME).from_buffer_copy(pcm)
+        n = self.lib.opus_encode(self.e, buf, FRAME, self.out, 1500)
+        return self.out.raw[:n] if n > 0 else b""
+
+    def close(self):
+        if self.e:
+            self.lib.opus_encoder_destroy(self.e)
+            self.e = None
+
+
+# ---------- the GUI's socket ----------
+
+class Gui:
+    """Lines and audio to the GUI, whole records; a GUI that went away ends the helper's run"""
+
+    def __init__(self, sock):
+        self.sock = sock
+        self.lock = threading.Lock()
+        self.gone = threading.Event()
+
+    def line(self, text):
+        self.send(clean(text, 200).encode() + b"\n")
+
+    def audio(self, pcm):
+        self.send(b"\x00" + pcm)
+
+    def send(self, record):
+        if self.gone.is_set():
+            return
+        try:
+            with self.lock:
+                self.sock.send(record)
+        except OSError:
+            self.gone.set()
+
+
+# ---------- a connection to the channel ----------
+
+class Session:
+    """One websocket to Zello: logon, the channel's events and audio, a message to send. The reader thread reads
+    Zello, the writer hands the decoded audio to the GUI, the pinger finds a dead line"""
+
+    def __init__(self, url, channel, acc, pem, gui, opus, refresh=None):
+        self.url, self.acc, self.pem, self.gui, self.opus = url, acc, pem, gui, opus
+        self.ch = Channel(channel)
+        self.refresh = refresh
+        self.sock = None
+        self.send_lock = threading.Lock()
+        self.seq = 0
+        self.waiting = {}               # seq -> [event, answer]
+        self.decoders = {}              # stream_id -> OpusDecoder
+        self.audio = queue.Queue(AUDIO_QUEUE)
+        self.dropped = 0
+        self.closed = threading.Event()
+        self.ended = ""                 # why the connection ended, for the log and the GUI
+        self.last_rx = time.monotonic()
+        self.talking = None             # the stream_id of the message being sent
+        self.tx_seq = 0
+
+    # sending
+    def send(self, op, payload):
+        data = ws_frame(op, payload)
+        with self.send_lock:
+            self.sock.sendall(data)
+
+    def call(self, obj, timeout=TIMEOUT):
+        with self.send_lock:
+            self.seq += 1
+            obj["seq"] = self.seq
+        ev = [threading.Event(), None]
+        self.waiting[obj["seq"]] = ev
+        try:
+            self.send(1, json.dumps(obj, separators=(",", ":")))
+        except OSError as e:
+            self.waiting.pop(obj["seq"], None)
+            raise Dropped(clean(e, 60) or "send failed")
+        if not ev[0].wait(timeout):
+            self.waiting.pop(obj["seq"], None)
+            raise Dropped(self.ended or "no answer from Zello")
+        if ev[1] is None:
+            raise Dropped(self.ended or "connection closed")
+        return ev[1]
+
+    # the connection
+    def connect(self):
+        self.gui.line("state connecting")
+        self.sock, rest = ws_connect(self.url)
+        self.sock.settimeout(None)
+        self.reader_rest = rest
+        threading.Thread(target=self.reader, daemon=True).start()
+        threading.Thread(target=self.pinger, daemon=True).start()
+        threading.Thread(target=self.writer, daemon=True).start()
+        msg = {"command": "logon", "channels": [self.ch.name]}
+        if self.refresh:
+            msg["refresh_token"] = self.refresh
+        else:
+            msg["auth_token"] = make_token(self.acc["issuer"], self.pem)
+        if self.acc["user"]:
+            msg["username"] = self.acc["user"]
+            msg["password"] = self.acc["password"]
+        r = self.call(msg)
+        if not r.get("success"):
+            err = clean(r.get("error", "") or "logon refused", 80)
+            log("logon refused (%s): %s" % ("refresh_token" if self.refresh else "auth_token", err))
+            used_refresh, self.refresh = self.refresh, None
+            if used_refresh and err not in ("not authorized", "invalid username", "invalid password"):
+                raise Dropped("refresh token refused")      # tried again at once with a new token
+            raise Refused(err)
+        if isinstance(r.get("refresh_token"), str) and r["refresh_token"]:
+            self.refresh = r["refresh_token"]
+        log("logged on, channel " + self.ch.name)
+
+    def close(self, why=""):
+        if self.closed.is_set():
+            return
+        if why and not self.ended:
+            self.ended = why
+        self.closed.set()
+        try:
+            self.send(8, b"\x03\xe8")
+        except (OSError, AttributeError):
+            pass
+        try:
+            self.sock.shutdown(socket.SHUT_RDWR)
+        except (OSError, AttributeError):
+            pass
+        try:
+            self.sock.close()
+        except (OSError, AttributeError):
+            pass
+        for w in list(self.waiting.values()):
+            w[0].set()
+        for d in self.decoders.values():
+            d.close()
+        self.decoders.clear()
+
+    def pinger(self):
+        last_ping = time.monotonic()
+        while not self.closed.wait(min(PING, DEAD) / 4):
+            now = time.monotonic()
+            if now - self.last_rx > DEAD:
+                log("dead: nothing from Zello in %d s (network or WiFi)" % DEAD)
+                self.close("no answer from Zello in %d s" % DEAD)
+                return
+            if now - last_ping >= PING:
+                last_ping = now
+                try:
+                    self.send(9, b"x6100")
+                except OSError as e:
+                    self.close("ping failed: " + clean(e, 60))
+                    return
+
+    def writer(self):
+        """The decoded audio to the GUI on a thread of its own: a GUI slow to take it never holds up Zello's line"""
+        while not self.closed.is_set():
+            try:
+                pcm = self.audio.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            self.gui.audio(pcm)
+
+    def reader(self):
+        frames = FrameReader()
+        try:
+            data = self.reader_rest
+            while not self.closed.is_set():
+                for op, payload in frames.feed(data):
+                    self.last_rx = time.monotonic()
+                    self.on_frame(op, payload)
+                data = self.sock.recv(65536)
+                if not data:
+                    raise Dropped("Zello closed the connection")
+                self.last_rx = time.monotonic()
+        except (OSError, Dropped, ValueError, json.JSONDecodeError) as e:
+            self.close(str(e) if isinstance(e, Dropped) else clean(e, 60) or e.__class__.__name__)
+        finally:
+            self.close("closed")
+
+    def on_frame(self, op, payload):
+        if op == 9:
+            self.send(10, payload)
+        elif op == 8:
+            code = struct.unpack(">H", payload[:2])[0] if len(payload) >= 2 else 0
+            why = clean(payload[2:].decode("utf-8", "replace"), 60)
+            raise Dropped("Zello closed the connection (%d%s)" % (code, ": " + why if why else ""))
+        elif op == 1:
+            m = json.loads(payload.decode("utf-8", "replace"))
+            if isinstance(m, dict):
+                self.on_json(m)
+        elif op == 2:
+            self.on_audio(payload)
+
+    def on_json(self, m):
+        seq = m.get("seq")
+        if isinstance(seq, int) and seq in self.waiting:
+            w = self.waiting.pop(seq)
+            w[1] = m
+            w[0].set()
+            return
+        lines, stream = self.ch.event(m)
+        if stream and stream[0] == "start" and self.opus:
+            old = self.decoders.pop(stream[1], None)
+            if old:
+                old.close()
+            self.decoders[stream[1]] = self.opus.decoder()
+        elif stream and stream[0] == "stop":
+            d = self.decoders.pop(stream[1], None)
+            if d:
+                d.close()
+        if m.get("command") == "on_channel_status" and m.get("status") != getattr(self, "last_status", None):
+            self.last_status = m.get("status")
+            log("channel %s: %s, %s online" % (self.ch.name, m.get("status"), m.get("users_online", "?")))
+        if m.get("command") == "on_error":
+            log("Zello said: " + self.ch.error)
+            if self.talking is not None:
+                self.gui.line("talk refused " + say(self.ch.error))
+        for line in lines:
+            self.gui.line(line)
+
+    def on_audio(self, data):
+        a = parse_audio(data)
+        if not a or self.talking is not None:
+            return
+        d = self.decoders.get(a[0])
+        if not d:
+            return
+        pcm = d.decode(a[2])
+        if not pcm:
+            return
+        try:
+            self.audio.put_nowait(pcm)
+        except queue.Full:
+            self.dropped += 1
+            if self.dropped in (1, 50) or self.dropped % 500 == 0:
+                log("the GUI is behind: %d audio packets dropped" % self.dropped)
+
+    # sending a message
+    def talk_start(self):
+        """The stream_id of a new message, or a Fail with the reason"""
+        if self.ch.status != "online":
+            raise Fail("not online")
+        r = self.call({"command": "start_stream", "channel": self.ch.name, "type": "audio", "codec": "opus",
+                       "codec_header": make_codec_header(), "packet_duration": FRAME_MS})
+        if not r.get("success") or not isinstance(r.get("stream_id"), int):
+            raise Refused(clean(r.get("error", "") or "failed to start stream", 80))
+        self.talking = r["stream_id"]
+        self.tx_seq = 0
+        return self.talking
+
+    def talk_packet(self, opus):
+        self.tx_seq += 1
+        self.send(2, make_audio(self.talking, self.tx_seq, opus))
+
+    def talk_stop(self):
+        sid, self.talking = self.talking, None
+        if sid is None:
+            return
+        try:
+            with self.send_lock:
+                self.seq += 1
+                seq = self.seq
+            self.send(1, json.dumps({"command": "stop_stream", "stream_id": sid, "channel": self.ch.name,
+                                     "seq": seq}, separators=(",", ":")))
+        except OSError:
+            pass
+
+
+# ---------- run: the GUI's side ----------
+
+class Talk:
+    """The message the GUI sends: its mic's audio in 20 ms Opus packets while the GUI says talk"""
+
+    def __init__(self, gui, opus):
+        self.gui, self.opus = gui, opus
+        self.session = None
+        self.lock = threading.Lock()
+        self.enc = None
+        self.pending = b""
+        self.since = 0.0
+        self.last_audio = 0.0
+
+    def start(self):
+        with self.lock:
+            s = self.session
+            if self.enc or not s or s.closed.is_set():
+                self.gui.line("talk refused " + ("already talking" if self.enc else "not online"))
+                return
+            try:
+                s.talk_start()
+            except (Fail, Dropped, OSError) as e:
+                self.gui.line("talk refused " + say(e))
+                return
+            self.enc = self.opus.encoder()
+            self.pending = b""
+            self.since = self.last_audio = time.monotonic()
+            log("talking")
+        self.gui.line("talk on")
+
+    def stop(self, why=""):
+        with self.lock:
+            if not self.enc:
+                return
+            self.enc.close()
+            self.enc = None
+            s = self.session
+            if s:
+                s.talk_stop()
+            log("talk ended" + (": " + why if why else ""))
+        self.gui.line("talk off")
+
+    def audio(self, pcm):
+        with self.lock:
+            if not self.enc or not self.session:
+                return
+            self.last_audio = time.monotonic()
+            self.pending += pcm
+            try:
+                while len(self.pending) >= FRAME * 2:
+                    pkt = self.enc.encode(self.pending[:FRAME * 2])
+                    self.pending = self.pending[FRAME * 2:]
+                    if pkt:
+                        self.session.talk_packet(pkt)
+            except OSError:
+                pass
+        self.watch()
+
+    def watch(self):
+        """The two-minute cap, and a GUI that stopped sending"""
+        if self.enc:
+            now = time.monotonic()
+            if now - self.since > TALK_MAX:
+                self.stop("two minutes")
+            elif now - self.last_audio > TALK_IDLE:
+                self.stop("no audio")
+
+
+def gui_reader(gui, talk):
+    """The GUI's records: talk start, talk stop, the mic's audio. The end of the socket ends the run"""
+    gui.sock.settimeout(0.25)
+    while not gui.gone.is_set():
+        try:
+            rec = gui.sock.recv(65536)
+        except socket.timeout:
+            talk.watch()
+            continue
+        except OSError:
+            break
+        if not rec:
+            break
+        if rec[:1] == b"\x00":
+            talk.audio(rec[1:])
+            continue
+        cmd = rec.decode("utf-8", "replace").strip()
+        if cmd == "talk start":
+            talk.start()
+        elif cmd == "talk stop":
+            talk.stop()
+    talk.stop("app closed")
+    gui.gone.set()
+
+
+def run(channel, gui, url=URL):
+    """The channel until the GUI goes; the exit code"""
+    acc = read_account()
+    try:
+        with open(KEY, encoding="utf-8", errors="replace") as f:
+            pem = f.read()
+    except OSError:
+        pem = ""
+    log.hide = secrets_of(acc, pem)
+    channel = clean(channel, 64)
+    if not channel:
+        gui.line("error no channel: add them on the web page's Zello page")
+        return 1
+    try:
+        if not acc["user"] or not acc["password"]:
+            raise Fail("no Zello account: the web page's Zello page")
+        if not acc["issuer"] or not pem.strip():
+            raise Fail("no developer key: the web page's Zello page")
+        parse_rsa_key(pem)      # a key that can't sign is said now, not at each try
+        opus = Opus()
+    except Fail as e:
+        log("not started: " + str(e))
+        gui.line("error " + str(e))
+        return 1
+    talk = Talk(gui, opus)
+    threading.Thread(target=gui_reader, args=(gui, talk), daemon=True).start()
+    log("start, channel " + channel)
+    wait, refresh = RETRY, None
+    while not gui.gone.is_set():
+        s = Session(url, channel, acc, pem, gui, opus, refresh)
+        t0 = time.monotonic()
+        try:
+            s.connect()
+            talk.session = s
+            while not s.closed.is_set() and not gui.gone.is_set():
+                s.closed.wait(0.25)
+            talk.session = None
+            talk.stop("connection lost")
+            if gui.gone.is_set():
+                s.close("app closed")
+                break
+            up = time.monotonic() - t0
+            if up > STEADY:
+                wait = RETRY
+            log("connection lost after %d s: %s" % (up, s.ended or "no reason"))
+            why = s.ended
+        except Refused as e:
+            s.close()
+            if str(e) in FATAL:
+                log("given up: " + say(e))
+                gui.line("error " + say(e))
+                return 1
+            why = say(e)        # the channel not ready, Zello's own trouble: tried again
+            log("refused: " + why)
+        except Fail as e:
+            s.close()
+            log("given up: " + str(e))
+            gui.line("error " + str(e))
+            return 1
+        except (OSError, Dropped) as e:
+            s.close()
+            why = say(e) if isinstance(e, Dropped) else net_reason(e)
+            log("no connection: " + why)
+            if why == "refresh token refused":
+                refresh = None
+                continue
+        refresh = s.refresh
+        gui.line("state retry %d %s" % (round(wait), why))
+        if gui.gone.wait(wait):
+            break
+        wait = min(wait * 2, RETRY_MAX)
+    log("end: the app closed")
+    return 0
+
+
+def net_reason(e):
+    """A few words for a network error"""
+    if isinstance(e, socket.gaierror):
+        return "no network" if e.errno in (socket.EAI_AGAIN, getattr(socket, "EAI_NODATA", -5)) else "name not found"
+    if isinstance(e, ssl.SSLCertVerificationError):
+        return "certificate: " + clean(e.verify_message or e, 60)
+    if isinstance(e, (socket.timeout, TimeoutError)):
+        return "no answer"
+    if isinstance(e, ConnectionRefusedError):
+        return "refused"
+    if isinstance(e, OSError) and e.errno in (101, 113):     # ENETUNREACH, EHOSTUNREACH
+        return "no network"
+    return clean(e, 60) or e.__class__.__name__
+
+
+class Quiet:
+    """A GUI for test: the lines kept, the audio dropped"""
+
+    def __init__(self):
+        self.lines = []
+        self.gone = threading.Event()
+
+    def line(self, text):
+        self.lines.append(text)
+
+    def audio(self, pcm):
+        pass
+
+
+def test(channel, url=URL):
+    """Logs on, waits up to 3 s for the channel's state; the line for the web page"""
+    acc = read_account()
+    try:
+        with open(KEY, encoding="utf-8", errors="replace") as f:
+            pem = f.read()
+    except OSError:
+        pem = ""
+    log.hide = secrets_of(acc, pem)
+    channel = clean(channel or next(iter(read_channels()), ""), 64)
+    if not channel:
+        return "error no channel: add one first"
+    if not acc["user"] or not acc["password"]:
+        return "error no Zello account: user name and password first"
+    gui = Quiet()
+    s = Session(url, channel, acc, pem, gui, None)
+    try:
+        s.connect()
+        t = time.monotonic()
+        while not s.ch.status and time.monotonic() - t < 3 and not s.closed.is_set():
+            time.sleep(0.1)
+    except Fail as e:
+        return "error " + say(e)
+    except (OSError, Dropped) as e:
+        return "error " + (say(e) if isinstance(e, Dropped) else net_reason(e))
+    finally:
+        s.close()
+    if s.ch.error:
+        return "error " + say(s.ch.error)
+    if s.ch.status and s.ch.status != "online":
+        return "error channel " + clean(s.ch.status, 40)
+    users = f", {s.ch.users} online" if s.ch.users is not None else ""
+    return f"ok {s.ch.name}{users}"
+
+
+def main(argv):
+    cmd = argv[1] if len(argv) > 1 else ""
+    try:
+        if cmd == "run" and len(argv) == 3:
+            gui = Gui(socket.socket(fileno=0))
+            return run(argv[2], gui)
+        if cmd == "test" and len(argv) <= 3:
+            line = test(argv[2] if len(argv) == 3 else "")
+            for s in log.hide:
+                line = line.replace(s, HIDDEN)
+            print(line)
+            return 0 if line.startswith("ok") else 1
+    except Exception:
+        log("failed:\n" + traceback.format_exc())
+        raise
+    print("usage: x6100-zello run <channel> | test [channel]", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

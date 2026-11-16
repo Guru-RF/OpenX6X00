@@ -382,6 +382,33 @@ bool audio_play_if_room(int16_t *samples_buf, size_t samples) {
     return bytes > 0;
 }
 
+/* As audio_play_if_room, saying how many samples went: the caller writes the rest once there is room. In pieces of
+ * a thousand samples or so: the stream never has room for a write much bigger than its buffer, and audio_play()
+ * waiting for it waits for ever (the CX8ANM edition's Zello, 1aa72f4a: blocks of ~2800 never went) */
+size_t audio_play_room(int16_t *samples_buf, size_t samples) {
+    pa_threaded_mainloop_lock(mloop);
+    size_t room  = pa_stream_writable_size(cur_stm());
+    size_t bytes = (room == (size_t)-1 ? 0 : LV_MIN(room, samples * 2)) & ~(size_t)1;
+    if (bytes) {
+        pa_stream_write(cur_stm(), samples_buf, bytes, NULL, 0, PA_SEEK_RELATIVE);
+    }
+    pa_threaded_mainloop_unlock(mloop);
+    return bytes / 2;
+}
+
+/* Drops what waits on the codec's stream from any thread: audio_play_flush() drops the calling thread's, which is
+ * the headphones' or the network voice's on a thread that has one (the Zello app's, before the GUI keys) */
+void audio_play_flush_speaker(void) {
+    pa_operation *op;
+
+    pa_threaded_mainloop_lock(mloop);
+    op = pa_stream_flush(play_stm, NULL, NULL);
+    if (op) {
+        pa_operation_unref(op);
+    }
+    pa_threaded_mainloop_unlock(mloop);
+}
+
 bool audio_play_bt_begin(void) {
     char              sink[128];
     pa_sample_spec    spec = { .format = PA_SAMPLE_S16NE, .rate = AUDIO_PLAY_RATE, .channels = 1 };

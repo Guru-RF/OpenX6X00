@@ -1,0 +1,94 @@
+% rebase('base.html', title='Zello')
+<h2><svg class="i"><use href="#i-speaker"/></svg>Zello</h2>
+<p class="sub">The radio on a channel of Zello, the push-to-talk voice service, over the internet only: nothing of it goes on the air. On the radio: APP &gt; Zello, choose a channel and press the MFK. What the channel says plays on the speaker at the radio's volume; to talk press the radio's PTT key (or Talk) and speak into the hand mic, without the hand mic's own PTT. The radio connects to Zello only while the app is on a channel, and never at boot.</p>
+
+<form class="dp-card" id="acc">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-lock"/></svg></span><div><h3>Account<span class="eff">Takes effect: at the next connect</span></h3><p>Your Zello account (the free one, as in the Zello app on a phone) and a developer key, which Zello asks of every program on its Channel API: on developers.zello.com log in with the same account, Keys, Add Key, and copy the Issuer and the Private Key here. The radio signs a short token with the key at each logon, so its clock has to be right. All of this stays on the radio, readable by root only, out of the backups, and goes to Zello's servers only. Saved, it is never shown again: the page says Set or Not set.</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="user"><b>User name</b></label><span>Now: <b id="user-state"></b>. A new one replaces it; empty keeps it</span></div>
+    <div class="dp-ctl"><input id="user" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="64" placeholder="New user name (empty = keep)"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="password"><b>Password</b></label><span>Password: <b id="password-state"></b>. Empty keeps it</span></div>
+    <div class="dp-ctl"><input id="password" type="password" autocomplete="new-password" maxlength="128" placeholder="New password (empty = keep)"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="issuer"><b>Issuer</b></label><span>Issuer: <b id="issuer-state"></b>. The developer key's Issuer. Empty keeps it</span></div>
+    <div class="dp-ctl"><input id="issuer" type="password" autocomplete="off" maxlength="300" placeholder="New Issuer (empty = keep)"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="key"><b>Private Key</b></label><span>Key: <b id="key-state"></b>. Paste all of it, from -----BEGIN PRIVATE KEY----- to -----END PRIVATE KEY-----. Empty keeps it</span></div>
+    <div class="dp-ctl"><textarea id="key" rows="4" autocomplete="off" spellcheck="false" maxlength="8192" placeholder="New Private Key (empty = keep)" style="width:100%;font-family:monospace;-webkit-text-security:disc"></textarea></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="channels"><b>Channels</b></label><span>One a line, as Zello writes them; at most 20. The app lists them: after Save, Reload channels in the app</span></div>
+    <div class="dp-ctl"><textarea id="channels" rows="5" autocomplete="off" spellcheck="false" maxlength="1400" style="width:100%"></textarea></div>
+  </div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <div class="actions" style="margin-top:0">
+      <button type="submit" class="primary">Save</button>
+      <button type="button" id="test">Test</button>
+      <button type="button" id="clear">Clear account</button>
+      <span class="status" id="status"></span>
+    </div>
+    <p class="meta">Test logs on to Zello with what is saved, on the first channel, and off again (Save first). A connection report: /mnt/app_logs/zello.txt on the Files page, never with the password or the key in it.</p>
+  </div>
+</form>
+
+<script src="/static/js/edit_flow.js?v=3"></script>
+<script>
+var showStatus = function(id, text, error=false) {
+  const el = $(id);
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var render = function(d) {
+  $("#user, #password, #issuer, #key").val("");
+  $("#user-state").text(d.user_set ? d.user : "Not set");
+  $("#password-state").text(d.password_set ? "Set" : "Not set");
+  $("#issuer-state").text(d.issuer_set ? "Set" : "Not set");
+  $("#key-state").text(d.key_set ? "Set" : "Not set");
+  $("#clear").prop("disabled", !(d.user_set || d.password_set || d.issuer_set || d.key_set));
+  $("#channels").val(d.channels.join("\n"));
+  form.reset();
+}
+
+const form = EditFlow.form($("#acc"), $("#status"), $("#acc button[type=submit]"));
+
+var post = function(url, data, done, ms) {
+  $.ajax({
+    url: url,
+    type: "POST",
+    data: JSON.stringify(data),
+    contentType: "application/json; charset=utf-8",
+    dataType: "json",
+    timeout: ms,
+    success: done,
+    error: function(xhr, why) { showStatus("#status", x6100FailText(xhr, why, ms), true); },
+    complete: function() { $("#test").prop("disabled", false); }
+  });
+}
+
+$.get('/api/zello', {}, render);
+
+$("#acc").on("submit", function(e) {
+  e.preventDefault();
+  showStatus("#status", "Saving...");
+  const channels = $("#channels").val().split("\n").map(function(c) { return c.trim(); }).filter(Boolean);
+  post("/api/zello", {user: $("#user").val().trim(), password: $("#password").val(), issuer: $("#issuer").val().trim(),
+                      private_key: $("#key").val().trim(), channels: channels},
+       function(r) { render(r); showStatus("#status", r.result); }, 15000);
+});
+
+$("#test").on("click", function() {
+  $("#test").prop("disabled", true);
+  showStatus("#status", "Asking Zello...");
+  post("/api/zello/test", {}, function(r) { showStatus("#status", r.ok ? "Logged on: " + r.msg : r.msg, !r.ok); }, 55000);
+});
+
+$("#clear").on("click", function() {
+  if (!confirm("Clear the Zello account and developer key from the radio? The channels stay.")) return;
+  post("/api/zello", {clear: true}, function(r) { render(r); showStatus("#status", r.result); }, 15000);
+});
+</script>

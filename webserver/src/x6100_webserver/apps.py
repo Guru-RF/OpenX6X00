@@ -1504,12 +1504,13 @@ def winlink_secrets():
 
 def stored_secrets():
     """Every secret the radio keeps: the Wavelog key and its live link's secret path, the QRZ, HOTA and WWFF keys, the
-    Winlink passwords, the WiFi passwords"""
+    Winlink passwords, the WiFi passwords, the Zello password and developer key"""
     wl = wavelog_read()
     found = {wl.get("key", ""), wl.get("cat_token", ""), field_key("hota.conf"), field_key("wwff.conf")}
     found.update(qrz_read()[2])
     found.update(winlink_secrets())
     found.update(wifi_secrets())
+    found.update(zello_secrets())
     return found
 
 
@@ -4353,6 +4354,190 @@ def restore_backup():
         return {"restored": restored, "failed": failed, "gui_restarted": gui_up}
     finally:
         backup_lock.release()
+
+
+# Zello routes: the Zello app (APP > Zello, src/dialog_zello.c) and its helper x6100-zello (rootfs/usr/sbin), the
+# only one that talks to zello.io, and only while the app is on a channel. In ZELLO_DIR: account.conf (user, password,
+# issuer: the Zello developer key's Issuer) and private_key.pem (its Private Key), the radio's own secrets, written
+# for root alone and never handed back (the page says Set or Not set, the user name as its first two characters), not
+# in a backup (backup_files) and not on the Files page (config_pages.secret_places); channels.txt, a channel a line,
+# which the app lists. The account goes to zello.io and nowhere else: the Test here runs the helper.
+
+ZELLO_ACCOUNT_KEYS = ("user", "password", "issuer")
+ZELLO_CHANNELS_MAX = 20
+ZELLO_KEY_MAX = 8192        # bytes of a pasted Private Key: a 4096-bit one is about 3300
+ZELLO_PEM = re.compile(r"-----BEGIN (RSA )?PRIVATE KEY-----\s+([A-Za-z0-9+/=\s]+?)\s*-----END (RSA )?PRIVATE KEY-----")
+zello_lock = threading.Lock()
+
+
+def zello_path(name):
+    return os.path.join(settings.ZELLO_DIR, name)
+
+
+def zello_read():
+    """account.conf as the helper reads it: "" for what is missing"""
+    acc = dict.fromkeys(ZELLO_ACCOUNT_KEYS, "")
+    try:
+        with open(zello_path("account.conf"), encoding="utf-8", errors="replace") as f:
+            for line in f:
+                k, sep, v = line.rstrip("\r\n").partition("=")
+                if sep and k.strip() in acc:
+                    acc[k.strip()] = v if k.strip() == "password" else v.strip()
+    except OSError:
+        pass
+    return acc
+
+
+def zello_key_text():
+    try:
+        with open(zello_path("private_key.pem"), encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+def zello_secrets():
+    """The password, the Issuer and the Private Key's lines: hidden in whatever a helper or a server says. Not the
+    user name, often the callsign, which the other pages show: the Zello page never shows it whole"""
+    acc = zello_read()
+    found = {acc["password"], acc["issuer"]}
+    found.update(line.strip() for line in zello_key_text().splitlines()
+                 if len(line.strip()) >= 8 and "-----" not in line)
+    return found
+
+
+def zello_channels():
+    out = []
+    try:
+        with open(zello_path("channels.txt"), encoding="utf-8", errors="replace") as f:
+            for line in f:
+                name = " ".join(line.split())
+                if name and name not in out:
+                    out.append(name)
+    except OSError:
+        pass
+    return out[:ZELLO_CHANNELS_MAX]
+
+
+def zello_write_file(name, text, mode):
+    os.makedirs(settings.ZELLO_DIR, exist_ok=True)
+    path = zello_path(name)
+    tmp = path + ".tmp"
+    with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode), "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
+def zello_user_shown(user):
+    """The first two characters and an ellipsis: enough to tell which account, not the name"""
+    return user[:2] + "\u2026" if len(user) > 2 else "\u2026" if user else ""
+
+
+def zello_state(result=None):
+    acc = zello_read()
+    return {"user": zello_user_shown(acc["user"]), "user_set": bool(acc["user"]),
+            "password_set": bool(acc["password"]), "issuer_set": bool(acc["issuer"]),
+            "key_set": bool(ZELLO_PEM.search(zello_key_text())), "channels": zello_channels(), "result": result}
+
+
+def zello_text(value, limit, what):
+    """A typed value: str, no control characters, at most limit characters; "" when not sent"""
+    if value is None:
+        return ""
+    if not isinstance(value, str) or len(value) > limit or any(ord(c) < 32 or ord(c) == 127 for c in value):
+        raise ValueError(f"{what}: at most {limit} characters, on one line")
+    return value
+
+
+@app.route('/zello')
+def zello_page():
+    return bottle.template('zello')
+
+
+@app.get('/api/zello')
+def get_zello():
+    return zello_state()
+
+
+@app.post('/api/zello')
+def set_zello():
+    """{"user", "password", "issuer", "private_key", "channels": [...]}: an empty or missing account field keeps the
+    one stored, channels replace the list when sent. {"clear": true} takes the account and the key away"""
+    try:
+        body = bottle.request.json
+    except ValueError:
+        body = None
+    if not isinstance(body, dict):
+        return api_error(400, "Send the settings as JSON")
+    try:
+        with zello_lock:
+            if body.get("clear") is True:
+                for name in ("account.conf", "private_key.pem"):
+                    if os.path.exists(zello_path(name)):
+                        os.remove(zello_path(name))
+                return zello_state("Account and key cleared")
+            acc = zello_read()
+            user = zello_text(body.get("user"), 64, "User name").strip()
+            password = zello_text(body.get("password"), 128, "Password")
+            issuer = zello_text(body.get("issuer"), 300, "Issuer").strip()
+            if issuer and not re.fullmatch(r"[!-~]+", issuer):
+                raise ValueError("Issuer: printable characters, no spaces")
+            pem = body.get("private_key") or ""
+            if not isinstance(pem, str) or len(pem) > ZELLO_KEY_MAX:
+                raise ValueError("Private Key: too long")
+            pem = pem.replace("\\n", "\n").replace("\r\n", "\n").strip()
+            if pem and not ZELLO_PEM.fullmatch(pem):
+                raise ValueError("Private Key: paste all of it, from -----BEGIN PRIVATE KEY----- to "
+                                 "-----END PRIVATE KEY-----")
+            channels = None
+            if "channels" in body:
+                if not isinstance(body["channels"], list):
+                    raise ValueError("Channels: a list")
+                channels = []
+                for c in body["channels"]:
+                    c = " ".join(zello_text(c, 64, "A channel's name").split())
+                    if c and c not in channels:
+                        channels.append(c)
+                if len(channels) > ZELLO_CHANNELS_MAX:
+                    raise ValueError(f"Channels: {ZELLO_CHANNELS_MAX} at most")
+            for k, v in (("user", user), ("password", password), ("issuer", issuer)):
+                if v:
+                    acc[k] = v
+            if user or password or issuer:
+                zello_write_file("account.conf", "".join(f"{k}={acc[k]}\n" for k in ZELLO_ACCOUNT_KEYS if acc[k]),
+                                 0o600)
+            if pem:
+                zello_write_file("private_key.pem", pem + "\n", 0o600)
+            if channels is not None:
+                zello_write_file("channels.txt", "".join(c + "\n" for c in channels), 0o644)
+    except ValueError as e:
+        return api_error(400, str(e))
+    except OSError as e:
+        return api_error(500, f"Can't save: {e}")
+    return zello_state("Saved. On the radio: APP > Zello, Reload channels")
+
+
+@app.post('/api/zello/test')
+def test_zello():
+    """x6100-zello test with the account saved: it logs on to zello.io and off again. Its line, the secrets hidden"""
+    if not zello_lock.acquire(blocking=False):
+        return api_error(409, "A test is running")
+    try:
+        acc = zello_read()
+        env = dict(os.environ, X6100_ZELLO_DIR=settings.ZELLO_DIR)
+        try:
+            r = subprocess.run([settings.ZELLO_CMD, "test"], capture_output=True, text=True, timeout=40, env=env)
+            lines = r.stdout.strip().splitlines()
+            line = lines[-1] if lines else f"error exit code {r.returncode}"
+        except subprocess.TimeoutExpired:
+            line = "error no answer in 40 s: check the radio's network"
+        except (OSError, subprocess.SubprocessError) as e:
+            line = f"error {e}"
+        line = hide_secrets(line, acc["user"])
+    finally:
+        zello_lock.release()
+    ok = line.startswith("ok ")
+    return {"ok": ok, "msg": line[3:] if ok else line[6:] if line.startswith("error ") else line}
 
 
 # The Bands, Digital modes, Time and Files pages, static files: config_pages.py adds their routes to app

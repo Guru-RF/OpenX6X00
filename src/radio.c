@@ -1223,6 +1223,22 @@ static bool tx_refused(tx_by_t by) {
            no_data_refused(by);
 }
 
+static void (*_Atomic tx_prepare_fn)(void);    /* radio_set_tx_prepare_fn */
+
+void radio_set_tx_prepare_fn(void (*fn)(void)) {
+    atomic_store(&tx_prepare_fn, fn);
+}
+
+/* Before the GUI keys, on the thread that keys and with no lock held: the speaker's own audio stops, so none of it
+ * goes out with the TX audio (the Zello app's channel) */
+static void tx_prepare(void) {
+    void (*fn)(void) = atomic_load(&tx_prepare_fn);
+
+    if (fn) {
+        fn();
+    }
+}
+
 static atomic_bool ptt_on;      /* the GUI's PTT as last set: the keyboard's toggle follows it (kbd_ptt.h) */
 static atomic_bool modem_on;    /* read on other threads (Winlink's on_air) while tx_player's thread keys */
 static bool modem_moved;        /* the VFO in use on the TX frequency for the modem: back when it lets go. key_mux */
@@ -1234,6 +1250,9 @@ static pthread_mutex_t key_mux = PTHREAD_MUTEX_INITIALIZER;     /* PTT from CAT'
 bool radio_set_ptt(bool tx) {
     if (tx && tx_refused(TX_BY_PTT)) {
         return false;
+    }
+    if (tx) {
+        tx_prepare();
     }
     pthread_mutex_lock(&key_mux);
     if (tx && ptt_moves()) {
@@ -1288,6 +1307,9 @@ int radio_get_mic(void) {
 void radio_set_modem(bool tx) {
     if (tx && tx_refused(TX_BY_GUI)) {
         return;
+    }
+    if (tx) {
+        tx_prepare();
     }
     pthread_mutex_lock(&key_mux);
     if (tx && param_i_get(cfg_band_split) && !atomic_load(&split_held)) {
