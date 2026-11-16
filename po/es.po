@@ -11,6 +11,166 @@ msgstr ""
 "X-OpenX6X00-Name: Español\n"
 "X-OpenX6X00-Status: draft\n"
 
+#: src/aero.c
+msgid "VOLMET AFI"
+msgstr ""
+
+#: src/aero.c
+msgid "Africa, Indian Ocean"
+msgstr "África, océano Índico"
+
+#: src/aero.c
+msgid "VOLMET CAR"
+msgstr ""
+
+#: src/aero.c
+msgid "Caribbean"
+msgstr "Caribe"
+
+#: src/aero.c
+msgid "VOLMET EUR"
+msgstr ""
+
+#: src/aero.c src/app_sstv.c
+msgid "Europe"
+msgstr "Europa"
+
+#: src/aero.c
+msgid "VOLMET MID"
+msgstr ""
+
+#: src/aero.c
+msgid "Middle East"
+msgstr "Medio Oriente"
+
+#: src/aero.c
+msgid "VOLMET NAT"
+msgstr ""
+
+#: src/aero.c
+msgid "North Atlantic"
+msgstr "Atlántico Norte"
+
+#: src/aero.c
+msgid "VOLMET NCA"
+msgstr ""
+
+#: src/aero.c
+msgid "North Central Asia"
+msgstr "Asia centro-norte"
+
+#: src/aero.c
+msgid "VOLMET PAC"
+msgstr ""
+
+#: src/aero.c
+msgid "Pacific"
+msgstr "Pacífico"
+
+#: src/aero.c
+msgid "VOLMET SAM"
+msgstr ""
+
+#: src/aero.c
+msgid "South America"
+msgstr "Sudamérica"
+
+#: src/aero.c
+msgid "VOLMET SEA"
+msgstr ""
+
+#: src/aero.c
+msgid "South East Asia"
+msgstr "Sudeste Asiático"
+
+#: src/aero.c
+msgid "VOLMET"
+msgstr ""
+
+#: src/aero.c
+msgid "Shannon, Ireland"
+msgstr "Shannon, Irlanda"
+
+#: src/aero.c
+msgid "RAF, United Kingdom (military)"
+msgstr "RAF, Reino Unido (militar)"
+
+#: src/aero.c
+msgid "Ezeiza, Argentina"
+msgstr ""
+
+#: src/aero.c
+msgid "Cordoba, Argentina"
+msgstr "Córdoba, Argentina"
+
+#: src/aero.c
+msgid "Trenton, Canada (military)"
+msgstr "Trenton, Canadá (militar)"
+
+#: src/aero.c
+msgid "Africa"
+msgstr "África"
+
+#: src/aero.c
+msgid "Central East Pacific"
+msgstr "Pacífico centro-este"
+
+#: src/aero.c
+msgid "Central West Pacific"
+msgstr "Pacífico centro-oeste"
+
+#: src/aero.c
+msgid "East Asia"
+msgstr "Asia oriental"
+
+#: src/aero.c
+msgid "Indian Ocean"
+msgstr "Océano Índico"
+
+#: src/aero.c
+msgid "North Pacific"
+msgstr "Pacífico Norte"
+
+#: src/aero.c
+msgid "South Atlantic"
+msgstr "Atlántico Sur"
+
+#: src/aero.c
+msgid "South Pacific"
+msgstr "Pacífico Sur"
+
+#: src/aero.c
+msgid "Common, search and rescue"
+msgstr "Común, búsqueda y rescate"
+
+#: src/aero.c
+msgid "LDOC"
+msgstr ""
+
+#: src/aero.c
+msgid "Airline operational control"
+msgstr "Control operacional de aerolíneas"
+
+#: src/aero.c
+msgid "Europe, Africa, Middle East"
+msgstr "Europa, África, Medio Oriente"
+
+#: src/aero.c src/app_sstv.c
+msgid "Americas"
+msgstr "Américas"
+
+#: src/aero.c
+msgid "Asia and Pacific"
+msgstr "Asia y Pacífico"
+
+#: src/aero.c
+msgid "Worldwide LDOC"
+msgstr "LDOC mundial"
+
+#: src/aero.c
+msgid "All areas"
+msgstr "Todas las zonas"
+
 #: src/app_sstv.c
 msgid ""
 "Start\n"
@@ -77,14 +237,6 @@ msgstr ""
 #: src/js8_window.c src/navtex_window.c src/voice_messages.c src/wefax_window.c
 msgid "Close"
 msgstr "Cerrar"
-
-#: src/app_sstv.c
-msgid "Europe"
-msgstr "Europa"
-
-#: src/app_sstv.c
-msgid "Americas"
-msgstr "Américas"
 
 #: src/app_sstv.c src/knob_info.cpp src/wifi_window.c
 msgid "Unknown"
@@ -515,8 +667,8 @@ msgstr "Propagación"
 msgid "Conditions, beacons"
 msgstr "Condiciones, balizas"
 
-#: src/apps_menu.c src/button_bar.cpp src/dialog_scan.c src/screen_main.c
-#: src/wefax_window.c
+#: src/apps_menu.c src/button_bar.cpp src/dialog_cb.c src/dialog_scan.c
+#: src/screen_main.c src/wefax_window.c
 msgid "Channels"
 msgstr "Canales"
 
@@ -592,6 +744,50 @@ msgstr "Birdies"
 msgid "Find birdies, antenna off"
 msgstr "Buscar birdies, sin antena"
 
+#: src/apps_menu.c
+msgid "Web radio"
+msgstr "Radio web"
+
+#: src/apps_menu.c
+msgid "Internet stations"
+msgstr "Emisoras de internet"
+
+#: src/apps_menu.c src/button_bar.cpp src/screen_main.c
+msgid "Zello"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Internet voice"
+msgstr "Voz por internet"
+
+#: src/apps_menu.c src/button_bar.cpp src/screen_main.c
+msgid "Flights"
+msgstr "Vuelos"
+
+#: src/apps_menu.c
+msgid "Aircraft around"
+msgstr "Aviones cerca"
+
+#: src/apps_menu.c src/screen_main.c
+msgid "HF Air Band"
+msgstr "Banda aérea HF"
+
+#: src/apps_menu.c
+msgid "Oceanic routes, VOLMET"
+msgstr "Rutas oceánicas, VOLMET"
+
+#: src/apps_menu.c
+msgid "27 MHz channels"
+msgstr "Canales de 27 MHz"
+
+#: src/apps_menu.c src/button_bar.cpp src/screen_main.c
+msgid "Weather"
+msgstr "Meteo"
+
+#: src/apps_menu.c
+msgid "Forecast, warnings"
+msgstr "Pronóstico, alertas"
+
 #: src/apps_menu.c src/button_bar.cpp src/js8_window.c src/screen_main.c
 msgid "Settings"
 msgstr "Ajustes"
@@ -622,6 +818,18 @@ msgstr ""
 
 #: src/audio.c
 msgid "X6100 GUI Local"
+msgstr ""
+
+#: src/audio.c
+msgid "X6100 GUI Station"
+msgstr ""
+
+#: src/audio.c
+msgid "X6100 GUI Zello"
+msgstr ""
+
+#: src/audio.c
+msgid "X6100 GUI SVXConnect"
 msgstr ""
 
 #: src/audio.c
@@ -674,7 +882,7 @@ msgstr "Buscando %s en %.3f MHz, %d encontrados hasta ahora"
 msgid "%s: %d new"
 msgstr "%s: %d nuevos"
 
-#: src/birdie.c src/dialog_cluster.c
+#: src/birdie.c src/dialog_cluster.c src/dialog_iradio.c
 msgid "Stopped"
 msgstr "Detenido"
 
@@ -1444,6 +1652,22 @@ msgstr ""
 "gación"
 
 #: src/button_bar.cpp
+msgid ""
+"Internet\n"
+"radio"
+msgstr ""
+"Radio\n"
+"Internet"
+
+#: src/button_bar.cpp
+msgid ""
+"HF Air\n"
+"Band"
+msgstr ""
+"Banda\n"
+"aérea HF"
+
+#: src/button_bar.cpp
 msgid "Rate"
 msgstr "Velocidad"
 
@@ -1458,6 +1682,78 @@ msgstr "Centro"
 #: src/button_bar.cpp
 msgid "Reverse"
 msgstr "Invertir"
+
+#: src/cb.c
+msgid "Europe (CEPT)"
+msgstr "Europa (CEPT)"
+
+#: src/cb.c
+msgid "Germany (80 channels)"
+msgstr "Alemania (80 canales)"
+
+#: src/cb.c
+msgid "United Kingdom 27/81"
+msgstr "Reino Unido 27/81"
+
+#: src/cb.c
+msgid "USA, Americas (FCC)"
+msgstr "EE. UU., Américas (FCC)"
+
+#: src/cb.c
+msgid "Australia"
+msgstr ""
+
+#: src/cb.c
+msgid "Poland (PL)"
+msgstr "Polonia (PL)"
+
+#: src/cb.c
+msgid "Band A (export)"
+msgstr "Banda A (exportación)"
+
+#: src/cb.c
+msgid "Band B (export)"
+msgstr "Banda B (exportación)"
+
+#: src/cb.c
+msgid "Band D (export)"
+msgstr "Banda D (exportación)"
+
+#: src/cb.c
+msgid "Band E (export)"
+msgstr "Banda E (exportación)"
+
+#: src/cb.c
+msgid "Emergency, travellers"
+msgstr "Emergencia, viajeros"
+
+#: src/cb.c
+msgid "Highway"
+msgstr "Autopista"
+
+#: src/cb.c
+msgid "Emergency only"
+msgstr "Solo emergencias"
+
+#: src/cb.c
+msgid "Calling, AM"
+msgstr "Llamada, AM"
+
+#: src/cb.c
+msgid "Calling, LSB"
+msgstr "Llamada, LSB"
+
+#: src/cb.c
+msgid "FM only"
+msgstr "Solo FM"
+
+#: src/cb.c
+msgid "Emergency"
+msgstr "Emergencia"
+
+#: src/cb.c
+msgid "Road"
+msgstr "Carretera"
 
 #: src/cfg_socket.cpp
 msgid "Invalid option"
@@ -1502,6 +1798,10 @@ msgstr "Frecuencia inválida"
 #: src/cfg_socket.cpp
 msgid "Busy, try again"
 msgstr "Ocupado, intente de nuevo"
+
+#: src/cfg_socket.cpp
+msgid "No memory"
+msgstr "Sin memoria"
 
 #: src/cfg_socket.cpp
 msgid "Bad request"
@@ -1758,8 +2058,8 @@ msgid "From %02i:%02i %s, %s"
 msgstr "Desde las %02i:%02i %s, %s"
 
 #: src/cw_messages.c src/dialog_birdie.c src/dialog_cw_kbd.c
-#: src/dialog_freedv.c src/settings_window.cpp src/swrscan_window.c
-#: src/voice_messages.c
+#: src/dialog_freedv.c src/dialog_iradio.c src/settings_window.cpp
+#: src/swrscan_window.c src/voice_messages.c
 msgid "Stop"
 msgstr "Parar"
 
@@ -2028,6 +2328,48 @@ msgstr ""
 #: src/cw_parse.c
 msgid "TEST"
 msgstr ""
+
+#: src/dialog_aero.c
+msgid "Area"
+msgstr "Zona"
+
+#: src/dialog_aero.c src/dialog_cluster.c
+msgid "Tune"
+msgstr "Sintonizar"
+
+#: src/dialog_aero.c src/dialog_cb.c
+msgid ""
+"Save\n"
+"channel"
+msgstr ""
+"Guardar\n"
+"canal"
+
+#: src/dialog_aero.c src/dialog_cb.c src/settings_window.cpp src/wifi_window.c
+msgid "Scan"
+msgstr "Buscar"
+
+#: src/dialog_aero.c
+#, c-format
+msgid "HF AIR BAND   #%06x %s#"
+msgstr "BANDA AÉREA HF   #%06x %s#"
+
+#: src/dialog_aero.c src/dialog_cb.c src/freq_list.c
+msgid "MFK: choose - press: tune"
+msgstr "MFK: elegir - pulsar: sintonizar"
+
+#: src/dialog_aero.c
+msgid "HF Air Band: not while transmitting"
+msgstr "Banda aérea HF: no mientras transmite"
+
+#: src/dialog_aero.c src/dialog_cb.c src/screen_main.c
+#, c-format
+msgid "Saved channel %s"
+msgstr "Canal guardado %s"
+
+#: src/dialog_aero.c src/dialog_cb.c
+msgid "Channel not saved"
+msgstr "Canal no guardado"
 
 #: src/dialog_bands.c
 msgid "(BANDS 1:1)"
@@ -2432,6 +2774,45 @@ msgstr "Los birdies son portadoras fijas que genera la propia radio. Esta búsqu
 msgid "Disconnect the antenna, then press Start. A few minutes: every active band the radio transmits on."
 msgstr "Desconecte la antena y pulse Iniciar. Unos minutos: todas las bandas activas en las que transmite la radio."
 
+#: src/dialog_cb.c
+msgid "Plan"
+msgstr ""
+
+#: src/dialog_cb.c src/settings_window.cpp
+msgid "Mode"
+msgstr "Modo"
+
+#. not in the list: a line or a word of a longer text
+#: src/dialog_cb.c
+msgid "Knob"
+msgstr "Perilla"
+
+#: src/dialog_cb.c
+msgid "Free"
+msgstr "Libre"
+
+#: src/dialog_cb.c
+msgid "main knob: channels"
+msgstr "perilla principal: canales"
+
+#: src/dialog_cb.c
+msgid "main knob: frequency"
+msgstr "perilla principal: frecuencia"
+
+#. not in the list: a line or a word of a longer text
+#: src/dialog_cb.c
+msgid "Channel"
+msgstr "Canal"
+
+#: src/dialog_cb.c
+msgid "CB: not while transmitting"
+msgstr "CB: no mientras transmite"
+
+#: src/dialog_cb.c
+#, c-format
+msgid "%s: %s only"
+msgstr "%s: solo %s"
+
 #: src/dialog_channels.c
 msgid "Add"
 msgstr "Agregar"
@@ -2485,10 +2866,6 @@ msgstr ""
 #: src/dialog_cluster.c src/settings_window.cpp
 msgid "Server"
 msgstr "Servidor"
-
-#: src/dialog_cluster.c
-msgid "Tune"
-msgstr "Sintonizar"
 
 #: src/dialog_cluster.c
 msgid "CLUSTER ALERT"
@@ -3210,7 +3587,7 @@ msgstr ""
 
 #: src/dialog_field.c
 msgid "SPOT"
-msgstr ""
+msgstr "LUGAR"
 
 #: src/dialog_field.c
 msgid ""
@@ -3992,6 +4369,80 @@ msgstr "Perfil de QRZ: %s"
 msgid "You are there: Start to activate it"
 msgstr "Está allí: Start para activarlo"
 
+#: src/dialog_flights.c src/dialog_meteo.c src/settings_window.cpp
+msgid "Update"
+msgstr "Actualizar"
+
+#: src/dialog_flights.c
+msgid "No aircraft in range just now: only those a volunteer's receiver nearby picks up are there"
+msgstr "Ningún avión al alcance ahora: solo aparecen los que capta algún receptor voluntario cercano"
+
+#: src/dialog_flights.c
+msgid "EMERGENCY"
+msgstr "EMERGENCIA"
+
+#: src/dialog_flights.c
+msgid "FLIGHTS"
+msgstr "VUELOS"
+
+#: src/dialog_flights.c src/dialog_meteo.c src/first_start.c src/station.c
+msgid "Locator"
+msgstr ""
+
+#: src/dialog_flights.c
+#, c-format
+msgid "%d aircraft   %d km"
+msgstr "%d aviones   %d km"
+
+#: src/dialog_flights.c
+msgid "airplanes.live, adsb.lol (ODbL)"
+msgstr ""
+
+#: src/dialog_flights.c
+msgid "No position: set the QTH locator in Settings > General, or plug in a GPS"
+msgstr "Sin posición: ponga el locator QTH en Ajustes > General, o conecte un GPS"
+
+#: src/dialog_flights.c
+msgid "Asking for the aircraft..."
+msgstr "Buscando los aviones..."
+
+#: src/dialog_flights.c
+msgid "Data:"
+msgstr "Datos:"
+
+#: src/dialog_flights.c src/dialog_meteo.c
+msgid "No answer from the helper"
+msgstr "Sin respuesta del programa auxiliar"
+
+#: src/dialog_flights.c
+#, c-format
+msgid ""
+"Range:\n"
+"%d km"
+msgstr ""
+"Radio:\n"
+"%d km"
+
+#: src/dialog_flights.c
+msgid "Flight"
+msgstr "Vuelo"
+
+#: src/dialog_flights.c
+msgid "Type"
+msgstr "Tipo"
+
+#: src/dialog_flights.c
+msgid "Altitude"
+msgstr "Altitud"
+
+#: src/dialog_flights.c src/settings_window.cpp
+msgid "Speed"
+msgstr "Velocidad"
+
+#: src/dialog_flights.c
+msgid "Distance"
+msgstr "Distancia"
+
 #: src/dialog_freedv.c
 msgid "Discard"
 msgstr "Descartar"
@@ -4207,6 +4658,151 @@ msgstr "FreeDV Reporter: el mensaje no se guardó"
 msgid "Reporter message:"
 msgstr "Mensaje para Reporter:"
 
+#: src/dialog_iradio.c
+msgid "Favourite"
+msgstr "Favorita"
+
+#: src/dialog_iradio.c
+msgid "List"
+msgstr "Lista"
+
+#. not in the list: a line or a word of a longer text
+#: src/dialog_iradio.c src/dialog_meteo.c src/first_start.c src/meteo.c
+#: src/settings_window.cpp
+msgid "Country"
+msgstr "País"
+
+#. not in the list: a line or a word of a longer text
+#: src/dialog_iradio.c
+msgid "Search"
+msgstr "Buscar"
+
+#: src/dialog_iradio.c
+msgid "The list could not be fetched"
+msgstr "No se pudo obtener la lista"
+
+#: src/dialog_iradio.c
+msgid "Loading the list from radio-browser.info..."
+msgstr "Cargando la lista de radio-browser.info..."
+
+#: src/dialog_iradio.c
+msgid "The directory sent no list"
+msgstr "El directorio no envió ninguna lista"
+
+#: src/dialog_iradio.c
+msgid "Stopped: the radio transmits"
+msgstr "Detenido: la radio transmite"
+
+#: src/dialog_iradio.c
+msgid "the station stopped sending"
+msgstr "la emisora dejó de transmitir"
+
+#: src/dialog_iradio.c
+msgid "the speaker took no audio"
+msgstr "el parlante no aceptó el audio"
+
+#: src/dialog_iradio.c
+msgid "the audio could not be played"
+msgstr "no se pudo reproducir el audio"
+
+#: src/dialog_iradio.c
+msgid "the player did not start"
+msgstr "el reproductor no arrancó"
+
+#: src/dialog_iradio.c
+#, c-format
+msgid "%s: not on this card image (MP3 only), a newer image plays it"
+msgstr "%s: no está en esta imagen de tarjeta (solo MP3), una imagen más nueva lo reproduce"
+
+#: src/dialog_iradio.c
+msgid "Countries"
+msgstr "Países"
+
+#: src/dialog_iradio.c
+msgid "Favourites"
+msgstr "Favoritas"
+
+#: src/dialog_iradio.c
+msgid "Most listened"
+msgstr "Más escuchadas"
+
+#: src/dialog_iradio.c
+msgid "No favourites yet: Favourite keeps the station selected in a list, the web page takes any stream address"
+msgstr "Sin favoritas todavía: Favorita guarda la emisora elegida en una lista; la página web acepta cualquier dirección de stream"
+
+#: src/dialog_iradio.c
+msgid "No stations"
+msgstr "No se encontraron emisoras"
+
+#: src/dialog_iradio.c
+msgid "not playable"
+msgstr "no reproducible"
+
+#: src/dialog_iradio.c
+msgid "Connecting"
+msgstr "Conectando"
+
+#: src/dialog_iradio.c
+msgid "Playing"
+msgstr "Sonando"
+
+#. not in the list: a line or a word of a longer text
+#: src/dialog_iradio.c
+msgid "Error"
+msgstr "Error"
+
+#: src/dialog_iradio.c
+msgid "Loading"
+msgstr "Cargando"
+
+#: src/dialog_iradio.c
+#, c-format
+msgid "Internet radio - %s"
+msgstr "Radio Internet - %s"
+
+#: src/dialog_iradio.c
+msgid "Nothing playing"
+msgstr "No suena nada"
+
+#: src/dialog_iradio.c src/dialog_snake.c src/recorder_window.c
+msgid "Play"
+msgstr "Reproducir"
+
+#: src/dialog_iradio.c
+#, c-format
+msgid "Favourites: %d at most"
+msgstr "Favoritas: %d como máximo"
+
+#: src/dialog_iradio.c
+msgid "Favourites could not be saved"
+msgstr "No se pudieron guardar las favoritas"
+
+#: src/dialog_iradio.c
+#, c-format
+msgid "Out of the favourites: %s"
+msgstr "Quitada de favoritas: %s"
+
+#: src/dialog_iradio.c
+#, c-format
+msgid "In the favourites: %s"
+msgstr "Agregada a favoritas: %s"
+
+#: src/dialog_iradio.c
+msgid "Not a stream address"
+msgstr "No es una dirección de stream"
+
+#: src/dialog_iradio.c
+msgid "Station, genre or a stream address (http://...): "
+msgstr "Emisora, género o dirección de stream (http://...): "
+
+#: src/dialog_iradio.c
+msgid "Stations from the directory of radio-browser.info"
+msgstr "Emisoras del directorio de radio-browser.info"
+
+#: src/dialog_iradio.c
+msgid "MP3 stations only: a newer card image plays the others - radio-browser.info"
+msgstr "Solo emisoras MP3: una imagen de tarjeta más nueva reproduce las demás - radio-browser.info"
+
 #: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
 msgid ""
 "Free\n"
@@ -4351,6 +4947,304 @@ msgstr "Indicativo DX:"
 #: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
 msgid "QSO cleared"
 msgstr "QSO borrado"
+
+#. not in the list: a line or a word of a longer text
+#: src/dialog_meteo.c
+msgid "Now"
+msgstr "Ahora"
+
+#: src/dialog_meteo.c
+msgid "5 days"
+msgstr "5 días"
+
+#: src/dialog_meteo.c
+msgid "Warnings"
+msgstr "Alertas"
+
+#: src/dialog_meteo.c
+msgid "Clear sky"
+msgstr "Despejado"
+
+#: src/dialog_meteo.c
+msgid "Mainly clear"
+msgstr "Casi despejado"
+
+#: src/dialog_meteo.c
+msgid "Partly cloudy"
+msgstr "Nubes y claros"
+
+#: src/dialog_meteo.c
+msgid "Overcast"
+msgstr "Cubierto"
+
+#: src/dialog_meteo.c
+msgid "Fog"
+msgstr "Niebla"
+
+#: src/dialog_meteo.c
+msgid "Rime fog"
+msgstr "Niebla helada"
+
+#: src/dialog_meteo.c
+msgid "Light drizzle"
+msgstr "Llovizna débil"
+
+#: src/dialog_meteo.c
+msgid "Drizzle"
+msgstr "Llovizna"
+
+#: src/dialog_meteo.c
+msgid "Dense drizzle"
+msgstr "Llovizna intensa"
+
+#: src/dialog_meteo.c
+msgid "Freezing drizzle"
+msgstr "Llovizna helada"
+
+#: src/dialog_meteo.c
+msgid "Dense freezing drizzle"
+msgstr "Llovizna helada intensa"
+
+#: src/dialog_meteo.c
+msgid "Light rain"
+msgstr "Lluvia débil"
+
+#: src/dialog_meteo.c
+msgid "Rain"
+msgstr "Lluvia"
+
+#: src/dialog_meteo.c
+msgid "Heavy rain"
+msgstr "Lluvia fuerte"
+
+#: src/dialog_meteo.c
+msgid "Freezing rain"
+msgstr "Lluvia helada"
+
+#: src/dialog_meteo.c
+msgid "Heavy freezing rain"
+msgstr "Lluvia helada fuerte"
+
+#: src/dialog_meteo.c
+msgid "Light snow"
+msgstr "Nevada débil"
+
+#: src/dialog_meteo.c
+msgid "Snow"
+msgstr "Nieve"
+
+#: src/dialog_meteo.c
+msgid "Heavy snow"
+msgstr "Nevada fuerte"
+
+#: src/dialog_meteo.c
+msgid "Snow grains"
+msgstr "Granos de nieve"
+
+#: src/dialog_meteo.c
+msgid "Light showers"
+msgstr "Chubascos débiles"
+
+#: src/dialog_meteo.c
+msgid "Showers"
+msgstr "Chubascos"
+
+#: src/dialog_meteo.c
+msgid "Violent showers"
+msgstr "Chubascos violentos"
+
+#: src/dialog_meteo.c
+msgid "Snow showers"
+msgstr "Chubascos de nieve"
+
+#: src/dialog_meteo.c
+msgid "Heavy snow showers"
+msgstr "Chubascos de nieve fuertes"
+
+#: src/dialog_meteo.c
+msgid "Thunderstorm"
+msgstr "Tormenta"
+
+#: src/dialog_meteo.c
+msgid "Thunderstorm with hail"
+msgstr "Tormenta con granizo"
+
+#: src/dialog_meteo.c
+msgid "Thunderstorm with heavy hail"
+msgstr "Tormenta con granizo fuerte"
+
+#: src/dialog_meteo.c
+msgid "very high"
+msgstr "muy alto"
+
+#: src/dialog_meteo.c
+#, c-format
+msgid "%s   %s   (%d warnings: Warnings)"
+msgstr "%s   %s   (%d alertas: Alertas)"
+
+#: src/dialog_meteo.c
+#, c-format
+msgid "#%06x %.*s did not answer:# none worked out from the forecast either"
+msgstr "#%06x %.*s no respondió:# tampoco se dedujo ninguna del pronóstico"
+
+#: src/dialog_meteo.c
+#, c-format
+msgid "#%06x No warnings in force here# (%s)"
+msgstr "#%06x Sin alertas vigentes aquí# (%s)"
+
+#: src/dialog_meteo.c
+#, c-format
+msgid "#%06x None worked out from the forecast# (no official warnings asked for this country)"
+msgstr "#%06x Ninguna deducida del pronóstico# (no se consultan alertas oficiales para este país)"
+
+#: src/dialog_meteo.c
+#, c-format
+msgid "Feels like %s"
+msgstr "Sensación térmica %s"
+
+#: src/dialog_meteo.c
+#, c-format
+msgid "Low %s, high %s"
+msgstr "Mín %s, máx %s"
+
+#: src/dialog_meteo.c
+#, c-format
+msgid "Sun %s to %s"
+msgstr "Sol %s a %s"
+
+#: src/dialog_meteo.c
+msgid "Wind"
+msgstr "Viento"
+
+#: src/dialog_meteo.c
+msgid "Gusts"
+msgstr "Ráfagas"
+
+#: src/dialog_meteo.c
+msgid "Humidity"
+msgstr "Humedad"
+
+#: src/dialog_meteo.c
+msgid "Pressure"
+msgstr "Presión"
+
+#: src/dialog_meteo.c
+msgid " hPa"
+msgstr ""
+
+#: src/dialog_meteo.c
+msgid "Rain today"
+msgstr "Lluvia hoy"
+
+#: src/dialog_meteo.c
+msgid "Clouds"
+msgstr "Nubes"
+
+#: src/dialog_meteo.c
+msgid "Dew point"
+msgstr "Punto de rocío"
+
+#: src/dialog_meteo.c
+msgid "Visibility"
+msgstr "Visibilidad"
+
+#: src/dialog_meteo.c
+msgid "UV index"
+msgstr "Índice UV"
+
+#: src/dialog_meteo.c
+msgid "Today"
+msgstr "Hoy"
+
+#: src/dialog_meteo.c
+msgid "No forecast in the answer"
+msgstr "La respuesta no trae pronóstico"
+
+#: src/dialog_meteo.c
+msgid "(here)"
+msgstr "(aquí)"
+
+#: src/dialog_meteo.c
+msgid "(nearby)"
+msgstr "(cerca)"
+
+#: src/dialog_meteo.c
+#, c-format
+msgid "#%06x %.*s did not answer:# the warnings below are worked out from the forecast, not official"
+msgstr "#%06x %.*s no respondió:# las alertas de abajo se deducen del pronóstico, no son oficiales"
+
+#: src/dialog_meteo.c
+#, c-format
+msgid "%s: %d for this place, %d nearby; their texts as the service gives them"
+msgstr "%s: %d para este lugar, %d cerca; sus textos tal como los da el servicio"
+
+#: src/dialog_meteo.c
+msgid "No official warnings are asked for this country: these are worked out from Open-Meteo's forecast, not official"
+msgstr "Para este país no se consultan alertas oficiales: estas se deducen del pronóstico de Open-Meteo, no son oficiales"
+
+#: src/dialog_meteo.c
+msgid "Times may lag meteoalarm.org: the latest warnings are there"
+msgstr "Los horarios pueden ir atrasados respecto a meteoalarm.org: allí están las últimas alertas"
+
+#: src/dialog_meteo.c
+msgid "No warnings in force here"
+msgstr "Sin alertas vigentes aquí"
+
+#: src/dialog_meteo.c
+msgid "None worked out from the forecast"
+msgstr "Ninguna deducida del pronóstico"
+
+#: src/dialog_meteo.c
+msgid "WEATHER"
+msgstr "METEOROLOGÍA"
+
+#: src/dialog_meteo.c
+msgid "No position: plug in a GPS, or set the QTH locator or the country in Settings > General"
+msgstr "Sin posición: conecte un GPS, o ponga el locator QTH o el país en Ajustes > General"
+
+#: src/dialog_meteo.c
+msgid "Asking for the weather..."
+msgstr "Consultando el tiempo..."
+
+#: src/dialog_meteo.c
+msgid "Notices on: the warnings asked every 30 minutes"
+msgstr "Avisos encendidos: alertas consultadas cada 30 minutos"
+
+#: src/dialog_meteo.c
+msgid "No position: plug in a GPS, or set the QTH locator or the country in Settings > General > STATION"
+msgstr "Sin posición: conecte un GPS, o ponga el locator QTH o el país en Ajustes > General > ESTACIÓN"
+
+#: src/dialog_meteo.c
+msgid "No weather yet: Update (it needs the internet)"
+msgstr "Todavía sin datos del tiempo: Actualizar (necesita internet)"
+
+#: src/dialog_meteo.c
+msgid ""
+"Notices:\n"
+"On"
+msgstr ""
+"Avisos:\n"
+"On"
+
+#: src/dialog_meteo.c
+msgid ""
+"Notices:\n"
+"Off"
+msgstr ""
+"Avisos:\n"
+"Off"
+
+#: src/dialog_meteo.c
+msgid ""
+"Weather warning notices on\n"
+"the warnings asked every 30 minutes"
+msgstr ""
+"Avisos de alertas meteo encendidos\n"
+"alertas consultadas cada 30 minutos"
+
+#: src/dialog_meteo.c
+msgid "Weather warning notices off"
+msgstr "Avisos de alertas meteo apagados"
 
 #: src/dialog_modes.c src/field/flog.c src/olivia_tx.c src/screen_main.c
 msgid "Olivia"
@@ -4672,6 +5566,10 @@ msgid "Airband"
 msgstr "Banda aérea"
 
 #: src/dialog_scan.c
+msgid "HF Air"
+msgstr "Aérea HF"
+
+#: src/dialog_scan.c
 msgid "Segment"
 msgstr "Segmento"
 
@@ -4840,10 +5738,6 @@ msgid ""
 msgstr ""
 "VIBORITA EN LA CASCADA\n"
 "#%06x Gire la perilla para doblar - MFK para empezar#"
-
-#: src/dialog_snake.c src/recorder_window.c
-msgid "Play"
-msgstr "Reproducir"
 
 #: src/dialog_wspr.c
 msgid "WSPR: no band of the hop here, beacon stopped"
@@ -5098,6 +5992,227 @@ msgstr "Indicativo"
 msgid "Grid"
 msgstr "Cuadrícula"
 
+#: src/dialog_zello.c
+msgid ""
+"Reload\n"
+"channels"
+msgstr ""
+"Recargar\n"
+"canales"
+
+#: src/dialog_zello.c
+msgid "(ZELLO 1:3)"
+msgstr ""
+
+#: src/dialog_zello.c
+msgid "(ZELLO 2:3)"
+msgstr ""
+
+#: src/dialog_zello.c
+msgid "(ZELLO 3:3)"
+msgstr ""
+
+#: src/dialog_zello.c src/settings_window.cpp src/wifi_window.c
+msgid "Disconnect"
+msgstr "Desconectar"
+
+#: src/dialog_zello.c src/settings_window.cpp src/wifi_window.c
+msgid "Connect"
+msgstr "Conectar"
+
+#: src/dialog_zello.c
+msgid ""
+"Stop\n"
+"talking"
+msgstr ""
+"Dejar de\n"
+"hablar"
+
+#: src/dialog_zello.c
+msgid ""
+"No BT\n"
+"mic"
+msgstr ""
+"Sin mic.\n"
+"BT"
+
+#: src/dialog_zello.c
+msgid "Talk"
+msgstr "Hablar"
+
+#: src/dialog_zello.c
+msgid ""
+"Talk via:\n"
+"Bluetooth"
+msgstr ""
+"Hablar por:\n"
+"Bluetooth"
+
+#: src/dialog_zello.c
+msgid ""
+"Talk via:\n"
+"Hand mic"
+msgstr ""
+"Hablar por:\n"
+"Mic. mano"
+
+#: src/dialog_zello.c
+msgid ""
+"CW ID:\n"
+"Off"
+msgstr ""
+"ID CW:\n"
+"Off"
+
+#: src/dialog_zello.c
+#, c-format
+msgid ""
+"TX limit:\n"
+"%d s"
+msgstr ""
+"Límite TX:\n"
+"%d s"
+
+#: src/dialog_zello.c
+#, c-format
+msgid ""
+"Pause:\n"
+"%d s"
+msgstr ""
+"Pausa:\n"
+"%d s"
+
+#: src/dialog_zello.c
+msgid "Zello: talk through a Bluetooth headset's mic"
+msgstr "Zello: hablar por el micrófono de los auriculares Bluetooth"
+
+#: src/dialog_zello.c
+msgid "Zello: talk through the hand mic"
+msgstr "Zello: hablar por el micrófono de mano"
+
+#: src/dialog_zello.c
+msgid "Zello to RF: set your callsign first (Settings), the link sends it as its CW ID"
+msgstr "Zello a RF: primero ponga su indicativo (Ajustes), el enlace lo envía como ID CW"
+
+#: src/dialog_zello.c
+msgid "Zello to RF: set the squelch (SQL) first, the link keys only while it is closed"
+msgstr "Zello a RF: primero ajuste el silenciador (SQL), el enlace solo transmite mientras está cerrado"
+
+#: src/dialog_zello.c
+msgid "Zello to RF: it transmits in LSB, USB, AM or FM only"
+msgstr "Zello a RF: solo transmite en LSB, USB, AM o FM"
+
+#: src/dialog_zello.c
+msgid "Zello to RF on: the channel's messages are transmitted on this frequency"
+msgstr "Zello a RF encendido: los mensajes del canal se transmiten en esta frecuencia"
+
+#: src/dialog_zello.c
+msgid "Zello to RF off"
+msgstr "Zello a RF apagado"
+
+#: src/dialog_zello.c
+msgid "RF to Zello: set the squelch (SQL) first, it tells when a station is on"
+msgstr "RF a Zello: primero ajuste el silenciador (SQL), indica cuándo hay una estación"
+
+#: src/dialog_zello.c
+msgid "RF to Zello on: what the squelch opens on goes to the channel"
+msgstr "RF a Zello encendido: lo que abre el silenciador va al canal"
+
+#: src/dialog_zello.c
+msgid "RF to Zello off"
+msgstr "RF a Zello apagado"
+
+#: src/dialog_zello.c
+msgid "Zello link: the CW ID can be off where your licence lets an unattended station go without it"
+msgstr "Enlace Zello: la ID CW puede ir apagada donde su licencia permita una estación desatendida sin ella"
+
+#: src/dialog_zello.c
+msgid "No channels: add them on the radio's web page, Zello"
+msgstr "Sin canales: agréguelos en la página web de la radio, Zello"
+
+#: src/dialog_zello.c
+#, c-format
+msgid "#%06x ZELLO#  #%06x %s#"
+msgstr ""
+
+#: src/dialog_zello.c
+msgid "voice channels on the internet, never on the air"
+msgstr "canales de voz por internet, nunca al aire"
+
+#: src/dialog_zello.c
+msgid "on the air: the channel"
+msgstr "al aire: el canal"
+
+#: src/dialog_zello.c
+msgid "on the air: CW ID"
+msgstr "al aire: ID CW"
+
+#: src/dialog_zello.c
+msgid "receiver to the channel"
+msgstr "receptor al canal"
+
+#: src/dialog_zello.c
+#, c-format
+msgid "#%06x ZELLO#  #%06x %s%s%s#  #%06x %s#"
+msgstr ""
+
+#: src/dialog_zello.c
+msgid "SIMPLEX REPEATER"
+msgstr "REPETIDOR SIMPLEX"
+
+#: src/dialog_zello.c
+msgid "Not connected: choose a channel and press the MFK"
+msgstr "Sin conexión: elija un canal y pulse la MFK"
+
+#: src/dialog_zello.c
+msgid "again in"
+msgstr "reintento en"
+
+#: src/dialog_zello.c
+msgid "Connecting to"
+msgstr "Conectando a"
+
+#: src/dialog_zello.c
+msgid "Talking on Zello: speak into the Bluetooth headset"
+msgstr "Hablando en Zello: hable a los auriculares Bluetooth"
+
+#: src/dialog_zello.c
+msgid "Talking on Zello: speak into the hand mic"
+msgstr "Hablando en Zello: hable al micrófono de mano"
+
+#: src/dialog_zello.c
+msgid "No audio: talking on Zello uses the hand mic"
+msgstr "Sin audio: para hablar en Zello se usa el micrófono de mano"
+
+#: src/dialog_zello.c
+msgid "Talking now:"
+msgstr "Hablando:"
+
+#: src/dialog_zello.c
+msgid "PTT or Talk: speak into the Bluetooth headset"
+msgstr "PTT o Hablar: hable a los auriculares Bluetooth"
+
+#: src/dialog_zello.c
+msgid "No Bluetooth mic: a headset on its headset profile"
+msgstr "Sin micrófono Bluetooth: auriculares en su perfil de manos libres"
+
+#: src/dialog_zello.c
+msgid "PTT or Talk: speak into the hand mic, without its own PTT"
+msgstr "PTT o Hablar: hable al micrófono de mano, sin su propio PTT"
+
+#: src/dialog_zello.c
+msgid "Zello: the helper could not start"
+msgstr "Zello: no se pudo iniciar el programa auxiliar"
+
+#: src/dialog_zello.c
+msgid "Zello: add channels on the radio's web page first"
+msgstr "Zello: primero agregue canales en la página web de la radio"
+
+#: src/dialog_zello.c
+#, c-format
+msgid "Zello channels: %d"
+msgstr "Canales de Zello: %d"
+
 #: src/digi_freqs.c
 msgid "20m wide"
 msgstr "20m ancho"
@@ -5298,6 +6413,26 @@ msgstr "Conectado a %s"
 msgid "Not connected: Networks lists the networks in reach"
 msgstr "No conectado: Redes muestra las redes al alcance"
 
+#: src/first_start.c src/settings_window.cpp
+msgid "Language file not found: English"
+msgstr "No se encontró el archivo de idioma: inglés"
+
+#: src/first_start.c
+msgid "The language of the screens: this guide, the menus and the apps take it at once. Settings > Display has it too."
+msgstr "El idioma de las pantallas: esta guía, los menús y las apps lo toman al instante. También está en Ajustes > Pantalla."
+
+#: src/first_start.c src/settings_window.cpp
+msgid " (draft)"
+msgstr " (borrador)"
+
+#: src/first_start.c src/settings_window.cpp
+msgid "Language"
+msgstr "Idioma"
+
+#: src/first_start.c
+msgid "A language marked draft is still being checked by a speaker."
+msgstr "Un idioma marcado como borrador todavía lo está revisando un hablante."
+
 #: src/first_start.c
 msgid "WiFi sets the clock, and the DX Cluster, the uploads and the web configurator need it. Networks opens the WiFi window: choose a network there, then ESC or GEN comes back here."
 msgstr "La WiFi pone en hora el reloj, y la necesitan el Cluster DX, las subidas y el configurador web. Redes abre la ventana WiFi: elija allí una red, y ESC o GEN vuelve aquí."
@@ -5320,10 +6455,6 @@ msgid "Callsign"
 msgstr "Indicativo"
 
 #: src/first_start.c
-msgid "Locator"
-msgstr ""
-
-#: src/first_start.c
 #, c-format
 msgid "Use %s"
 msgstr "Usar %s"
@@ -5338,16 +6469,58 @@ msgstr "Con un GPS con posición, aquí se ofrece su locator."
 
 #: src/first_start.c
 #, c-format
+msgid "Band plan: %s, as chosen in Settings > General"
+msgstr "Plan de bandas: %s, elegido en Ajustes > General"
+
+#: src/first_start.c
+#, c-format
+msgid "Band plan: Auto, Region %i from the GPS"
+msgstr "Plan de bandas: Auto, Región %i según el GPS"
+
+#: src/first_start.c
+#, c-format
+msgid "Band plan: Auto, Region %i from the locator %s"
+msgstr "Plan de bandas: Auto, Región %i según el locator %s"
+
+#: src/first_start.c
+#, c-format
+msgid "Band plan: Auto, Region %i from the country"
+msgstr "Plan de bandas: Auto, Región %i según el país"
+
+#: src/first_start.c
+#, c-format
+msgid "Band plan: Auto, Region %i from the callsign %s"
+msgstr "Plan de bandas: Auto, Región %i según el indicativo %s"
+
+#: src/first_start.c
+#, c-format
+msgid "Band plan: Auto, Region %i: nothing tells where the radio is"
+msgstr "Plan de bandas: Auto, Región %i: nada indica dónde está la radio"
+
+#: src/first_start.c
+msgid "The country you operate from. The band plan's Auto takes its IARU region when the GPS and the locator do not tell, and the clock its time zone when none was chosen. Settings > General has it too."
+msgstr "El país desde donde opera. El Auto del plan de bandas toma de él la región IARU cuando el GPS y el locator no la indican, y el reloj su zona horaria cuando no se eligió ninguna. También está en Ajustes > General."
+
+#: src/first_start.c
+msgid "From the callsign"
+msgstr "Según el indicativo"
+
+#: src/first_start.c
+#, c-format
 msgid "Set by %s: right to the second, nothing to do here"
 msgstr "Ajustado por %s: exacto al segundo, nada que hacer aquí"
 
 #: src/first_start.c
-msgid "Not set by NTP or a GPS: set it below, or join WiFi (step 1)"
-msgstr "No ajustado por NTP ni GPS: ajústelo abajo, o conéctese a WiFi (paso 1)"
+msgid "Not set by NTP or a GPS: set it below, or join WiFi in the WiFi step"
+msgstr "No ajustado por NTP ni GPS: póngalo abajo, o conéctese a WiFi en el paso WiFi"
 
 #: src/first_start.c
 msgid "Time zone"
 msgstr "Zona horaria"
+
+#: src/first_start.c
+msgid "From the country: choose another zone here if yours differs."
+msgstr "Según el país: elija aquí otra zona si la suya es distinta."
 
 #: src/first_start.c
 msgid "Date, time"
@@ -5398,6 +6571,19 @@ msgstr "Omitido: el indicativo se pone en Ajustes > General > ESTACIÓN"
 #: src/first_start.c
 msgid "No callsign: Settings > General > STATION has it"
 msgstr "Sin indicativo: se pone en Ajustes > General > ESTACIÓN"
+
+#: src/first_start.c
+#, c-format
+msgid "%s, band plan Region %i"
+msgstr "%s, plan de bandas Región %i"
+
+#: src/first_start.c
+msgid "Skipped: Settings > General > STATION has it"
+msgstr "Omitido: se pone en Ajustes > General > ESTACIÓN"
+
+#: src/first_start.c
+msgid "Not set: Settings > General > STATION has it"
+msgstr "Sin ajustar: se pone en Ajustes > General > ESTACIÓN"
 
 #: src/first_start.c
 msgid "Kept by the GPS"
@@ -5474,10 +6660,6 @@ msgstr "Frecuencia incorrecta"
 #: src/freq_entry.c
 msgid "Freq in MHz"
 msgstr "Frecuencia en MHz"
-
-#: src/freq_list.c
-msgid "MFK: choose - press: tune"
-msgstr "MFK: elegir - pulsar: sintonizar"
 
 #: src/freq_strip.c src/remote_server.c
 msgid "LOCK"
@@ -5850,6 +7032,60 @@ msgstr "RX %s %s  Hound: %s"
 #: src/ft8_window.c
 msgid "Stopped: nothing transmits until TX Call, CQ or a call is pressed"
 msgstr "Detenido: nada transmite hasta pulsar TX Call, CQ o una llamada"
+
+#: src/ghostnet.c
+msgid "Own net"
+msgstr "Red propia"
+
+#: src/ghostnet.c src/meteo.c
+msgid "Sun"
+msgstr "Dom"
+
+#: src/ghostnet.c src/meteo.c
+msgid "Mon"
+msgstr "Lun"
+
+#: src/ghostnet.c src/meteo.c
+msgid "Tue"
+msgstr "Mar"
+
+#: src/ghostnet.c src/meteo.c
+msgid "Wed"
+msgstr "Mié"
+
+#: src/ghostnet.c src/meteo.c
+msgid "Thu"
+msgstr "Jue"
+
+#: src/ghostnet.c src/meteo.c
+msgid "Fri"
+msgstr "Vie"
+
+#: src/ghostnet.c src/meteo.c
+msgid "Sat"
+msgstr "Sáb"
+
+#: src/ghostnet.c
+msgid "@GHOSTNET"
+msgstr ""
+
+#: src/ghostnet.c src/js8_window.c
+msgid "@GSTFLASH"
+msgstr ""
+
+#: src/ghostnet_gui.c
+#, c-format
+msgid "GhostNet %s in %d min, %s %d.%03d"
+msgstr "GhostNet %s en %d min, %s %d.%03d"
+
+#: src/ghostnet_gui.c
+#, c-format
+msgid "GhostNet %s in %d min, %s"
+msgstr "GhostNet %s en %d min, %s"
+
+#: src/ghostnet_gui.c
+msgid "GhostNet RTTY: 7.077 MHz, 45.45 baud, 170 Hz"
+msgstr "GhostNet RTTY: 7.077 MHz, 45,45 baudios, 170 Hz"
 
 #: src/gps_window.c
 msgid "Sat in view/in use:"
@@ -6353,12 +7589,37 @@ msgid "Map"
 msgstr "Mapa"
 
 #: src/js8_window.c
+msgid ""
+"Trans-\n"
+"late"
+msgstr ""
+"Tradu-\n"
+"cir"
+
+#: src/js8_window.c
 msgid "  (bad checksum)"
 msgstr "  (checksum erróneo)"
 
 #: src/js8_window.c
 msgid "Listening for JS8..."
 msgstr "Escuchando JS8..."
+
+#: src/js8_window.c
+msgid "In your language already"
+msgstr "Ya está en su idioma"
+
+#: src/js8_window.c
+msgid "No answer from MyMemory"
+msgstr "Sin respuesta de MyMemory"
+
+#: src/js8_window.c
+#, c-format
+msgid "MyMemory's free translations of today are used up: more in %s h"
+msgstr "Se agotaron las traducciones gratis de MyMemory por hoy: más en %s h"
+
+#: src/js8_window.c
+msgid "MyMemory gave no translation"
+msgstr "MyMemory no dio traducción"
 
 #: src/js8_window.c
 #, c-format
@@ -6470,6 +7731,35 @@ msgstr "%sEn cola: %d trama%s, %.0f s"
 #, c-format
 msgid "%d frame%s, %.0f s"
 msgstr "%d trama%s, %.0f s"
+
+#: src/js8_window.c
+msgid "In English: check, OK sends"
+msgstr "En inglés: revise, OK envía"
+
+#: src/js8_window.c
+msgid "English already: OK sends it"
+msgstr "Ya en inglés: OK lo envía"
+
+#: src/js8_window.c
+msgid "No MyMemory: OK sends as typed"
+msgstr "Sin MyMemory: OK envía lo escrito"
+
+#: src/js8_window.c
+#, c-format
+msgid "Limit (%s h): OK sends as typed"
+msgstr "Límite (%s h): OK envía lo escrito"
+
+#: src/js8_window.c
+msgid "Not translated: OK sends as is"
+msgstr "Sin traducir: OK lo envía así"
+
+#: src/js8_window.c
+msgid "Busy: OK sends as typed"
+msgstr "Ocupado: OK envía lo escrito"
+
+#: src/js8_window.c
+msgid "Into English..."
+msgstr "Al inglés..."
 
 #: src/js8_window.c
 #, c-format
@@ -7639,6 +8929,11 @@ msgstr "ROE alta %.1f:1: AUTO, HB, HB ACK y CQ automático apagados. Revise la a
 
 #: src/js8_window.c
 #, c-format
+msgid "#%06x EMERGENCY @GSTFLASH:# %s"
+msgstr "#%06x EMERGENCIA @GSTFLASH:# %s"
+
+#: src/js8_window.c
+#, c-format
 msgid "Alert %s: %s"
 msgstr "Alerta %s: %s"
 
@@ -7763,6 +9058,74 @@ msgstr ""
 "JS8"
 
 #: src/js8_window.c
+#, c-format
+msgid "GhostNet groups: %s"
+msgstr "Grupos GhostNet: %s"
+
+#: src/js8_window.c
+#, c-format
+msgid "Reminder %d min before: %s"
+msgstr "Recordatorio %d min antes: %s"
+
+#: src/js8_window.c
+#, c-format
+msgid "Translate arriving messages: %s"
+msgstr "Traducir mensajes recibidos: %s"
+
+#: src/js8_window.c
+#, c-format
+msgid "Mine into English first: %s"
+msgstr "Los míos primero al inglés: %s"
+
+#: src/js8_window.c
+msgid "RTTY 7.077 MHz, 45.45 baud (closes JS8)"
+msgstr "RTTY 7.077 MHz, 45,45 baudios (cierra JS8)"
+
+#: src/js8_window.c
+msgid "Can't write the GhostNet settings"
+msgstr "No se pueden guardar los ajustes de GhostNet"
+
+#: src/js8_window.c
+#, c-format
+msgid "%s marked, Reminder off"
+msgstr "%s marcada, Recordatorio apagado"
+
+#: src/js8_window.c
+#, c-format
+msgid "%s: reminder set"
+msgstr "%s: recordatorio puesto"
+
+#: src/js8_window.c
+#, c-format
+msgid "%s: no reminder"
+msgstr "%s: sin recordatorio"
+
+#: src/js8_window.c
+msgid "Their texts go to MyMemory"
+msgstr "Sus textos van a MyMemory"
+
+#: src/js8_window.c
+msgid "OK: English first, OK sends"
+msgstr "OK: primero al inglés, OK envía"
+
+#: src/js8_window.c
+#, c-format
+msgid "GhostNet: groups @GHOSTNET @GSTFLASH %s"
+msgstr "GhostNet: grupos @GHOSTNET @GSTFLASH %s"
+
+#: src/js8_window.c
+msgid "The next 7 days; * reminded: press a net to set or clear it"
+msgstr "Próximos 7 días; * con recordatorio: pulse una red para ponerlo o quitarlo"
+
+#: src/js8_window.c
+msgid "No schedule: ghostnet_nets.txt is missing"
+msgstr "Sin horario: falta ghostnet_nets.txt"
+
+#: src/js8_window.c
+msgid "Own net, reminder time, regional group: web page GhostNet"
+msgstr "Red propia, hora del recordatorio, grupo regional: página web GhostNet"
+
+#: src/js8_window.c
 msgid "Type the dial frequency in kHz, e.g. 7107"
 msgstr "Escriba la frecuencia de dial en kHz, ej. 7107"
 
@@ -7784,8 +9147,12 @@ msgid "JS8Call frequencies (7.078, 14.078...)"
 msgstr "Frecuencias de JS8Call (7.078, 14.078...)"
 
 #: src/js8_window.c
-msgid "GhostNet (3.575, 7.107, 14.107)"
-msgstr "GhostNet (3.575, 7.107, 14.107)"
+msgid "GhostNet mode: 7.107 + its groups"
+msgstr "Modo GhostNet: 7.107 y sus grupos"
+
+#: src/js8_window.c
+msgid "GhostNet: nets, reminder, RTTY..."
+msgstr "GhostNet: redes, recordatorio, RTTY..."
 
 #: src/js8_window.c
 msgid "Custom kHz..."
@@ -7800,6 +9167,34 @@ msgstr "kHz a elección... (último %s)"
 #, c-format
 msgid "%s: not heard on this band"
 msgstr "%s: no se escuchó en esta banda"
+
+#: src/js8_window.c
+msgid "Translate: Show Messages first"
+msgstr "Traducir: primero Ver mensajes"
+
+#: src/js8_window.c
+msgid "Turn the MFK onto a message"
+msgstr "Gire la MFK hasta un mensaje"
+
+#: src/js8_window.c
+msgid "Your own message"
+msgstr "Es su propio mensaje"
+
+#: src/js8_window.c
+msgid "Still arriving: wait"
+msgstr "Todavía llegando: espere"
+
+#: src/js8_window.c
+msgid "Translated already"
+msgstr "Ya traducido"
+
+#: src/js8_window.c
+msgid "Busy: try again shortly"
+msgstr "Ocupado: intente en un momento"
+
+#: src/js8_window.c
+msgid "Translating..."
+msgstr "Traduciendo..."
 
 #: src/jtty.c
 msgid "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ +-./?!\"#$%,&*()_'=[]{}<>|:;"
@@ -8112,6 +9507,82 @@ msgstr ""
 #: src/main.h
 msgid "OpenX6X00 - v0.3.12"
 msgstr ""
+
+#: src/meteo.c
+msgid "Notice"
+msgstr "Aviso"
+
+#: src/meteo.c
+msgid "Minor"
+msgstr "Menor"
+
+#: src/meteo.c
+msgid "Yellow"
+msgstr "Amarillo"
+
+#: src/meteo.c
+msgid "Orange"
+msgstr "Naranja"
+
+#: src/meteo.c
+msgid "Red"
+msgstr "Rojo"
+
+#: src/meteo.c
+msgid "Moderate"
+msgstr "Moderado"
+
+#: src/meteo.c
+msgid "Severe"
+msgstr "Severo"
+
+#: src/meteo.c
+msgid "Extreme"
+msgstr "Extremo"
+
+#: src/meteo.c
+#, c-format
+msgid "gusts up to %d km/h"
+msgstr "ráfagas de hasta %d km/h"
+
+#: src/meteo.c
+#, c-format
+msgid "%d mm of rain"
+msgstr "%d mm de lluvia"
+
+#: src/meteo.c
+msgid "thunderstorms with hail"
+msgstr "tormentas con granizo"
+
+#: src/meteo.c
+#, c-format
+msgid "heat, a high of %d °C"
+msgstr "calor, máxima de %d °C"
+
+#: src/meteo.c
+#, c-format
+msgid "cold, a low of %d °C"
+msgstr "frío, mínima de %d °C"
+
+#: src/meteo.c
+#, c-format
+msgid "extreme UV, index %d"
+msgstr "UV extremo, índice %d"
+
+#: src/meteo.c
+#, c-format
+msgid "%s: %s, from the forecast"
+msgstr "%s: %s, según el pronóstico"
+
+#: src/meteo.c
+#, c-format
+msgid "%s to %s %s"
+msgstr "%s a %s %s"
+
+#: src/meteo_alerts.c
+#, c-format
+msgid "Weather warning. %s"
+msgstr "Alerta meteorológica. %s"
 
 #: src/mic_keys.c
 msgid "SPCH"
@@ -9004,11 +10475,6 @@ msgid "CHANNEL SAVED"
 msgstr "CANAL GUARDADO"
 
 #: src/screen_main.c
-#, c-format
-msgid "Saved channel %s"
-msgstr "Canal guardado %s"
-
-#: src/screen_main.c
 msgid "Saved channel"
 msgstr "Canal guardado"
 
@@ -9034,6 +10500,10 @@ msgstr "Viborita"
 #: src/screen_main.c
 msgid "First start"
 msgstr "Primer inicio"
+
+#: src/screen_main.c
+msgid "Internet radio"
+msgstr "Radio Internet"
 
 #: src/screen_main.c
 msgid "RADE needs headphones, TCI or the browser"
@@ -9405,6 +10875,26 @@ msgid " APP Scanner "
 msgstr " APP Escáner "
 
 #: src/settings_window.cpp
+msgid " APP Internet radio "
+msgstr " APP Radio Internet "
+
+#: src/settings_window.cpp
+msgid " APP Zello "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP Flights "
+msgstr " APP Vuelos "
+
+#: src/settings_window.cpp
+msgid " APP HF Air Band "
+msgstr " APP Banda aérea HF "
+
+#: src/settings_window.cpp
+msgid " APP Weather "
+msgstr " APP Meteo "
+
+#: src/settings_window.cpp
 msgid " APP RX recorder "
 msgstr " APP Grabador RX "
 
@@ -9458,10 +10948,6 @@ msgstr "Desplazamiento TX %s, kHz"
 #: src/settings_window.cpp
 msgid "Spectrum"
 msgstr "Espectro"
-
-#: src/settings_window.cpp
-msgid "Mode"
-msgstr "Modo"
 
 #: src/settings_window.cpp
 msgid ""
@@ -9603,18 +11089,6 @@ msgid "Theme"
 msgstr "Tema"
 
 #: src/settings_window.cpp
-msgid "Language file not found: English"
-msgstr "No se encontró el archivo de idioma: inglés"
-
-#: src/settings_window.cpp
-msgid " (draft)"
-msgstr " (borrador)"
-
-#: src/settings_window.cpp
-msgid "Language"
-msgstr "Idioma"
-
-#: src/settings_window.cpp
 msgid "Font"
 msgstr "Fuente"
 
@@ -9651,14 +11125,6 @@ msgstr "Una clave WPA tiene de 8 a 63 caracteres"
 msgid " Password"
 msgstr " Contraseña"
 
-#: src/settings_window.cpp src/wifi_window.c
-msgid "Disconnect"
-msgstr "Desconectar"
-
-#: src/settings_window.cpp src/wifi_window.c
-msgid "Connect"
-msgstr "Conectar"
-
 #: src/settings_window.cpp
 msgid "Change password"
 msgstr "Cambiar contraseña"
@@ -9678,10 +11144,6 @@ msgstr "Estado"
 #: src/settings_window.cpp
 msgid "IP / Gateway"
 msgstr "IP / Puerta de enlace"
-
-#: src/settings_window.cpp src/wifi_window.c
-msgid "Scan"
-msgstr "Buscar"
 
 #: src/settings_window.cpp
 msgid "press to pair"
@@ -10486,6 +11948,10 @@ msgid "Fill gradient"
 msgstr "Relleno degradado"
 
 #: src/settings_window.cpp
+msgid "Fill by level"
+msgstr "Relleno por nivel"
+
+#: src/settings_window.cpp
 msgid "Filter colour"
 msgstr "Color del filtro"
 
@@ -10552,10 +12018,6 @@ msgstr "CASCADA"
 #: src/settings_window.cpp
 msgid "Smooth scroll"
 msgstr "Desplazamiento suave"
-
-#: src/settings_window.cpp
-msgid "Speed"
-msgstr "Velocidad"
 
 #: src/settings_window.cpp
 msgid "MAIN SCREEN"
@@ -11046,10 +12508,6 @@ msgid "Asking GitHub for the latest release..."
 msgstr "Consultando la última versión en GitHub..."
 
 #: src/settings_window.cpp
-msgid "Update"
-msgstr "Actualizar"
-
-#: src/settings_window.cpp
 msgid "A new version was just installed: it is confirmed once the radio has run a minute."
 msgstr "Se acaba de instalar una versión nueva: se confirma cuando la radio funcione un minuto."
 
@@ -11254,6 +12712,10 @@ msgstr "Cuadrícula QTH"
 #: src/station.c
 msgid "Incorrect QTH Grid"
 msgstr "Cuadrícula QTH incorrecta"
+
+#: src/station.c
+msgid "Phone"
+msgstr "Teléfono"
 
 #: src/swrscan_window.c
 msgid "SWR scan: not while transmitting or tuning"
@@ -12234,6 +13696,83 @@ msgid ""
 "User-Agent: "
 msgstr ""
 
+#: src/zello.c
+msgid "Zello: not sent"
+msgstr "Zello: no enviado"
+
+#: src/zello.c
+msgid "RF to Zello: not sent"
+msgstr "RF a Zello: no enviado"
+
+#: src/zello.c
+msgid "Zello link: the transmission hung, unkeyed"
+msgstr "Enlace Zello: la transmisión se colgó, TX cortada"
+
+#: src/zello.c
+msgid "Zello: message ended, the radio transmits"
+msgstr "Zello: mensaje cortado, la radio transmite"
+
+#: src/zello.c
+msgid "Zello: message ended, off the channel"
+msgstr "Zello: mensaje cortado, fuera del canal"
+
+#: src/zello.c
+msgid "ZELLO LINK"
+msgstr "ENLACE ZELLO"
+
+#: src/zello.c
+msgid " Z>RF(no SQL)"
+msgstr " Z>RF(sin SQL)"
+
+#: src/zello.c
+msgid " RF>Z(no SQL)"
+msgstr " RF>Z(sin SQL)"
+
+#: src/zello.c
+#, c-format
+msgid "Simplex repeater on: %s%s"
+msgstr "Repetidor simplex encendido: %s%s"
+
+#: src/zello.c
+msgid "Zello to RF "
+msgstr "Zello a RF "
+
+#: src/zello.c
+msgid "RF to Zello"
+msgstr "RF a Zello"
+
+#: src/zello.c
+msgid "Zello link stays on"
+msgstr "El enlace Zello sigue encendido"
+
+#: src/zello.c
+msgid "Zello: not on a channel yet"
+msgstr "Zello: todavía sin canal"
+
+#: src/zello.c
+msgid "Zello link unkeyed: press again to talk"
+msgstr "Enlace Zello: TX cortada, pulse de nuevo para hablar"
+
+#: src/zello.c
+msgid "Zello: not while the radio transmits"
+msgstr "Zello: no mientras la radio transmite"
+
+#: src/zello.c
+msgid "Zello: no Bluetooth mic connected"
+msgstr "Zello: no hay micrófono Bluetooth conectado"
+
+#: src/zello_link.c
+msgid "Zello to RF stopped: the radio ended the transmission"
+msgstr "Zello a RF detenido: la radio terminó la transmisión"
+
+#: src/zello_link.c
+msgid "Zello to RF: time limit, unkeyed"
+msgstr "Zello a RF: límite de tiempo, TX cortada"
+
+#: src/zello_link.c
+msgid "RF to Zello: time limit, until the squelch closes"
+msgstr "RF a Zello: límite de tiempo, hasta que cierre el silenciador"
+
 #. not in the list: a line or a word of a longer text
 msgid "Parse"
 msgstr "Analizar"
@@ -12409,10 +13948,6 @@ msgstr "Grande"
 #. not in the list: a line or a word of a longer text
 msgid "Compact"
 msgstr "Compacto"
-
-#. not in the list: a line or a word of a longer text
-msgid "Country"
-msgstr "País"
 
 #. not in the list: a line or a word of a longer text
 msgid "Country + km"
@@ -12615,10 +14150,6 @@ msgid "Dial"
 msgstr "Dial"
 
 #. not in the list: a line or a word of a longer text
-msgid "Search"
-msgstr "Buscar"
-
-#. not in the list: a line or a word of a longer text
 msgid "best %.1f"
 msgstr "mejor %.1f"
 
@@ -12659,24 +14190,12 @@ msgid "Span"
 msgstr "Ancho"
 
 #. not in the list: a line or a word of a longer text
-msgid "Error"
-msgstr "Error"
-
-#. not in the list: a line or a word of a longer text
-msgid "Now"
-msgstr "Ahora"
-
-#. not in the list: a line or a word of a longer text
 msgid "Alerts"
 msgstr "Alertas"
 
 #. not in the list: a line or a word of a longer text
 msgid "No forecast yet"
 msgstr "Todavía no hay pronóstico"
-
-#. not in the list: a line or a word of a longer text
-msgid "Knob"
-msgstr "Perilla"
 
 #. not in the list: a line or a word of a longer text
 msgid "Green"
@@ -13095,10 +14614,6 @@ msgid "updated"
 msgstr "actualizado"
 
 #. not in the list: a line or a word of a longer text
-msgid "Channel"
-msgstr "Canal"
-
-#. not in the list: a line or a word of a longer text
 msgid "channels"
 msgstr "canales"
 
@@ -13297,6 +14812,72 @@ msgstr "Piso 3D:"
 #. not in the list: a line or a word of a longer text
 msgid "SETTINGS"
 msgstr "AJUSTES"
+
+#. not in the list: a line or a word of a longer text
+msgid "APP Internet radio"
+msgstr "APP Radio Internet"
+
+#. not in the list: a line or a word of a longer text
+msgid "APP Weather"
+msgstr "APP Meteo"
+
+#. not in the list: a line or a word of a longer text
+msgid "from"
+msgstr "desde"
+
+#. not in the list: a line or a word of a longer text
+msgid "low"
+msgstr "bajo"
+
+#. not in the list: a line or a word of a longer text
+msgid "moderate"
+msgstr "moderado"
+
+#. not in the list: a line or a word of a longer text
+msgid "high"
+msgstr "alto"
+
+#. not in the list: a line or a word of a longer text
+msgid "extreme"
+msgstr "extremo"
+
+#. not in the list: a line or a word of a longer text
+msgid "forecast"
+msgstr "pronóstico"
+
+#. not in the list: a line or a word of a longer text
+msgid "Reload"
+msgstr "Recargar"
+
+#. not in the list: a line or a word of a longer text
+msgid "online"
+msgstr "en línea"
+
+#. not in the list: a line or a word of a longer text
+msgid "Zello channels"
+msgstr "Canales de Zello"
+
+#. not in the list: a line or a word of a longer text
+msgid "APP Zello"
+msgstr "APP Zello"
+
+#. not in the list: a line or a word of a longer text
+msgid "Range"
+msgstr "Radio"
+
+#. not in the list: a line or a word of a longer text
+msgid "ground"
+msgstr "en tierra"
+
+#. not in the list: a line or a word of a longer text
+msgid "squawk"
+msgstr "squawk"
+
+#~ msgid "Not set by NTP or a GPS: set it below, or join WiFi (step 1)"
+#~ msgstr "No ajustado por NTP ni GPS: ajústelo abajo, o conéctese a WiFi (paso 1)"
+
+#~ msgid "GhostNet (3.575, 7.107, 14.107)"
+#~ msgstr "GhostNet (3.575, 7.107, 14.107)"
 
 #~ msgid "On (idle)"
 #~ msgstr "On (inactivo)"
@@ -13760,17 +15341,11 @@ msgstr "AJUSTES"
 #~ msgid "Internet Radio"
 #~ msgstr "Radio Internet"
 
-#~ msgid "APP Internet radio"
-#~ msgstr "APP Radio Internet"
-
 #~ msgid "INTERNET RADIO"
 #~ msgstr "RADIO POR INTERNET"
 
 #~ msgid "Favorite"
 #~ msgstr "Favorita"
-
-#~ msgid "List"
-#~ msgstr "Lista"
 
 #~ msgid "Favorites"
 #~ msgstr "Favoritas"
@@ -13783,9 +15358,6 @@ msgstr "AJUSTES"
 
 #~ msgid "No favorites yet: List shows Uruguay's stations, Favorite saves one"
 #~ msgstr "Sin favoritas: Lista muestra las emisoras del país, Favorita guarda la elegida"
-
-#~ msgid "No stations"
-#~ msgstr "No se encontraron emisoras"
 
 #~ msgid "Cannot run the station finder"
 #~ msgstr "No se pudo buscar emisoras"
@@ -13805,17 +15377,8 @@ msgstr "AJUSTES"
 #~ msgid "Station, genre, \"pais AR\" or a stream address (http://...)"
 #~ msgstr "Emisora, género, \"pais AR\" o una dirección (http://...)"
 
-#~ msgid "Weather"
-#~ msgstr "Meteo"
-
-#~ msgid "APP Weather"
-#~ msgstr "APP Meteo"
-
 #~ msgid "INUMET weather alerts"
 #~ msgstr "Alertas de INUMET"
-
-#~ msgid "WEATHER"
-#~ msgstr "METEOROLOGÍA"
 
 #~ msgid "Forecast"
 #~ msgstr "Pronóstico"
@@ -13835,24 +15398,6 @@ msgstr "AJUSTES"
 #~ msgid "WEATHER WARNING"
 #~ msgstr "ADVERTENCIA METEOROLÓGICA"
 
-#~ msgid "from"
-#~ msgstr "desde"
-
-#~ msgid "low"
-#~ msgstr "bajo"
-
-#~ msgid "moderate"
-#~ msgstr "moderado"
-
-#~ msgid "high"
-#~ msgstr "alto"
-
-#~ msgid "very high"
-#~ msgstr "muy alto"
-
-#~ msgid "extreme"
-#~ msgstr "extremo"
-
 #~ msgid "No INUMET alerts for"
 #~ msgstr "Sin alertas de INUMET para"
 
@@ -13868,32 +15413,11 @@ msgstr "AJUSTES"
 #~ msgid "Max"
 #~ msgstr "Máx"
 
-#~ msgid "Humidity"
-#~ msgstr "Humedad"
-
-#~ msgid "Dew point"
-#~ msgstr "Punto de rocío"
-
 #~ msgid "Pressure hPa"
 #~ msgstr "Presión hPa"
 
-#~ msgid "Wind"
-#~ msgstr "Viento"
-
-#~ msgid "Gusts"
-#~ msgstr "Ráfagas"
-
 #~ msgid "Rain 1h / 24h"
 #~ msgstr "Lluvia 1h / 24h"
-
-#~ msgid "Visibility"
-#~ msgstr "Visibilidad"
-
-#~ msgid "Clouds"
-#~ msgstr "Nubes"
-
-#~ msgid "Sun"
-#~ msgstr "Sol"
 
 #~ msgid "Last 24 h"
 #~ msgstr "Últimas 24 h"
@@ -13906,9 +15430,6 @@ msgstr "AJUSTES"
 
 #~ msgid "No weather alerts for"
 #~ msgstr "Sin alertas para"
-
-#~ msgid "forecast"
-#~ msgstr "pronóstico"
 
 #~ msgid "YELLOW NOTICE"
 #~ msgstr "AVISO AMARILLO"
@@ -13958,13 +15479,6 @@ msgstr "AJUSTES"
 
 #~ msgid "free"
 #~ msgstr "libre"
-
-#~ msgid ""
-#~ "Save\n"
-#~ "channel"
-#~ msgstr ""
-#~ "Guardar\n"
-#~ "canal"
 
 #~ msgid ""
 #~ "Channel\n"
@@ -14086,29 +15600,11 @@ msgstr "AJUSTES"
 #~ msgid "Asia and the Pacific: China, Japan, India, Iran, Pakistan, South-East Asia, Australia, New Zealand and the Pacific islands"
 #~ msgstr "Asia y el Pacífico: China, Japón, India, Irán, Pakistán, el Sudeste Asiático, Australia, Nueva Zelanda y las islas del Pacífico"
 
-#~ msgid "Area"
-#~ msgstr "Zona"
-
-#~ msgid "Europe, Africa, Middle East"
-#~ msgstr "Europa, África, Medio Oriente"
-
-#~ msgid "Asia and Pacific"
-#~ msgstr "Asia y Pacífico"
-
-#~ msgid "All areas"
-#~ msgstr "Todas las zonas"
-
 #~ msgid "HF AIR BAND"
 #~ msgstr "BANDA AÉREA HF"
 
 #~ msgid "USB. By day 8-18 MHz, at night 3-6 MHz. VHF air band (118-137 MHz): Internet radio > List"
 #~ msgstr "USB. De día 8-18 MHz, de noche 3-6 MHz. Banda aérea VHF (118-137 MHz): Radio por Internet > Lista"
-
-#~ msgid "South America"
-#~ msgstr "Sudamérica"
-
-#~ msgid "South Atlantic"
-#~ msgstr "Atlántico Sur"
 
 #~ msgid "South America (weather)"
 #~ msgstr "Sudamérica (meteorología)"
@@ -14119,35 +15615,14 @@ msgstr "AJUSTES"
 #~ msgid "Argentina, regional (weather)"
 #~ msgstr "Argentina, regionales (meteorología)"
 
-#~ msgid "Caribbean"
-#~ msgstr "Caribe"
-
-#~ msgid "North Atlantic"
-#~ msgstr "Atlántico Norte"
-
-#~ msgid "Central East Pacific"
-#~ msgstr "Pacífico centro-este"
-
 #~ msgid "Shannon, Ireland (weather)"
 #~ msgstr "Shannon, Irlanda (meteorología)"
 
 #~ msgid "RAF, United Kingdom (weather)"
 #~ msgstr "RAF, Reino Unido (meteorología)"
 
-#~ msgid "Africa"
-#~ msgstr "África"
-
 #~ msgid "Africa (weather)"
 #~ msgstr "África (meteorología)"
-
-#~ msgid "Middle East"
-#~ msgstr "Medio Oriente"
-
-#~ msgid "North Central Asia"
-#~ msgstr "Asia centro-norte"
-
-#~ msgid "East Asia"
-#~ msgstr "Asia oriental"
 
 #~ msgid "China (weather)"
 #~ msgstr "China (meteorología)"
@@ -14158,17 +15633,8 @@ msgstr "AJUSTES"
 #~ msgid "Bangkok, India, Singapore (weather)"
 #~ msgstr "Bangkok, India, Singapur (meteorología)"
 
-#~ msgid "Central West Pacific"
-#~ msgstr "Pacífico centro-oeste"
-
 #~ msgid "Tokyo, Hong Kong, Auckland (weather)"
 #~ msgstr "Tokio, Hong Kong, Auckland (meteorología)"
-
-#~ msgid "North Pacific"
-#~ msgstr "Pacífico Norte"
-
-#~ msgid "South Pacific"
-#~ msgstr "Pacífico Sur"
 
 #~ msgid "Search and rescue (worldwide)"
 #~ msgstr "Búsqueda y rescate (mundial)"
@@ -14197,16 +15663,6 @@ msgstr "AJUSTES"
 
 #~ msgid "APP HF air band"
 #~ msgstr "APP Banda aérea HF"
-
-#~ msgid ""
-#~ "HF Air\n"
-#~ "Band"
-#~ msgstr ""
-#~ "Banda\n"
-#~ "aérea HF"
-
-#~ msgid "HF Air Band"
-#~ msgstr "Banda aérea HF"
 
 #~ msgid "Low-low (export)"
 #~ msgstr "Baja-baja (exportación)"
@@ -14238,23 +15694,8 @@ msgstr "AJUSTES"
 #~ msgid "Connect /"
 #~ msgstr "Conectar /"
 
-#~ msgid "Talk"
-#~ msgstr "Hablar"
-
-#~ msgid "Reload"
-#~ msgstr "Recargar"
-
 #~ msgid "no user"
 #~ msgstr "sin usuario"
-
-#~ msgid "online"
-#~ msgstr "en línea"
-
-#~ msgid "Zello channels"
-#~ msgstr "Canales de Zello"
-
-#~ msgid "APP Zello"
-#~ msgstr "APP Zello"
 
 #~ msgid "Add your Zello channels on the radio's web page (Zello page)"
 #~ msgstr "Cargue sus canales de Zello en la web de la radio (página Zello)"
@@ -14409,35 +15850,14 @@ msgstr "AJUSTES"
 #~ msgid "Searching all bands for birdies, about %d min (antenna off is best)..."
 #~ msgstr "Buscando birdies en todas las bandas, unos %d min (mejor sin antena)..."
 
-#~ msgid "Flights"
-#~ msgstr "Vuelos"
-
-#~ msgid " APP Flights "
-#~ msgstr " APP Vuelos "
-
-#~ msgid "FLIGHTS"
-#~ msgstr "VUELOS"
-
-#~ msgid "Range"
-#~ msgstr "Radio"
-
 #~ msgid "My position"
 #~ msgstr "Mi posición"
 
 #~ msgid "aircraft"
 #~ msgstr "aviones"
 
-#~ msgid "ground"
-#~ msgstr "en tierra"
-
 #~ msgid "heading"
 #~ msgstr "rumbo"
-
-#~ msgid "squawk"
-#~ msgstr "squawk"
-
-#~ msgid "EMERGENCY"
-#~ msgstr "EMERGENCIA"
 
 #~ msgid "Getting the flights..."
 #~ msgstr "Buscando los vuelos..."
@@ -14538,14 +15958,8 @@ msgstr "AJUSTES"
 #~ msgid "B mode"
 #~ msgstr "Modo B"
 
-#~ msgid "Channel not saved"
-#~ msgstr "Canal no guardado"
-
 #~ msgid "Forecast, alerts"
 #~ msgstr "Pronóstico, alertas"
-
-#~ msgid "Internet radio"
-#~ msgstr "Radio Internet"
 
 #~ msgid "Stations, ATC"
 #~ msgstr "Emisoras, ATC"
@@ -14570,9 +15984,6 @@ msgstr "AJUSTES"
 
 #~ msgid "Auto (Region 3)"
 #~ msgstr "Auto (Región 3)"
-
-#~ msgid "Fill by level"
-#~ msgstr "Relleno por nivel"
 
 #~ msgid "EMERGENCY  -  @GSTFLASH"
 #~ msgstr "EMERGENCIA  -  @GSTFLASH"
@@ -14607,17 +16018,11 @@ msgstr "AJUSTES"
 #~ msgid "GhostNet: %s, groups %s"
 #~ msgstr "GhostNet: %s, grupos %s"
 
-#~ msgid "Reminder %d min before: %s"
-#~ msgstr "Recordatorio %d min antes: %s"
-
 #~ msgid "English messages, translated: %s"
 #~ msgstr "Mensajes en inglés, traducidos: %s"
 
 #~ msgid "Mine sent in English: %s"
 #~ msgstr "Los míos salen en inglés: %s"
-
-#~ msgid "RTTY 7.077 MHz, 45.45 baud (closes JS8)"
-#~ msgstr "RTTY 7.077 MHz, 45,45 baudios (cierra JS8)"
 
 #~ msgid "GhostNet - groups @GHOSTNET @GSTFLASH %s"
 #~ msgstr "GhostNet - grupos @GHOSTNET @GSTFLASH %s"
@@ -14627,9 +16032,6 @@ msgstr "AJUSTES"
 
 #~ msgid "Nets, Spanish net and reminders: web page GhostNet"
 #~ msgstr "Redes, red hispana y recordatorios: página web GhostNet"
-
-#~ msgid "GhostNet mode: 7.107 + its groups"
-#~ msgstr "Modo GhostNet: 7.107 y sus grupos"
 
 #~ msgid "GhostNet: nets, translation, RTTY..."
 #~ msgstr "GhostNet: redes, traducción, RTTY..."
