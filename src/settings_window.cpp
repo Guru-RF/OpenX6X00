@@ -1406,7 +1406,10 @@ static uint8_t make_language(uint8_t row) {
 
     n_langs = i18n_list(langs, sizeof(langs) / sizeof(langs[0]));
     for (int i = 0; i < n_langs; i++) {
-        options += std::string(i ? "\n" : "") + langs[i].name + (strcmp(langs[i].status, "draft") ? "" : " (draft)");
+        char name[80];
+
+        i18n_list_name(&langs[i], name, sizeof(name));   /* 中文 as "Chinese, simplified (zh_CN)" where it would be boxes */
+        options += std::string(i ? "\n" : "") + name + (strcmp(langs[i].status, "draft") ? "" : " (draft)");
         if (!strcmp(langs[i].code, i18n_code())) {
             sel = i;
         }

@@ -58,6 +58,11 @@ const char *i18n_font(void);
 /* English first, then each language file found (BOARD_DATA/i18n before BOARD_SHARE/i18n), at most max */
 int i18n_list(i18n_lang_t *out, int max);
 
+/* A language's name as a list on screen can draw it now: its own name, or, when that needs letters the fonts of
+ * the current language don't have (中文 on a radio still in English, which would show boxes), its English name
+ * and its code: "Chinese, simplified (zh_CN)". The current language's own name is always drawable */
+void i18n_list_name(const i18n_lang_t *lang, char *out, size_t size);
+
 /* The capitals of a UTF-8 text, for the themes and places that show capitals: Latin-1's letters too (é as É; ß
  * stays), œ, ÿ; another script as it is. ascii false: the ASCII letters left as they are (the caller did them).
  * The text keeps its length, so out may be in; cut at size on a whole character */
