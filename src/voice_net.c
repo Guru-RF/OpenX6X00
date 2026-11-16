@@ -629,6 +629,8 @@ static void link_tick(const vnet_app_t *a) {
         atomic_store(&rx_off_band, false);
         atomic_store(&rx_outside, false);
         atomic_exchange(&ptt_pressed, false);
+        rules.rx_band_told    = false;  /* not stepped while off: said again when RF to the network is on again */
+        rules.rx_outside_told = false;
         return;
     }
 
