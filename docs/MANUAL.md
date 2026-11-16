@@ -3567,9 +3567,10 @@ First steps:
    (Settings..., Freq). While JS8 is open the RX filter is 200-3000 Hz, noise
    reduction, noise blanker and notch are off, and power is capped at 7 W;
    all go back when you leave.
-4. Turn the MFK onto a station's row: Reply (page 1) shows its call. Press
-   the MFK there for the conversation with that station, or use Query >
-   (page 2), HW CPY? first in it.
+4. The board shows the stations of the band as cards. Heartbeat (page 1)
+   tells them you are here; those that hear you answer and come first, in
+   red, "heard you" with their report. Turn the MFK onto a card and press:
+   the conversations open on that station.
 5. ESC or the top knob stops sending; the next ESC leaves the app.
 
 Nothing sends by itself: AUTO (automatic replies), HB (heartbeats) and HB ACK
@@ -3579,12 +3580,33 @@ Buttons (the first one of each row turns the page, hold to go back):
 
 | Page | Buttons |
 |---|---|
-| 1 | CQ (hold: auto CQ), Reply (the call selected), Send..., Inbox (n new) |
-| 2 | Query > (HW CPY? first), Heartbeat (hold: HB in Settings), Show Stations / Messages, Map |
+| 1 | Heartbeat (hold: HB in Settings), CQ (hold: auto CQ), Chat (the station chosen), Inbox (n new) |
+| 2 | Query > (HW CPY? first), Reply, Send..., View: Board / Messages / Stations |
 | 3 | Time Sync (hold: reset), Power, Ext tune, Settings... |
-| 4 | Translate |
+| 4 | Translate, Map |
 
-Heartbeat (page 2) sends one at once; it reads "Heartbeat auto 10 min"
+The board, the main view: a card for each station of the band, nine a page,
+those that heard you first (a heartbeat answered, a call), then the others,
+newest first. A card shows the flag, the call, the signal as you hear it,
+the country and distance (from their locator, else from their country's
+middle, "~"), and a tag: "2 new" (messages for you not read), "heard you
+-12" (their report), else what they sent last (CQ, HB, X6100). The selected
+card is framed; the MFK goes from card to card, its press opens the
+conversations. On the right of the TX line: the stations heard and "HB:
+say you're here", then after a heartbeat its time and how many heard it,
+and the board's page. View (page 2) goes to the list of messages, then the
+table of stations, then back to the board.
+
+The conversations: on the left every station you are talking with (a
+message for you, one of yours to them, a heartbeat of yours they heard),
+newest first, their flag, last words and unread count; on the right the one
+chosen, theirs on the left, yours on the right in blue, their country,
+locator, distance and the reports on top. The MFK goes from one station to
+the next, its press opens Query > for it. Buttons: Board (back), Heartbeat,
+Reply, Query > and Write... (words for them; MSG first puts them in their
+Inbox). The lane and the TX line stay above it.
+
+Heartbeat (page 1) sends one at once; it reads "Heartbeat auto 10 min"
 while the automatic ones go out. Held, it opens Settings on HB to turn them
 on or off.
 
@@ -3605,13 +3627,6 @@ country and distance on the right where it fits (the distance from the
 locator they sent, else from their country's middle, "~"); the Stations view
 has the flag before the call and a country column.
 
-The conversation (the MFK's press on a station's row): every message from
-them, to them and yours to them, theirs on the left, yours on the right in
-blue, their flag, country, locator, distance and signal on top. The MFK
-scrolls, its press opens Query > for them; the buttons are Reply, HW CPY?,
-Query > and MSG... (a message for their Inbox); F1 (their call) goes back to
-the list. A new message of theirs comes in there too.
-
 A message for you or your group comes in: besides the line in the list and
 the beep, a box says "Message from ..." with its text, their country and
 distance. The MFK's press opens it in the Inbox (Reply there); ESC or any
@@ -3626,7 +3641,7 @@ What it does:
 - Log: the Log popup (Settings..., Log QSO, or when a QSO ends with 73/SK) saves to
   `js8call_log.adi` in desktop JS8Call's ADIF format, with POTA/SOTA
   activation fields. FT8 keeps its own `ft_log.adi`.
-- Map (page 2): the stations of the JS8 log on the same map as FT8.
+- Map (page 4): the stations of the JS8 log on the same map as FT8.
 - Translate (page 4): the message on the list's cursor, translated into the
   GUI's language; see [GhostNet](#ghostnet), Translation.
 - Alerts: beeps for messages, CQs and new stations, and purple alert words.
