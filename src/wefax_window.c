@@ -21,6 +21,7 @@
 #include "wefax/plan.h"
 #include "wefax/quality.h"
 #include "wefax/thumb.h"
+#include "wefax/tilt.h"
 #include "i18n.h"
 #include "tx_player.h"
 #include "msg_box.h"
@@ -130,7 +131,7 @@ static view_t     view = VIEW_SMALL;
 static lv_obj_t  *app_parent;
 static lv_obj_t  *canvas, *viewport, *panel;
 static app_frame_t frame;          /* header and status line, Big and Full */
-static lv_timer_t *view_timer, *browser_save_timer;
+static lv_timer_t *view_timer, *browser_save_timer, *browser_tilt_timer;
 static bool       align_on, tilt_on; /* the encoder turns live Align / Tilt */
 
 /* PNG written by a worker, the LVGL thread only takes a copy. The worker marks it (wefax/quality.h) and names it
@@ -143,6 +144,7 @@ typedef struct {
     time_t    when;
     struct tm tm;           /* when, local, for the name */
     char      product[48];  /* Auto Plan: the chart, "" for none */
+    char      station[16];  /* and its station */
 } save_job_t;
 
 static pthread_mutex_t save_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -158,6 +160,7 @@ static int       br_align, br_tilt;
 static uint8_t  *pic;
 static unsigned  pic_w, pic_h;
 static char      pic_path[256];
+static unsigned  pic_gen;           /* counts the pictures opened: Auto Tilt's result is for one */
 
 /* TX (web remote): a worker plays the picture through tx_player, no RX meanwhile */
 static pthread_t     tx_thread;
@@ -384,6 +387,8 @@ static int wrap_x(int x, int width)
 
 /* Tilt is in 1/1000 px per row of the 750 px view; on a picture of the given width
  * it scales with the rows. The newest row does not move. */
+_Static_assert(VIEW_W == WEFAX_TILT_UNIT_W, "the tilt's unit is a row of the view");
+
 static int tilt_px(int64_t from_newest, int tilt, unsigned width)
 {
     return (int)(from_newest * tilt * VIEW_W / (1000LL * width));
@@ -632,6 +637,16 @@ static void *save_worker(void *arg)
     bool        same = job->product[0] && !wefax_plan_product_unique(job->product);
     int         best = same ? wefax_plan_copies(SAVE_DIR, job->product, job->when, NULL, false, NULL) : -1;
 
+    /* Auto Plan's chart straightened, its station's tilt learned: a fair copy only, noise has no lines to go by */
+    int t;
+
+    if (job->product[0] && q >= 60 && best < q && wefax_auto_tilt(job->img, WEFAX_WIDTH, job->rows, &t)) {
+        if (t != job->tilt)
+            printf("WEFAX TILT: %s straightened, tilt %+d (was %+d)\n", job->product, t, job->tilt);
+        job->tilt = t;
+        wefax_station_tilt_learn(job->station, t);
+    }
+
     wefax_plan_file_name(name, sizeof(name), &job->tm, job->product, q);
     snprintf(path, sizeof(path), SAVE_DIR "/%s", name);
     snprintf(tmp, sizeof(tmp), "%s.part", path);
@@ -711,8 +726,10 @@ static bool save_fax(bool no_stop)
     job->when    = now;
     job->align   = (int)param_i_get(cfg_wefax_align);
     job->tilt    = (int)param_i_get(cfg_wefax_tilt);
-    if (plan_on && fax_on && wefax_plan_slot(fax_slot))
+    if (plan_on && fax_on && wefax_plan_slot(fax_slot)) {
         snprintf(job->product, sizeof(job->product), "%s", wefax_plan_slot(fax_slot)->product);
+        snprintf(job->station, sizeof(job->station), "%s", wefax_plan_slot(fax_slot)->station);
+    }
     for (unsigned r = 0; r < store_n; r++)
         memcpy(job->img + (size_t)r * WEFAX_WIDTH, store_row(r), WEFAX_WIDTH);
 
@@ -962,6 +979,16 @@ static void plan_tune(const wefax_slot_t *s)
     }
     printf("WEFAX PLAN: %02d:%02d %s %.1f kHz %s\n", s->min / 60, s->min % 60, s->station, s->freq_hz / 1000.0,
            s->product);
+
+    /* the station's own tilt, learned from its charts: they come in straight */
+    int tilt;
+
+    if (wefax_station_tilt(s->station, &tilt) && tilt != (int)param_i_get(cfg_wefax_tilt)) {
+        param_i_set(cfg_wefax_tilt, tilt);
+        if (btn_tilt.disp_btn)
+            buttons_refresh(&btn_tilt);
+        printf("WEFAX TILT: %s, tilt %+d\n", s->station, tilt);
+    }
 }
 
 /* A slot's time: a fax of the plan coming in keeps the radio, any other gives way (saved as it is) */
@@ -1382,6 +1409,10 @@ static void app_close(void)
         lv_timer_del(browser_save_timer);
         browser_save_timer = NULL;
     }
+    if (browser_tilt_timer) {
+        lv_timer_del(browser_tilt_timer);
+        browser_tilt_timer = NULL;
+    }
 
     align_on = tilt_on = false;
     wefax_bulletin_close();
@@ -1614,6 +1645,7 @@ static bool picture_open(const char *name)
         return false;
 
     picture_free();
+    pic_gen++;
     pic   = img;
     pic_w = w;
     pic_h = h;
@@ -2119,6 +2151,101 @@ static void fix_align_cb(button_data_t *data)
     }
 }
 
+/* Auto Tilt off the LVGL thread: the search takes the radio seconds, while a fax may be coming in row by row. The
+ * worker has its own copy of the picture; the timer takes its result if the same picture is still open */
+typedef struct {
+    uint8_t *img;
+    unsigned w, h;
+    unsigned gen;
+} tilt_job_t;
+
+static pthread_mutex_t tilt_lock = PTHREAD_MUTEX_INITIALIZER;
+static bool            tilt_busy, tilt_done, tilt_ok;
+static int             tilt_found;
+static unsigned        tilt_gen;
+
+static void *tilt_worker(void *arg)
+{
+    tilt_job_t *job = arg;
+    int         t   = 0;
+    bool        ok  = wefax_auto_tilt(job->img, job->w, job->h, &t);
+
+    pthread_mutex_lock(&tilt_lock);
+    tilt_found = t;
+    tilt_ok    = ok;
+    tilt_gen   = job->gen;
+    tilt_done  = true;
+    tilt_busy  = false;
+    pthread_mutex_unlock(&tilt_lock);
+    free(job->img);
+    free(job);
+    return NULL;
+}
+
+static void auto_tilt_timer_cb(lv_timer_t *t)
+{
+    char     msg[48];
+    bool     done, ok;
+    int      found;
+    unsigned gen;
+
+    pthread_mutex_lock(&tilt_lock);
+    done      = tilt_done;
+    ok        = tilt_ok;
+    found     = tilt_found;
+    gen       = tilt_gen;
+    tilt_done = false;
+    pthread_mutex_unlock(&tilt_lock);
+    if (!done)
+        return;
+    lv_timer_del(t);
+    browser_tilt_timer = NULL;
+    if (!br_open || !br_editing || !pic || br_tilt || gen != pic_gen)
+        return;     /* another picture, or touched up meanwhile */
+    if (!ok) {
+        channel_overlay_show("Auto Tilt: no clear tilt, MFK to set it");
+        return;
+    }
+    br_tilt = found;
+    draw_picture();
+    browser_buttons(true);
+    snprintf(msg, sizeof(msg), _("Auto Tilt %+d, MFK to adjust"), br_tilt);
+    channel_overlay_show(msg);
+}
+
+static void auto_tilt_start(void)
+{
+    tilt_job_t *job = malloc(sizeof(*job));
+    pthread_t   th;
+
+    pthread_mutex_lock(&tilt_lock);
+    bool busy = tilt_busy;
+    pthread_mutex_unlock(&tilt_lock);
+    if (busy || !job || !(job->img = malloc((size_t)pic_w * pic_h))) {
+        free(job);
+        return;
+    }
+    memcpy(job->img, pic, (size_t)pic_w * pic_h);
+    job->w   = pic_w;
+    job->h   = pic_h;
+    job->gen = pic_gen;
+    pthread_mutex_lock(&tilt_lock);
+    tilt_busy = true;
+    tilt_done = false;
+    pthread_mutex_unlock(&tilt_lock);
+    if (pthread_create(&th, NULL, tilt_worker, job) != 0) {
+        pthread_mutex_lock(&tilt_lock);
+        tilt_busy = false;
+        pthread_mutex_unlock(&tilt_lock);
+        free(job->img);
+        free(job);
+        return;
+    }
+    pthread_detach(th);
+    channel_overlay_show("Auto Tilt...");
+    browser_tilt_timer = lv_timer_create(auto_tilt_timer_cb, 100, NULL);
+}
+
 static void fix_tilt_cb(button_data_t *data)
 {
     (void)data;
@@ -2127,13 +2254,18 @@ static void fix_tilt_cb(button_data_t *data)
     br_tilt_on  = true;
     br_align_on = false;
     align_on = tilt_on = false;
+
+    /* from the tilt that straightens it, the MFK only touches it up; the overlay first, the search takes the radio
+     * a few seconds */
+    if (!br_tilt && !browser_tilt_timer)
+        auto_tilt_start();
     if (canvas) {
         lv_group_focus_obj(canvas);
         lv_group_set_editing(keyboard_group, true);
     }
 }
 
-/* F5 of page 3: Delete on the list; on a picture Done, or Save with a correction */
+/* F5 of the browser: Delete on the list; on a picture Done, or Save with a correction */
 static void done_cb(button_data_t *data)
 {
     (void)data;

@@ -3906,8 +3906,13 @@ the browser and Power.
 | Bulletin, the tiles | Auto Plan, Open Chart, All Faxes, Close Bulletin |
 | Bulletin, one chart large | Auto Plan, Fix Chart, All Kinds, Close Bulletin |
 
-Fix Align and Fix Tilt in the browser move the fax by the MFK, the value on
-the screen ("Align -16", "Tilt -183"); Save Fax writes it over its file.
+Fix Tilt on a saved fax first finds the tilt that straightens it (a station's
+line rate and the radio's never quite agree, each row comes a little earlier
+or later and the chart leans): "Auto Tilt -185" a few seconds after the press,
+then the MFK touches it up by one, "Tilt -183", and Save Fax writes it over
+its file. A fax with nothing upright to go by says "no clear tilt" and the MFK
+sets it from 0. Fix Align moves the fax 8 px a step, its value shown the same
+way.
 
 Auto Plan (page 1) leaves WeFax on its own for the day: the radio follows a
 plan of the DWD and Northwood charts (UTC), each on the frequency that comes
@@ -3920,6 +3925,11 @@ header too. The plan and the way it keeps the best copy are F4OLI's
 - A chart coming in is not cut by the next slot; a filler slot of the plan
   gives way to a chart of the plan. A chart whose stop tone was missed gives
   way 30 s before its end.
+- A chart of fair quality (mark 60 or more) is saved straightened (Auto Tilt,
+  as Fix Tilt finds it), and its tilt is kept for its station
+  (`/mnt/wefax/tilt.conf`, the median of its last five): when the plan tunes
+  the station again, Tilt is set to it and its charts come in straight. On
+  F4OLI's radio DWD's is about -185, Northwood's about -10.
 - Each fax gets a quality mark (0-100: stripes, noise, lost sync, fading,
   times 0.8 when its stop tone was not heard), in its name with the chart:
   `wefax-20261116-062315-NW-surface-analysis-00Z-q91.png`. A fax saved by

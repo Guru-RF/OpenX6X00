@@ -8,6 +8,7 @@
 #include "wefax/plan.h"
 #include "wefax/quality.h"
 #include "wefax/thumb.h"
+#include "wefax/tilt.h"
 
 #include <math.h>
 #include <png.h>
@@ -495,6 +496,67 @@ static void test_quality(void)
     free(junk);
 }
 
+/* ---- Auto Tilt ---- */
+
+/* The chart as it comes in when the station's line rate and ours differ by tilt: the rows that the app's Tilt (the PNG
+ * writer's shift, wefax_window.c tilt_px) straightens again */
+static uint8_t *sheared(const uint8_t *straight, unsigned w, unsigned h, int tilt)
+{
+    uint8_t *raw = malloc((size_t)w * h);
+
+    for (unsigned y = 0; y < h; y++) {
+        int shift = (int)(((int64_t)y - (int64_t)(h - 1)) * tilt * WEFAX_TILT_UNIT_W / (1000LL * w));
+
+        for (unsigned x = 0; x < w; x++) {
+            int from = ((int)x + shift) % (int)w;
+
+            raw[(size_t)y * w + x] = straight[(size_t)y * w + (from < 0 ? from + (int)w : from)];
+        }
+    }
+    return raw;
+}
+
+static void test_tilt(void)
+{
+    srand(2);
+
+    unsigned w = WIDTH, h = 1300;
+    uint8_t *straight = chart(h, 25, 0);
+    int      tilts[]  = {-185, -10, 0, 120, 333};
+
+    for (size_t i = 0; i < sizeof(tilts) / sizeof(tilts[0]); i++) {
+        uint8_t *raw = sheared(straight, w, h, tilts[i]);
+        int      t   = 9999;
+        bool     ok  = wefax_auto_tilt(raw, w, h, &t);
+
+        CHECK(ok && abs(t - tilts[i]) <= 2, "a chart received with tilt %+d: found %+d (%s)", tilts[i], t,
+              ok ? "sure" : "not sure");
+        free(raw);
+    }
+
+    /* nothing to go by: a blank page */
+    uint8_t *blank = malloc((size_t)w * h);
+    int      t;
+
+    memset(blank, 235, (size_t)w * h);
+    CHECK(!wefax_auto_tilt(blank, w, h, &t), "a blank page has no tilt");
+    CHECK(!wefax_auto_tilt(blank, w, 10, &t), "nor 10 rows");
+    free(blank);
+    free(straight);
+
+    /* a station's tilt: the median of its last five */
+    int learn[] = {-180, -185, -190, -186, -184, -300};
+
+    CHECK(!wefax_station_tilt("DWD", &t), "none known yet");
+    for (size_t i = 0; i < sizeof(learn) / sizeof(learn[0]); i++)
+        wefax_station_tilt_learn("DWD", learn[i]);
+    wefax_station_tilt_learn("Northwood", -10);
+    wefax_station_tilt_learn("Bad name", 50);
+    CHECK(wefax_station_tilt("DWD", &t) && t == -186, "DWD: the median of the last five, %+d", t);
+    CHECK(wefax_station_tilt("Northwood", &t) && t == -10, "Northwood %+d", t);
+    CHECK(!wefax_station_tilt("Bad name", &t) && !wefax_station_tilt("", &t), "a name with a space is not kept");
+}
+
 int main(void)
 {
     test_load();
@@ -505,6 +567,7 @@ int main(void)
     test_bulletin();
     test_previews();
     test_quality();
+    test_tilt();
     printf("wefax plan: %d checks, %d failed\n", checks, fails);
     return fails != 0;
 }

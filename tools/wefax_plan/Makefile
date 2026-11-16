@@ -3,13 +3,15 @@
 # from the card replacing it; which slot comes next and when, on which frequency, which slot a fax is, a chart going on
 # joined, a fax kept against the next slot, the names a fax is saved under and the best copy of a chart (files in
 # build/data/wefax), the slot a saved chart came from, the Bulletin's kinds; the charts' previews (src/wefax/thumb.c:
-# made, read, swept); the mark of charts made up here (clean, noisy, cut short, noise).
+# made, read, swept); the mark of charts made up here (clean, noisy, cut short, noise); Auto Tilt (src/wefax/tilt.c)
+# on such a chart sheared as a station's line rate shears it, and a station's tilt learned.
 TOP    := ../..
 SRC    := $(TOP)/src
 DATA   := $(CURDIR)/build/data
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -I $(SRC) -DBOARD_DATA='"$(DATA)"'
-OURS   := $(SRC)/wefax/plan.c $(SRC)/wefax/quality.c $(SRC)/wefax/thumb.c $(SRC)/cJSON.c
-HDRS   := $(SRC)/wefax/plan.h $(SRC)/wefax/plan_default.h $(SRC)/wefax/quality.h $(SRC)/wefax/thumb.h
+OURS   := $(SRC)/wefax/plan.c $(SRC)/wefax/quality.c $(SRC)/wefax/thumb.c $(SRC)/wefax/tilt.c $(SRC)/cJSON.c
+HDRS   := $(SRC)/wefax/plan.h $(SRC)/wefax/plan_default.h $(SRC)/wefax/quality.h $(SRC)/wefax/thumb.h \
+          $(SRC)/wefax/tilt.h
 
 all: test
 
