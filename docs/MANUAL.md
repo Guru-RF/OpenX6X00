@@ -369,6 +369,10 @@ as on the stock firmware, say). The steps are 10 Hz, 100 Hz, 500 Hz, 1 kHz,
 To go further at once, type the frequency (F-INP, or `f` on a keyboard).
 Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 
+A key let go while the radio is busy (a band change, an app closing) is a
+tap however late the radio reads it. Up to v0.3.12 one read after the long
+press time counted as held: a tap of F1 did its long action (#233).
+
 | Kind | Actions |
 |---|---|
 | Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, CW decoder on/off, CW ZAP (in CW and CW-R, the dial onto the signal the CW Tuner hears, as the CW 1:2 ZAP button; up to v0.3.9 neither was a key action, #196), SWL panel (as the X6100 hand mic's GENE: the broadcast stations on the air within 2 kHz, again the next one), SWL: save channel (as its NW: the station shown saved as a channel; up to v0.3.11 neither was a key action, so an X6200 could not open the panel, #155), ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
@@ -798,6 +802,15 @@ low while the base is reset, as Xiegu's own X6100 updater does. More in
 The BAND keys (and the hand mic's long UP/DOWN, a keyboard's CapsLock+Up and
 Down, the Walkie Talkie's Band buttons, the browser panel) step through the
 active bands of the band list, from the frequency up or down.
+
+- A BAND key steps on the press, as on the stock firmware, and held it goes
+  on: the next band half a second later, then one every 0.3 s, until it is
+  let go. Up to v0.3.12 the step came on the release, so it felt late, and a
+  press held past one second (the long press time) did nothing, nor did a
+  tap the radio read late while busy (just after a band change, a quick turn
+  of the knob, an app closing) (#233). An app with its own band list (FT8,
+  WSPR, PSK, Olivia, JTTY) steps through it the same way. The browser's
+  screen keys work like the radio's.
 
 - They skip a band the radio cannot tune: 4 m (70 MHz), 2 m and 70 cm,
   unless a transverter that is on (Settings > General > TRANSVERTERS) or, on

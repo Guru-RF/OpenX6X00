@@ -8,9 +8,10 @@
 
 /* The radio's buttons (front and top side, the knob presses) from their input devices.
  * A button goes to the screen as EVENT_KEYPAD: press, release, and after the hold time
- * long and its release, each button on its own while others are down too. The VOL press
- * is an LVGL key of its own (KEY_VOL_PRESS), once a press however long it is held; the
- * MFK press is the button of the MFK encoder (encoder.c). */
+ * long and its release, each button on its own while others are down too. BAND UP and DOWN
+ * repeat instead of a long press. The VOL press is an LVGL key of its own (KEY_VOL_PRESS),
+ * once a press however long it is held; the MFK press is the button of the MFK encoder
+ * (encoder.c). */
 
 #include "front_keys.h"
 
@@ -21,11 +22,24 @@
 
 #include <fcntl.h>
 #include <linux/input.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 #define HOLD_MS 1000
+
+/* BAND UP and DOWN: the main screen steps on the press, as the stock firmware does (#233), and held they go on:
+ * the next step REPEAT_FIRST_MS after the first, then one every REPEAT_MS, counted from the end of the step before
+ * (a band step retunes the radio). Slower than the H-22's VOL keys (400 and 100 ms, screen_main.c): each band is
+ * on the screen long enough to be read on the way. They have no long press */
+#define REPEAT_FIRST_MS 500
+#define REPEAT_MS       300
+
+/* A long press or a repeat due while the key's device has events not read yet waits this long for them, and looks
+ * again: a GUI busy for a while (a band change, an app closing) reads its keys late, and a release among them is a
+ * tap, never a long press nor a step more */
+#define QUEUED_MS 10
 
 static const struct {
     uint16_t     code;
@@ -71,7 +85,8 @@ static const struct {
 static struct {
     bool        down;
     bool        long_sent;      /* KEYPAD_LONG went: KEYPAD_LONG_RELEASE on the release */
-    lv_timer_t *hold_timer;
+    lv_timer_t *hold_timer;     /* the long press, or the next repeat */
+    keypad_t   *pad;            /* the device of the press; NULL for one from elsewhere (keypad_button) */
 } key_st[KEYS];
 
 static uint32_t hold_ms = HOLD_MS;
@@ -80,16 +95,42 @@ void keypad_set_long_time(uint32_t hold) {
     hold_ms = hold ? hold : HOLD_MS;
 }
 
+static bool repeats(keypad_key_t key) {
+    return key == KEYPAD_BAND_UP || key == KEYPAD_BAND_DOWN;
+}
+
 static void send(keypad_key_t key, keypad_state_t state) {
     event_keypad_t ev = {key, state};   /* sent by address: the receivers read it at once */
 
     lv_event_send(lv_scr_act(), EVENT_KEYPAD, &ev);
 }
 
+/* Events of the device not read yet. LVGL runs a timer made at the press before the one that reads the keys: a
+ * GUI held up past the hold time sent KEYPAD_LONG with the release already waiting, and the tap was lost (a band
+ * key did nothing, an F key did its long action) */
+static bool queued(const keypad_t *pad) {
+    struct pollfd p = {.fd = pad ? pad->fd : -1, .events = POLLIN};
+
+    return pad && poll(&p, 1, 0) > 0 && (p.revents & POLLIN);
+}
+
 static void held_cb(lv_timer_t *t) {
     keypad_key_t key = (keypad_key_t)(intptr_t)t->user_data;
 
-    key_st[key].hold_timer = NULL;      /* one shot: LVGL deletes it */
+    if (queued(key_st[key].pad)) {
+        lv_timer_set_period(t, QUEUED_MS);  /* read first: a release lets go of this timer */
+        return;
+    }
+    if (repeats(key)) {
+        send(key, KEYPAD_REPEAT);
+        if (key_st[key].hold_timer == t) {  /* still held */
+            lv_timer_set_period(t, REPEAT_MS);
+            lv_timer_reset(t);              /* from the end of this step */
+        }
+        return;
+    }
+    lv_timer_del(t);
+    key_st[key].hold_timer = NULL;
     key_st[key].long_sent  = true;
     send(key, KEYPAD_LONG);
 }
@@ -104,8 +145,9 @@ static keypad_key_t button_of(uint16_t code) {
     return KEYPAD_UNKNOWN;
 }
 
-/* One already-decoded button; value 1 is a press, anything else (release, autorepeat) lets go */
-void keypad_button(keypad_key_t key, int value) {
+/* One already-decoded button from pad (NULL: from elsewhere); value 1 is a press, anything else (release,
+ * autorepeat) lets go */
+static void key_event(keypad_t *pad, keypad_key_t key, int value) {
     if ((unsigned)key >= KEYS) {
         return;     /* a key added after FST, which KEYS has no place for */
     }
@@ -116,20 +158,27 @@ void keypad_button(keypad_key_t key, int value) {
     if (value == 1) {
         key_st[key].down      = true;
         key_st[key].long_sent = false;
+        key_st[key].pad       = pad;
         send(key, KEYPAD_PRESS);
-        /* POWER's hold switches the radio off: always the full time, also where an app shortens the rest (JS8) */
-        key_st[key].hold_timer = lv_timer_create(held_cb, key == KEYPAD_POWER ? HOLD_MS : hold_ms,
+        /* POWER's hold switches the radio off: always the full time, also where an app shortens the rest (JS8).
+         * Made after the press went: its time counts from the end of what the press did */
+        key_st[key].hold_timer = lv_timer_create(held_cb, repeats(key)           ? REPEAT_FIRST_MS
+                                                          : key == KEYPAD_POWER ? HOLD_MS
+                                                                                : hold_ms,
                                                  (void *)(intptr_t)key);
-        lv_timer_set_repeat_count(key_st[key].hold_timer, 1);
     } else if (key_st[key].down) {
         key_st[key].down = false;
         send(key, key_st[key].long_sent ? KEYPAD_LONG_RELEASE : KEYPAD_RELEASE);
     }
 }
 
+void keypad_button(keypad_key_t key, int value) {
+    key_event(NULL, key, value);
+}
+
 /* One input event a call */
-static void button_event(const struct input_event *in) {
-    keypad_button(button_of(in->code), in->value);
+static void button_event(keypad_t *pad, const struct input_event *in) {
+    key_event(pad, button_of(in->code), in->value);
 }
 
 static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
@@ -157,7 +206,7 @@ static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
                  * in the same pass would be lost */
                 data->continue_reading = false;
             } else {
-                button_event(&in);
+                button_event(pad, &in);
             }
         }
     }
@@ -180,7 +229,7 @@ void keypad_power_set(bool down) {
     if (backlight_tick() && down) {
         return;     /* the press woke the screen: that was its job */
     }
-    button_event(&in);
+    button_event(NULL, &in);
 }
 
 keypad_t *keypad_init(char *dev_name) {

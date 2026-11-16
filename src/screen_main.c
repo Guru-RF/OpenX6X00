@@ -925,7 +925,7 @@ static void on_buttons_hide_change(Subject *subj, void *user_data) {
     main_screen_buttons_wake();
 }
 
-/* Front keys. Most act on the release (a press) or on the long press, not both */
+/* Front keys. Most act on the release (a press) or on the long press, not both; BAND UP and DOWN on the press */
 static void front_key_cb(lv_event_t *e) {
     event_keypad_t *ev   = lv_event_get_param(e);
     bool            tap  = ev->state == KEYPAD_RELEASE;
@@ -974,8 +974,11 @@ static void front_key_cb(lv_event_t *e) {
             }
             break;
 
+        /* On the press, as the stock firmware does, and again and again while held (front_keys.c). On the release
+         * they came late, and a press held past the long press time did nothing (#233). An app that holds the
+         * band (band_lock) gets each step too */
         case KEYPAD_BAND_UP: case KEYPAD_BAND_DOWN:
-            if (tap) {
+            if (ev->state == KEYPAD_PRESS || ev->state == KEYPAD_REPEAT) {
                 band_step(ev->key == KEYPAD_BAND_UP);
             }
             break;
@@ -1238,9 +1241,9 @@ static void mic_key_cb(lv_event_t *e) {
             ab_key(tap, hold);
             break;
 
-        case HKEY_BAND_UP:  /* as the BAND keys; Xiegu's app knows them, no base was seen sending them */
+        case HKEY_BAND_UP:  /* as the BAND keys, on the press; Xiegu's app knows them, no base was seen sending them */
         case HKEY_BAND_DOWN:
-            if (tap) {
+            if (ev->state == HKEY_PRESS) {
                 band_step(ev->key == HKEY_BAND_UP);
             }
             break;
