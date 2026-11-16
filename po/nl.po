@@ -765,7 +765,7 @@ msgstr ""
 
 #: src/apps_menu.c
 msgid "Reflector talkgroups"
-msgstr ""
+msgstr "Reflector-gespreksgroepen"
 
 #: src/apps_menu.c src/button_bar.cpp src/screen_main.c
 msgid "Flights"
@@ -5761,12 +5761,16 @@ msgid ""
 "Lock:\n"
 "On"
 msgstr ""
+"Slot:\n"
+"Aan"
 
 #: src/dialog_svx.c
 msgid ""
 "Lock:\n"
 "Off"
 msgstr ""
+"Slot:\n"
+"Uit"
 
 #: src/dialog_svx.c src/dialog_zello.c
 msgid ""
@@ -5789,48 +5793,64 @@ msgid ""
 "SVX>RF:\n"
 "Off"
 msgstr ""
+"SVX>RF:\n"
+"Uit"
 
 #: src/dialog_svx.c
 msgid ""
 "SVX>RF:\n"
 "Stopped"
 msgstr ""
+"SVX>RF:\n"
+"Gestopt"
 
 #: src/dialog_svx.c
 msgid ""
 "SVX>RF:\n"
 "No ham band"
 msgstr ""
+"SVX>RF:\n"
+"Geen hamband"
 
 #: src/dialog_svx.c
 msgid ""
 "SVX>RF:\n"
 "On"
 msgstr ""
+"SVX>RF:\n"
+"Aan"
 
 #: src/dialog_svx.c
 msgid ""
 "RF>SVX:\n"
 "Off"
 msgstr ""
+"RF>SVX:\n"
+"Uit"
 
 #: src/dialog_svx.c
 msgid ""
 "RF>SVX:\n"
 "No ham band"
 msgstr ""
+"RF>SVX:\n"
+"Geen hamband"
 
 #: src/dialog_svx.c
 msgid ""
 "RF>SVX:\n"
 "Outside bands"
 msgstr ""
+"RF>SVX:\n"
+"Buiten banden"
 
 #: src/dialog_svx.c
 msgid ""
 "RF>SVX:\n"
 "On"
 msgstr ""
+"RF>SVX:\n"
+"Aan"
 
 #: src/dialog_svx.c src/dialog_zello.c
 msgid ""
@@ -5865,75 +5885,75 @@ msgstr ""
 
 #: src/dialog_svx.c src/svx.c
 msgid "not on the reflector yet"
-msgstr ""
+msgstr "nog niet op de reflector"
 
 #: src/dialog_svx.c
 msgid "SVXConnect: talk through a Bluetooth headset's mic"
-msgstr ""
+msgstr "SVXConnect: praten via de micro van een Bluetooth-headset"
 
 #: src/dialog_svx.c
 msgid "SVXConnect: talk through the hand mic"
-msgstr ""
+msgstr "SVXConnect: praten via de handmicro"
 
 #: src/dialog_svx.c src/dialog_zello.c
 msgid "link is on"
-msgstr ""
+msgstr "link staat aan"
 
 #: src/dialog_svx.c
 msgid "SVX to RF"
-msgstr ""
+msgstr "SVX naar RF"
 
 #: src/dialog_svx.c
 msgid "SVX to RF: set your callsign first (Settings), the link sends it as its CW ID"
-msgstr ""
+msgstr "SVX naar RF: stel eerst je roepnaam in (Instellingen), de link zendt die als CW-ID"
 
 #: src/dialog_svx.c
 msgid "SVX to RF: set the squelch (SQL) first, the link keys only while it is closed"
-msgstr ""
+msgstr "SVX naar RF: stel eerst de squelch (SQL) in, de link zendt alleen als die dicht is"
 
 #: src/dialog_svx.c
 msgid "SVX to RF: it transmits in LSB, USB, AM or FM only"
-msgstr ""
+msgstr "SVX naar RF: zendt alleen in LSB, USB, AM of FM"
 
 #: src/dialog_svx.c
 msgid "SVX to RF on: the talkgroup's overs are transmitted on this frequency"
-msgstr ""
+msgstr "SVX naar RF aan: de overs van de gespreksgroep worden op deze frequentie uitgezonden"
 
 #: src/dialog_svx.c
 msgid "SVX to RF off"
-msgstr ""
+msgstr "SVX naar RF uit"
 
 #: src/dialog_svx.c
 msgid "RF to SVX"
-msgstr ""
+msgstr "RF naar SVX"
 
 #: src/dialog_svx.c
 msgid "RF to SVX: set the squelch (SQL) first, it tells when a station is on"
-msgstr ""
+msgstr "RF naar SVX: stel eerst de squelch (SQL) in, die geeft aan wanneer een station actief is"
 
 #: src/dialog_svx.c
 msgid "RF to SVX on: what the squelch opens on goes to the talkgroup"
-msgstr ""
+msgstr "RF naar SVX aan: wat de squelch opent, gaat naar de gespreksgroep"
 
 #: src/dialog_svx.c
 msgid "RF to SVX off"
-msgstr ""
+msgstr "RF naar SVX uit"
 
 #: src/dialog_svx.c
 msgid "SVX link: the CW ID can be off where your licence lets an unattended station go without it"
-msgstr ""
+msgstr "SVX-link: de CW-ID mag uit waar je vergunning een onbemand station zonder toelaat"
 
 #: src/dialog_svx.c
 msgid "Not set up: the radio's web page, SVXConnect"
-msgstr ""
+msgstr "Niet ingesteld: webpagina van de radio, SVXConnect"
 
 #: src/dialog_svx.c
 msgid "No talkgroups yet"
-msgstr ""
+msgstr "Nog geen gespreksgroepen"
 
 #: src/dialog_svx.c
 msgid "Connect: the talkgroups come from the web page"
-msgstr ""
+msgstr "Verbinden: de gespreksgroepen komen van de webpagina"
 
 #: src/dialog_svx.c
 msgid "Recent"
@@ -5941,7 +5961,7 @@ msgstr ""
 
 #: src/dialog_svx.c
 msgid "nobody yet"
-msgstr ""
+msgstr "nog niemand"
 
 #: src/dialog_svx.c
 #, c-format
@@ -5950,11 +5970,11 @@ msgstr ""
 
 #: src/dialog_svx.c
 msgid "reflector talkgroups on the internet, never on the air"
-msgstr ""
+msgstr "reflector-gespreksgroepen op het internet, nooit in de lucht"
 
 #: src/dialog_svx.c
 msgid "on the air: the talkgroup"
-msgstr ""
+msgstr "in de lucht: de gespreksgroep"
 
 #: src/dialog_svx.c src/dialog_zello.c
 msgid "on the air: CW ID"
@@ -5962,15 +5982,15 @@ msgstr "in de lucht: CW-ID"
 
 #: src/dialog_svx.c
 msgid "receiver to the talkgroup"
-msgstr ""
+msgstr "ontvanger naar de gespreksgroep"
 
 #: src/dialog_svx.c src/dialog_zello.c
 msgid "amateur bands only"
-msgstr ""
+msgstr "alleen amateurbanden"
 
 #: src/dialog_svx.c src/dialog_zello.c
 msgid "outside the amateur bands"
-msgstr ""
+msgstr "buiten de amateurbanden"
 
 #: src/dialog_svx.c
 #, c-format
@@ -5983,51 +6003,51 @@ msgstr "SIMPLEX-REPEATER"
 
 #: src/dialog_svx.c
 msgid "No certificate: request one on the web page (SVXConnect)"
-msgstr ""
+msgstr "Geen certificaat: vraag er een aan op de webpagina (SVXConnect)"
 
 #: src/dialog_svx.c
 msgid "Certificate expired: request a new one on the web page"
-msgstr ""
+msgstr "Certificaat verlopen: vraag een nieuw aan op de webpagina"
 
 #: src/dialog_svx.c
 msgid "Certificate unreadable: request a new one on the web page"
-msgstr ""
+msgstr "Certificaat onleesbaar: vraag een nieuw aan op de webpagina"
 
 #: src/dialog_svx.c
 msgid "Certificate not valid yet: is the radio's clock right?"
-msgstr ""
+msgstr "Certificaat nog niet geldig: staat de klok van de radio juist?"
 
 #: src/dialog_svx.c
 msgid "Set up the reflector on the radio's web page: SVXConnect"
-msgstr ""
+msgstr "Stel de reflector in op de webpagina van de radio: SVXConnect"
 
 #: src/dialog_svx.c
 msgid "Not connected: press Connect"
-msgstr ""
+msgstr "Niet verbonden: druk op Verbinden"
 
 #: src/dialog_svx.c
 msgid "Not connected"
-msgstr ""
+msgstr "Niet verbonden"
 
 #: src/dialog_svx.c
 msgid "Connecting to the reflector"
-msgstr ""
+msgstr "Verbinden met de reflector"
 
 #: src/dialog_svx.c
 msgid "Talking on"
-msgstr ""
+msgstr "Je praat op"
 
 #: src/dialog_svx.c
 msgid "speak into the Bluetooth headset"
-msgstr ""
+msgstr "spreek in de Bluetooth-headset"
 
 #: src/dialog_svx.c
 msgid "speak into the hand mic"
-msgstr ""
+msgstr "spreek in de handmicro"
 
 #: src/dialog_svx.c
 msgid "No audio: talking on SVXConnect uses the hand mic"
-msgstr ""
+msgstr "Geen audio: praten op SVXConnect gebruikt de handmicro"
 
 #: src/dialog_svx.c src/dialog_zello.c
 msgid "Talking now:"
@@ -6035,7 +6055,7 @@ msgstr "Spreekt nu:"
 
 #: src/dialog_svx.c
 msgid "Choose a talkgroup with the MFK to talk on it"
-msgstr ""
+msgstr "Kies met de MFK een gespreksgroep om erop te praten"
 
 #: src/dialog_svx.c src/dialog_zello.c
 msgid "PTT or Talk: speak into the Bluetooth headset"
@@ -6051,15 +6071,15 @@ msgstr "PTT of Praten: spreek in de handmicro, zonder zijn eigen PTT"
 
 #: src/dialog_svx.c
 msgid "SVXConnect: set up the reflector on the radio's web page first"
-msgstr ""
+msgstr "SVXConnect: stel eerst de reflector in op de webpagina van de radio"
 
 #: src/dialog_svx.c
 msgid "SVXConnect: the helper could not start"
-msgstr ""
+msgstr "SVXConnect: het hulpprogramma kon niet starten"
 
 #: src/dialog_svx.c
 msgid "listened to only, not switchable (web page)"
-msgstr ""
+msgstr "alleen meeluisteren, niet te kiezen (webpagina)"
 
 #: src/dialog_wspr.c
 msgid "WSPR: no band of the hop here, beacon stopped"
@@ -6336,48 +6356,64 @@ msgid ""
 "Zello>RF:\n"
 "Off"
 msgstr ""
+"Zello>RF:\n"
+"Uit"
 
 #: src/dialog_zello.c
 msgid ""
 "Zello>RF:\n"
 "Stopped"
 msgstr ""
+"Zello>RF:\n"
+"Gestopt"
 
 #: src/dialog_zello.c
 msgid ""
 "Zello>RF:\n"
 "No ham band"
 msgstr ""
+"Zello>RF:\n"
+"Geen hamband"
 
 #: src/dialog_zello.c
 msgid ""
 "Zello>RF:\n"
 "On"
 msgstr ""
+"Zello>RF:\n"
+"Aan"
 
 #: src/dialog_zello.c
 msgid ""
 "RF>Zello:\n"
 "Off"
 msgstr ""
+"RF>Zello:\n"
+"Uit"
 
 #: src/dialog_zello.c
 msgid ""
 "RF>Zello:\n"
 "No ham band"
 msgstr ""
+"RF>Zello:\n"
+"Geen hamband"
 
 #: src/dialog_zello.c
 msgid ""
 "RF>Zello:\n"
 "Outside bands"
 msgstr ""
+"RF>Zello:\n"
+"Buiten banden"
 
 #: src/dialog_zello.c
 msgid ""
 "RF>Zello:\n"
 "On"
 msgstr ""
+"RF>Zello:\n"
+"Aan"
 
 #: src/dialog_zello.c
 msgid "Zello: talk through a Bluetooth headset's mic"
@@ -6389,7 +6425,7 @@ msgstr "Zello: praten via de handmicro"
 
 #: src/dialog_zello.c
 msgid "Zello to RF"
-msgstr ""
+msgstr "Zello naar RF"
 
 #: src/dialog_zello.c
 msgid "Zello to RF: set your callsign first (Settings), the link sends it as its CW ID"
@@ -13008,31 +13044,15 @@ msgstr "Telefoon"
 
 #: src/svx.c
 msgid "the Bluetooth mic gives no audio"
-msgstr ""
-
-#: src/svx.c
-msgid "ptt on\n"
-msgstr ""
+msgstr "de Bluetooth-micro geeft geen audio"
 
 #: src/svx.c
 msgid "the Bluetooth mic did not start"
-msgstr ""
-
-#: src/svx.c
-msgid "ptt off\n"
-msgstr ""
+msgstr "de Bluetooth-micro startte niet"
 
 #: src/svx.c
 msgid "SVX LINK"
-msgstr ""
-
-#: src/svx.c
-msgid "lock on\n"
-msgstr ""
-
-#: src/svx.c
-msgid "lock off\n"
-msgstr ""
+msgstr "SVX-LINK"
 
 #: src/swrscan_window.c
 msgid "SWR scan: not while transmitting or tuning"
@@ -13223,40 +13243,40 @@ msgstr ""
 #: src/voice_link.c
 #, c-format
 msgid "%s to RF stopped: the radio ended the transmission"
-msgstr ""
+msgstr "%s naar RF gestopt: de radio beëindigde de uitzending"
 
 #: src/voice_link.c
 msgid "Link: amateur bands only, unkeyed"
-msgstr ""
+msgstr "Link: alleen amateurbanden, zenden gestopt"
 
 #: src/voice_link.c
 #, c-format
 msgid "%s to RF: time limit, unkeyed"
-msgstr ""
+msgstr "%s naar RF: tijdslimiet, zenden gestopt"
 
 #: src/voice_link.c
 #, c-format
 msgid "Link: amateur bands only, RF to %s ended"
-msgstr ""
+msgstr "Link: alleen amateurbanden, RF naar %s beëindigd"
 
 #: src/voice_link.c
 #, c-format
 msgid "RF to %s: time limit, until the squelch closes"
-msgstr ""
+msgstr "RF naar %s: tijdslimiet, tot de squelch sluit"
 
 #: src/voice_link.c
 #, c-format
 msgid "Link: amateur bands only, nothing to %s"
-msgstr ""
+msgstr "Link: alleen amateurbanden, niets naar %s"
 
 #: src/voice_link.c
 msgid "Link: amateur bands only"
-msgstr ""
+msgstr "Link: alleen amateurbanden"
 
 #: src/voice_link.c
 #, c-format
 msgid "RF>%s: outside the amateur bands, check your licence"
-msgstr ""
+msgstr "RF>%s: buiten de amateurbanden, controleer je vergunning"
 
 #: src/voice_messages.c
 msgid "No messages yet: press Rec"
@@ -13419,69 +13439,69 @@ msgstr ""
 
 #: src/voice_net.c
 msgid "not sent"
-msgstr ""
+msgstr "niet verzonden"
 
 #: src/voice_net.c
 #, c-format
 msgid "RF to %s: %s: %s"
-msgstr ""
+msgstr "RF naar %s: %s: %s"
 
 #: src/voice_net.c
 #, c-format
 msgid "%s link: the transmission hung, unkeyed"
-msgstr ""
+msgstr "%s-link: de uitzending bleef hangen, zenden gestopt"
 
 #: src/voice_net.c
 msgid "message ended, the radio transmits"
-msgstr ""
+msgstr "bericht beëindigd, de radio zendt"
 
 #: src/voice_net.c
 msgid "message ended, disconnected"
-msgstr ""
+msgstr "bericht beëindigd, verbinding verbroken"
 
 #: src/voice_net.c
 msgid "(off)"
-msgstr ""
+msgstr "(uit)"
 
 #: src/voice_net.c
 msgid "(no SQL)"
-msgstr ""
+msgstr "(geen SQL)"
 
 #: src/voice_net.c
 msgid "(no ham band)"
-msgstr ""
+msgstr "(geen hamband)"
 
 #: src/voice_net.c
 msgid "(outside bands)"
-msgstr ""
+msgstr "(buiten banden)"
 
 #: src/voice_net.c
 msgid "Simplex repeater on"
-msgstr ""
+msgstr "Simplex-repeater aan"
 
 #: src/voice_net.c
 msgid " to RF "
-msgstr ""
+msgstr " naar RF "
 
 #: src/voice_net.c
 msgid "RF to "
-msgstr ""
+msgstr "RF naar "
 
 #: src/voice_net.c
 msgid "link stays on"
-msgstr ""
+msgstr "link blijft aan"
 
 #: src/voice_net.c
 msgid "link unkeyed: press again to talk"
-msgstr ""
+msgstr "link stopt met zenden: druk opnieuw om te praten"
 
 #: src/voice_net.c
 msgid "not while the radio transmits"
-msgstr ""
+msgstr "niet terwijl de radio zendt"
 
 #: src/voice_net.c
 msgid "no Bluetooth mic connected"
-msgstr ""
+msgstr "geen Bluetooth-micro verbonden"
 
 #: src/walkie.c
 msgid "Band +"
@@ -14110,32 +14130,12 @@ msgid ""
 msgstr ""
 
 #: src/zello.c
-msgid "talk stop\n"
-msgstr ""
-
-#: src/zello.c
-msgid "talk start bt\n"
-msgstr ""
-
-#: src/zello.c
-msgid "talk start\n"
-msgstr ""
-
-#: src/zello.c
-msgid "talkvia bt\n"
-msgstr ""
-
-#: src/zello.c
-msgid "talkvia mic\n"
-msgstr ""
-
-#: src/zello.c
 msgid "ZELLO LINK"
 msgstr "ZELLO-LINK"
 
 #: src/zello.c
 msgid "not on a channel yet"
-msgstr ""
+msgstr "nog niet op een kanaal"
 
 #. not in the list: a line or a word of a longer text
 msgid "SETTINGS"

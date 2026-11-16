@@ -12456,27 +12456,11 @@ msgid "the Bluetooth mic gives no audio"
 msgstr ""
 
 #: src/svx.c
-msgid "ptt on\n"
-msgstr ""
-
-#: src/svx.c
 msgid "the Bluetooth mic did not start"
 msgstr ""
 
 #: src/svx.c
-msgid "ptt off\n"
-msgstr ""
-
-#: src/svx.c
 msgid "SVX LINK"
-msgstr ""
-
-#: src/svx.c
-msgid "lock on\n"
-msgstr ""
-
-#: src/svx.c
-msgid "lock off\n"
 msgstr ""
 
 #: src/swrscan_window.c
@@ -13502,26 +13486,6 @@ msgstr ""
 msgid ""
 "\r\n"
 "User-Agent: "
-msgstr ""
-
-#: src/zello.c
-msgid "talk stop\n"
-msgstr ""
-
-#: src/zello.c
-msgid "talk start bt\n"
-msgstr ""
-
-#: src/zello.c
-msgid "talk start\n"
-msgstr ""
-
-#: src/zello.c
-msgid "talkvia bt\n"
-msgstr ""
-
-#: src/zello.c
-msgid "talkvia mic\n"
 msgstr ""
 
 #: src/zello.c
