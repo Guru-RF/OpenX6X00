@@ -2623,10 +2623,10 @@ static void key_cb(lv_event_t *ev)
     bool vol_up   = key == KEY_VOL_RIGHT_EDIT || key == KEY_VOL_RIGHT_SELECT;
     if (vol_down || vol_up) {
         radio_change_vol(vol_down ? -1 : 1);
-    } else if (board_on && (key == LV_KEY_LEFT || key == LV_KEY_UP)) {
+    } else if (board_on && !auto_selecting && (key == LV_KEY_LEFT || key == LV_KEY_UP)) {
         board_move(-1);
-    } else if (board_on && (key == LV_KEY_RIGHT || key == LV_KEY_DOWN)) {
-        board_move(1);
+    } else if (board_on && !auto_selecting && (key == LV_KEY_RIGHT || key == LV_KEY_DOWN)) {
+        board_move(1); /* the user's: select_row()'s DOWN, the list following its newest row, is not */
     } else if (key == LV_KEY_ESC) { /* LVGL prints the calling function with the line below: keep it here */
         LV_LOG_USER("JS8 ESC on the list: tick %u composing %d popup %d tx %d",
                     (unsigned)lv_tick_get(), composing, any_popup(), js8_tx_busy(tx));
@@ -4161,7 +4161,9 @@ static void conv_left_fill(void)
         lv_obj_t *last = lv_label_create(row);
         lv_label_set_long_mode(last, LV_LABEL_LONG_DOT);
         lv_obj_set_size(last, CONV_LEFT_W - 40, 18); /* one line */
-        lv_label_set_text(last, it->last[0] ? it->last : "heard your HB");
+        js8_station_t st; /* nothing said yet: they heard us, or only chosen (the board, Chat, the map) */
+        bool          heard = !it->last[0] && find_station(it->call, &st) && st.heard_me;
+        lv_label_set_text(last, it->last[0] ? it->last : heard ? "heard your HB" : "nothing said yet");
         lv_obj_set_style_text_font(last, &sony_14, LV_PART_MAIN);
         lv_obj_set_style_text_color(last, TC(text_mute), LV_PART_MAIN);
         lv_obj_set_pos(last, 8, 22);
@@ -7330,7 +7332,7 @@ static void translate_cb(button_data_t *btn) {
     user_touch();
     if (popup_guard() || composing) return;
     if (board_on || view_stations) { /* the list of messages is not in sight */
-        msg_update_text_fmt("Translate: View: Messages (page 2) first");
+        msg_update_text_fmt("View: Messages first");
         return;
     }
     lv_table_get_selected_cell(table, &r, &c);

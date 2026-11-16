@@ -3696,9 +3696,9 @@ Saturday. Freq (Settings..., page 3) has two GhostNet items:
   3.575, 7.107 and 14.107), and puts @GHOSTNET, @GSTFLASH and your regional group
   in Groups (Settings..., page 3: Groups, INFO, STATUS, Relay...). The
   groups go in once; take any of them out in Groups as you would @X6100.
-  The row "GhostNet groups: ..." in the list says what you are in. With AUTO on, JS8 answers the queries sent to
-  your groups (SNR?, GRID? ...) as desktop JS8Call does; AUTO is off every
-  time the app opens.
+  The row "GhostNet groups: ..." in the list says what you are in. With
+  AUTO on, JS8 answers the queries sent to your groups (SNR?, GRID? ...) as
+  desktop JS8Call does; AUTO is off every time the app opens.
 - **GhostNet: nets, reminder, RTTY...** opens GhostNet's popup:
   - Reminder N min before: On / Off (Off by default). On, a message comes
     up N minutes (10 by default) before each net you chose, over whatever
