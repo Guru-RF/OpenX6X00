@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <identifier>SMN-AR-20261116-0003</identifier>
+  <sent>2026-11-16T09:00:00-03:00</sent>
+  <status>Actual</status>
+  <msgType>Alert</msgType>
+  <info>
+    <language>es-AR</language>
+    <event>Nevadas</event>
+    <severity>Moderate</severity>
+    <onset>2026-11-16T12:00:00-03:00</onset>
+    <expires>2026-11-18T12:00:00-03:00</expires>
+    <headline>Alerta amarilla por nevadas</headline>
+    <description>Nevadas en cordillera.</description>
+    <area>
+      <areaDesc>Cordillera de Chubut</areaDesc>
+      <polygon>-42.0,-71.9 -42.0,-71.2 -44.0,-71.2 -44.0,-71.9 -42.0,-71.9</polygon>
+    </area>
+  </info>
+</alert>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+<title>Alertas - SMN</title>
+<link>https://www.smn.gob.ar/alertas</link>
+<description>Alertas y avisos del Servicio Meteorologico Nacional</description>
+<copyright>Copyright 2025 SMN | Derechos de autor, Servicio Meteorologico Nacional (SMN). Licencia CC BY 4.0.</copyright>
+<item><title>Alerta amarilla por tormentas</title><link>https://ssl.smn.gob.ar/CAP/files/AR-20261116-0001.xml</link><pubDate>Mon, 16 Nov 2026 12:00:00 -0300</pubDate></item>
+<item><title>Alerta naranja por viento</title><link><![CDATA[https://ssl.smn.gob.ar/CAP/files/AR-20261116-0002.xml]]></link><pubDate>Mon, 16 Nov 2026 12:00:00 -0300</pubDate></item>
+<item><title>Alerta amarilla por nevadas</title><link>https://ssl.smn.gob.ar/CAP/files/AR-20261116-0003.xml</link><pubDate>Mon, 16 Nov 2026 12:00:00 -0300</pubDate></item>
+<item><title>Alerta roja (vencida)</title><link>https://ssl.smn.gob.ar/CAP/files/AR-20261113-0009.xml</link><pubDate>Fri, 13 Nov 2026 12:00:00 -0300</pubDate></item>
+<item><title>Aviso a corto plazo</title><link>https://www.smn.gob.ar/acp</link></item>
+</channel>
+</rss>

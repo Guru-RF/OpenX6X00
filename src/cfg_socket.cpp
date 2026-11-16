@@ -16,6 +16,9 @@
  *                                                        radio is on, for Wavelog's live link (wavelog_cat.h, #245)
  *    {"cmd":"tune","hz":hz,"mode":"USB-D"}            -> {"t":"ok"} or {"t":"err","err":"..."}: a click on a spot in
  *                                                        Wavelog; frequency and mode only, refused while transmitting
+ *    {"cmd":"meteo_pos"}                              -> {"t":"pos","lat":..,"lon":..,"src":"GPS"|"Phone"|"Locator"|
+ *                                                        "Country","cc":"BE","country":..,"lang":"nl"}, "src":"" without
+ *                                                        any: where the web Weather page asks for (meteo_position)
  *  The values are checked here and applied on the LVGL thread through the scheduler, as the
  *  Settings pages apply them.
  *
@@ -29,13 +32,17 @@
 #include "wifi.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cmath>
 
 extern "C" {
     #include "band_plan.h"
     #include "cJSON.h"
+    #include "countries.h"
     #include "digi_freqs.h"
+    #include "i18n.h"
+    #include "meteo.h"
     #include "params/params.h"
     #include "radio.h"
     #include "scheduler.h"
@@ -427,6 +434,46 @@ static const char *tune(cJSON *req) {
     return t.err;
 }
 
+/* The web Weather page: where to ask for, read on the LVGL thread (the locator is a setting), this thread waiting */
+typedef struct {
+    double      lat, lon;
+    const char *src;
+    bool        ok;
+} meteo_pos_t;
+
+static void meteo_pos_cb(void *arg) {
+    meteo_pos_t *p = (meteo_pos_t *)arg;
+
+    p->ok = meteo_position(&p->lat, &p->lon, &p->src);
+}
+
+static const char *meteo_pos(char *out, size_t size, int *l) {
+    meteo_pos_t p = {0, 0, "", false};
+    char        cc[3];
+    cJSON      *o;
+    char       *text;
+
+    if (!scheduler_call(meteo_pos_cb, &p))
+        return "Busy, try again";
+    o = cJSON_CreateObject();
+    cJSON_AddStringToObject(o, "t", "pos");
+    if (p.ok) {
+        cJSON_AddNumberToObject(o, "lat", p.lat);
+        cJSON_AddNumberToObject(o, "lon", p.lon);
+    }
+    cJSON_AddStringToObject(o, "src", p.ok ? p.src : "");
+    cJSON_AddStringToObject(o, "cc", country_code(cc));
+    cJSON_AddStringToObject(o, "country", country_name(country_now()));
+    cJSON_AddStringToObject(o, "lang", i18n_code()[0] ? i18n_code() : "en");
+    text = cJSON_PrintUnformatted(o);
+    cJSON_Delete(o);
+    if (!text)
+        return "No memory";
+    *l = snprintf(out, size, "%s\n", text);
+    free(text);
+    return NULL;
+}
+
 /* The answer to one request line */
 static int handle_line(const char *line, char *out, size_t size) {
     cJSON      *req  = cJSON_Parse(line);
@@ -456,6 +503,8 @@ static int handle_line(const char *line, char *out, size_t size) {
         l = wavelog_cat_state(out, size);
     } else if (!strcmp(name->valuestring, "tune")) {
         err = tune(req);
+    } else if (!strcmp(name->valuestring, "meteo_pos")) {
+        err = meteo_pos(out, size, &l);
     } else if (!strcmp(name->valuestring, "tx_ranges_read")) {
         if (!scheduler_call(tx_ranges_read_cb, NULL)) {
             err = "Busy, try again";

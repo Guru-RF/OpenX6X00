@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <identifier>SMN-AR-20261113-0009</identifier>
+  <sent>2026-11-13T09:00:00-03:00</sent>
+  <status>Actual</status>
+  <msgType>Alert</msgType>
+  <info>
+    <language>es-AR</language>
+    <event>Lluvias</event>
+    <severity>Extreme</severity>
+    <onset>2026-11-13T12:00:00-03:00</onset>
+    <expires>2026-11-14T12:00:00-03:00</expires>
+    <headline>Alerta roja por lluvias</headline>
+    <area>
+      <areaDesc>Ciudad Autonoma de Buenos Aires</areaDesc>
+      <polygon>-34.50,-58.60 -34.50,-58.30 -34.75,-58.30 -34.75,-58.60 -34.50,-58.60</polygon>
+    </area>
+  </info>
+</alert>

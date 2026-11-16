@@ -4355,5 +4355,92 @@ def restore_backup():
         backup_lock.release()
 
 
+# Weather: as APP > Weather shows it (src/dialog_meteo.c), from the same helper (rootfs/usr/sbin/x6100-meteo: Open-Meteo,
+# OpenStreetMap's Nominatim for the place's name, the country's weather service for its warnings; the position sent
+# rounded to 0.1 degree). Asked only while the page is open and seen: its script asks again every 15 minutes, and
+# only the first ask and Update let the helper look up a place's name (Nominatim's policy). The country and the QTH
+# locator are set on the radio, Settings > General > STATION: this page only reads them.
+
+def meteo_grid_center(grid):
+    """The centre of a Maidenhead locator of 4, 6 or 8 characters as (lat, lon); None when it is not one"""
+    g = (grid or "").strip().upper()
+    if len(g) not in (4, 6, 8) or not re.fullmatch(r"[A-R]{2}[0-9]{2}([A-X]{2}([0-9]{2})?)?", g):
+        return None
+    lon = (ord(g[0]) - 65) * 20 - 180 + int(g[2]) * 2
+    lat = (ord(g[1]) - 65) * 10 - 90 + int(g[3])
+    w, h = 2.0, 1.0
+    if len(g) >= 6:
+        w, h = w / 24, h / 24
+        lon += (ord(g[4]) - 65) * w
+        lat += (ord(g[5]) - 65) * h
+    if len(g) == 8:
+        w, h = w / 10, h / 10
+        lon += int(g[6]) * w
+        lat += int(g[7]) * h
+    return lat + h / 2, lon + w / 2
+
+
+def meteo_position(grid):
+    """{lat, lon, src, where, cc, lang} for the page: the locator typed on it, else what the radio asks for (its GPS,
+    the phone's, the QTH locator, else the country's capital: meteo_position on the GUI socket), else the QTH locator
+    of params.db while the GUI does not answer. None without any"""
+    reply = display_call({"cmd": "meteo_pos"}) or {}
+    ok = reply.get("t") == "pos"
+    cc = str(reply.get("cc") or "") if ok else read_param("country")
+    lang = str(reply.get("lang") or "") if ok else read_param("language")
+    pos = {"cc": cc if re.fullmatch(r"[A-Z]{2}", cc or "") else "-", "lang": lang or "en"}
+    if grid:
+        c = meteo_grid_center(grid)
+        return dict(pos, lat=c[0], lon=c[1], src="Locator", where=grid.strip().upper()) if c else None
+    if ok and isinstance(reply.get("lat"), (int, float)) and isinstance(reply.get("lon"), (int, float)):
+        src = str(reply.get("src") or "")
+        where = {"Locator": f"Locator {read_param('qth')}",
+                 "Country": f"Country {reply.get('country') or cc}"}.get(src, src)
+        return dict(pos, lat=reply["lat"], lon=reply["lon"], src=src, where=where)
+    qth = read_param("qth")
+    c = meteo_grid_center(qth)
+    return dict(pos, lat=c[0], lon=c[1], src="Locator", where=f"Locator {qth}") if c else None
+
+
+@app.route('/meteo')
+def meteo_page():
+    return bottle.template('meteo')
+
+
+@app.get('/api/meteo')
+def meteo_get():
+    q = bottle.request.query
+    grid = q.get("grid", "").strip()
+    pos = meteo_position(grid)
+    if not pos:
+        return api_error(400 if grid else 409, "Not a locator: 4, 6 or 8 characters (JO20, JO20ab)" if grid else
+                         "No position: plug in a GPS, or set the QTH locator or the country on the radio "
+                         "(Settings > General > STATION)")
+    out = settings.METEO_WEB_FILE if grid else settings.METEO_FILE
+    try:
+        with open(settings.APP_VERSION) as f:
+            ver = f.read().strip()
+    except OSError:
+        ver = ""
+    env = dict(os.environ, X6100_FW=ver) if ver else dict(os.environ)
+    cmd = [settings.METEO_CMD, "update"] + (["--asked"] if q.get("asked") == "1" else []) + \
+        ["%.5f" % pos["lat"], "%.5f" % pos["lon"], pos["cc"], pos["src"] or "-", pos["lang"], out]
+    try:
+        # its services at 20 s each and a country's warnings: a run of the GUI's before it at most
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=150, env=env)
+        line = (r.stdout or "").strip().splitlines()[-1:] or [""]
+    except (OSError, subprocess.SubprocessError) as e:
+        line = [f"error {e}"]
+    if line[0] != "ok":
+        return api_error(502, line[0][6:] if line[0].startswith("error ") else "No answer from x6100-meteo")
+    try:
+        with open(out, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, ValueError) as e:
+        return api_error(502, f"Can't read the answer: {e}")
+    doc["where"] = pos["where"]
+    return doc
+
+
 # The Bands, Digital modes, Time and Files pages, static files: config_pages.py adds their routes to app
 from . import config_pages   # noqa: E402,F401  (last: it imports app and api_error from here)

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <identifier>SMN-AR-20261116-0001</identifier>
+  <sender>pronos@smn.gob.ar</sender>
+  <sent>2026-11-16T09:00:00-03:00</sent>
+  <status>Actual</status>
+  <msgType>Alert</msgType>
+  <scope>Public</scope>
+  <info>
+    <language>es-AR</language>
+    <category>Met</category>
+    <event>Tormentas</event>
+    <urgency>Expected</urgency>
+    <severity>Severe</severity>
+    <certainty>Likely</certainty>
+    <onset>2026-11-16T18:00:00-03:00</onset>
+    <expires>2026-11-17T06:00:00-03:00</expires>
+    <senderName>Servicio Meteorol&#243;gico Nacional</senderName>
+    <headline>Alerta amarilla por tormentas</headline>
+    <description><![CDATA[El área será afectada por tormentas de variada intensidad, algunas fuertes, con ráfagas & granizo.]]></description>
+    <instruction>Evitar salir.</instruction>
+    <web>https://www.smn.gob.ar/alertas</web>
+    <area>
+      <areaDesc>Ciudad Aut&#243;noma de Buenos Aires</areaDesc>
+      <polygon>-34.50,-58.60 -34.50,-58.30 -34.75,-58.30 -34.75,-58.60 -34.50,-58.60</polygon>
+    </area>
+  </info>
+</alert>

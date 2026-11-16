@@ -134,3 +134,26 @@ const char *station_qth(void) {
     }
     return params.qth.x;
 }
+
+#define POS_MAX_AGE_S   600     /* the phone sends its position every two minutes standing still */
+#define PHONE_MAX_ACC_M 1000    /* coarser than that (a phone placed by its cell), the locator does as well */
+
+bool station_position(double *lat, double *lon, const char **src) {
+    int age, acc;
+
+    if (gps_last_fix(lat, lon, &age) && age < POS_MAX_AGE_S) {
+        *src = "GPS";
+        return true;
+    }
+    if (gps_phone_fix(lat, lon, &age, &acc) && age < POS_MAX_AGE_S && acc <= PHONE_MAX_ACC_M) {
+        *src = "Phone";
+        return true;
+    }
+    if (strlen(params.qth.x) >= 4 && qth_grid_check(params.qth.x)) {
+        qth_str_to_pos(params.qth.x, lat, lon);
+        *src = "Locator";
+        return true;
+    }
+    *src = "";
+    return false;
+}
