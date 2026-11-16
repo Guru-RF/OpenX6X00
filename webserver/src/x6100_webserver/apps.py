@@ -1132,7 +1132,11 @@ def set_winlink():
 SSH_DIR = "/root/.ssh"
 SSH_AUTHORIZED_KEYS = os.path.join(SSH_DIR, "authorized_keys")
 SSH_BACKUP = ["/etc/init.d/S04restore_backup_config", "stop"]
-SSH_KEY_TYPES = ("ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521", "ssh-rsa")
+# sk-: a FIDO2 security key, ssh-keygen -t ed25519-sk / ecdsa-sk; sshd checks its signatures itself
+SSH_SK_TYPES = ("sk-ssh-ed25519@openssh.com", "sk-ecdsa-sha2-nistp256@openssh.com")
+SSH_KEY_TYPES = ("ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521",
+                 "ssh-rsa") + SSH_SK_TYPES
+SSH_SK_OPTIONS = ("verify-required", "no-touch-required")   # the only options added before a key: sk- keys only
 SSH_EC_CURVES = {"nistp256": (256, 65), "nistp384": (384, 97), "nistp521": (521, 133)}   # bits, point 04|x|y
 SSH_RSA_MIN_BITS = 3072
 SSH_MAX_KEYS = 32
@@ -1154,7 +1158,8 @@ def ssh_blob_fields(blob):
 
 def ssh_key(kind, b64):
     """{type, bits, fingerprint} of a public key as authorized_keys has it (type, base64), None when the base64 is
-    not a key of that type. A type this page does not add (sk-, ssh-dss) is listed with bits None"""
+    not a key of that type. A type this page does not add (ssh-dss) is listed with bits None. An sk- key ends with
+    its application, ssh: and maybe a name (ssh-keygen -O application=)"""
     try:
         blob = base64.b64decode(b64, validate=True)
     except ValueError:
@@ -1162,9 +1167,17 @@ def ssh_key(kind, b64):
     f = ssh_blob_fields(blob)
     if not f or f[0] != kind.encode():
         return None
+    if kind in SSH_SK_TYPES:
+        name = f.pop() if len(f) > 1 else b""
+        if not name.startswith(b"ssh:") or len(name) > 256 or any(c < 33 or c > 126 for c in name):
+            return None
     bits = None
-    if kind == "ssh-ed25519":
+    if kind in ("ssh-ed25519", "sk-ssh-ed25519@openssh.com"):
         if len(f) != 2 or len(f[1]) != 32:
+            return None
+        bits = 256
+    elif kind == "sk-ecdsa-sha2-nistp256@openssh.com":
+        if len(f) != 3 or f[1] != b"nistp256" or len(f[2]) != 65 or f[2][:1] != b"\x04":
             return None
         bits = 256
     elif kind.startswith("ecdsa-sha2-") and kind in SSH_KEY_TYPES:
@@ -1211,7 +1224,8 @@ def ssh_parse_line(line):
 
 
 def ssh_new_key(text):
-    """(key, line to add) for a pasted public key; ValueError says what is wrong with it"""
+    """(key, line to add) for a pasted public key; ValueError says what is wrong with it. Options before the key:
+    only SSH_SK_OPTIONS, on a security key (sshd 8.4 or later; the radio's is 9.6)"""
     text = text.strip() if isinstance(text, str) else ""
     if not text:
         raise ValueError("Paste a public key: one line, ssh-ed25519 AAAA... you@computer")
@@ -1222,9 +1236,19 @@ def ssh_new_key(text):
     if len(text) > 8192:
         raise ValueError("Too long for a public key")
     parts = text.split(None, 2)
+    options = ""
+    if parts[0] not in SSH_KEY_TYPES and len(parts) > 1 and parts[1] in SSH_KEY_TYPES:
+        options, text = parts[0], text[len(parts[0]):].strip()
+        parts = text.split(None, 2)
+        names = options.split(",")
+        if (parts[0] not in SSH_SK_TYPES or any(o not in SSH_SK_OPTIONS for o in names)
+                or len(set(names)) != len(names)):
+            raise ValueError("Before the key the page takes only verify-required and no-touch-required, and only "
+                             "for a security key (sk-ssh-ed25519@openssh.com, sk-ecdsa-sha2-nistp256@openssh.com)")
     if parts[0] not in SSH_KEY_TYPES:
-        raise ValueError("The line starts with the key type: ssh-ed25519, ecdsa-sha2-nistp256 (384, 521) or ssh-rsa, "
-                         "with nothing before it")
+        raise ValueError("The line starts with the key type: ssh-ed25519, ecdsa-sha2-nistp256 (384, 521), ssh-rsa, "
+                         "or a security key's sk-ssh-ed25519@openssh.com or sk-ecdsa-sha2-nistp256@openssh.com, with "
+                         "nothing before it but a security key's verify-required or no-touch-required")
     key = ssh_key(parts[0], parts[1]) if len(parts) >= 2 else None
     if not key:
         raise ValueError(f"Not a whole {parts[0]} key: copy the line again")
@@ -1234,7 +1258,7 @@ def ssh_new_key(text):
     comment = parts[2] if len(parts) > 2 else ""
     if len(comment) > 200 or any(ord(c) < 32 or ord(c) == 127 for c in comment):
         raise ValueError("The comment after the key: up to 200 characters, no tabs or control characters")
-    return key, " ".join(parts)
+    return key, (options + " " if options else "") + " ".join(parts)
 
 
 def ssh_read():

@@ -28,7 +28,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Browser remote](#browser-remote)
 - [TCI server](#tci-server)
 - [Network name](#network-name): [the radio's own names](#the-radios-own-names)
-- [SSH](#ssh): [a key on Windows](#a-key-on-windows), [on a Mac or on Linux](#a-key-on-a-mac-or-on-linux), [in PuTTY](#a-key-in-putty), [adding the key on the radio](#adding-the-key-on-the-radio), [the first login](#the-first-login), [after a new card image](#after-a-new-card-image), [when SSH does not let you in](#when-ssh-does-not-let-you-in)
+- [SSH](#ssh): [a key on Windows](#a-key-on-windows), [on a Mac or on Linux](#a-key-on-a-mac-or-on-linux), [in PuTTY](#a-key-in-putty), [on a security key](#a-key-on-a-security-key), [adding the key on the radio](#adding-the-key-on-the-radio), [the first login](#the-first-login), [after a new card image](#after-a-new-card-image), [when SSH does not let you in](#when-ssh-does-not-let-you-in)
 - [Tailscale](#tailscale): [Tailscale Funnel](#tailscale-funnel)
 - [Ethernet](#ethernet): [USB tethering](#usb-tethering)
 - [Troubleshooting and FAQ](#troubleshooting-and-faq)
@@ -8048,7 +8048,8 @@ A key has two halves, made once on each computer you log in from:
 
 In short: make a key on the computer, paste its public half on System > SSH
 and press Add, then `ssh root@x6100.local`. The radio takes ed25519 keys (the
-ones made below), ECDSA keys and RSA keys of 3072 bits or more. This section
+ones made below), ECDSA keys, RSA keys of 3072 bits or more, and keys on a
+[FIDO2 security key](#a-key-on-a-security-key). This section
 writes `x6100.local`: an X6200 answers as `x6200.local`, a radio you gave a
 [network name](#network-name) by that name, and every radio by its address.
 
@@ -8121,6 +8122,41 @@ WinSCP: New Site, SFTP, Host name `x6100.local`, User name `root`, then
 Advanced... > SSH > Authentication > Private key file: the `.ppk` file (an
 OpenSSH `id_ed25519` chosen there is converted to one).
 
+### A key on a security key
+
+A FIDO2 security key holds the secret that signs each login: `ssh` logs in
+only while it is plugged in and touched. There are two kinds, and the radio takes both the same way:
+
+- Non-resident (`ssh-keygen`'s default): logging in needs both the stub file
+  `ssh-keygen` writes on the computer (`id_ed25519_sk`, without `.pub`) and
+  the security key.
+- Resident (`-O resident`): only the security key is needed, since the key
+  lives on the device. On another computer, `ssh-keygen -K` writes the stub
+  file again from the key.
+
+It needs OpenSSH 8.2 or later on the computer, built with security
+key support: most Linux distributions' is; a Mac's own `ssh` is not
+(Homebrew's `openssh` is).
+
+1. Plug the key in. In a terminal: `ssh-keygen -t ed25519-sk`, and touch the
+   key when it blinks. A key that does not know ed25519 (some older
+   security keys) says so: `ssh-keygen -t ecdsa-sk` then.
+2. To ask for the key's PIN at each login as well as the touch, add
+   `-O verify-required` (the key needs a PIN set), and on the radio type
+   `verify-required ` in front of the line before pressing Add: the radio
+   then refuses a login made without the PIN.
+3. Paste the line of `~/.ssh/id_ed25519_sk.pub` (or `id_ecdsa_sk.pub`)
+   [on the radio](#adding-the-key-on-the-radio), then
+   `ssh root@x6100.local`: it says "Confirm user presence for key", touch the
+   key.
+
+- `no-touch-required` in front logs in without the touch (the key must have
+  been made with `-O no-touch-required`). It is up to you, but a key that logs
+  in untouched is little more than a file.
+- A security key's smart-card (PIV) keys are ordinary ECDSA or RSA keys: the
+  page takes them as such. Some security keys make RSA keys of 2048 bits
+  only, which the page refuses: make an ECDSA P-256 one instead.
+
 ### Adding the key on the radio
 
 1. In a browser on the radio's network, open the web configurator:
@@ -8136,8 +8172,11 @@ OpenSSH `id_ed25519` chosen there is converted to one).
 - Once for each computer, up to 32 keys. The bin (Remove) on a row removes
   that key; Undo puts it back for twenty seconds. Removing a key does not end
   a session already open with it.
-- It takes ssh-ed25519, ecdsa-sha2-nistp256/384/521 and ssh-rsa of 3072 bits
-  or more, one key at a time, as `ssh-keygen` writes it (no options in front).
+- It takes ssh-ed25519, ecdsa-sha2-nistp256/384/521, ssh-rsa of 3072 bits
+  or more, and sk-ssh-ed25519@openssh.com and sk-ecdsa-sha2-nistp256@openssh.com
+  ([security keys](#a-key-on-a-security-key)), one key at a time, as
+  `ssh-keygen` writes it. The only options it takes in front are a security
+  key's `verify-required` and `no-touch-required`.
 - The keys are root's, in `/root/.ssh/authorized_keys`.
 - The page opens only by the radio's address or its
   [own names](#the-radios-own-names), as the Tailscale page: a page from
