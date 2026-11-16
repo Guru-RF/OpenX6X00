@@ -1,5 +1,5 @@
 % rebase('base.html', title='FT8')
-<link href="/static/css/apps.css?v=1" rel="stylesheet">
+<link href="/static/css/apps.css?v=2" rel="stylesheet">
 <style>
 /* The FT8 page: the radio's FT8 app from the browser, as a wall of four screens and a desk: the app's waterfall,
  * the stations on a map, the band's decodes, what concerns our QSO, and the app's buttons. The radio decodes,
@@ -43,7 +43,12 @@
 </div>
 
 <section class="app-wall" id="wall">
-  <article class="mon" id="m-wf">
+  <div class="tabs" role="tablist" data-g="top">
+    <button type="button" role="tab" data-t="m-wf" aria-selected="true">Waterfall</button>
+    <button type="button" role="tab" data-t="m-map" aria-selected="false">Map <span class="n" id="n-map">0</span></button>
+  </div>
+
+  <article class="mon pane show" data-g="top" id="m-wf">
     <div class="mh"><span class="led off" id="led-wf"></span><h3>Waterfall</h3>
       <span class="lbl wfx">the app's audio</span>
       <div class="meta"><span class="lbl wfx">A click: our TX there</span></div></div>
@@ -54,14 +59,15 @@
     </div></div>
   </article>
 
-  <article class="mon" id="m-map">
+  <article class="mon pane" data-g="top" id="m-map">
     <div class="mh"><span class="led" style="--c:var(--c-oth)"></span><h3>Map</h3>
       <span class="lbl"><span id="mygrid">-</span> · <span class="num" id="nst">0</span> stations</span>
-      <div class="meta"><button type="button" class="chip" id="z-near" aria-pressed="true">Near</button><button type="button" class="chip" id="z-world" aria-pressed="false">World</button></div></div>
+      <div class="meta"><button type="button" class="chip" id="z-near" aria-pressed="true">Near</button><button type="button" class="chip" id="z-world" aria-pressed="false">World</button><button type="button" class="chip gap" id="z-sat" aria-pressed="false" title="NASA's Blue Marble under the stations, or the plain map">Sat</button></div></div>
     <div class="mb">
       <svg id="map" viewBox="150 15 75 46" preserveAspectRatio="xMidYMid slice" aria-label="Stations heard, at their locator">
         <defs><pattern id="gr" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0H0V10" fill="none" stroke="rgba(143,163,184,.12)" stroke-width=".15"/></pattern></defs>
         <rect x="-360" y="0" width="1080" height="180" fill="url(#gr)"/>
+        <image id="sat" x="0" y="0" width="360" height="180" preserveAspectRatio="none" display="none"/>
         <path id="land" vector-effect="non-scaling-stroke" d=""/>
         <g id="gc"></g><g id="dots"></g>
       </svg>
@@ -72,7 +78,12 @@
     </div>
   </article>
 
-  <article class="mon" id="m-dec">
+  <div class="tabs" role="tablist" data-g="bot">
+    <button type="button" role="tab" data-t="m-dec" aria-selected="true">Band activity <span class="n" id="n-dec">0</span></button>
+    <button type="button" role="tab" data-t="m-rx" aria-selected="false">QSO <span class="n" id="n-rx">0</span></button>
+  </div>
+
+  <article class="mon pane show" data-g="bot" id="m-dec">
     <div class="mh"><span class="led" style="--c:var(--c-pota)"></span><h3>Band activity</h3>
       <span class="lbl"><span class="num" id="slotn">0</span> in the last slot</span>
       <div class="meta"><button type="button" class="chip" id="b-clear">Clear</button></div></div>
@@ -82,7 +93,7 @@
     </div></div>
   </article>
 
-  <article class="mon" id="m-rx">
+  <article class="mon pane" data-g="bot" id="m-rx">
     <div class="mh"><span class="led" style="--c:var(--c-me)"></span><h3>QSO</h3>
       <span class="lbl">to me, from me, with <span id="rx-dx">-</span></span></div>
     <div class="mb"><div class="list" id="rx">
@@ -95,7 +106,7 @@
 <section class="desk" id="desk" aria-label="The app's buttons">
   <div class="grp">
     <div class="line">
-      <button type="button" class="btn" id="b-open">Open</button>
+      <button type="button" class="btn dup" id="b-open">Open</button>
       <button type="button" class="btn" id="b-mode" title="FT8, FT4, FT2: the app's protocol">Mode <small id="v-mode">FT8</small></button>
     </div>
     <div class="line">
@@ -117,15 +128,26 @@
   <div class="cd">
     <div class="ringcd" title="Seconds to our next slot"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" stroke="rgba(255,255,255,.08)"/><circle id="cd-arc" cx="32" cy="32" r="28" stroke="var(--c-mine)" stroke-dasharray="176" stroke-dashoffset="176" stroke-linecap="round"/></svg><div><strong id="cd-n">--</strong></div></div>
     <div class="acts">
-      <button type="button" class="btn" id="b-tx" title="TX: armed, the queued message goes out in its slot; off, the app only listens and decodes">TX off</button>
-      <button type="button" class="btn cq" id="b-cq" title="Call CQ every slot of ours until a station answers">CQ</button>
-      <button type="button" class="btn auto" id="b-auto" title="Answer by itself a station that calls us, and carry the QSO through; it never calls CQ on its own">Auto</button>
+      <button type="button" class="btn dup" id="b-tx" title="TX: armed, the queued message goes out in its slot; off, the app only listens and decodes">TX off</button>
+      <button type="button" class="btn cq dup" id="b-cq" title="Call CQ every slot of ours until a station answers">CQ</button>
+      <button type="button" class="btn auto dup" id="b-auto" title="Answer by itself a station that calls us, and carry the QSO through; it never calls CQ on its own">Auto</button>
       <button type="button" class="btn hold" id="b-hold" title="Hold the TX frequency: do not move onto the station answered">Hold</button>
-      <button type="button" class="btn stop" id="b-stop" title="Stop the transmission, drop the queued message, CQ off, TX off">Stop</button>
+      <button type="button" class="btn stop dup" id="b-stop" title="Stop the transmission, drop the queued message, CQ off, TX off">Stop</button>
     </div>
   </div>
   <span class="status" id="st"></span>
 </section>
+
+<div class="mbar" id="mbar">
+  <div class="top"><div class="nx"><span class="lbl">Next</span><span id="m-next">-</span></div><div class="cds" id="m-cd">--</div></div>
+  <div class="acts2">
+    <button type="button" class="btn" id="m-open">Open</button>
+    <button type="button" class="btn" id="m-tx">TX off</button>
+    <button type="button" class="btn cq" id="m-cq">CQ</button>
+    <button type="button" class="btn auto" id="m-auto">Auto</button>
+    <button type="button" class="btn stop" id="m-stop">Stop</button>
+  </div>
+</div>
 
 <p class="sub app-help">All of it runs on the radio: it decodes, calls and answers with or without this page, and CQ and
 Auto go on when the page closes or loses its link. A tap on a CQ or a call queues one reply for our next slot and arms
@@ -135,7 +157,7 @@ and nothing keys the transmitter. The buttons work from a paired browser in cont
 
 <script src="/static/js/radio_link.js?v=2"></script>
 <script src="/static/js/radio_session.js?v=8"></script>
-<script src="/static/js/app_wall.js?v=1"></script>
+<script src="/static/js/app_wall.js?v=2"></script>
 <script>
 (function() {
   "use strict";
@@ -167,7 +189,7 @@ and nothing keys the transmitter. The buttons work from a paired browser in cont
   const COL = {me: cvar("--c-me"), pota: cvar("--c-pota"), dx: cvar("--c-dx"), cq: cvar("--c-cq"), oth: cvar("--c-oth"), wk: "#6b7a8f", mine: cvar("--c-mine")};
   let dx = "";
   const map = AppWall.map({me: ME, meCall: MYBASE, colors: COL, focus: function() { return dx; },
-                           count: function(n) { $("#nst").text(n); }});
+                           key: "ft8", count: function(n) { $("#nst").text(n); $("#n-map").text(n); }});
   const stations = map.stations;
 
   /* ================= the waterfall ================= */
@@ -265,7 +287,7 @@ and nothing keys the transmitter. The buttons work from a paired browser in cont
     const cls = r.t === 5 ? "tx" : r.t === 1 ? "start" : kind(r, msg);
     if (r.t >= 2 && r.t <= 4) {
       addTo("dec", $dec, decEl, makeRow(r, t, msg, cls), t);
-      nDec++; if (t === curSlotT) $("#slotn").text(++slotCount);
+      $("#n-dec").text(++nDec); if (t === curSlotT) $("#slotn").text(++slotCount);
       map.heard(r.c, r.g, cls, {k: r.k, d: r.d, snr: r.snr});
       if (t) {
         const s = slotMs(t), col = COL[cls];
@@ -273,7 +295,7 @@ and nothing keys the transmitter. The buttons work from a paired browser in cont
         Object.keys(slotCalls).forEach(function(k) { if (k < s - 600000) delete slotCalls[k]; });
       }
     }
-    if (isMine(r, msg)) { addTo("rx", $rx, rxEl, makeRow(r, t, msg, cls), t); nRx++; }
+    if (isMine(r, msg)) { addTo("rx", $rx, rxEl, makeRow(r, t, msg, cls), t); $("#n-rx").text(++nRx); }
     overlay();
   }
   function setDx(c) {
@@ -289,7 +311,7 @@ and nothing keys the transmitter. The buttons work from a paired browser in cont
     $("#q-more").text(s ? "· " + s.g.slice(0, 4) + (s.d ? " · " + s.d + " km" : "") : "");
   }
   $("#b-clear").on("click", function() {
-    $dec.children(":not(.thead)").remove(); lastSlot.dec = ""; nDec = 0;
+    $dec.children(":not(.thead)").remove(); lastSlot.dec = ""; nDec = 0; $("#n-dec").text(0);
   });
 
   /* ================= the app's state and the desk ================= */
@@ -325,16 +347,16 @@ and nothing keys the transmitter. The buttons work from a paired browser in cont
     if (f.sending || f.cq || (msg && f.tx)) stopped = false;
     if (queued && !cq) setDx(msg.split(" ")[0]);
     const slotS = (f.slot || 15000) / 1000, ms = slotIn(), inS = ms >= 0 ? Math.ceil(ms / 1000) : -1;
-    $("#b-open").text(f.open ? "Close" : "Open").toggleClass("open", !!f.open);
+    $("#b-open, #m-open").text(f.open ? "Close" : "Open").toggleClass("open", !!f.open);
     $("#v-mode").text(PROTOS[f.proto] || "FT8");
     $("#v-txf").text(f.txf);
-    $("#b-tx").text(armed ? "TX armed" : "TX off").toggleClass("armed", armed && !!f.open);
-    $("#b-cq").toggleClass("on", !!f.cq);
-    $("#b-auto").toggleClass("on", !!f.auto);
+    $("#b-tx, #m-tx").text(armed ? "TX armed" : "TX off").toggleClass("armed", armed && !!f.open);
+    $("#b-cq, #m-cq").toggleClass("on", !!f.cq);
+    $("#b-auto, #m-auto").toggleClass("on", !!f.auto);
     $("#b-hold").toggleClass("on", !!f.hold);
-    $("#b-stop").toggleClass("down", !!f.sending);
-    $("#desk .btn:not(#b-open)").prop("disabled", !f.open);
-    $("#b-stop").prop("disabled", false);
+    $("#b-stop, #m-stop").toggleClass("down", !!f.sending);
+    $("#desk .btn:not(#b-open), #mbar .btn:not(#m-open)").prop("disabled", !f.open);
+    $("#b-stop, #m-stop").prop("disabled", false);
     $("#led-wf").toggleClass("off", !f.open || Date.now() - wf.last > 5000);
     if (!f.open) wf.closed("The app is closed: Open starts it on the radio, and its waterfall shows here.");
     else if (!wf.n) wf.closed("Waiting for the app's waterfall.");
@@ -350,19 +372,21 @@ and nothing keys the transmitter. The buttons work from a paired browser in cont
     });
     /* the line: what happens next, in words */
     const $n = $("#next").empty().removeClass("stop");
+    let mtext = "-", mtx = false;     /* the phone bar's line: the message and whether it is on the air */
     if (!f.open) $n.text("The app is closed: Open starts it on the radio.");
     else if (f.nocall) $n.text("No callsign on the radio (Settings > General > STATION): the app decodes but never transmits.");
-    else if (f.sending) $n.append("On the air now: ", $("<b>").text(msg), f.rep > 0 ? " (" + f.rep + " more without an answer)" : "");
+    else if (f.sending) { $n.append("On the air now: ", $("<b>").text(msg), f.rep > 0 ? " (" + f.rep + " more without an answer)" : ""); mtext = msg; mtx = true; }
     else if (stopped) $n.addClass("stop").text("Stopped: nothing transmits until CQ, a tap on a call or TX arms it again.");
-    else if (queued && armed) $n.append("Next: ", $("<b>").text(msg), " in " + inS + " s, every " + (2 * slotS) + " s", cq ? " until a station answers" : f.rep > 0 ? ", " + f.rep + " more tries" : "", f.hound ? " (Hound)" : "", ".");
-    else if (queued) $n.append("Queued, not armed: ", $("<b>").text(msg), ". TX off: a dry run.");
+    else if (queued && armed) { $n.append("Next: ", $("<b>").text(msg), " in " + inS + " s, every " + (2 * slotS) + " s", cq ? " until a station answers" : f.rep > 0 ? ", " + f.rep + " more tries" : "", f.hound ? " (Hound)" : "", "."); mtext = msg; }
+    else if (queued) { $n.append("Queued, not armed: ", $("<b>").text(msg), ". TX off: a dry run."); mtext = msg + " (TX off)"; }
     else if (f.qso) $n.text("In a QSO, nothing due: waiting for the other station" + (f.auto ? ", Auto answers it." : "; tap its message to answer."));
     else $n.text("Listening. " + (f.auto ? "Auto answers a station calling us. " : "") + (armed ? "CQ calls; a tap on a CQ answers it." : "TX off: CQ or a tap arms it."));
+    $("#m-next").text(mtext).toggleClass("tx", mtx);
     /* the countdown */
     const frac = ms >= 0 ? ms / (2 * slotS * 1000) : 0;
     document.getElementById("cd-arc").setAttribute("stroke-dashoffset", (176 * (1 - frac)).toFixed(1));
     document.getElementById("cd-arc").setAttribute("stroke", f.sending ? COL.me : COL.mine);
-    $("#cd-n").text(f.sending ? "TX" : inS >= 0 && f.open ? inS : "--");
+    $("#cd-n, #m-cd").text(f.sending ? "TX" : inS >= 0 && f.open ? inS : "--");
     showTx(f);
     if (f.logged && f.logged_s >= 0 && f.logged_s < 3 && f.logged !== showFt8.logged) {
       showFt8.logged = f.logged;
@@ -376,16 +400,18 @@ and nothing keys the transmitter. The buttons work from a paired browser in cont
   }, 1000);
   showTx(null);
 
-  /* the buttons */
-  $("#b-open").on("click", function() { act("ft8 " + (ft8 && ft8.open ? "close" : "open")); });
+  /* the buttons, the same on the desk and on the phone's bar */
+  $("#b-open, #m-open").on("click", function() { act("ft8 " + (ft8 && ft8.open ? "close" : "open")); });
   $("#b-mode").on("click", function() { act("ft8 mode"); });
-  $("#b-tx").on("click", function() { act("ft8 txcall"); });
-  $("#b-cq").on("click", function() { act("ft8 cq"); });
-  $("#b-auto").on("click", function() { act("ft8 auto"); });
+  $("#b-tx, #m-tx").on("click", function() { act("ft8 txcall"); });
+  $("#b-cq, #m-cq").on("click", function() { act("ft8 cq"); });
+  $("#b-auto, #m-auto").on("click", function() { act("ft8 auto"); });
   $("#b-hold").on("click", function() { act("ft8 hold"); });
-  $("#b-stop").on("click", function() { if (act("ft8 stop")) { stopped = true; showFt8(); } });
+  $("#b-stop, #m-stop").on("click", function() { if (act("ft8 stop")) { stopped = true; showFt8(); } });
   $("#b-dn").on("click", function() { if (ft8) act("ft8 txfreq " + (ft8.txf - 10)); });
   $("#b-up").on("click", function() { if (ft8) act("ft8 txfreq " + (ft8.txf + 10)); });
+
+  AppWall.tabs("ft8", function(id) { if (id === "m-map") map.draw(); if (id === "m-wf") wf.redraw(); });
 
   radio = AppWall.connect({
     hello: ["ft8 wf 1"],
@@ -393,6 +419,7 @@ and nothing keys the transmitter. The buttons work from a paired browser in cont
       /* the radio sends the rows it kept again: the lists start over */
       openedAt = Date.now();
       $dec.children(":not(.thead)").remove(); $rx.children(":not(.thead)").remove(); lastSlot = {dec: "", rx: ""}; nDec = nRx = 0;
+      $("#n-dec, #n-rx").text(0);
     },
     onText: function(head, body) {
       if (head === "ft8") { ft8 = JSON.parse(body); ft8At = Date.now(); showFt8(); }

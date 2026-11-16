@@ -7764,8 +7764,11 @@ app (FT4 and FT2 too) as four screens over the app's buttons:
 - Map: the stations heard in the last half hour at their locator (CQ, POTA,
   CQ DX, calling me, the others, each its colour, the older ones paler), us
   at the radio's locator (Settings > General > STATION), and the path to the station
-  worked. Near shows our part of the world, World all of it. Everything comes
-  from the radio: the page needs no internet.
+  worked. Near shows our part of the world, World all of it. Sat puts NASA's
+  Blue Marble (public domain) under the stations: on by default on a computer,
+  off on a phone, where its 280 kB are the most of the page's weight; the
+  browser keeps the choice. Everything comes from the radio: the page needs no
+  internet.
 - Band activity: the decodes slot by slot with the dB, the audio Hz, the
   country and the distance; a tap on a CQ or a call answers it in our next
   slot and arms TX, as a tap on the radio's list does. Clear empties the
@@ -7782,6 +7785,11 @@ closes or drops, a reply waits for its slot, and Stop ends the transmission,
 drops the queued message and turns CQ and TX off. TX off makes a dry run:
 the app listens, decodes and queues, and nothing keys the transmitter. A
 page that opens later gets the last 48 rows the radio kept.
+
+On a phone the page has two pairs of tabs, Waterfall or Map on top and Band
+activity or QSO under them (the browser keeps the choice), and a bar under
+the thumb with the next message, the seconds to our slot, Open, TX, CQ, Auto
+and Stop; Mode, TX Hz, Hold and the steps are under the lists.
 
 ### WeFax in the browser
 

@@ -52,6 +52,9 @@ main h2{margin-bottom:6px}
 /* the map */
 #map{position:absolute;inset:0;width:100%;height:100%;display:block;background:#08101c}
 #land{fill:#1d2c44;stroke:#3d5374;stroke-width:.7}
+#sat{filter:brightness(.8) saturate(.9)}
+#map.sat #land{fill:none;stroke:rgba(230,237,245,.22);stroke-width:.6}
+.chip.gap{margin-left:6px}
 .mapkey{position:absolute;left:8px;bottom:8px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;background:rgba(11,19,32,.86);padding:4px 8px;border-radius:8px;border:1px solid var(--line);max-width:calc(100% - 16px)}
 .mapkey span{display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--dim)}
 .mapkey i{width:8px;height:8px;border-radius:50%;background:var(--c)}
@@ -89,15 +92,36 @@ main h2{margin-bottom:6px}
 .acts{display:grid;grid-template-columns:repeat(3,auto);gap:6px}
 .desk .status{grid-column:1/-1;margin:0;min-height:20px}
 .app-help{margin:10px 0 0;font-size:13px}
+.tabs,.mbar{display:none}
 
-/* a phone or a narrow window: the screens one under the other */
+/* a phone: two pairs of tabs (the waterfall or the map, one list or the other), the main buttons in a bar under
+ * the thumb; the rest of the desk (the steps, the messages, what the bar has no room for) under the lists */
 @media (max-width:760px){
   .app-wall{display:block;height:auto!important;min-height:0}
-  .mon{margin-bottom:8px}
-  .mon .mb{height:44vh;min-height:260px;flex:none}
   .wfx{display:none}
+  .tabs{display:flex;gap:4px;margin:0 0 6px}
+  .tabs button{flex:1;height:32px;padding:0;font-size:12.5px;border-radius:8px;background:var(--panel);color:var(--dim)}
+  .tabs button[aria-selected=true]{color:#111;background:var(--accent);border-color:var(--accent)}
+  .tabs .n{font:11.5px var(--mono)}
+  .mon{margin-bottom:6px}
+  .mh{min-height:30px;padding:3px 10px}
+  .mh h3{font-size:14px}
+  #m-wf .mh{display:none}
+  .pane{display:none}
+  .pane.show{display:flex}
+  .pane .mb{height:52vh;min-height:300px;flex:none}
+  #m-wf .mb,#m-map .mb{height:36vh;min-height:220px}
   .row{grid-template-columns:56px 30px 40px minmax(0,1fr);padding:4px 10px 4px 12px}
   .row .k{display:none}
   .desk{grid-template-columns:1fr}
-  .acts{grid-template-columns:repeat(3,1fr)}
+  .desk .dup,.ringcd{display:none}         /* the bar has them */
+  main{padding-bottom:150px}
+  .mbar{display:flex;flex-direction:column;gap:7px;position:fixed;left:0;right:0;bottom:0;z-index:20;background:rgba(19,30,46,.97);border-top:1px solid var(--line2);padding:8px 16px calc(8px + env(safe-area-inset-bottom))}
+  .mbar .top{display:flex;align-items:center;gap:10px}
+  .mbar .nx{flex:1;min-width:0;display:flex;flex-direction:column}
+  #m-next{font:600 13px var(--mono);color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #m-next.tx{color:var(--err)}
+  .mbar .cds{font:700 26px/1 var(--mono);color:var(--text);min-width:44px;text-align:right}
+  .mbar .acts2{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+  .mbar .btn{height:42px;padding:0 4px}
 }

@@ -36,9 +36,9 @@ except ImportError:     # gone in Python 3.13; bottle 0.12, the radio's, imports
     sys.modules["cgi"] = cgi
 try:
     import bottle  # noqa: F401
-    from x6100_webserver import apps, settings  # noqa: E402
+    from x6100_webserver import apps, config_pages, settings  # noqa: E402
 except ImportError:
-    bottle = apps = settings = None
+    bottle = apps = config_pages = settings = None
 
 BUILD = os.path.join(HERE, "build")
 APPS = ("ft8", "wefax")       # the Apps menu's pages
@@ -168,15 +168,25 @@ class Pages(unittest.TestCase):
             self.assertIn(b'class="tile" href="/%s"' % name.encode(), page)
 
     def test_static_files(self):
-        """What the apps' pages load from /static is there, served (the map's land, which app_wall.js fetches,
-        too)"""
+        """What the apps' pages load from /static is there, served (the map's land and the satellite picture,
+        which app_wall.js asks for, too)"""
         for name in APPS:
             code, page, _ = self.req("/" + name)
-            loads = set(re.findall(rb'(?:src|href)="/static/([^"?]+)', page)) | {b"img/world.svg"}
+            loads = set(re.findall(rb'(?:src|href)="/static/([^"?]+)', page)) | {b"img/world.svg", b"img/world_sat.jpg"}
             for f in loads:
                 code, body, _ = self.req("/static/" + f.decode())
                 self.assertEqual(code, 200, (name, f))
                 self.assertTrue(body, (name, f))
+
+    def test_satellite_picture(self):
+        """Its cost on the radio's root file system stays small, and it goes out as it is: gzip would gain
+        nothing on a JPEG (a script still goes gzipped)"""
+        path = os.path.join(apps.PACKAGE_DIR, "static", "img", "world_sat.jpg")
+        self.assertLess(os.path.getsize(path), 300_000)
+        code, body, hdrs = self.req("/static/img/world_sat.jpg", {"HTTP_ACCEPT_ENCODING": "gzip, deflate"})
+        self.assertEqual((code, body[:3], hdrs.get("Content-Encoding")), (200, b"\xff\xd8\xff", None))
+        code, body, hdrs = self.req("/static/js/app_wall.js", {"HTTP_ACCEPT_ENCODING": "gzip"})
+        self.assertEqual(hdrs.get("Content-Encoding"), "gzip" if config_pages.gzip else None)
 
 
 class RemoteWords(unittest.TestCase):

@@ -1,5 +1,5 @@
-/* What the apps' pages (FT8, JS8) share: the app's waterfall, the map of the stations heard, the wall's height,
- * and the link to the radio. Needs jQuery, radio_link.js and radio_session.js. From OlivLoze's fork.
+/* What the apps' pages (FT8, JS8) share: the app's waterfall, the map of the stations heard, the phone's tabs,
+ * the wall's height, and the link to the radio. Needs jQuery, radio_link.js and radio_session.js. From OlivLoze's fork.
  * SPDX-License-Identifier: LGPL-2.1-or-later */
 const AppWall = (function() {
   "use strict";
@@ -123,8 +123,9 @@ const AppWall = (function() {
     return wf;
   }
 
-  /* ---- The map: the land, us, the stations heard at their locator, a path to the one worked.
-   * o: {me: [lat, lon], meCall, colors: {cls: colour}, focus(): the call worked, count(n)}.
+  /* ---- The map: the land (or NASA's Blue Marble), us, the stations heard at their locator, a path to the one
+   * worked. o: {me: [lat, lon], meCall, key (this browser's choices), colors: {cls: colour}, focus(): the call
+   * worked, count(n)}.
    * map.stations[call] = {c, g, ll, cls, t (ms), k, d, snr} */
   function map(o) {
     const svgNS = "http://www.w3.org/2000/svg", svg = document.getElementById("map"), m = {stations: {}, hl: ""};
@@ -140,6 +141,18 @@ const AppWall = (function() {
     }
     $("#z-near").on("click", function() { setView("near"); });
     $("#z-world").on("click", function() { setView("world"); });
+    /* Satellite: NASA's Blue Marble (public domain, equirectangular as the map, 2560 x 1280: 280 kB on the
+     * radio), loaded the first time it is asked for; on by default on a computer, off on a phone, where it is
+     * the most of the page's weight; this browser keeps the choice */
+    function setSat(on) {
+      const img = document.getElementById("sat");
+      if (on && !img.getAttribute("href")) img.setAttribute("href", "/static/img/world_sat.jpg?v=1");
+      img.setAttribute("display", on ? "inline" : "none");
+      svg.classList.toggle("sat", on);
+      $("#z-sat").attr("aria-pressed", String(on));
+      try { localStorage.setItem(o.key + ".sat", on ? "1" : "0"); } catch (e) {}
+    }
+    $("#z-sat").on("click", function() { setSat($(this).attr("aria-pressed") !== "true"); });
     /* The great circle from a to b, broken where it crosses the edge of the map */
     function greatCircle(a, b) {
       const r = Math.PI / 180;
@@ -203,9 +216,28 @@ const AppWall = (function() {
       else if (old) Object.assign(old, extra || {}, {cls: cls, t: Date.now()});
       m.soon();
     };
+    let sat = null; try { sat = localStorage.getItem(o.key + ".sat"); } catch (e) {}
+    setSat(sat === null ? window.innerWidth > 760 : sat === "1");
     setView("near");
     setInterval(m.draw, 30000);
     return m;
+  }
+
+  /* ---- The phone's tabs: the waterfall or the map on top, one of the two lists under them; this browser keeps
+   * the choice. onShow(id): a screen just shown, to draw (a hidden one has no size) */
+  function tabs(key, onShow) {
+    function show(id) {
+      const g = $("#" + id).attr("data-g");
+      $('.tabs[data-g="' + g + '"] button').each(function() { this.setAttribute("aria-selected", String(this.dataset.t === id)); });
+      $('.pane[data-g="' + g + '"]').removeClass("show"); $("#" + id).addClass("show");
+      onShow(id);
+      try { localStorage.setItem(key + ".tab." + g, id); } catch (e) {}
+    }
+    $(".tabs").on("click", "button", function() { show(this.dataset.t); });
+    ["top", "bot"].forEach(function(g) {
+      let id = null; try { id = localStorage.getItem(key + ".tab." + g); } catch (e) {}
+      if (id && $('.pane[data-g="' + g + '"]#' + id).length) show(id);
+    });
   }
 
   /* ---- The wall fills the window under the page's top, the desk under it (a computer) */
@@ -257,5 +289,5 @@ const AppWall = (function() {
     return {send: send, act: act, status: status};
   }
 
-  return {pad: pad, hms: hms, loc2ll: loc2ll, band: band, waterfall: waterfall, map: map, fit: fit, connect: connect, MONO: MONO};
+  return {pad: pad, hms: hms, loc2ll: loc2ll, band: band, waterfall: waterfall, map: map, tabs: tabs, fit: fit, connect: connect, MONO: MONO};
 })();
