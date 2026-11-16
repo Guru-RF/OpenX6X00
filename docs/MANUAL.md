@@ -4771,8 +4771,8 @@ or a long-press action. GEN or Radio goes back to the normal screen.
 | **Logbook** | |
 | ![Field Ops logbook](screenshots/field_log.png) | |
 
-Home: a row of fourteen tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF,
-TOTA, WCA, MOTA, LH, Tiles, LLOTA, XOTA and Bands. Six and a half fit on the screen (five and a half
+Home: a row of fifteen tiles, LOG first, then NOTA, SOTA, POTA, WWBOTA, HOTA,
+WWFF, TOTA, WCA, MOTA, LH, Tiles, LLOTA, XOTA and Bands. Six and a half fit on the screen (five and a half
 with VISION): the row scrolls along as the MFK moves, and Bands is one MFK
 step left of LOG. A press opens. On the PC a drag scrolls the row and a click
 opens a tile.
@@ -5132,6 +5132,22 @@ radio never spots them.
   `SIG XOTA` and `SIG_INFO`, and the log shows X2X.
 - Spot posts nothing: "XOTA is a list of your own: no spot". Nothing is
   spotted by itself either.
+
+NOTA, the tile after LOG (a radar with the programmes' colours around you),
+is no programme of its own: the nearest places of every list at once,
+SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH, LLOTA and XOTA, nearest
+first, to find what is near wherever you are.
+
+- Each row has its programme before its name (`POTA Forest park`); the
+  panel on the left shows the row the MFK is on, its reference in its
+  programme's colour. On the map (see above) they are all there.
+- A press opens the row in its own programme, with that programme's rules,
+  spots and log: the screen becomes that programme's, the row its
+  reference. Start activates the row the MFK is on there at once. Ref...
+  takes any reference and opens its programme too.
+- Spot on the NOTA screen posts nothing ("NOTA: press the row to open it
+  in its programme first"). Without a position (GPS, phone or locator)
+  there is no row, and Start says "NOTA: no reference near yet".
 
 ### Bands
 

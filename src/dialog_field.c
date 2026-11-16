@@ -3,8 +3,8 @@
  *
  *  Xiegu X6100 LVGL GUI - Field Ops
  *
- *  Screens: home (a scrolling row of tiles: Log, SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH, Tiles, LLOTA,
- *  XOTA, Bands), a program (the reference where you are and the nearest ones; during an activation the activation screen:
+ *  Screens: home (a scrolling row of tiles: Log, NOTA, SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH, Tiles,
+ *  LLOTA, XOTA, Bands), a program (the reference where you are and the nearest ones; during an activation the activation screen:
  *  frequency, S-meter, CQ, QSO count and time), Bands (activity and who hears you, from RBN) and
  *  the activation log. The dialog covers the whole screen above the buttons; the main
  *  knob still tunes. The network jobs (reference list update, POTA/WWBOTA/HOTA/WWFF spot, QRZ upload) run
@@ -107,7 +107,7 @@ static struct {
     screen_t    screen;
     int         home_sel;
     char        prog;       /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA, 'F' WWFF, 'T' TOTA, 'C' WCA, 'M' MOTA, 'L' LH,
-                             * 'G' Tiles, 'K' LLOTA, 'X' XOTA */
+                             * 'G' Tiles, 'K' LLOTA, 'X' XOTA; 'N' NOTA, every list at once (its rows open in their own) */
     bool        have_ref;
     field_ref_t ref;
     bool        active;
@@ -221,8 +221,11 @@ static const prog_t progs[] = {
      * in xota.tsv beside refs.tsv, made on a PC and copied to the card: Update list leaves it alone. Nobody else
      * knows these references: never spotted, anywhere. One QSO activates one, as in Tiles */
     {'X', "XOTA",   "xota",   "Your own\nplaces",    "SPOT",   1,  false, false},
+    /* NOTA: no programme of its own, every list at once (XOTA too), nearest first, to find the nearest place
+     * wherever you are; a row is activated and spotted in its own programme (nota_take) */
+    {'N', "NOTA",   "nota",   "All places\nnearby",  "REF",    1,  false, false},
 };
-#define PROG_LETTERS "SPBHFTCMLGKX"
+#define PROG_LETTERS "SPBHFTCMLGKXN"
 
 /* The programme of a letter; SOTA for one that is none (a damaged file): DX cluster spots only, never a site's */
 static const prog_t *prog_of(char p) {
@@ -248,6 +251,7 @@ static lv_color_t prog_color(char p) {
         case 'G': return lv_color_mix(TC(ok), TC(warn), LV_OPA_50);     /* lime */
         case 'K': return lv_color_mix(TC(vfo), TC(text), LV_OPA_60);    /* water, lighter than WWFF's blue */
         case 'X': return lv_color_mix(TC(alert), TC(digi), LV_OPA_50);   /* mauve */
+        case 'N': return TC(text);                                      /* every colour: none of its own */
         default: return TC(text);
     }
 }
@@ -259,6 +263,7 @@ static const struct {
     const char *name, *icon, *sub;
 } tiles[] = {
     {SCR_LOG, 0, "LOG", "log", "Activation\nlog"},
+    {SCR_PROG, 'N'},
     {SCR_PROG, 'S'}, {SCR_PROG, 'P'}, {SCR_PROG, 'B'}, {SCR_PROG, 'H'}, {SCR_PROG, 'F'},
     {SCR_PROG, 'T'}, {SCR_PROG, 'C'}, {SCR_PROG, 'M'}, {SCR_PROG, 'L'}, {SCR_PROG, 'G'}, {SCR_PROG, 'K'},
     {SCR_PROG, 'X'},
@@ -668,7 +673,7 @@ static void near_result_cb(void *arg) {
      * chosen after a restart too); a GPS or phone tile is not given up for the locator's when the fix gets old */
     bool follow = r->prog == 'G' && near_n > 0 && st.have_ref && st.ref.type == 'G' && !strncmp(st.ref.name, "here (", 6)
                   && (!strcmp(st.ref.name, "here (locator)") || strcmp(near[0].name, "here (locator)"));
-    if (!st.active && near_n > 0 && (!st.have_ref || st.ref.type != r->prog || follow)) {
+    if (!st.active && near_n > 0 && r->prog != 'N' && (!st.have_ref || st.ref.type != r->prog || follow)) {
         st.ref      = near[0];
         st.have_ref = true;
     }
@@ -682,7 +687,16 @@ static void near_result_cb(void *arg) {
 static void *near_thread(void *arg) {
     near_result_t *r = arg;
 
-    r->n = field_refs_near(r->prog == 'X' ? XOTA_PATH : REFS_PATH, r->prog, r->lat, r->lon, r->refs, MAX_NEAR);
+    if (r->prog == 'N') {
+        /* NOTA: every programme of refs.tsv and XOTA's own file, merged by distance */
+        field_ref_t x[MAX_NEAR];
+        int         a = field_refs_near(REFS_PATH, '*', r->lat, r->lon, r->refs, MAX_NEAR);
+        int         b = field_refs_near(XOTA_PATH, 'X', r->lat, r->lon, x, MAX_NEAR);
+
+        r->n = field_refs_merge(r->refs, a, x, b, MAX_NEAR);
+    } else {
+        r->n = field_refs_near(r->prog == 'X' ? XOTA_PATH : REFS_PATH, r->prog, r->lat, r->lon, r->refs, MAX_NEAR);
+    }
     scheduler_put(near_result_cb, r, sizeof(*r));
     free(r);
     return NULL;
@@ -782,6 +796,17 @@ static void near_lookup(bool force) {
         pthread_detach(t);
     else
         free(r);
+}
+
+/* NOTA: the row MFK is on becomes the reference, in its own programme (its rules, spots and log); false with no row */
+static bool nota_take(void) {
+    if (st.prog != 'N' || near_prog != 'N' || sel < 0 || sel >= near_n)
+        return false;
+    st.ref      = near[sel];
+    st.have_ref = true;
+    st.prog     = near[sel].type;
+    state_save();
+    return true;
 }
 
 /* Widgets */
@@ -1415,7 +1440,14 @@ static void prog_info_update(void) {
     if (!info_ref)
         return;
     bool have_pos = position(&lat, &lon, &src, &age);
-    if (st.have_ref && st.ref.type == st.prog) {
+    if (st.prog == 'N' && near_n > 0 && near_prog == 'N' && sel >= 0 && sel < near_n) {
+        /* NOTA: the row MFK is on, in its programme's colour; the name as it is (a '#' in it is no markup) */
+        lv_obj_set_style_text_color(info_ref, prog_color(near[sel].type), 0);
+        lv_label_set_text(info_ref, near[sel].ref);
+        lv_label_set_recolor(info_name, false);
+        lv_label_set_text_fmt(info_name, "%s: %s", prog_name_of(near[sel].type), near[sel].name);
+    } else if (st.have_ref && st.ref.type == st.prog) {
+        lv_obj_set_style_text_color(info_ref, prog_accent(), 0);
         lv_label_set_text(info_ref, st.ref.ref);
         lv_label_set_recolor(info_name, false);
         lv_label_set_text(info_name, st.ref.name);
@@ -1465,6 +1497,7 @@ static const char *ref_hint(void) {
            : near_n == -1 || (near_n == 0 && near_prog == st.prog)
                ? "No reference list yet: Update list (page 2), with WiFi"
            : st.prog == 'C' ? "MFK: choose the castle.  Ref...: any castle by its number (most have no position)"
+           : st.prog == 'N' ? "Every programme, nearest first.  Press: open it in its own.  Start: activate it"
                             : "MFK: choose the reference, press to use it.  Start: begin the activation";
 }
 
@@ -1529,9 +1562,14 @@ static void build_ref(void) {
     if (near_n > 0 && near_prog == st.prog) {
         for (int k = 0; k < near_n; k++) {
             /* XOTA's references without "XOTA-": 13 characters did not fit the column, the title says XOTA */
-            const char *shown = st.prog == 'X' && !strncmp(near[k].ref, "XOTA-", 5) ? near[k].ref + 5 : near[k].ref;
+            const char *shown = (st.prog == 'X' || st.prog == 'N') && !strncmp(near[k].ref, "XOTA-", 5)
+                                    ? near[k].ref + 5 : near[k].ref;
 
-            snprintf(row, sizeof(row), "%s\t%.*f\t%s", shown, near[k].km < 10 ? 1 : 0, near[k].km, near[k].name);
+            if (st.prog == 'N')     /* NOTA: each row's programme before its name */
+                snprintf(row, sizeof(row), "%s\t%.*f\t%s %s", shown, near[k].km < 10 ? 1 : 0, near[k].km,
+                         prog_name_of(near[k].type), near[k].name);
+            else
+                snprintf(row, sizeof(row), "%s\t%.*f\t%s", shown, near[k].km < 10 ? 1 : 0, near[k].km, near[k].name);
             list_add(row);
             if (st.have_ref && !strcmp(near[k].ref, st.ref.ref))
                 sel = k;
@@ -1937,6 +1975,10 @@ static bool activation_start(void) {
 
     if (st.active)
         return true;
+    if (st.prog == 'N' && !nota_take()) {
+        msg_update_text_fmt("NOTA: no reference near yet (a position is needed)");
+        return false;
+    }
     if (!st.have_ref || st.ref.type != st.prog) {
         msg_update_text_fmt("Choose the %s reference first", prog_name());
         return false;
@@ -2020,7 +2062,10 @@ static void spot_done(const char *line) {
 static void spot_to(bool cluster) {
     /* the screen's programme: a reference left from another one (no tower near, no list yet) is not spotted */
     if (!st.have_ref || st.ref.type != st.prog || !ref_text_ok(st.ref.ref)) {
-        msg_update_text_fmt("Choose the %s reference first", prog_name());
+        if (st.prog == 'N')
+            msg_update_text_fmt("NOTA: press the row to open it in its programme first");
+        else
+            msg_update_text_fmt("Choose the %s reference first", prog_name());
         return;
     }
     if (!my_call()[0]) {
@@ -2959,6 +3004,9 @@ static void press(void) {
         return;
     if (st.screen == SCR_HOME) {
         home_open(sel);
+    } else if (st.screen == SCR_PROG && !st.active && st.prog == 'N') {
+        if (nota_take())        /* the row opens in its own programme */
+            show(SCR_PROG);
     } else if (st.screen == SCR_PROG && !st.active && sel < near_n && near_prog == st.prog) {
         st.ref      = near[sel];
         st.have_ref = true;

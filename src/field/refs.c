@@ -87,7 +87,7 @@ int field_refs_near(const char *path, char type, double lat, double lon, field_r
     while (read_line(f, line, sizeof(line))) {
         field_ref_t r;
 
-        if (line[0] != type || !field_ref_parse(line, &r) || isnan(r.lat) || isnan(r.lon))
+        if ((type != '*' && line[0] != type) || !field_ref_parse(line, &r) || isnan(r.lat) || isnan(r.lon))
             continue;
         r.km = km_between(lat, lon, r.lat, r.lon);
         if (n == max && r.km >= out[n - 1].km)
@@ -101,6 +101,29 @@ int field_refs_near(const char *path, char type, double lat, double lon, field_r
         out[k] = r;
     }
     fclose(f);
+    return n;
+}
+
+int field_refs_merge(field_ref_t *out, int n, const field_ref_t *more, int m, int max) {
+    if (n < 0 && m < 0)
+        return -1;
+    n = n < 0 ? 0 : n;
+    for (int i = 0; i < m; i++) {
+        int k = n;
+
+        if (n == max) {
+            if (more[i].km >= out[n - 1].km)
+                break;          /* more is sorted: the rest is farther still */
+            k--;                /* the farthest drops out */
+        } else {
+            n++;
+        }
+        while (k > 0 && out[k - 1].km > more[i].km) {
+            out[k] = out[k - 1];
+            k--;
+        }
+        out[k] = more[i];
+    }
     return n;
 }
 
