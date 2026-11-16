@@ -92,6 +92,13 @@ static int64_t now_ms(void) {
     return (int64_t)t.tv_sec * 1000 + t.tv_nsec / 1000000;
 }
 
+/* The phone's position, from the Panel page's GPS button (remote_server.c "pos"), under the same lock; its age on
+ * the monotonic clock too, as the phone's own clock may set the wall clock (clk) */
+static double  phone_lat, phone_lon;
+static int     phone_acc;           /* m, as the phone says */
+static int64_t phone_time;          /* when it came (now_ms) */
+static bool    phone_fix;           /* one came */
+
 #if HAVE_LIBGPS
 
 /* The pause before the next try, cut short by a USB device plugged in */
@@ -355,6 +362,31 @@ bool gps_last_fix(double *lat, double *lon, int *age) {
         *lat = gpsd_lat;
         *lon = gpsd_lon;
         *age = (int)((now_ms() - gpsd_time) / 1000);
+    }
+    pthread_mutex_unlock(&pos_lock);
+    return have;
+}
+
+void gps_phone_set(double lat, double lon, int acc) {
+    pthread_mutex_lock(&pos_lock);
+    phone_lat  = lat;
+    phone_lon  = lon;
+    phone_acc  = acc;
+    phone_time = now_ms();
+    phone_fix  = true;
+    pthread_mutex_unlock(&pos_lock);
+}
+
+bool gps_phone_fix(double *lat, double *lon, int *age, int *acc) {
+    bool have;
+
+    pthread_mutex_lock(&pos_lock);
+    have = phone_fix;
+    if (have) {
+        *lat = phone_lat;
+        *lon = phone_lon;
+        *acc = phone_acc;
+        *age = (int)((now_ms() - phone_time) / 1000);
     }
     pthread_mutex_unlock(&pos_lock);
     return have;

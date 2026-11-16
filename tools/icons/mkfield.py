@@ -12,6 +12,10 @@ WWBOTA, HOTA, Bands and Log icons the project was forked with:
                              middle
   llota_96.png, llota_64.png LLOTA, a lake in the tile's light blue with ripples, in a green shore under two hills,
                              reeds with their brown heads in front
+  xota_96.png, xota_64.png   XOTA, your own places: a concrete bunker with its dark firing slit in the grass, a pennant
+                             with an X in the tile's accent on a pole beside it
+  nota_96.png, nota_64.png   NOTA, every programme near you: a radar's rings and sweep, dots in the programmes'
+                             colours around you in the middle
 
   python3 tools/icons/mkfield.py rootfs/usr/share/x6100/field
 
@@ -60,6 +64,13 @@ HILL = (100, 116, 139, 255)
 HILL_FAR = (148, 163, 184, 255)
 REED = (36, 110, 76, 255)
 CATTAIL = (146, 96, 56, 255)
+XOTA = (205, 128, 196, 255)     # the XOTA tile's accent (theme roles alert and digi mixed)
+CONCRETE = (165, 170, 160, 255)
+CONCRETE_DARK = (112, 117, 108, 255)
+SLIT = (30, 41, 59, 255)
+GRASS = (70, 130, 70, 255)
+RING = (226, 232, 240, 255)     # the NOTA tile's accent (theme role text)
+RING_DIM = (100, 116, 139, 255)
 
 
 def canvas(size):
@@ -269,14 +280,54 @@ def lake(size):
     return im.resize((size, size), Image.LANCZOS)
 
 
+def bunker(size):
+    im, d, p, u = canvas(size)
+
+    # Grass, the bunker half in it: a sloped concrete block, its roof slab, the firing slit
+    d.ellipse([p(2, 70), p(98, 104)], fill=GRASS)
+    d.polygon([p(10, 82), p(20, 46), p(80, 46), p(90, 82)], fill=CONCRETE)
+    d.polygon([p(56, 46), p(80, 46), p(90, 82), p(66, 82)], fill=CONCRETE_DARK)
+    d.rounded_rectangle([p(14, 38), p(86, 48)], radius=u(2), fill=CONCRETE_DARK)
+    d.rounded_rectangle([p(26, 58), p(60, 65)], radius=u(1.5), fill=SLIT)
+
+    # The pennant: a pole on the roof, a flag in the accent with an X on it
+    d.line([p(72, 39), p(72, 6)], fill=SLIT, width=u(2.4))
+    d.polygon([p(72, 6), p(97, 13), p(72, 21)], fill=XOTA)
+    d.line([p(77, 10), p(84, 17)], fill=SLIT, width=u(2))
+    d.line([p(84, 10), p(77, 17)], fill=SLIT, width=u(2))
+    return im.resize((size, size), Image.LANCZOS)
+
+
+def radar(size):
+    im, d, p, u = canvas(size)
+
+    # The rings, the sweep from the middle up and to the right
+    for r, c in ((46, RING_DIM), (32, RING_DIM), (18, RING_DIM)):
+        d.ellipse([p(50 - r, 50 - r), p(50 + r, 50 + r)], outline=c, width=u(2.4))
+    d.pieslice([p(4, 4), p(96, 96)], 290, 340, fill=(226, 232, 240, 70))
+    d.line([p(50, 50), p(50 + 46 * math.cos(math.radians(340)), 50 + 46 * math.sin(math.radians(340)))],
+           fill=RING, width=u(2.4))
+
+    # The places around: SOTA, POTA, WWBOTA, WWFF, XOTA and HOTA in their tiles' colours, nearest the largest
+    for (x, y, r), c in zip(((69, 38, 6.5), (30, 34, 5.5), (64, 72, 5.5), (24, 64, 4.5), (82, 60, 4), (46, 18, 4)),
+                            ((250, 204, 21, 255), (52, 211, 153, 255), (167, 139, 250, 255), LEAF, XOTA,
+                             (251, 146, 60, 255))):
+        d.ellipse([p(x - r, y - r), p(x + r, y + r)], fill=c)
+
+    # You, in the middle
+    d.ellipse([p(44, 44), p(56, 56)], fill=RING)
+    d.ellipse([p(47.5, 47.5), p(52.5, 52.5)], fill=SLIT)
+    return im.resize((size, size), Image.LANCZOS)
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "rootfs/usr/share/x6100/field"
     os.makedirs(out, exist_ok=True)
     for name, draw in (("wwff", leaf), ("tota", tower), ("wca", castle), ("mota", windmill), ("lh", lighthouse),
-                       ("tiles", tiles), ("llota", lake)):
+                       ("tiles", tiles), ("llota", lake), ("xota", bunker), ("nota", radar)):
         for size in (96, 64):
             draw(size).save(os.path.join(out, f"{name}_{size}.png"))
-    print(f"wwff, tota, wca, mota, lh, tiles and llota icons in {out}")
+    print(f"wwff, tota, wca, mota, lh, tiles, llota, xota and nota icons in {out}")
 
 
 if __name__ == "__main__":

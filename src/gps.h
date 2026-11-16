@@ -26,3 +26,8 @@ gps_status_t gps_status();
 
 /* gpsd's last 2D or 3D position, any thread; age in seconds. False before the first fix */
 bool gps_last_fix(double *lat, double *lon, int *age);
+
+/* The phone's position, sent by the Panel page ("pos"): kept apart from gpsd's, any thread; acc the phone's own
+ * accuracy in metres. False before the first */
+void gps_phone_set(double lat, double lon, int acc);
+bool gps_phone_fix(double *lat, double *lon, int *age, int *acc);

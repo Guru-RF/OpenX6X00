@@ -17,7 +17,8 @@ extern "C" {
 
 typedef struct {
     char  type;         /* 'P' park, 'S' summit, 'B' bunker, 'H' HOTA site, 'F' WWFF area, 'T' tower, 'C' castle, 'M' mill,
-                         * 'L' lighthouse, 'K' lake (LLOTA); 'G' a Tiles tile, worked out from the position (no list) */
+                         * 'L' lighthouse, 'K' lake (LLOTA), 'X' a place of your own (XOTA, xota.tsv); 'G' a Tiles tile,
+                         * worked out from the position (no list) */
     char  ref[16];
     char  name[48];
     double lat, lon;    /* NAN when the list has no position for it */
@@ -29,9 +30,14 @@ typedef struct {
 /* "S\tI/LO-123\tName\t45.1\t9.2\t1200\t4" -> r (the line is cut); false when malformed */
 bool field_ref_parse(char *line, field_ref_t *r);
 
-/* The max nearest references of the type ('P', 'S', 'B', 'H'...), nearest first, those with no position left out;
- * returns the count, -1 when the file can't be read */
+/* The max nearest references of the type ('P', 'S', 'B', 'H'..., '*' any), nearest first, those with no position left
+ * out; returns the count, -1 when the file can't be read */
 int field_refs_near(const char *path, char type, double lat, double lon, field_ref_t *out, int max);
+
+/* Two lists of nearest references merged into out, nearest first (NOTA: refs.tsv's and xota.tsv's): out has n,
+ * more m, each sorted as field_refs_near gives them (-1, a file that could not be read, counts as none); the max
+ * nearest are kept. Returns out's count, -1 when neither could be read */
+int field_refs_merge(field_ref_t *out, int n, const field_ref_t *more, int m, int max);
 
 /* The reference, by name (case-insensitive) */
 bool field_refs_find(const char *path, const char *ref, field_ref_t *out);

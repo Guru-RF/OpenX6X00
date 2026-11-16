@@ -1931,14 +1931,16 @@ SOTA_REF = r'[A-Z0-9]{1,4}/[A-Z]{2}-[0-9]{3}'     # I/LO-123 ([0-9]: \d takes an
 POTA_REF = r'[A-Z0-9]{1,4}-[0-9]{4,5}'            # IT-1234
 # The ADIF SIG of each programme but SOTA (SOTA_REF), by the letter ref_prog gives
 REF_SIG = {"P": "POTA", "B": "WWBOTA", "H": "HOTA", "F": "WWFF", "T": "TOTA", "C": "WCA", "M": "MOTA", "L": "ARLHS",
-           "G": "TILES", "K": "LLOTA"}
+           "G": "TILES", "K": "LLOTA", "X": "XOTA"}
 TILE = r'[A-R]{2}[0-9]{2}[A-X]{2}'                # a Tiles tile, JO20ab (the references come here in capitals)
 
 
 def ref_prog(ref):
     """The programme of a reference by its shape, as the radio tells it (src/field/flog.c field_ref_prog): S SOTA,
     P POTA, B WWBOTA, H HOTA, F WWFF, T TOTA, C WCA, M MOTA, L a lighthouse (BEL 002), G a Tiles tile (JO20ab),
-    K an LLOTA lake (LLPL-0001); "" when it is none of them"""
+    K an LLOTA lake (LLPL-0001), X a place of your own (XOTA-W13ZWYH); "" when it is none of them"""
+    if re.fullmatch(r'XOTA-[0-9A-Z]{2,10}', ref):                      # XOTA-W13ZWYH, before the parks
+        return "X"
     if re.fullmatch(r'X[0-9]{5}', ref):                                # X42018
         return "M"
     if re.fullmatch(TILE, ref.upper()):                                # JO20ab

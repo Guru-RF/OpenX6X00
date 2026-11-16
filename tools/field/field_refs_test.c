@@ -8,13 +8,18 @@
  *  LLCR) end their prefix in R as the towers do, the others have a park's shape. The web configurator's Logs page
  *  tells them apart the same way (webserver apps.py ref_prog; docs/audit/repro-2026-10-24/log_checks.py).
  *  And a mode name as long as Contestia's ADIF CONTESTI kept whole in the record and when the log is read (#154).
+ *  NOTA's nearest (src/field/refs.c): every programme of a list at once ('*'), and two lists merged by distance
+ *  (refs.tsv's and XOTA's xota.tsv), the farthest dropping out, a list that could not be read counted as none.
  */
 
 #include "field/flog.h"
+#include "field/refs.h"
 #include "radio_types.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define LEN(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
@@ -39,6 +44,7 @@ static void programmes(void) {
         {"LLBE-0026", 'K'},  {"LLNZ-1049", 'K'}, {"OKR-0150", 'T'},  {"DLR-0163", 'T'},   {"ONR-0323", 'T'},
         {"9MR-0101", 'T'},   {"K1R-0029", 'T'},  {"US-1234", 'P'},   {"KR-1308", 'P'},    {"FR-10234", 'P'},
         {"K-12345", 'P'},    {"SP-0001", 'P'},   {"DL-01156", 'C'},  {"I-14619", 'C'},    {"3D2-00001", 'C'},
+        {"XOTA-W13ZWYH", 'X'}, {"XOTA-N10DRCAE", 'X'}, {"XOTA-P4K2Z9A", 'X'}, {"XOTA-0001", 'X'}, {"XOTA-", 'P'},
         {"X42018", 'M'},     {"BEL 002", 'L'},   {"BEL-002", 'L'},   {"USA 1286", 'L'},   {"DLFF-0123", 'F'},
         {"SPFF-0001", 'F'},  {"RO-H0390", 'H'},  {"I/LO-123", 'S'},  {"SP/BZ-001", 'S'},  {"B/G-0070", 'B'},
         {"JO20ab", 'G'},
@@ -58,7 +64,7 @@ static void tags(void) {
     static const struct {
         const char *their, *want;
     } want[] = {
-        {"LLPL-0002", "LL2LL"}, {"LLAR-0393", "LL2LL"}, {"OKR-0150", "T2T"}, {"US-1234", "P2P"}, {"BEL 002", "L2L"},
+        {"XOTA-W13ZWYH", "X2X"}, {"LLPL-0002", "LL2LL"}, {"LLAR-0393", "LL2LL"}, {"OKR-0150", "T2T"}, {"US-1234", "P2P"}, {"BEL 002", "L2L"},
     };
     char what[64];
 
@@ -178,8 +184,77 @@ static void extra(void) {
     check(!strstr(rec, "COMMENT"), "no comment, no COMMENT");
 }
 
+/* The kms of a list, "1 2 5" */
+static void kms(char *buf, size_t size, const field_ref_t *r, int n) {
+    size_t at = 0;
+
+    buf[0] = 0;
+    for (int i = 0; i < n && at < size; i++)
+        at += snprintf(buf + at, size - at, "%s%g", i ? " " : "", r[i].km);
+}
+
+static field_ref_t at_km(char type, float km) {
+    field_ref_t r = {.type = type, .km = km};
+
+    snprintf(r.ref, sizeof(r.ref), "%c-%g", type, km);
+    return r;
+}
+
+static void nearest(void) {
+    char  path[] = "/tmp/field_refs_test_XXXXXX", got[160], what[256];
+    int   fd     = mkstemp(path);
+    FILE *f      = fd >= 0 ? fdopen(fd, "w") : NULL;
+
+    check(f != NULL, "a temporary list");
+    if (!f)
+        return;
+    /* along the equator from 0,0: 0.01 degree is 1.11 km */
+    fputs("P\tUS-0001\tPark\t0\t0.03\nS\tW1/AA-001\tSummit\t0\t0.01\nB\tB/G-0001\tBunker\t0\t0.05\n"
+          "C\tDL-00001\tCastle\t\t\nT\tONR-0001\tTower\t0\t0.02\n", f);
+    fclose(f);
+
+    field_ref_t out[8];
+    int         n = field_refs_near(path, '*', 0, 0, out, 8);
+    check(n == 4 && out[0].type == 'S' && out[1].type == 'T' && out[2].type == 'P' && out[3].type == 'B',
+          "'*': every programme nearest first, the castle with no position left out");
+    n = field_refs_near(path, 'P', 0, 0, out, 8);
+    check(n == 1 && !strcmp(out[0].ref, "US-0001"), "'P': the parks alone");
+    n = field_refs_near(path, '*', 0, 0, out, 2);
+    check(n == 2 && out[1].type == 'T', "'*' with room for 2: the 2 nearest");
+    unlink(path);
+    check(field_refs_near(path, '*', 0, 0, out, 8) == -1, "no file: -1");
+
+    /* merged: refs.tsv's and xota.tsv's */
+    static const struct {
+        float       a[4], b[4];
+        int         na, nb, max;
+        int         n;
+        const char *want;
+    } t[] = {
+        {{1, 3, 5}, {2, 4}, 3, 2, 8, 5, "1 2 3 4 5"},
+        {{1, 3, 5}, {0.5f, 6}, 3, 2, 3, 3, "0.5 1 3"},          /* full: the farthest drop out, 6 never comes in */
+        {{1, 3, 5}, {7}, 3, 1, 3, 3, "1 3 5"},
+        {{0}, {2, 4}, -1, 2, 8, 2, "2 4"},                      /* refs.tsv could not be read */
+        {{1, 3}, {0}, 2, -1, 8, 2, "1 3"},                      /* no xota.tsv */
+        {{0}, {0}, -1, -1, 8, -1, ""},                          /* neither */
+        {{0}, {0}, -1, 0, 8, 0, ""},                            /* an empty xota.tsv alone */
+        {{2, 2}, {2}, 2, 1, 8, 3, "2 2 2"},
+    };
+    for (size_t i = 0; i < LEN(t); i++) {
+        field_ref_t a[8], b[4];
+
+        for (int k = 0; k < t[i].na; k++) a[k] = at_km('P', t[i].a[k]);
+        for (int k = 0; k < t[i].nb; k++) b[k] = at_km('X', t[i].b[k]);
+        n = field_refs_merge(a, t[i].na, b, t[i].nb, t[i].max);
+        kms(got, sizeof(got), a, n);
+        snprintf(what, sizeof(what), "merge %zu: %d \"%s\", not %d \"%s\"", i, n, got, t[i].n, t[i].want);
+        check(n == t[i].n && !strcmp(got, t[i].want), what);
+    }
+}
+
 int main(void) {
     programmes();
+    nearest();
     tags();
     records();
     modes();

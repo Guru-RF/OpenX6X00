@@ -4796,8 +4796,8 @@ or a long-press action. GEN or Radio goes back to the normal screen.
 | **Logbook** | |
 | ![Field Ops logbook](screenshots/field_log.png) | |
 
-Home: a row of thirteen tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF,
-TOTA, WCA, MOTA, LH, Tiles, LLOTA and Bands. Six and a half fit on the screen (five and a half
+Home: a row of fifteen tiles, LOG first, then NOTA, SOTA, POTA, WWBOTA, HOTA,
+WWFF, TOTA, WCA, MOTA, LH, Tiles, LLOTA, XOTA and Bands. Six and a half fit on the screen (five and a half
 with VISION): the row scrolls along as the MFK moves, and Bands is one MFK
 step left of LOG. A press opens. On the PC a drag scrolls the row and a click
 opens a tile.
@@ -4808,9 +4808,13 @@ SOTA / POTA, before the activation:
   (SOTA), locator, coordinates and where the position comes from. On the
   right the nearest references with their distance. The nearest one is
   taken; the MFK and a press choose another; Ref... (page 2) types one.
-- The position comes from the radio's GPS, else from the QTH locator. The
-  dot in the header is green for a real position (GPS), yellow for the
-  locator.
+- The position comes from the radio's GPS, else from the phone's (the GPS
+  button of the [Browser panel](#browser-panel), "PHONE" in the header) while
+  it is under ten minutes old and better than 1 km, else from the QTH
+  locator. The dot in the header is green for a real position (GPS or
+  phone), yellow for the locator. The phone's position is "(old)" after
+  150 s (it comes every two minutes when you stand still), the GPS's after
+  60 s.
 - Update list (page 2) downloads the reference lists of all the programmes; then it
   works offline. Also from the web configurator's Field Ops page. The radio
   says "Downloading the reference lists: up to half an hour on a slow WiFi",
@@ -4824,6 +4828,40 @@ SOTA / POTA, before the activation:
   "Not updated, kept as it was: <list>: <reason>". A run that hangs (a
   connection that never answers) ends after 45 minutes with "timed out".
 - Start begins the activation and its ADIF log.
+
+A map on the reference screen, when the card has map tiles: they are not
+downloaded (the radio has no network in the field), you make them on a PC
+and copy them to `/mnt/field/tiles` (SFTP). Without that folder the
+reference screen is as above, on two pages of buttons.
+
+- The tiles are the web map's (web mercator): 256 x 256 pixel JPEGs as
+  `tiles/<zoom>/<x>/<y>.jpg`, at zooms 13 (about 3 km a tile), 15 (800 m)
+  and 17 (200 m), from aerial photographs or a map whose licence lets you
+  keep a copy. Zoom 13 for the whole area, 15 and 17 around the references
+  you go to are enough. `tiles/credit.txt`, one line, is the credit the
+  source asks for, shown in the map's corner.
+- The map shows the reference the MFK is on (a crosshair and its name), the
+  references nearby by their kind (WWBOTA's bunkers square, the other
+  programmes' places a dot), the activated ones grey and ticked (those with
+  an activation log on the card), and where you are when the position is a
+  GPS's or the phone's (a dot, the phone's accuracy as a ring; the QTH
+  locator is no place on a map). An XOTA place's kind comes from the word
+  its name starts with: `Bunker:` a square, `Memorial:` a triangle,
+  `Remains:` a diamond, `Abandoned:` a ring, `Ruin:` and anything else a
+  dot (`Memoire:`, `Vestige:`, `Abandonne:` and `Ruine:` too); the map shows
+  the name without it.
+- The zoom by itself is the closest where the reference and you both fit
+  and the card has the tiles; further away, the map stays on the reference
+  and an arrow on its edge points to you, with the distance. Under the map
+  the distance and the heading to the reference (`1.24 km  NE 47`); within
+  50 m the status line says "You are there: Start to activate it". A view
+  with no tile at all says "No map here, outside the area of the tiles on
+  the card".
+- Page 3: View steps map and list (the map above the reference, the list
+  beside it), map and info (the map over the width, the reference in a band
+  under it; the MFK still chooses in the hidden list) and map only (the
+  whole window, the reference and its distance in its corner). Zoom - and
+  Zoom + zoom by hand; after 10 s the zoom is automatic again.
 
 SOTA / POTA, during the activation: the band, the frequency and the mode,
 the S-meter, the CQ text with the reference, the QSO count, the time since
@@ -5094,6 +5132,47 @@ has its own tile too, a light blue lake with reeds.
   `LLOTA LLPL-0123 SSB`.
 - The log goes to llota.app (your profile, ADIF upload, within 30 days of
   the activation). Download it from the web configurator's Field Ops page.
+
+XOTA has its own tile too, a concrete bunker with a pennant: a list of
+places of your own (bunkers, ruins, remains, abandoned places, spots you
+found) that no programme lists. Nobody else knows these references, so the
+radio never spots them.
+
+- The list is `/mnt/field/xota.tsv`, made on a PC and copied to the radio by
+  hand (SFTP); Update list leaves it alone, and a new copy is read the next
+  time the XOTA screen looks for the nearest. One place a line, five fields
+  apart by a tab each: `X`, the reference, the name, the latitude and the
+  longitude in decimal degrees, as in
+  `X<tab>XOTA-W13ZWYH<tab>Bunker: casemate<tab>50.84670<tab>4.35250`. A reference is
+  `XOTA-` and 2 to 10 capital letters and digits; taken from the map data's
+  own number for the place, two radios with the same list number it alike.
+  Without the file the screen says "XOTA is your own list: copy your
+  xota.tsv to /mnt/field".
+- The list shows the references without `XOTA-` (13 characters do not fit
+  its column; the title says XOTA). The CQ text and the log have the whole
+  reference.
+- One QSO is a valid activation: the activation screen counts `QSOs / 1`.
+- The log has `MY_SIG XOTA` and `MY_SIG_INFO XOTA-W13ZWYH`. A QSO with
+  another XOTA place (its reference typed after the call) logs theirs as
+  `SIG XOTA` and `SIG_INFO`, and the log shows X2X.
+- Spot posts nothing: "XOTA is a list of your own: no spot". Nothing is
+  spotted by itself either.
+
+NOTA, the tile after LOG (a radar with the programmes' colours around you),
+is no programme of its own: the nearest places of every list at once,
+SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH, LLOTA and XOTA, nearest
+first, to find what is near wherever you are.
+
+- Each row has its programme before its name (`POTA Forest park`); the
+  panel on the left shows the row the MFK is on, its reference in its
+  programme's colour. On the map (see above) they are all there.
+- A press opens the row in its own programme, with that programme's rules,
+  spots and log: the screen becomes that programme's, the row its
+  reference. Start activates the row the MFK is on there at once. Ref...
+  takes any reference and opens its programme too.
+- Spot on the NOTA screen posts nothing ("NOTA: press the row to open it
+  in its programme first"). Without a position (GPS, phone or locator)
+  there is no row, and Start says "NOTA: no reference near yet".
 
 ### Bands
 
@@ -6384,6 +6463,17 @@ browser paired at home on any device.
 - Sound (the RX audio in the browser) and Mic (the browser's microphone while
   PTT is held) as on the Screen page, over the TCI server; PTT without Mic
   keys the radio's own microphone.
+- GPS: the phone's position to the radio, for Field Ops when no GPS is
+  plugged in (see [Field Ops](#field-ops-sota--pota)), and the phone's clock
+  with it. The browser asks first, and gives a position to the https page
+  only. It is sent when the phone moved 20 m or more and every two minutes
+  standing still, as soon as the browser is paired (a browser that only
+  watches sends nothing); a second press stops it, and the radio keeps the
+  last one ten minutes. The radio sets its clock from the phone's when it is
+  more than 0.3 s off and nothing else keeps it, neither NTP (WiFi) nor a GPS:
+  in the field, so FT8 and the other digital modes have the time right. The
+  radio says "Clock set from the phone: +12.3 s", and the clock goes into
+  the radio's RTC too. A round trip over a second is not taken.
 - Light: a light theme for the sun. App: the panel alone, without the
   configurator's header, for a phone. Fullscreen.
 - Keyboard: left and right arrows tune (Shift: ten steps), `[` and `]` the
@@ -6444,7 +6534,11 @@ and knobs go as on the Screen page. The apps: the FT8 list's rows come as `ft8r 
 text, call, grid, audio Hz, SNR, to me, worked, distance, country), the app's
 state as `ft8 {...}` (open, proto, cq, tx, auto, hold, sending, txf, next),
 the CW decoder's text as `cw "..."`; `ft8 open|close|cq|stop|auto|hold|mode`,
-`ft8 txcall`, `ft8 txfreq HZ` and `ft8 reply ID` work the app; the state
+`ft8 txcall`, `ft8 txfreq HZ` and `ft8 reply ID` work the app; `wefax
+open|close|auto|cont|save|clear` works the WeFax app as its buttons do (RX
+Auto, RX Cont, Save, Clear; operate and control, `err wefax WHAT` for one it
+does not know), and the panel state's `app` names the digital app open
+(`"FT8"`, `"WeFax"`, `""` for none); the FT8 state
 carries the timeline too (`in` ms to our next slot, `slot` its length, `rep`
 the sends left, `qso`, `hound`, `nocall`, `logged` and `logged_s`), once a
 second while a countdown runs; `log CALL|RSTS|RSTR|NAME`
@@ -6457,7 +6551,15 @@ before with the same QSO is written only once (the answer goes out again),
 with another QSO it is answered `logged ID conflict` and not written.
 `logq? ID CALL|...` asks for one again: `ok`, `no`, `pending` (still being
 written), `conflict` (the number holds another QSO) or `unknown` (never
-seen, the radio restarted since, or no longer kept). After `size` the radio lists its keys (`keys GEN APP
+seen, the radio restarted since, or no longer kept). `pos LAT LON [ACC]`
+(operate, no control needed) gives the radio the phone's position, in
+degrees, its accuracy in metres; `err pos LAT LON [ACC]` for one that is no
+position. `clk? MS` (MS the client's time in ms since 1970) is answered
+`clk MS OURS`; `clk MS RTT` (operate), the client's time and the round trip
+it measured, sets the radio's clock to MS + RTT / 2 and is answered `clk set
+D`, D the difference in ms, or, leaving the clock alone, `clk ok D` (0.3 s
+or less off), `clk ntp D` (NTP keeps it), `clk gps D` (a GPS fix in the last
+10 s), `clk slow D` (a round trip over a second). After `size` the radio lists its keys (`keys GEN APP
 ...`: the X6200 has no PRE, V/M, AGC or LOCK key) and, to a panel, `modes 8|10`
 (the X6200 adds SAM and WFM; `set mode` with one the radio has not is answered
 `err mode: not on this radio`), `volmax 55|100`, the AF volume's range, and `pwrmax 100|80`, the top of
@@ -7784,7 +7886,8 @@ FAT32 on a PC settles it.
 #### FT8, JS8 or WSPR decode nothing, or nobody answers
 
 Check the clock: FT8 and JS8 need it within about 2 s, WSPR within about a
-second. WiFi (NTP) or GPS sets it. FT8 and JS8 also have Time Sync (FT8's
+second. WiFi (NTP) or GPS sets it, and in the field the phone's clock (the
+[Browser panel](#browser-panel)'s GPS button). FT8 and JS8 also have Time Sync (FT8's
 for a clock that neither keeps), and FT8 Auto Sync, which keeps the clock
 right from the decodes once Time Sync has it within about 2 s.
 

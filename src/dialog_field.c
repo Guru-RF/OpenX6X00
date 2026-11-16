@@ -3,8 +3,8 @@
  *
  *  Xiegu X6100 LVGL GUI - Field Ops
  *
- *  Screens: home (a scrolling row of tiles: Log, SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH, Tiles, LLOTA,
- *  Bands), a program (the reference where you are and the nearest ones; during an activation the activation screen:
+ *  Screens: home (a scrolling row of tiles: Log, NOTA, SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH, Tiles,
+ *  LLOTA, XOTA, Bands), a program (the reference where you are and the nearest ones; during an activation the activation screen:
  *  frequency, S-meter, CQ, QSO count and time), Bands (activity and who hears you, from RBN) and
  *  the activation log. The dialog covers the whole screen above the buttons; the main
  *  knob still tunes. The network jobs (reference list update, POTA/WWBOTA/HOTA/WWFF spot, QRZ upload) run
@@ -33,6 +33,7 @@
 #include "ft8_udp.h"
 #include "clock.h"
 #include "gps.h"
+#include "field_map.h"
 #include "keyboard.h"
 #include "knobs.h"
 #include "main_screen.h"
@@ -61,6 +62,7 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <dirent.h>
 #include <unistd.h>
 #include "fonts/font_select.h"
 
@@ -74,6 +76,7 @@
 #define FIELD_ICONS BOARD_SHARE "/field"
 #endif
 #define REFS_PATH   FIELD_DIR "/refs.tsv"
+#define XOTA_PATH   FIELD_DIR "/xota.tsv"   /* XOTA: your own places, never downloaded, never spotted */
 #define STATE_PATH  FIELD_DIR "/state"
 #define HOTA_KEY    FIELD_DIR "/hota.conf"   /* written by the web page (Field Ops) */
 #define WWFF_KEY    FIELD_DIR "/wwff.conf"
@@ -88,7 +91,8 @@
 #define STATUS_H    34
 #define MAX_NEAR    30
 #define MAX_QSO     200
-#define GPS_MAX_AGE 600     /* s */
+#define GPS_MAX_AGE 600     /* s; the phone's position too */
+#define PHONE_MAX_ACC 1000  /* m: coarser than that (a phone placed by its cell), the locator does as well */
 #define PHONE_MAX_AGE 1800
 
 typedef enum { SCR_HOME, SCR_PROG, SCR_BANDS, SCR_LOG } screen_t;
@@ -103,7 +107,7 @@ static struct {
     screen_t    screen;
     int         home_sel;
     char        prog;       /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA, 'F' WWFF, 'T' TOTA, 'C' WCA, 'M' MOTA, 'L' LH,
-                             * 'G' Tiles, 'K' LLOTA */
+                             * 'G' Tiles, 'K' LLOTA, 'X' XOTA; 'N' NOTA, every list at once (its rows open in their own) */
     bool        have_ref;
     field_ref_t ref;
     bool        active;
@@ -128,6 +132,18 @@ static lv_coord_t  home_step;       /* a tile and the gap after it */
 static lv_coord_t  body_h;
 static lv_timer_t *timer;
 static int         sel, rows_n;
+/* The reference screen's map (field_map.c), with tiles on the card only */
+static int         map_view;      /* 0 map + list, 1 map + band, 2 the map alone */
+static lv_obj_t   *map_obj;
+static bool        map_on_site;   /* the status line says "You are there" */
+static char        done_refs[256][16];   /* the references with an activation log (LOGS_DIR), as named there */
+static int         done_n;
+static bool        view_page3;    /* View was pressed: the rebuilt screen keeps the buttons of page 3 */
+
+static void map_fill(void);
+static void prog_info_update(void);
+static void refresh(void);
+static bool map_here(void);
 static bool        kbd_open;
 
 /* Reference screen */
@@ -201,8 +217,15 @@ static const prog_t progs[] = {
      * activator's login there: the DX clusters, "LLOTA LLPL-0001 SSB"; llota.app's spots come in with the others
      * (x6100-pota-spots) */
     {'K', "LLOTA",  "llota",  "Lakes and\nLagoons",  "LAKE",   10, false, false},
+    /* XOTA: a list of your own places (bunkers, ruins, remains, abandoned places, spots of your own), XOTA-W13ZWYH,
+     * in xota.tsv beside refs.tsv, made on a PC and copied to the card: Update list leaves it alone. Nobody else
+     * knows these references: never spotted, anywhere. One QSO activates one, as in Tiles */
+    {'X', "XOTA",   "xota",   "Your own\nplaces",    "SPOT",   1,  false, false},
+    /* NOTA: no programme of its own, every list at once (XOTA too), nearest first, to find the nearest place
+     * wherever you are; a row is activated and spotted in its own programme (nota_take) */
+    {'N', "NOTA",   "nota",   "All places\nnearby",  "REF",    1,  false, false},
 };
-#define PROG_LETTERS "SPBHFTCMLGK"
+#define PROG_LETTERS "SPBHFTCMLGKXN"
 
 /* The programme of a letter; SOTA for one that is none (a damaged file): DX cluster spots only, never a site's */
 static const prog_t *prog_of(char p) {
@@ -227,6 +250,8 @@ static lv_color_t prog_color(char p) {
         case 'L': return TC(err);                                       /* the red of the bands */
         case 'G': return lv_color_mix(TC(ok), TC(warn), LV_OPA_50);     /* lime */
         case 'K': return lv_color_mix(TC(vfo), TC(text), LV_OPA_60);    /* water, lighter than WWFF's blue */
+        case 'X': return lv_color_mix(TC(alert), TC(digi), LV_OPA_50);   /* mauve */
+        case 'N': return TC(text);                                      /* every colour: none of its own */
         default: return TC(text);
     }
 }
@@ -238,8 +263,10 @@ static const struct {
     const char *name, *icon, *sub;
 } tiles[] = {
     {SCR_LOG, 0, "LOG", "log", "Activation\nlog"},
+    {SCR_PROG, 'N'},
     {SCR_PROG, 'S'}, {SCR_PROG, 'P'}, {SCR_PROG, 'B'}, {SCR_PROG, 'H'}, {SCR_PROG, 'F'},
     {SCR_PROG, 'T'}, {SCR_PROG, 'C'}, {SCR_PROG, 'M'}, {SCR_PROG, 'L'}, {SCR_PROG, 'G'}, {SCR_PROG, 'K'},
+    {SCR_PROG, 'X'},
     {SCR_BANDS, 0, "BANDS", "bands", "Activity\nRBN, beacon"},
 };
 #define HOME_TILES ((int)(sizeof(tiles) / sizeof(tiles[0])))
@@ -394,11 +421,18 @@ static bool is_cw(void) {
     return m == radio_mode_cw || m == radio_mode_cwr;
 }
 
-/* The best position: radio GPS, else the QTH locator. src: "GPS", "QTH" */
+/* The best position: radio GPS, else the phone's (the Panel page's GPS button), else the QTH locator. src: "GPS",
+ * "PHONE", "QTH" */
 static bool position(double *lat, double *lon, const char **src, int *age) {
+    int acc;
+
     *age = 0;
     if (gps_last_fix(lat, lon, age) && *age < GPS_MAX_AGE) {
         *src = "GPS";
+        return true;
+    }
+    if (gps_phone_fix(lat, lon, age, &acc) && *age < GPS_MAX_AGE && acc <= PHONE_MAX_ACC) {
+        *src = "PHONE";
         return true;
     }
     const char *qth = station_qth();
@@ -410,6 +444,11 @@ static bool position(double *lat, double *lon, const char **src, int *age) {
     }
     *src = "";
     return false;
+}
+
+/* A position older than this is shown "(old)": the phone's comes every two minutes standing still */
+static int old_s(const char *src) {
+    return strcmp(src, "PHONE") ? 60 : 150;
 }
 
 static void deg_text(char *buf, size_t size, double lat, double lon) {
@@ -631,10 +670,10 @@ static void near_result_cb(void *arg) {
     memcpy(near, r->refs, sizeof(near));
     /* The nearest one is the reference while none is chosen. Tiles: the tile we are in follows a move while it is
      * the automatic one, "here (...)" (the name is in the state file, so a tile chosen around it or typed in stays
-     * chosen after a restart too); a GPS tile is not given up for the locator's when the fix gets old */
+     * chosen after a restart too); a GPS or phone tile is not given up for the locator's when the fix gets old */
     bool follow = r->prog == 'G' && near_n > 0 && st.have_ref && st.ref.type == 'G' && !strncmp(st.ref.name, "here (", 6)
-                  && (strcmp(st.ref.name, "here (GPS)") || !strcmp(near[0].name, "here (GPS)"));
-    if (!st.active && near_n > 0 && (!st.have_ref || st.ref.type != r->prog || follow)) {
+                  && (!strcmp(st.ref.name, "here (locator)") || strcmp(near[0].name, "here (locator)"));
+    if (!st.active && near_n > 0 && r->prog != 'N' && (!st.have_ref || st.ref.type != r->prog || follow)) {
         st.ref      = near[0];
         st.have_ref = true;
     }
@@ -648,7 +687,16 @@ static void near_result_cb(void *arg) {
 static void *near_thread(void *arg) {
     near_result_t *r = arg;
 
-    r->n = field_refs_near(REFS_PATH, r->prog, r->lat, r->lon, r->refs, MAX_NEAR);
+    if (r->prog == 'N') {
+        /* NOTA: every programme of refs.tsv and XOTA's own file, merged by distance */
+        field_ref_t x[MAX_NEAR];
+        int         a = field_refs_near(REFS_PATH, '*', r->lat, r->lon, r->refs, MAX_NEAR);
+        int         b = field_refs_near(XOTA_PATH, 'X', r->lat, r->lon, x, MAX_NEAR);
+
+        r->n = field_refs_merge(r->refs, a, x, b, MAX_NEAR);
+    } else {
+        r->n = field_refs_near(r->prog == 'X' ? XOTA_PATH : REFS_PATH, r->prog, r->lat, r->lon, r->refs, MAX_NEAR);
+    }
     scheduler_put(near_result_cb, r, sizeof(*r));
     free(r);
     return NULL;
@@ -687,7 +735,7 @@ static int tiles_near(double lat, double lon, const char *src, field_ref_t *out,
                 r->km = (float)qth_pos_dist(lat, lon, nlat, nlon);
                 snprintf(r->name, sizeof(r->name), "%s", dirs[dy + 1][dx + 1]);
             } else {
-                snprintf(r->name, sizeof(r->name), "here (%s)", !strcmp(src, "GPS") ? "GPS" : "locator");
+                snprintf(r->name, sizeof(r->name), "here (%s)", !strcmp(src, "QTH") ? "locator" : src);
             }
         }
     for (int i = 1; i < n; i++)                 /* by distance; here first, at 0 */
@@ -728,6 +776,13 @@ static void near_lookup(bool force) {
         refs_ino   = sb.st_ino;
         force      = true;
     }
+    static time_t xota_mtime;       /* xota.tsv too: copied in by hand, Update list never writes it */
+    static ino_t  xota_ino;
+    if (stat(XOTA_PATH, &sb) == 0 && (sb.st_mtime != xota_mtime || sb.st_ino != xota_ino)) {
+        xota_mtime = sb.st_mtime;
+        xota_ino   = sb.st_ino;
+        force      = true;
+    }
     if (!force && near_prog == st.prog && near_n != -2 && fabs(lat - near_lat) < 0.003 && fabs(lon - near_lon) < 0.004)
         return;
     near_result_t *r = calloc(1, sizeof(*r));
@@ -741,6 +796,17 @@ static void near_lookup(bool force) {
         pthread_detach(t);
     else
         free(r);
+}
+
+/* NOTA: the row MFK is on becomes the reference, in its own programme (its rules, spots and log); false with no row */
+static bool nota_take(void) {
+    if (st.prog != 'N' || near_prog != 'N' || sel < 0 || sel >= near_n)
+        return false;
+    st.ref      = near[sel];
+    st.have_ref = true;
+    st.prog     = near[sel].type;
+    state_save();
+    return true;
 }
 
 /* Widgets */
@@ -900,6 +966,10 @@ static void list_select(int k) {
         lv_obj_set_style_text_color(row, on ? lv_color_black() : TC(text), 0);
     }
     lv_obj_scroll_to_view(lv_obj_get_child(list, sel), LV_ANIM_OFF);
+    if (map_obj) {
+        map_fill();
+        prog_info_update();
+    }
 }
 
 /* Buttons */
@@ -938,8 +1008,11 @@ static button_data_t b_boot   = {.type = BTN_TEXT_FN, .label_fn = boot_label, .p
 static button_data_t b_respot = {.type = BTN_TEXT_FN, .label_fn = respot_label, .press = respot_cb};
 static button_data_t b_exit   = {.type = BTN_TEXT, .label = "Radio", .press = exit_cb};
 static button_data_t b_back   = {.type = BTN_TEXT, .label = "Back", .press = back_cb};
-static button_data_t b_ref1   = {.type = BTN_TEXT, .label = "(1:2)", .press = page_cb};
-static button_data_t b_ref2   = {.type = BTN_TEXT, .label = "(2:2)", .press = page_cb};
+static const char   *ref1_label(void);
+static const char   *ref2_label(void);
+static button_data_t b_ref1   = {.type = BTN_TEXT_FN, .label_fn = ref1_label, .press = page_cb};
+static button_data_t b_ref2   = {.type = BTN_TEXT_FN, .label_fn = ref2_label, .press = page_cb};
+static button_data_t b_ref3   = {.type = BTN_TEXT, .label = "(3:3)", .press = page_cb};
 static button_data_t b_act1   = {.type = BTN_TEXT, .label = "(1:2)", .press = page_cb};
 static button_data_t b_act2   = {.type = BTN_TEXT, .label = "(2:2)", .press = page_cb};
 static button_data_t b_act    = {.type = BTN_TEXT_FN, .label_fn = activate_label, .press = activate_cb};
@@ -953,6 +1026,12 @@ static button_data_t b_cqlvl  = {.type = BTN_TEXT_FN, .label_fn = cq_level_label
 static button_data_t b_band   = {.type = BTN_TEXT, .label = "Bands", .press = bands_cb};
 static button_data_t b_book __attribute__((unused)) = {.type = BTN_TEXT, .label = "Log\nbook", .press = logbook_cb};
 static button_data_t b_bands  = {.type = BTN_TEXT, .label = "BANDS"};
+static void view_cb(button_data_t *b);
+static void zoom_cb(button_data_t *b);
+static const char *view_label(void);
+static button_data_t b_view   = {.type = BTN_TEXT_FN, .label_fn = view_label, .press = view_cb};
+static button_data_t b_zout   = {.type = BTN_TEXT, .label = "Zoom\n-", .press = zoom_cb};
+static button_data_t b_zin    = {.type = BTN_TEXT, .label = "Zoom\n+", .press = zoom_cb};
 static button_data_t b_beacon = {.type = BTN_TEXT, .label = "Test\nbeacon", .press = beacon_cb};
 static button_data_t b_tune   = {.type = BTN_TEXT, .label = "Use\nband", .press = tune_cb};
 static button_data_t b_logpg  = {.type = BTN_TEXT, .label = "LOGBOOK"};
@@ -962,6 +1041,7 @@ static button_data_t b_qrzprof = {.type = BTN_TEXT_FN, .label_fn = qrz_prof_labe
 static buttons_page_t page_home  = {.items = {&b_home, &b_open, &b_boot, &b_respot, &b_exit}};
 static buttons_page_t page_ref1  = {.items = {&b_ref1, &b_act, &b_spot, &b_ref, &b_back}};
 static buttons_page_t page_ref2  = {.items = {&b_ref2, &b_update, &b_reccq, &b_cqlvl, &b_back}};
+static buttons_page_t page_ref3  = {.items = {&b_ref3, &b_view, &b_zout, &b_zin, &b_back}};
 static buttons_page_t page_act1  = {.items = {&b_act1, &b_cq, &b_log, &b_spot, &b_back}};
 static buttons_page_t page_act2  = {.items = {&b_act2, &b_act, &b_band, &b_reccq, &b_back}};   /* b_book: LOG hidden */
 static buttons_page_t page_bands = {.items = {&b_bands, &b_beacon, &b_tune, NULL, &b_back}};
@@ -1011,11 +1091,39 @@ static const char *spot_label(void) {
     return spot_armed ? "Spot?" : "Spot";
 }
 
+/* The reference screen has a third page, the map's, when there is a map */
+static const char *ref1_label(void) {
+    return map_here() ? "(1:3)" : "(1:2)";
+}
+
+static const char *ref2_label(void) {
+    return map_here() ? "(2:3)" : "(2:2)";
+}
+
 static void page_cb(button_data_t *b) {
-    buttons_page_t *next = b == &b_ref1 ? &page_ref2 : b == &b_ref2 ? &page_ref1 : b == &b_act1 ? &page_act2 : &page_act1;
+    buttons_page_t *next = b == &b_ref1   ? &page_ref2
+                           : b == &b_ref2 ? (map_here() ? &page_ref3 : &page_ref1)
+                           : b == &b_ref3 ? &page_ref1
+                           : b == &b_act1 ? &page_act2
+                                          : &page_act1;
 
     buttons_unload_page();
     buttons_load_page(next);
+}
+
+static void view_cb(button_data_t *b) {
+    map_view = (map_view + 1) % 3;
+    view_page3 = true;
+    refresh();
+}
+
+static const char *view_label(void) {
+    static const char *names[] = {"View:\nmap+list", "View:\nmap+info", "View:\nmap only"};
+    return names[map_view];
+}
+
+static void zoom_cb(button_data_t *b) {
+    field_map_zoom(b == &b_zin ? 1 : -1);
 }
 
 static void boot_cb(button_data_t *b) {
@@ -1186,6 +1294,143 @@ static void build_home(void) {
 
 /* A program: the reference */
 
+/* A map on the reference screen: the card has tiles (field_map.c), and the programme has places (Tiles has no list) */
+static bool map_here(void) {
+    return st.prog != 'G' && field_map_available();
+}
+
+/* The map goes with the screen: the body's child with it, the full-screen one (on the window) by itself */
+static void map_drop(void) {
+    if (map_obj && lv_obj_get_parent(map_obj) == dialog.obj) lv_obj_del(map_obj);
+    map_obj = NULL;
+    field_map_gone();
+}
+
+/* A place's marker on the map (field_map_pt_t): an XOTA place's kind from the word its name starts with ("Bunker:
+ * casemate"), in English or as the French lists of the fork it came from write it; WWBOTA's bunkers square, the other
+ * programmes' places a dot (a MOTA mill is no memorial) */
+static char ref_kind(const field_ref_t *r) {
+    static const struct {
+        const char *pre;
+        char        k;
+    } kinds[] = {
+        {"Bunker:", 'B'},   {"Ruin:", 'R'},     {"Ruine:", 'R'},      {"Remains:", 'V'}, {"Vestige:", 'V'},
+        {"Memorial:", 'M'}, {"Memoire:", 'M'},  {"Abandoned:", 'A'},  {"Abandonne:", 'A'},
+    };
+
+    if (r->type == 'X')
+        for (size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++)
+            if (!strncmp(r->name, kinds[i].pre, strlen(kinds[i].pre)))
+                return kinds[i].k;
+    return r->type == 'B' ? 'B' : 'o';
+}
+
+/* An XOTA name without its kind ("Bunker: casemate" -> "casemate"): the map shows the kind by its marker */
+static const char *ref_bare_name(const field_ref_t *r) {
+    const char *c = r->type == 'X' ? strstr(r->name, ": ") : NULL;
+    return c ? c + 2 : r->name;
+}
+
+/* The references with an activation log: LOGS_DIR/YYYYMMDD-HHMM_<ref>.adi, '/' and ' ' as '_' (activate_start) */
+static void done_load(void) {
+    DIR           *d = opendir(LOGS_DIR);
+    struct dirent *e;
+
+    done_n = 0;
+    if (!d) return;
+    while ((e = readdir(d)) && done_n < (int)(sizeof(done_refs) / sizeof(done_refs[0]))) {
+        const char *u = strchr(e->d_name, '_');
+        const char *dot = strrchr(e->d_name, '.');
+        if (!u || !dot || dot <= u + 1 || strcmp(dot, ".adi")) continue;
+        snprintf(done_refs[done_n], sizeof(done_refs[0]), "%.*s", (int)(dot - u - 1), u + 1);
+        done_n++;
+    }
+    closedir(d);
+}
+
+static bool ref_done(const char *ref) {
+    char name[16];
+
+    snprintf(name, sizeof(name), "%s", ref);
+    for (char *p = name; *p; p++)
+        if (*p == '/' || *p == ' ') *p = '_';
+    for (int i = 0; i < done_n; i++)
+        if (!strcmp(done_refs[i], name)) return true;
+    return false;
+}
+
+/* The reference the map is on: the row MFK is on, else the one in use */
+static const field_ref_t *map_target(void) {
+    if (near_n > 0 && near_prog == st.prog && sel >= 0 && sel < near_n && isfinite(near[sel].lat)) return &near[sel];
+    if (st.have_ref && st.ref.type == st.prog && isfinite(st.ref.lat)) return &st.ref;
+    return NULL;
+}
+
+static double bearing(double la1, double lo1, double la2, double lo2) {
+    double r = M_PI / 180, dl = (lo2 - lo1) * r;
+    double y = sin(dl) * cos(la2 * r), x = cos(la1 * r) * sin(la2 * r) - sin(la1 * r) * cos(la2 * r) * cos(dl);
+    return fmod(atan2(y, x) / r + 360, 360);
+}
+
+static const char *compass(double b) {
+    static const char *n[] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+    return n[(int)((b + 22.5) / 45) % 8];
+}
+
+/* The radio on the map: GPS or the phone (with its accuracy); the locator square is no position for a map */
+static bool map_me(double *lat, double *lon, int *acc) {
+    const char *src;
+    int         age, pacc;
+    double      plat, plon;
+
+    if (!position(lat, lon, &src, &age) || !strcmp(src, "QTH")) return false;
+    *acc = !strcmp(src, "PHONE") && gps_phone_fix(&plat, &plon, &age, &pacc) ? pacc : 10;
+    return true;
+}
+
+/* The distance and the heading to the map's reference, "" without a position */
+static void map_dist(char *buf, size_t size) {
+    const field_ref_t *t = map_target();
+    double             lat, lon;
+    int                acc;
+
+    buf[0] = 0;
+    if (!t || !map_me(&lat, &lon, &acc)) return;
+    double km = qth_pos_dist(lat, lon, t->lat, t->lon), b = bearing(lat, lon, t->lat, t->lon);
+    snprintf(buf, size, km < 10 ? "%.2f km  %s %.0f" : "%.0f km  %s %.0f", km, compass(b), b);   /* no degree sign in the fonts */
+}
+
+static void map_fill(void) {
+    field_map_pt_t     p[MAX_NEAR];
+    int                n = 0;
+    const field_ref_t *t = map_target();
+    double             lat, lon;
+    int                acc;
+    char               d[48];
+
+    if (!map_obj) return;
+    memset(p, 0, sizeof(p));    /* field_map_points compares them whole, padding too */
+    if (near_prog == st.prog)
+        for (int k = 0; k < near_n; k++)
+            if (isfinite(near[k].lat) && isfinite(near[k].lon)) {
+                p[n].lat  = near[k].lat;
+                p[n].lon  = near[k].lon;
+                p[n].kind = ref_kind(&near[k]);
+                p[n].done = ref_done(near[k].ref);
+                n++;
+            }
+    field_map_points(p, n);
+    field_map_target(t != NULL, t ? t->lat : 0, t ? t->lon : 0, t ? ref_bare_name(t) : "");
+    bool have = map_me(&lat, &lon, &acc);
+    field_map_me(have, lat, lon, acc);
+    map_dist(d, sizeof(d));
+    if (map_view == 2 && t)
+        field_map_overlay(t->ref, d);
+    else
+        field_map_overlay("", "");
+    field_map_tick();
+}
+
 static void prog_info_update(void) {
     char        buf[200], deg[48], grid[16] = "";
     double      lat, lon;
@@ -1195,7 +1440,14 @@ static void prog_info_update(void) {
     if (!info_ref)
         return;
     bool have_pos = position(&lat, &lon, &src, &age);
-    if (st.have_ref && st.ref.type == st.prog) {
+    if (st.prog == 'N' && near_n > 0 && near_prog == 'N' && sel >= 0 && sel < near_n) {
+        /* NOTA: the row MFK is on, in its programme's colour; the name as it is (a '#' in it is no markup) */
+        lv_obj_set_style_text_color(info_ref, prog_color(near[sel].type), 0);
+        lv_label_set_text(info_ref, near[sel].ref);
+        lv_label_set_recolor(info_name, false);
+        lv_label_set_text_fmt(info_name, "%s: %s", prog_name_of(near[sel].type), near[sel].name);
+    } else if (st.have_ref && st.ref.type == st.prog) {
+        lv_obj_set_style_text_color(info_ref, prog_accent(), 0);
         lv_label_set_text(info_ref, st.ref.ref);
         lv_label_set_recolor(info_name, false);
         lv_label_set_text(info_name, st.ref.name);
@@ -1204,6 +1456,7 @@ static void prog_info_update(void) {
         lv_label_set_text(info_name, near_n == -1 && st.prog != 'G'       ? "No reference list"
                                      : !have_pos                          ? "No position"
                                      : near_n == 0 && near_prog == 'G' && st.prog == 'G' ? "Ref...: type your tile"
+                                     : near_n == 0 && near_prog == 'X' && st.prog == 'X' ? "Your xota.tsv is empty"
                                      : near_n == 0 && near_prog == st.prog ? "None in the list: Update list"
                                                                           : "Looking...");
     }
@@ -1216,12 +1469,36 @@ static void prog_info_update(void) {
     if (st.have_ref && st.ref.type == 'S' && st.prog == 'S')
         snprintf(alt, sizeof(alt), "#%06x ALT#  %d m     #%06x PTS#  %d\n", theme_hex(TC_text_dim), st.ref.alt_m,
                  theme_hex(TC_text_dim), st.ref.points);
-    snprintf(buf, sizeof(buf), "%s%s\n%s\n#%06x Position from %s%s#", alt, have_pos ? grid : "-",
-             have_pos ? deg : "GPS, phone or locator needed", theme_hex(TC_text_dim), have_pos ? src : "-",
-             have_pos && age > 60 ? " (old)" : "");
+    if (map_obj) {      /* the map shows where: the distance and the heading to the chosen row instead */
+        char d[48];
+
+        map_dist(d, sizeof(d));
+        /* one line, the status under it */
+        snprintf(buf, sizeof(buf), "%s  #%06x %s%s#", d[0] ? d : have_pos ? grid : "-", theme_hex(TC_text_dim),
+                 have_pos ? src : "", have_pos && age > old_s(src) ? " (old)" : "");
+    } else {
+        snprintf(buf, sizeof(buf), "%s%s\n%s\n#%06x Position from %s%s#", alt, have_pos ? grid : "-",
+                 have_pos ? deg : "GPS, phone or locator needed", theme_hex(TC_text_dim), have_pos ? src : "-",
+                 have_pos && age > old_s(src) ? " (old)" : "");
+    }
     lv_label_set_text(info_lines, buf);
     lv_obj_set_style_bg_color(info_dot, TC(err), 0);
     lv_label_set_text(info_state, "NOT ACTIVE");
+}
+
+/* The reference screen's status line */
+static const char *ref_hint(void) {
+    return updating ? (update_text[0] ? update_text : "Downloading the reference lists...")
+           : st.prog == 'G' ? (near_n == 0 && near_prog == 'G'
+                                   ? "4-character locator: Ref... your tile, or GPS"
+                                   : "MFK: a tile (km: to its edge).  Ref...: any tile")
+           : st.prog == 'X' && (near_n == -1 || (near_n == 0 && near_prog == 'X'))
+               ? "XOTA is your own list: copy your xota.tsv to /mnt/field (see the manual)"
+           : near_n == -1 || (near_n == 0 && near_prog == st.prog)
+               ? "No reference list yet: Update list (page 2), with WiFi"
+           : st.prog == 'C' ? "MFK: choose the castle.  Ref...: any castle by its number (most have no position)"
+           : st.prog == 'N' ? "Every programme, nearest first.  Press: open it in its own.  Start: activate it"
+                            : "MFK: choose the reference, press to use it.  Start: begin the activation";
 }
 
 static void build_ref(void) {
@@ -1231,26 +1508,68 @@ static void build_ref(void) {
 
     snprintf(t, sizeof(t), "%s MODE", prog_name());
     head_set(prog_icon(), t);
-    lv_obj_t *p = panel(body, 8, 6, 384, h);
-    icon(p, prog_icon(), 64, 12, 12);
-    info_ref   = label(p, VF(36), prog_accent(), 88, 10, 284);
-    info_name  = label(p, VF(24), TC(text), 88, 54, 284);
-    info_lines = label(p, VF(22), TC(text), 16, 100, 352);
-    lv_label_set_long_mode(info_lines, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_line_space(info_lines, 6, 0);
-    lv_obj_t *s = label(p, VF(18), TC(text_dim), 16, h - 70, 0);
-    lv_label_set_text(s, "STATUS");
-    info_dot   = dot(p, 18, h - 40, 16, TC(err));
-    info_state = label(p, VF(26), TC(err), 44, h - 46, 0);
+    bool with_map = map_here();
+
+    map_on_site = false;
+
+    if (!with_map || map_view == 0) {
+        lv_obj_t *p = panel(body, 8, 6, 384, h);
+        if (with_map) {
+            /* the map on top, the reference under it */
+            map_obj    = field_map_create(p, 4, 4, 376, 196);
+            info_ref   = label(p, VF(24), prog_accent(), 12, 206, 360);
+            info_name  = label(p, VF(20), TC(text), 12, 236, 360);
+            info_lines = label(p, VF(20), TC(text), 12, 262, 360);
+        } else {
+            icon(p, prog_icon(), 64, 12, 12);
+            info_ref   = label(p, VF(36), prog_accent(), 88, 10, 284);
+            info_name  = label(p, VF(24), TC(text), 88, 54, 284);
+            info_lines = label(p, VF(22), TC(text), 16, 100, 352);
+        }
+        lv_label_set_long_mode(info_lines, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_line_space(info_lines, 6, 0);
+        if (!with_map) {
+            lv_obj_t *s = label(p, VF(18), TC(text_dim), 16, h - 70, 0);
+            lv_label_set_text(s, "STATUS");
+        }
+        info_dot   = dot(p, 18, h - 40, 16, TC(err));
+        info_state = label(p, VF(26), TC(err), 44, h - 46, 0);
+    } else {
+        /* the map over the width, the reference in a band under it; the list, hidden, keeps MFK's choice */
+        lv_obj_t *p = panel(body, 8, 6, W - 16, h);
+        map_obj    = field_map_create(p, 4, 4, W - 24, h - 74);
+        info_ref   = label(p, VF(24), prog_accent(), 12, h - 66, 300);
+        info_name  = label(p, VF(20), TC(text), 300, h - 66, 300);
+        info_lines = label(p, VF(18), TC(text), 300, h - 38, 440);
+        info_dot   = dot(p, 14, h - 30, 14, TC(err));
+        info_state = label(p, VF(20), TC(err), 36, h - 36, 0);
+        if (map_view == 2) {
+            /* the map alone, over the window's title too; the reference in its corner */
+            lv_obj_del(map_obj);
+            field_map_gone();
+            map_obj = field_map_create(dialog.obj, 0, 0, W, HEAD_H + body_h);
+        }
+    }
 
     static const lv_coord_t widths[] = {130, 88, 150};
     list_create(body, 400, 38, W - 408, h - 32, widths, 3);
+    if (with_map && map_view != 0)
+        lv_obj_add_flag(list, LV_OBJ_FLAG_HIDDEN);
     char head[32];
     snprintf(head, sizeof(head), "%s\tKM\tNAME", prog_of(st.prog)->what);
-    list_head(head, 404, 8);
+    if (!with_map || map_view == 0)
+        list_head(head, 404, 8);
     if (near_n > 0 && near_prog == st.prog) {
         for (int k = 0; k < near_n; k++) {
-            snprintf(row, sizeof(row), "%s\t%.*f\t%s", near[k].ref, near[k].km < 10 ? 1 : 0, near[k].km, near[k].name);
+            /* XOTA's references without "XOTA-": 13 characters did not fit the column, the title says XOTA */
+            const char *shown = (st.prog == 'X' || st.prog == 'N') && !strncmp(near[k].ref, "XOTA-", 5)
+                                    ? near[k].ref + 5 : near[k].ref;
+
+            if (st.prog == 'N')     /* NOTA: each row's programme before its name */
+                snprintf(row, sizeof(row), "%s\t%.*f\t%s %s", shown, near[k].km < 10 ? 1 : 0, near[k].km,
+                         prog_name_of(near[k].type), near[k].name);
+            else
+                snprintf(row, sizeof(row), "%s\t%.*f\t%s", shown, near[k].km < 10 ? 1 : 0, near[k].km, near[k].name);
             list_add(row);
             if (st.have_ref && !strcmp(near[k].ref, st.ref.ref))
                 sel = k;
@@ -1258,15 +1577,11 @@ static void build_ref(void) {
         list_select(sel);
     }
     prog_info_update();
-    lv_label_set_text(status, updating ? (update_text[0] ? update_text : "Downloading the reference lists...")
-                              : st.prog == 'G' ? (near_n == 0 && near_prog == 'G'
-                                                      ? "4-character locator: Ref... your tile, or GPS"
-                                                      : "MFK: a tile (km: to its edge).  Ref...: any tile")
-                              : near_n == -1 || (near_n == 0 && near_prog == st.prog)
-                                  ? "No reference list yet: Update list (page 2), with WiFi"
-                              : st.prog == 'C' ? "MFK: choose the castle.  Ref...: any castle by its number (most have no position)"
-                                  : "MFK: choose the reference, press to use it.  Start: begin the activation");
-    buttons_load_page(&page_ref1);
+    lv_label_set_text(status, ref_hint());
+    done_load();
+    map_fill();
+    buttons_load_page(view_page3 && with_map ? &page_ref3 : &page_ref1);
+    view_page3 = false;
     near_lookup(false);
 }
 
@@ -1582,6 +1897,7 @@ static void show(screen_t s) {
     act_freq  = NULL;
     list      = NULL;
     home_row  = NULL;
+    map_drop();
     lv_obj_clean(body);
     buttons_unload_page();
     switch (s) {
@@ -1659,6 +1975,10 @@ static bool activation_start(void) {
 
     if (st.active)
         return true;
+    if (st.prog == 'N' && !nota_take()) {
+        msg_update_text_fmt("NOTA: no reference near yet (a position is needed)");
+        return false;
+    }
     if (!st.have_ref || st.ref.type != st.prog) {
         msg_update_text_fmt("Choose the %s reference first", prog_name());
         return false;
@@ -1742,11 +2062,18 @@ static void spot_done(const char *line) {
 static void spot_to(bool cluster) {
     /* the screen's programme: a reference left from another one (no tower near, no list yet) is not spotted */
     if (!st.have_ref || st.ref.type != st.prog || !ref_text_ok(st.ref.ref)) {
-        msg_update_text_fmt("Choose the %s reference first", prog_name());
+        if (st.prog == 'N')
+            msg_update_text_fmt("NOTA: press the row to open it in its programme first");
+        else
+            msg_update_text_fmt("Choose the %s reference first", prog_name());
         return;
     }
     if (!my_call()[0]) {
         msg_update_text_fmt("Set your callsign in Settings");
+        return;
+    }
+    if (st.ref.type == 'X') {
+        msg_update_text_fmt("XOTA is a list of your own: no spot");
         return;
     }
     if (!prog_of(st.ref.type)->site) {
@@ -2120,7 +2447,7 @@ static bool set_ref(const char *in) {
         state_save();
         return true;
     }
-    bool found = field_refs_find(REFS_PATH, ref, &r);
+    bool found = field_refs_find(field_ref_prog(ref) == 'X' ? XOTA_PATH : REFS_PATH, ref, &r);
     char lh[16];
     if (!found && field_ref_lh(ref, lh, sizeof(lh)) && strcmp(lh, ref) && field_refs_find(REFS_PATH, lh, &r)) {
         snprintf(ref, sizeof(ref), "%s", lh);   /* a lighthouse as the list writes it: BEL-2 is BEL 002 */
@@ -2677,6 +3004,9 @@ static void press(void) {
         return;
     if (st.screen == SCR_HOME) {
         home_open(sel);
+    } else if (st.screen == SCR_PROG && !st.active && st.prog == 'N') {
+        if (nota_take())        /* the row opens in its own programme */
+            show(SCR_PROG);
     } else if (st.screen == SCR_PROG && !st.active && sel < near_n && near_prog == st.prog) {
         st.ref      = near[sel];
         st.have_ref = true;
@@ -2830,6 +3160,21 @@ static void timer_cb(lv_timer_t *t) {
         spot_armed = false;
         buttons_refresh(&b_spot);
     }
+    if (map_obj) {
+        /* the map follows the position; within 50 m of the reference the status line says so */
+        const field_ref_t *t = map_target();
+        double             mlat, mlon;
+        int                macc;
+        bool here = t && !st.active && map_me(&mlat, &mlon, &macc) && qth_pos_dist(mlat, mlon, t->lat, t->lon) < 0.05;
+
+        map_fill();
+        if (ticks % 5 == 0)
+            prog_info_update();
+        if (here != map_on_site && status && !updating) {
+            map_on_site = here;
+            lv_label_set_text(status, here ? "You are there: Start to activate it" : ref_hint());
+        }
+    }
     msg_voice_poll(false);
     log_watch();
     chips_update();   /* the app or the radio's own keys may change them too */
@@ -2934,4 +3279,5 @@ static void destruct_cb(void) {
     act_freq  = NULL;
     head_icon = NULL;
     home_row  = NULL;
+    map_drop();
 }

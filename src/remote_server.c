@@ -58,7 +58,12 @@
  *  server uses them) and tells the panel clients what changed every 50 ms. The apps: the FT8
  *  list's rows go out as they come ("ft8r {...}", the last 48 to a page that opens later), the
  *  app's state when it changes ("ft8 {...}"), the CW decoder's text ("cw \"...\""); "ft8
- *  open|close|cq|stop|auto|hold|mode", "ft8 txfreq HZ", "ft8 reply ID" work the app, "log
+ *  open|close|cq|stop|auto|hold|mode", "ft8 txfreq HZ", "ft8 reply ID" work the app, "wefax
+ *  open|close|auto|cont|save|clear" the WeFax app (the state's "app" names the one open), "pos LAT
+ *  LON [ACC]" gives the radio the phone's position (degrees, the accuracy in metres; Field Ops uses
+ *  it when no GPS is plugged in, operate without control: it touches nothing of the RF side), "clk?
+ *  MS" and "clk MS RTT" the phone's clock (clock_from_phone: the radio's set from it in the field,
+ *  where neither NTP nor a GPS keeps it), "log
  *  CALL|RSTS|RSTR|NAME" writes the day's log as the CW keyboard does ("logged ok|no"). "logq ID
  *  CALL|..." is the same with a number the page chose: the answer is "logged ID ok|no", kept for
  *  the last 64, and "logq? ID CALL|..." asks for it again after a dropped connection or a reload,
@@ -90,7 +95,10 @@
 #include "remote_server.h"
 #include "remote_sessions.h"
 #include "control_owner.h"
+#include "clock.h"
 #include "front_keys.h"
+#include "ft8/utils.h"
+#include "gps.h"
 #include "msg_box.h"
 #include "board.h"
 
@@ -113,6 +121,7 @@
 #include "tci_server.h"
 #include "tci_ws.h"
 #include "tx_meters.h"
+#include "wefax_window.h"
 
 #include <arpa/inet.h>
 #include <ctype.h>
@@ -264,6 +273,7 @@ typedef struct {
     bool    tx, lock;
     bool    ulock;          /* the user's lock alone (LOCK), not an app's hold: the page's LOCK button */
     bool    cwrise;         /* CW's tone rises with the dial, as CW-R's (the X6200): its CW passband the other side */
+    char    app[16];        /* the digital app open (main_screen_digital_app), "" for none */
 } pstate_t;
 
 /* A change asked by a panel client, for the LVGL thread */
@@ -1085,6 +1095,9 @@ static void pstate_read(pstate_t *s) {
     s->ulock = main_screen_freq_user_locked();
     s->tune  = ext_tune_on();
     s->tune_s = ext_tune_limit_s();
+    const char *app = main_screen_digital_app();
+    memset(s->app, 0, sizeof(s->app));      /* compared whole with memcmp */
+    snprintf(s->app, sizeof(s->app), "%s", app ? app : "");
 }
 
 static void pstate_line(char *buf, size_t n, const pstate_t *s) {
@@ -1092,10 +1105,10 @@ static void pstate_line(char *buf, size_t n, const pstate_t *s) {
              "state {\"freq\":%d,\"mode\":%d,\"flo\":%d,\"fhi\":%d,\"kt\":%d,\"agc\":%d,\"pre\":%d,\"att\":%d,"
              "\"nb\":%d,\"nr\":%d,\"sql\":%d,\"rfg\":%d,\"vol\":%d,\"pwr\":%d.%d,\"step\":%d,\"zoom\":%d,"
              "\"vfo\":%d,\"atu\":%d,\"bat\":%d,\"tx\":%d,\"lock\":%d,\"tune\":%d,\"tune_s\":%d,\"ulock\":%d,"
-             "\"cwrise\":%d}",
+             "\"cwrise\":%d,\"app\":\"%s\"}",
              s->freq, s->mode, s->flo, s->fhi, s->kt, s->agc, s->pre, s->att, s->nb, s->nr, s->sql, s->rfg, s->vol,
              s->pwr10 / 10, s->pwr10 % 10, s->step, s->zoom, s->vfo, s->atu, s->bat, s->tx, s->lock, s->tune, s->tune_s,
-             s->ulock, s->cwrise);
+             s->ulock, s->cwrise, s->app);
 }
 
 /* A string into JSON: quotes and backslashes escaped, control characters dropped */
@@ -1392,11 +1405,11 @@ static void ft8_status_line(char *buf, size_t n, const ft8_status_t *s) {
 }
 
 /* What the panel asks of the apps, on the LVGL thread */
-typedef enum { A_FT8_OPEN, A_FT8_CLOSE, A_FT8, A_LOG } acmd_id_t;
+typedef enum { A_FT8_OPEN, A_FT8_CLOSE, A_FT8, A_WEFAX_OPEN, A_WEFAX_CLOSE, A_WEFAX, A_LOG } acmd_id_t;
 
 typedef struct {
     acmd_id_t   id;
-    int         what;       /* ft8_rc_t */
+    int         what;       /* ft8_rc_t, wefax_rc_t */
     int32_t     arg;
     bool        has_cell;
     cell_data_t cell;
@@ -1525,6 +1538,19 @@ static void app_apply(void *arg) {
         case A_FT8:
             ft8_window_remote((ft8_rc_t)a->what, a->arg, a->has_cell ? &a->cell : NULL);
             break;
+        case A_WEFAX_OPEN:
+            if (!dialog_type_is_run(dialog_wefax)) {
+                backlight_tick();
+                main_screen_start_app(ACTION_APP_WEFAX);
+            }
+            break;
+        case A_WEFAX_CLOSE:
+            if (dialog_type_is_run(dialog_wefax))
+                main_screen_close_app();
+            break;
+        case A_WEFAX:
+            wefax_window_remote((wefax_rc_t)a->what);
+            break;
         case A_LOG:
             log_answer(a->who, a->log_id, a->sum, dialog_field_qso_log(a->text));
             break;
@@ -1562,6 +1588,30 @@ static bool app_ft8_cmd(const char *what, const char *arg) {
             if (!a.has_cell)
                 return false;
         }
+    }
+    scheduler_put(app_apply, &a, sizeof(a));
+    return true;
+}
+
+/* "wefax open|close|auto|cont|save|clear": Auto waits for the start tone and saves at the stop tone, Cont takes rows
+ * at once, Save writes the rows kept to /mnt/wefax and starts over, Clear drops them */
+static bool app_wefax_cmd(const char *what) {
+    static const struct {
+        const char *name;
+        wefax_rc_t  rc;
+    } rcs[] = {{"auto", WEFAX_RC_AUTO}, {"cont", WEFAX_RC_CONT}, {"save", WEFAX_RC_SAVE}, {"clear", WEFAX_RC_CLEAR}};
+    acmd_t a = {.id = A_WEFAX};
+
+    if (!strcasecmp(what, "open")) {
+        a.id = A_WEFAX_OPEN;
+    } else if (!strcasecmp(what, "close")) {
+        a.id = A_WEFAX_CLOSE;
+    } else {
+        size_t i = 0;
+        while (i < sizeof(rcs) / sizeof(rcs[0]) && strcasecmp(rcs[i].name, what)) i++;
+        if (i == sizeof(rcs) / sizeof(rcs[0]))
+            return false;
+        a.what = rcs[i].rc;
     }
     scheduler_put(app_apply, &a, sizeof(a));
     return true;
@@ -1780,6 +1830,58 @@ static bool allowed(client_t *c, uint8_t role, bool control) {
         return false;
     }
     return true;
+}
+
+/* "clk MS RTT": the phone's clock, step 2 (operate, no control: it touches nothing of the RF side). MS the phone's
+ * time as it sent this, RTT the round trip it measured with "clk?": the radio's clock is set to MS + RTT / 2 when it
+ * is more than CLK_STEP_MS off, and only while nothing else keeps it, neither ntpd (the network, or the GPS through
+ * it) nor a GPS fix of the last seconds, the FT8 app's Time Sync rule: in the field, with no internet. A round trip
+ * over CLK_RTT_MAX_MS is no measure. A clock set goes into the RTC too and the radio says so. Answered "clk
+ * set|ok|ntp|gps|slow DIFF" (the difference found, in ms) or "err clk ...". Socket thread */
+#define CLK_STEP_MS    300
+#define CLK_RTT_MAX_MS 1000
+#define CLK_GPS_AGE_S  10      /* a GPS fix this recent: gpsd feeds ntpd */
+
+static void clock_from_phone(client_t *c, const char *ms_s, const char *rtt_s) {
+    char           *e1, *e2;
+    long long       ms = strtoll(ms_s, &e1, 10), rtt = strtoll(rtt_s, &e2, 10);
+    struct timespec now;
+    double          lat, lon;
+    int             age;
+
+    if (!allowed(c, ROLE_OPERATE, false))
+        return;
+    if (*e1 || *e2 || ms < 1700000000000LL || rtt < 0) {     /* 1700000000000: November 2023, no phone's clock */
+        client_text(c, "err clk MS RTT");
+        return;
+    }
+    clock_gettime(CLOCK_REALTIME, &now);
+    long long ours = (long long)now.tv_sec * 1000 + now.tv_nsec / 1000000, theirs = ms + rtt / 2, diff = theirs - ours;
+    if (rtt > CLK_RTT_MAX_MS) {
+        client_textf(c, "clk slow %lld", diff);
+        return;
+    }
+    if (ftx_clock_synced(NULL)) {
+        client_textf(c, "clk ntp %lld", diff);
+        return;
+    }
+    if (gps_last_fix(&lat, &lon, &age) && age <= CLK_GPS_AGE_S) {
+        client_textf(c, "clk gps %lld", diff);
+        return;
+    }
+    if (llabs(diff) <= CLK_STEP_MS) {
+        client_textf(c, "clk ok %lld", diff);
+        return;
+    }
+    struct timespec set = {.tv_sec = theirs / 1000, .tv_nsec = (theirs % 1000) * 1000000};
+    if (clock_settime(CLOCK_REALTIME, &set) != 0) {
+        client_textf(c, "err clk: %s", strerror(errno));
+        return;
+    }
+    clock_rtc_save();
+    LV_LOG_USER("Clock set from the phone: %+lld ms (round trip %lld ms)", diff, rtt);
+    msg_schedule_text_fmt("Clock set from the phone: %+.1f s", diff / 1000.0);
+    client_textf(c, "clk set %lld", diff);
 }
 
 /* "key PTT 1 HOLD": the radio's own microphone keyed, HOLD the page's number for this press; the page sends the
@@ -2140,6 +2242,31 @@ static void handle_text(client_t *c, char *text) {
             return;
         if (!app_ft8_cmd(a[1], n >= 3 ? a[2] : NULL))
             client_textf(c, "err ft8 %s", a[1]);
+    } else if (!strcmp(a[0], "wefax") && n >= 2) {
+        if (!allowed(c, ROLE_OPERATE, true))
+            return;
+        if (!app_wefax_cmd(a[1]))
+            client_textf(c, "err wefax %s", a[1]);
+    } else if (!strcmp(a[0], "clk?") && n >= 2) {
+        /* the phone's clock, step 1: its time sent back with ours, so the page knows the round trip */
+        struct timespec ts;
+
+        clock_gettime(CLOCK_REALTIME, &ts);
+        client_textf(c, "clk %s %lld", a[1], (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+    } else if (!strcmp(a[0], "clk") && n >= 3) {
+        clock_from_phone(c, a[1], a[2]);
+    } else if (!strcmp(a[0], "pos") && n >= 3) {
+        char   *e1, *e2;
+        double  lat = strtod(a[1], &e1), lon = strtod(a[2], &e2);
+        double  acc = n >= 4 ? strtod(a[3], NULL) : 0;
+        if (!allowed(c, ROLE_OPERATE, false))
+            return;
+        if (*e1 || *e2 || !isfinite(lat) || !isfinite(lon) || fabs(lat) > 90 || fabs(lon) > 180 || !isfinite(acc)
+            || acc < 0) {
+            client_text(c, "err pos LAT LON [ACC]");
+            return;
+        }
+        gps_phone_set(lat, lon, acc > 100000 ? 100000 : (int)lround(acc));
     } else if (!strcmp(a[0], "key") && n >= 3) {
         int  code = key_code(a[1]);
         bool down = atoi(a[2]) != 0;
