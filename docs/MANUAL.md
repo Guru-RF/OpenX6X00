@@ -26,7 +26,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Winlink](#winlink): [Mercury](#mercury-experimental), [XARA](#xara-experimental)
 - [Browser panel](#browser-panel)
 - [Browser remote](#browser-remote)
-- [Browser apps](#browser-apps): [WeFax](#wefax-in-the-browser)
+- [Browser apps](#browser-apps): [FT8](#ft8-in-the-browser), [WeFax](#wefax-in-the-browser)
 - [TCI server](#tci-server)
 - [Network name](#network-name): [the radio's own names](#the-radios-own-names)
 - [SSH](#ssh): [a key on Windows](#a-key-on-windows), [on a Mac or on Linux](#a-key-on-a-mac-or-on-linux), [in PuTTY](#a-key-in-putty), [on a security key](#a-key-on-a-security-key), [adding the key on the radio](#adding-the-key-on-the-radio), [the first login](#the-first-login), [after a new card image](#after-a-new-card-image), [when SSH does not let you in](#when-ssh-does-not-let-you-in)
@@ -6415,7 +6415,8 @@ The menu has General and six groups:
 | Remote | Panel | the radio's own controls in the browser, for a touch screen (see [Browser panel](#browser-panel)) |
 | | Screen | the radio's screen live, its keys and knobs, the audio both ways (see [Browser remote](#browser-remote)) |
 | | Tailscale | Enabled, status, Log in to Tailscale, the radio on your tailnet, Log out, and Funnel (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
-| Apps | WeFax | the radio's WeFax app: the chart live as it comes in, open and close, RX Auto or Cont, Save now, Clear, the stations, the last charts (see [WeFax in the browser](#wefax-in-the-browser)) |
+| Apps | FT8 | the radio's FT8 app: its own waterfall with the calls of each slot, the stations on a map, the band's decodes, the QSO under way, the app's buttons and its next message (see [FT8 in the browser](#ft8-in-the-browser)) |
+| | WeFax | the radio's WeFax app: the chart live as it comes in, open and close, RX Auto or Cont, Save now, Clear, the stations, the last charts (see [WeFax in the browser](#wefax-in-the-browser)) |
 | Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
 | | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies, and your own for PSK, Olivia and JTTY in the place of their built-in ones; a card shows what the band keys of those three step through, with the band plan ([Frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty)); WSPR band hopping: Hop and each band's Off, RX or RX+TX, set live (see [Band hopping](#band-hopping)) |
 | | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)), on the frequencies the radio tunes |
@@ -7750,6 +7751,37 @@ or without the page: it decodes, answers and saves as it does when no browser
 is open, and a page that closes or drops leaves it as it was. Anyone on the
 network sees the pages; a change needs a paired browser in control, as on
 the Panel. These pages came from OlivLoze's fork (f4oli-apps).
+
+### FT8 in the browser
+
+Apps > FT8 (`http://x6100.local/ft8`) shows the radio's [FT8](#ft8-and-ft4)
+app (FT4 and FT2 too) as four screens over the app's buttons:
+
+- Waterfall: the app's own, the audio it decodes from its filter's low edge
+  to its high one, the newest row on top, each slot's start and time, the
+  calls decoded in it at their frequency, and our TX frequency in red. A
+  click moves our TX frequency there.
+- Map: the stations heard in the last half hour at their locator (CQ, POTA,
+  CQ DX, calling me, the others, each its colour, the older ones paler), us
+  at the radio's locator (Settings > General > STATION), and the path to the station
+  worked. Near shows our part of the world, World all of it. Everything comes
+  from the radio: the page needs no internet.
+- Band activity: the decodes slot by slot with the dB, the audio Hz, the
+  country and the distance; a tap on a CQ or a call answers it in our next
+  slot and arms TX, as a tap on the radio's list does. Clear empties the
+  page's list only.
+- QSO: our messages, the stations calling us and the station worked.
+- The buttons: Open or Close, Mode (FT8, FT4, FT2), TX Hz with - and + (10 Hz),
+  TX armed or off, CQ, Auto, Hold and Stop, as on the radio. Under them the
+  steps (listening, queued, next slot, sending, logged), the QSO's six
+  messages with the next one lit, what the app does next in words, and the
+  seconds to our next slot.
+
+The radio's own list and its rules decide: CQ and Auto go on when the page
+closes or drops, a reply waits for its slot, and Stop ends the transmission,
+drops the queued message and turns CQ and TX off. TX off makes a dry run:
+the app listens, decodes and queues, and nothing keys the transmitter. A
+page that opens later gets the last 48 rows the radio kept.
 
 ### WeFax in the browser
 

@@ -7,14 +7,17 @@ See the Makefile:
 1. WeFax: the page's stations are the app's (src/wefax_window.c stations[], read from the source), a channel's
    name as the app lists it (channel_name there), the channels named WEFAX after the stations as the app's Freq.
    list has them (none within 50 Hz of a station, none past INT32_MAX).
-2. Through bottle's WSGI app (skipped without BOTTLE): the page, in the menu and on General, with the list in it as
-   JavaScript that a channel's name cannot break out of.
+2. Through bottle's WSGI app (skipped without BOTTLE): each app's page, in the menu and on General, what it puts
+   into its script as JavaScript that a name cannot break out of, and every file it loads from /static there.
+3. src/remote_server.c: a page's "watching" words ("wefax rows 1", "ft8 wf 1") are taken before the app's own
+   branch, which wants operate and control: after it, a viewer's "ft8 wf 1" was refused as an unknown command.
 Its files go in build/ (the Makefile empties it first).
 """
 import io
 import json
 import os
 import re
+import sqlite3
 import sys
 import types
 import unittest
@@ -38,6 +41,7 @@ except ImportError:
     bottle = apps = settings = None
 
 BUILD = os.path.join(HERE, "build")
+APPS = ("ft8", "wefax")       # the Apps menu's pages
 runs = 0
 
 
@@ -143,10 +147,46 @@ class Pages(unittest.TestCase):
         self.assertEqual(json.loads(listed)[-1], ["Channels", [["</script><b>x", 9001500, ""]]])
         self.assertIn(b'"wefax rows 1"', page)
 
-    def test_general_has_the_tile(self):
+    def test_ft8_page(self):
+        con = sqlite3.connect(settings.DB_PATH)
+        con.execute("CREATE TABLE params (name TEXT PRIMARY KEY, val TEXT)")
+        con.executemany("INSERT INTO params VALUES (?, ?)", [("callsign", 'ON0X"</script>'), ("qth", "JO20sv")])
+        con.commit()
+        con.close()
+        code, page, _ = self.req("/ft8")
+        self.assertEqual(code, 200)
+        self.assertIn(b'<a href="/ft8"', page)
+        m = re.search(rb"const MYCALL = (.*?)\.toUpperCase\(\), MYGRID = (.*?)\.toUpperCase\(\);", page)
+        self.assertEqual((json.loads(m.group(1)), json.loads(m.group(2))), ('ON0X"</script>', "JO20sv"))
+        self.assertNotIn(b"</", m.group(0))
+        self.assertIn(b'"ft8 wf 1"', page)
+
+    def test_general_has_the_tiles(self):
         code, page, _ = self.req("/")
         self.assertEqual(code, 200)
-        self.assertIn(b'class="tile" href="/wefax"', page)
+        for name in APPS:
+            self.assertIn(b'class="tile" href="/%s"' % name.encode(), page)
+
+    def test_static_files(self):
+        """What the apps' pages load from /static is there, served (the map's land, which app_wall.js fetches,
+        too)"""
+        for name in APPS:
+            code, page, _ = self.req("/" + name)
+            loads = set(re.findall(rb'(?:src|href)="/static/([^"?]+)', page)) | {b"img/world.svg"}
+            for f in loads:
+                code, body, _ = self.req("/static/" + f.decode())
+                self.assertEqual(code, 200, (name, f))
+                self.assertTrue(body, (name, f))
+
+
+class RemoteWords(unittest.TestCase):
+    def test_watching_before_the_apps_commands(self):
+        src = source("remote_server.c")
+        body = src[src.index("static void handle_text(client_t *c, char *text)"):]
+        for app, word in (("wefax", "rows"), ("ft8", "wf")):
+            watch = body.index('!strcmp(a[0], "%s") && n >= 3 && !strcmp(a[1], "%s")' % (app, word))
+            cmd = body.index('!strcmp(a[0], "%s") && n >= 2)' % app)
+            self.assertLess(watch, cmd, app)
 
 
 if __name__ == "__main__":

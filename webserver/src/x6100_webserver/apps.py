@@ -509,10 +509,20 @@ def wefax_stations():
     return groups
 
 
+def js_value(v):
+    """v as JavaScript in a page's script: JSON, "<" escaped, so a name with "</script>" in it stays text"""
+    return json.dumps(v).replace("<", "\\u003c")
+
+
 @app.route('/wefax')
 def wefax_page():
-    # the list as JavaScript in the page: a channel's name with "</script>" in it stays text
-    return bottle.template('wefax', stations=json.dumps(wefax_stations()).replace("<", "\\u003c"))
+    return bottle.template('wefax', stations=js_value(wefax_stations()))
+
+
+# The FT8 page: the callsign and the locator for its map and its QSO's messages (the radio sends the rest)
+@app.route('/ft8')
+def ft8_page():
+    return bottle.template('ft8', me=js_value(read_callsign() or ""), grid=js_value(read_param("qth") or ""))
 
 
 # Tailscale Funnel (#58): the Panel and the Screen page for the internet, written at the start into a folder in RAM
