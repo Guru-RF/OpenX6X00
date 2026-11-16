@@ -24,7 +24,7 @@ case "$dev" in
         done
         [ "$bs" = 512 ] && [ -n "$count" ] || { echo "dd shim: bs=512 and count= only" >&2; exit 1; }
         [ $((skip + count)) -le "$size" ] || count=$((size - skip))
-        exec /usr/bin/dd if="$CARD" bs=512 skip=$((start + skip)) count=$count status=none
+        exec "$(host_tool dd)" if="$CARD" bs=512 skip=$((start + skip)) count=$count status=none
         ;;
 esac
 PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vx "$here" | paste -sd:)

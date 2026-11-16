@@ -17,7 +17,7 @@ done
 n=$(partnum "$dev")
 set -- $(geom "$n")
 [ -n "$1" ] || { echo "mkfs shim: $dev not on the card" >&2; exit 1; }
-/usr/bin/mkfs.vfat -n "$l" --offset="$1" "$CARD" $(($2 / 2)) > /dev/null || exit 1
+"$(host_tool mkfs.vfat)" -n "$l" --offset="$1" "$CARD" $(($2 / 2)) > /dev/null || exit 1
 rm -rf "$F/fs/$n"
 mkdir -p "$F/fs/$n"
 exit 0

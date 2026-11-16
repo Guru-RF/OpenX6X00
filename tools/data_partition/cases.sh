@@ -60,7 +60,7 @@ if want pcreimage; then
             PATH=$H/bin:$PATH mkfs -t vfat -n $l "$F/dev/mmcblk0p3"
         else
             set -- $(p3geom)
-            /usr/bin/mkfs.vfat -F 16 -s 128 -n $l --offset="$1" "$F/card.img" $(($2 / 2)) > /dev/null
+            "$(. "$H/lib.sh"; host_tool mkfs.vfat)" -F 16 -s 128 -n $l --offset="$1" "$F/card.img" $(($2 / 2)) > /dev/null
         fi
         mkdir -p "$F/fs/3/System Volume Information"; echo mine > "$F/fs/3/notes.txt"
         uuid=$(pf 3 UUID)

@@ -7,7 +7,7 @@ for a in "$@"; do
     [ "$a" = "$DEVP" ] && a=$CARD
     args+=("$a")
 done
-out=$(/usr/bin/parted "${args[@]}" 2>&1)
+out=$("$(host_tool parted)" "${args[@]}" 2>&1)
 rc=$?
 [ -n "$out" ] && printf '%s\n' "$out" | sed "s|$CARD|$DEVP|g"
 exit $rc

@@ -1,13 +1,22 @@
 # Shared by the shims: F (the fake radio's root), CARD (the card file), DEVP (the card's device path)
 : "${F:?F unset}"
-# the host's tools for the shims themselves, whatever the script under test runs with
-PATH=/usr/bin:$PATH
+# the host's tools for the shims themselves, whatever the script under test runs with; /usr/sbin too, where Debian and
+# Ubuntu keep parted, mkfs.vfat, sfdisk and blkid
+PATH=/usr/bin:/usr/sbin:$PATH
+# A host tool by its path, never the shim of the same name: /usr/bin's (Arch, Fedora), else /usr/sbin's (Debian, Ubuntu)
+host_tool() {
+    local d
+    for d in /usr/bin /usr/sbin /bin /sbin; do
+        [ -x "$d/$1" ] && { echo "$d/$1"; return; }
+    done
+    echo "/usr/bin/$1"
+}
 CARD=$F/card.img
 DEVP=$F/dev/mmcblk0
 PART_UUID_BASE=9c9f3471
 # The real probe and hexdump: the host's, or (TARGET) the image's own util-linux 2.38 under qemu
-BLKID=${BLKID:-/usr/bin/blkid}
-HEXDUMP=${HEXDUMP:-/usr/bin/hexdump}
+BLKID=${BLKID:-$(host_tool blkid)}
+HEXDUMP=${HEXDUMP:-$(host_tool hexdump)}
 
 # "start size type" of partition $1 from the card's table (sectors, hex type without 0x)
 geom() {
