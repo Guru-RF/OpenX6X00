@@ -2,8 +2,8 @@
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
  *  Xiegu X6100 LVGL GUI - Field Ops: the activation log, one ADIF file per activation
- *  (MY_SOTA_REF, MY_SIG POTA / MY_POTA_REF, MY_SIG WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, ARLHS, TILES or LLOTA /
- *  MY_SIG_INFO; a Tiles activation's tile in MY_GRIDSQUARE too)
+ *  (MY_SOTA_REF, MY_SIG POTA / MY_POTA_REF, MY_SIG WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, ARLHS, TILES, LLOTA or
+ *  XOTA / MY_SIG_INFO; a Tiles activation's tile in MY_GRIDSQUARE too)
  */
 
 #pragma once
@@ -34,14 +34,15 @@ typedef struct {
     char call[16];
     char grid[8];
     char prog;          /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA, 'F' WWFF, 'T' TOTA, 'C' WCA, 'M' MOTA, 'L' LH,
-                         * 'G' Tiles, 'K' LLOTA */
+                         * 'G' Tiles, 'K' LLOTA, 'X' XOTA */
     char ref[16];
 } field_station_t;
 
 /* The programme of a reference by its shape: 'S' SOTA (I/LO-123), 'P' POTA (US-1234), 'F' WWFF (DLFF-0123),
  * 'B' WWBOTA (B/G-0070), 'H' HOTA (RO-H0390), 'T' TOTA (OKR-0150), 'C' WCA (DL-01156), 'M' MOTA (X42018),
  * 'L' a lighthouse's ARLHS number (BEL 002, also BEL-002, USA 1286, AUS 079H), 'G' a Tiles tile (a 6-character
- * locator, JO20ab, in either case), 'K' an LLOTA lake (LLPL-0001, LLIE-10001); 0 when it is none of them */
+ * locator, JO20ab, in either case), 'K' an LLOTA lake (LLPL-0001, LLIE-10001), 'X' one of your own places (XOTA-W13ZWYH,
+ * XOTA- and 2 to 10 letters and digits); 0 when it is none of them */
 char field_ref_prog(const char *ref);
 
 /* A tile as Tiles on the Air writes it, "JO20ab" (the field in capitals, the subsquare in small letters), from a

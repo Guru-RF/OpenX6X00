@@ -39,6 +39,7 @@ static void programmes(void) {
         {"LLBE-0026", 'K'},  {"LLNZ-1049", 'K'}, {"OKR-0150", 'T'},  {"DLR-0163", 'T'},   {"ONR-0323", 'T'},
         {"9MR-0101", 'T'},   {"K1R-0029", 'T'},  {"US-1234", 'P'},   {"KR-1308", 'P'},    {"FR-10234", 'P'},
         {"K-12345", 'P'},    {"SP-0001", 'P'},   {"DL-01156", 'C'},  {"I-14619", 'C'},    {"3D2-00001", 'C'},
+        {"XOTA-W13ZWYH", 'X'}, {"XOTA-N10DRCAE", 'X'}, {"XOTA-P4K2Z9A", 'X'}, {"XOTA-0001", 'X'}, {"XOTA-", 'P'},
         {"X42018", 'M'},     {"BEL 002", 'L'},   {"BEL-002", 'L'},   {"USA 1286", 'L'},   {"DLFF-0123", 'F'},
         {"SPFF-0001", 'F'},  {"RO-H0390", 'H'},  {"I/LO-123", 'S'},  {"SP/BZ-001", 'S'},  {"B/G-0070", 'B'},
         {"JO20ab", 'G'},
@@ -58,7 +59,7 @@ static void tags(void) {
     static const struct {
         const char *their, *want;
     } want[] = {
-        {"LLPL-0002", "LL2LL"}, {"LLAR-0393", "LL2LL"}, {"OKR-0150", "T2T"}, {"US-1234", "P2P"}, {"BEL 002", "L2L"},
+        {"XOTA-W13ZWYH", "X2X"}, {"LLPL-0002", "LL2LL"}, {"LLAR-0393", "LL2LL"}, {"OKR-0150", "T2T"}, {"US-1234", "P2P"}, {"BEL 002", "L2L"},
     };
     char what[64];
 

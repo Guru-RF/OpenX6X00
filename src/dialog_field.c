@@ -4,7 +4,7 @@
  *  Xiegu X6100 LVGL GUI - Field Ops
  *
  *  Screens: home (a scrolling row of tiles: Log, SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH, Tiles, LLOTA,
- *  Bands), a program (the reference where you are and the nearest ones; during an activation the activation screen:
+ *  XOTA, Bands), a program (the reference where you are and the nearest ones; during an activation the activation screen:
  *  frequency, S-meter, CQ, QSO count and time), Bands (activity and who hears you, from RBN) and
  *  the activation log. The dialog covers the whole screen above the buttons; the main
  *  knob still tunes. The network jobs (reference list update, POTA/WWBOTA/HOTA/WWFF spot, QRZ upload) run
@@ -74,6 +74,7 @@
 #define FIELD_ICONS BOARD_SHARE "/field"
 #endif
 #define REFS_PATH   FIELD_DIR "/refs.tsv"
+#define XOTA_PATH   FIELD_DIR "/xota.tsv"   /* XOTA: your own places, never downloaded, never spotted */
 #define STATE_PATH  FIELD_DIR "/state"
 #define HOTA_KEY    FIELD_DIR "/hota.conf"   /* written by the web page (Field Ops) */
 #define WWFF_KEY    FIELD_DIR "/wwff.conf"
@@ -103,7 +104,7 @@ static struct {
     screen_t    screen;
     int         home_sel;
     char        prog;       /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA, 'F' WWFF, 'T' TOTA, 'C' WCA, 'M' MOTA, 'L' LH,
-                             * 'G' Tiles, 'K' LLOTA */
+                             * 'G' Tiles, 'K' LLOTA, 'X' XOTA */
     bool        have_ref;
     field_ref_t ref;
     bool        active;
@@ -201,8 +202,12 @@ static const prog_t progs[] = {
      * activator's login there: the DX clusters, "LLOTA LLPL-0001 SSB"; llota.app's spots come in with the others
      * (x6100-pota-spots) */
     {'K', "LLOTA",  "llota",  "Lakes and\nLagoons",  "LAKE",   10, false, false},
+    /* XOTA: a list of your own places (bunkers, ruins, remains, abandoned places, spots of your own), XOTA-W13ZWYH,
+     * in xota.tsv beside refs.tsv, made on a PC and copied to the card: Update list leaves it alone. Nobody else
+     * knows these references: never spotted, anywhere. One QSO activates one, as in Tiles */
+    {'X', "XOTA",   "xota",   "Your own\nplaces",    "SPOT",   1,  false, false},
 };
-#define PROG_LETTERS "SPBHFTCMLGK"
+#define PROG_LETTERS "SPBHFTCMLGKX"
 
 /* The programme of a letter; SOTA for one that is none (a damaged file): DX cluster spots only, never a site's */
 static const prog_t *prog_of(char p) {
@@ -227,6 +232,7 @@ static lv_color_t prog_color(char p) {
         case 'L': return TC(err);                                       /* the red of the bands */
         case 'G': return lv_color_mix(TC(ok), TC(warn), LV_OPA_50);     /* lime */
         case 'K': return lv_color_mix(TC(vfo), TC(text), LV_OPA_60);    /* water, lighter than WWFF's blue */
+        case 'X': return lv_color_mix(TC(alert), TC(digi), LV_OPA_50);   /* mauve */
         default: return TC(text);
     }
 }
@@ -240,6 +246,7 @@ static const struct {
     {SCR_LOG, 0, "LOG", "log", "Activation\nlog"},
     {SCR_PROG, 'S'}, {SCR_PROG, 'P'}, {SCR_PROG, 'B'}, {SCR_PROG, 'H'}, {SCR_PROG, 'F'},
     {SCR_PROG, 'T'}, {SCR_PROG, 'C'}, {SCR_PROG, 'M'}, {SCR_PROG, 'L'}, {SCR_PROG, 'G'}, {SCR_PROG, 'K'},
+    {SCR_PROG, 'X'},
     {SCR_BANDS, 0, "BANDS", "bands", "Activity\nRBN, beacon"},
 };
 #define HOME_TILES ((int)(sizeof(tiles) / sizeof(tiles[0])))
@@ -648,7 +655,7 @@ static void near_result_cb(void *arg) {
 static void *near_thread(void *arg) {
     near_result_t *r = arg;
 
-    r->n = field_refs_near(REFS_PATH, r->prog, r->lat, r->lon, r->refs, MAX_NEAR);
+    r->n = field_refs_near(r->prog == 'X' ? XOTA_PATH : REFS_PATH, r->prog, r->lat, r->lon, r->refs, MAX_NEAR);
     scheduler_put(near_result_cb, r, sizeof(*r));
     free(r);
     return NULL;
@@ -726,6 +733,13 @@ static void near_lookup(bool force) {
     if (stat(REFS_PATH, &sb) == 0 && (sb.st_mtime != refs_mtime || sb.st_ino != refs_ino)) {
         refs_mtime = sb.st_mtime;
         refs_ino   = sb.st_ino;
+        force      = true;
+    }
+    static time_t xota_mtime;       /* xota.tsv too: copied in by hand, Update list never writes it */
+    static ino_t  xota_ino;
+    if (stat(XOTA_PATH, &sb) == 0 && (sb.st_mtime != xota_mtime || sb.st_ino != xota_ino)) {
+        xota_mtime = sb.st_mtime;
+        xota_ino   = sb.st_ino;
         force      = true;
     }
     if (!force && near_prog == st.prog && near_n != -2 && fabs(lat - near_lat) < 0.003 && fabs(lon - near_lon) < 0.004)
@@ -1204,6 +1218,7 @@ static void prog_info_update(void) {
         lv_label_set_text(info_name, near_n == -1 && st.prog != 'G'       ? "No reference list"
                                      : !have_pos                          ? "No position"
                                      : near_n == 0 && near_prog == 'G' && st.prog == 'G' ? "Ref...: type your tile"
+                                     : near_n == 0 && near_prog == 'X' && st.prog == 'X' ? "Your xota.tsv is empty"
                                      : near_n == 0 && near_prog == st.prog ? "None in the list: Update list"
                                                                           : "Looking...");
     }
@@ -1250,7 +1265,10 @@ static void build_ref(void) {
     list_head(head, 404, 8);
     if (near_n > 0 && near_prog == st.prog) {
         for (int k = 0; k < near_n; k++) {
-            snprintf(row, sizeof(row), "%s\t%.*f\t%s", near[k].ref, near[k].km < 10 ? 1 : 0, near[k].km, near[k].name);
+            /* XOTA's references without "XOTA-": 13 characters did not fit the column, the title says XOTA */
+            const char *shown = st.prog == 'X' && !strncmp(near[k].ref, "XOTA-", 5) ? near[k].ref + 5 : near[k].ref;
+
+            snprintf(row, sizeof(row), "%s\t%.*f\t%s", shown, near[k].km < 10 ? 1 : 0, near[k].km, near[k].name);
             list_add(row);
             if (st.have_ref && !strcmp(near[k].ref, st.ref.ref))
                 sel = k;
@@ -1262,6 +1280,8 @@ static void build_ref(void) {
                               : st.prog == 'G' ? (near_n == 0 && near_prog == 'G'
                                                       ? "4-character locator: Ref... your tile, or GPS"
                                                       : "MFK: a tile (km: to its edge).  Ref...: any tile")
+                              : st.prog == 'X' && (near_n == -1 || (near_n == 0 && near_prog == 'X'))
+                                  ? "XOTA is your own list: copy your xota.tsv to /mnt/field (see the manual)"
                               : near_n == -1 || (near_n == 0 && near_prog == st.prog)
                                   ? "No reference list yet: Update list (page 2), with WiFi"
                               : st.prog == 'C' ? "MFK: choose the castle.  Ref...: any castle by its number (most have no position)"
@@ -1749,6 +1769,10 @@ static void spot_to(bool cluster) {
         msg_update_text_fmt("Set your callsign in Settings");
         return;
     }
+    if (st.ref.type == 'X') {
+        msg_update_text_fmt("XOTA is a list of your own: no spot");
+        return;
+    }
     if (!prog_of(st.ref.type)->site) {
         /* On the DX cluster only. SOTA: SOTAwatch's API needs a client approved by SOTA, APRS2SOTA a
          * registration (RBNHole still spots a CW CQ after an alert on SOTAwatch). TOTA: its cluster takes
@@ -2120,7 +2144,7 @@ static bool set_ref(const char *in) {
         state_save();
         return true;
     }
-    bool found = field_refs_find(REFS_PATH, ref, &r);
+    bool found = field_refs_find(field_ref_prog(ref) == 'X' ? XOTA_PATH : REFS_PATH, ref, &r);
     char lh[16];
     if (!found && field_ref_lh(ref, lh, sizeof(lh)) && strcmp(lh, ref) && field_refs_find(REFS_PATH, lh, &r)) {
         snprintf(ref, sizeof(ref), "%s", lh);   /* a lighthouse as the list writes it: BEL-2 is BEL 002 */

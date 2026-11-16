@@ -17,7 +17,8 @@ extern "C" {
 
 typedef struct {
     char  type;         /* 'P' park, 'S' summit, 'B' bunker, 'H' HOTA site, 'F' WWFF area, 'T' tower, 'C' castle, 'M' mill,
-                         * 'L' lighthouse, 'K' lake (LLOTA); 'G' a Tiles tile, worked out from the position (no list) */
+                         * 'L' lighthouse, 'K' lake (LLOTA), 'X' a place of your own (XOTA, xota.tsv); 'G' a Tiles tile,
+                         * worked out from the position (no list) */
     char  ref[16];
     char  name[48];
     double lat, lon;    /* NAN when the list has no position for it */

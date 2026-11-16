@@ -4771,8 +4771,8 @@ or a long-press action. GEN or Radio goes back to the normal screen.
 | **Logbook** | |
 | ![Field Ops logbook](screenshots/field_log.png) | |
 
-Home: a row of thirteen tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF,
-TOTA, WCA, MOTA, LH, Tiles, LLOTA and Bands. Six and a half fit on the screen (five and a half
+Home: a row of fourteen tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF,
+TOTA, WCA, MOTA, LH, Tiles, LLOTA, XOTA and Bands. Six and a half fit on the screen (five and a half
 with VISION): the row scrolls along as the MFK moves, and Bands is one MFK
 step left of LOG. A press opens. On the PC a drag scrolls the row and a click
 opens a tile.
@@ -5069,6 +5069,31 @@ has its own tile too, a light blue lake with reeds.
   `LLOTA LLPL-0123 SSB`.
 - The log goes to llota.app (your profile, ADIF upload, within 30 days of
   the activation). Download it from the web configurator's Field Ops page.
+
+XOTA has its own tile too, a concrete bunker with a pennant: a list of
+places of your own (bunkers, ruins, remains, abandoned places, spots you
+found) that no programme lists. Nobody else knows these references, so the
+radio never spots them.
+
+- The list is `/mnt/field/xota.tsv`, made on a PC and copied to the radio by
+  hand (SFTP); Update list leaves it alone, and a new copy is read the next
+  time the XOTA screen looks for the nearest. One place a line, five fields
+  apart by a tab each: `X`, the reference, the name, the latitude and the
+  longitude in decimal degrees, as in
+  `X<tab>XOTA-W13ZWYH<tab>Bunker: casemate<tab>50.84670<tab>4.35250`. A reference is
+  `XOTA-` and 2 to 10 capital letters and digits; taken from the map data's
+  own number for the place, two radios with the same list number it alike.
+  Without the file the screen says "XOTA is your own list: copy your
+  xota.tsv to /mnt/field".
+- The list shows the references without `XOTA-` (13 characters do not fit
+  its column; the title says XOTA). The CQ text and the log have the whole
+  reference.
+- One QSO is a valid activation: the activation screen counts `QSOs / 1`.
+- The log has `MY_SIG XOTA` and `MY_SIG_INFO XOTA-W13ZWYH`. A QSO with
+  another XOTA place (its reference typed after the call) logs theirs as
+  `SIG XOTA` and `SIG_INFO`, and the log shows X2X.
+- Spot posts nothing: "XOTA is a list of your own: no spot". Nothing is
+  spotted by itself either.
 
 ### Bands
 
