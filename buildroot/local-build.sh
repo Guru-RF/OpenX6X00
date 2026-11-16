@@ -179,7 +179,7 @@ BR2_PACKAGE_FFMPEG_FFMPEG=y
 # BR2_PACKAGE_FFMPEG_OUTDEVS is not set
 BR2_PACKAGE_FFMPEG_ENCODERS="pcm_s16le"
 BR2_PACKAGE_FFMPEG_DECODERS="aac aac_latm mp3 mp3float vorbis opus flac pcm_s16le"
-BR2_PACKAGE_FFMPEG_MUXERS="s16le"
+BR2_PACKAGE_FFMPEG_MUXERS="pcm_s16le"
 BR2_PACKAGE_FFMPEG_DEMUXERS="aac ogg flac mp3 wav mov mpegts hls matroska"
 BR2_PACKAGE_FFMPEG_PARSERS="aac aac_latm mpegaudio vorbis opus flac"
 BR2_PACKAGE_FFMPEG_BSFS="aac_adtstoasc"
@@ -369,6 +369,12 @@ fi
 if [ $MODEL = x6100 ] && ls -d $BR/build/build/rtl8723bu-wifi-*/ > /dev/null 2>&1 \
         && ! grep -qs "0005-ht-capabilities-element" $BR/build/build/rtl8723bu-wifi-*/.applied_patches_list; then
     make rtl8723bu-wifi-dirclean
+fi
+# ffmpeg configured with another list of parts than the one in the defconfig now (ffmpeg's own config.h says what
+# it was built with): buildroot builds a package once and never looks at its options again
+if ls -d $BR/build/build/ffmpeg-[0-9]*/ > /dev/null 2>&1 \
+        && ! grep -qs "^#define CONFIG_PCM_S16LE_MUXER 1" $BR/build/build/ffmpeg-[0-9]*/config.h; then
+    make ffmpeg-dirclean
 fi
 # The GUI and the web server come from this repository (a local site): buildroot syncs them
 # once and never again on its own, so they are re-synced and rebuilt every run
