@@ -75,7 +75,9 @@
 #define FLAG_W_JS8       16                        /* flags.h FLAG_W */
 #define WIDTH            771                       /* waterfall, TX line and list, px */
 #define WF_HEIGHT        (DIALOG_H - 26)           /* the dialog less a 13 px border top and bottom */
-#define WF_VISIBLE       0                         /* list drawn over all of the waterfall, for more rows */
+#define LANE_H           26                        /* the calls heard, over their offsets */
+#define WF_VISIBLE       (LANE_H + 40)             /* the lane and the newest rows of the waterfall; the list under */
+#define LANE_SHOW_MS     (3 * 60 * 1000)           /* a call stays in the lane this long after its last decode */
 #define TX_BAR_H         30                        /* the TX line above the list */
 
 /* Audio and waterfall */
@@ -373,6 +375,8 @@ static lv_obj_t *query_list, *aprs_list, *log_list, *inbox_list, *alerts_list, *
 static lv_obj_t *map_obj;
 static lv_obj_t *texts_list;
 static lv_obj_t *settings_list;   /* Settings... (page 3) */
+static lv_obj_t *lane;            /* the calls over the waterfall */
+static void      lane_update(void);
 
 /* Settings kept in JS8_TEXTS_PATH */
 static char alert_words[128];                        /* ALERTS=, e.g. "VE7ABC @POTA SOTA" */
@@ -1341,6 +1345,7 @@ static void table_draw_end_cb(lv_event_t *ev)
 static void show_selection(void)
 {
     buttons_refresh(&btn_reply); /* "Reply\nTHEIRCALL" */
+    if (lane) lv_obj_invalidate(lane); /* the call selected stands out */
     lv_obj_t *line = finder;
     if (qso_freq < 0) lv_finder_clear_cursor(line);
     else lv_finder_set_cursor(line, (int16_t)(qso_freq + 0.5f));
@@ -1822,6 +1827,7 @@ static void tx_stop_all(void)
  * decode cycles, but those stop while we transmit. */
 static void every_second(void)
 {
+    lane_update(); /* calls heard, their ages */
     hb_tick();
     auto_cq_tick();
     update_status(); /* keeps the clock going */
@@ -1959,6 +1965,7 @@ static void set_tx_offset(int32_t hz)
     lv_obj_t *band = finder;
     lv_finder_set_value(band, (int16_t)hz);
     lv_obj_invalidate(band);
+    if (lane) lv_obj_invalidate(lane); /* TX moves there too */
     update_tx_bar(); /* shows the new offset */
 }
 
@@ -2579,6 +2586,94 @@ static void main_dsp(bool on) {
  * background picture beneath: a megabyte read from the file row by row and alpha-blended, most of
  * what a row cost. A plain opaque object does cover, so drawing starts at the box, as it does for the
  * main screen's waterfall. */
+/* ---- The lane over the waterfall: each call heard lately over its offset, on two lines where they would meet;
+ * the one selected stands out, those that called us in red; TX where we send ---- */
+
+typedef struct {
+    char  call[JS8_RX_CALL_LEN];
+    float hz;
+    bool  me;       /* called us */
+} lane_call_t;
+
+static lane_call_t lane_calls[MAX_ROWS];
+static int         lane_n;
+
+static int lane_by_hz(const void *a, const void *b)
+{
+    float x = ((const lane_call_t *)a)->hz, y = ((const lane_call_t *)b)->hz;
+    return (x > y) - (x < y);
+}
+
+static void lane_update(void)
+{
+    static js8_station_t st[MAX_ROWS];
+    int64_t              now = now_wall_ms();
+    int                  n   = stations ? js8_stations_list(stations, now, st, MAX_ROWS) : 0;
+
+    lane_n = 0;
+    for (int k = 0; k < n; k++) {
+        if (now - st[k].heard_ms > LANE_SHOW_MS) continue;
+        lane_call_t *c = &lane_calls[lane_n++];
+        snprintf(c->call, sizeof(c->call), "%s", st[k].call);
+        c->hz = st[k].freq_hz;
+        c->me = st[k].heard_me && now - st[k].heard_me_ms < LANE_SHOW_MS;
+    }
+    qsort(lane_calls, lane_n, sizeof(lane_calls[0]), lane_by_hz);
+    if (lane) lv_obj_invalidate(lane);
+}
+
+static lv_coord_t lane_x(float hz)
+{
+    if (filter_high <= filter_low) return 0;
+    return (lv_coord_t)((hz - filter_low) * WIDTH / (filter_high - filter_low));
+}
+
+static void lane_draw_cb(lv_event_t *ev)
+{
+    lv_draw_ctx_t *ctx = lv_event_get_draw_ctx(ev);
+    lv_area_t      box;
+    lv_coord_t     ends[2] = {-1000, -1000};
+
+    lv_obj_get_coords(lane, &box);
+
+    lv_draw_label_dsc_t ld;
+    lv_draw_label_dsc_init(&ld);
+    ld.font = &sony_16;
+
+    /* TX first: the calls give way to it on its line */
+    for (int k = -1; k < lane_n; k++) {
+        const char *call = k < 0 ? "TX" : lane_calls[k].call;
+        lv_coord_t  x    = box.x1 + lane_x(k < 0 ? params.js8_tx_freq.x : lane_calls[k].hz);
+        lv_coord_t  w    = text_w(call, ld.font);
+
+        if (x + w > box.x2) x = box.x2 - w;
+        int line = x > ends[0] + 6 ? 0 : x > ends[1] + 6 ? 1 : -1;
+        if (line < 0) continue; /* no room on either line */
+        ends[line] = x + w;
+
+        if (k < 0) ld.color = TC(text);
+        else if (sel_call[0] && !strcasecmp(lane_calls[k].call, sel_call)) ld.color = TC(warn);
+        else if (lane_calls[k].me) ld.color = TC(err);
+        else ld.color = TC(text_mute);
+
+        lv_area_t a = {x, box.y1 + 1 + line * 12, x + w, box.y1 + 1 + line * 12 + 14};
+        lv_draw_label(ctx, &ld, &a, call, NULL);
+    }
+}
+
+static void build_lane(void) {
+    lv_obj_t *l = lane = lv_obj_create(dialog.obj);
+
+    lv_obj_remove_style_all(l);
+    lv_obj_set_style_bg_color(l, TC(panel), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(l, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_clear_flag(l, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(l, WIDTH, LANE_H);
+    lv_obj_set_pos(l, 13, 13);
+    lv_obj_add_event_cb(l, lane_draw_cb, LV_EVENT_DRAW_MAIN_END, NULL);
+    lane_n = 0;
+}
+
 static void build_waterfall(void) {
     lv_obj_t *box = lv_obj_create(dialog.obj);
 
@@ -2586,14 +2681,14 @@ static void build_waterfall(void) {
     lv_obj_set_style_bg_color(box, TC(panel), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(box, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(box, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_size(box, WIDTH, WF_HEIGHT);
-    lv_obj_set_pos(box, 13, 13);
+    lv_obj_set_size(box, WIDTH, WF_HEIGHT - LANE_H);
+    lv_obj_set_pos(box, 13, 13 + LANE_H);
 
     lv_obj_t *wf = waterfall = lv_waterfall_create(box);
     lv_obj_add_style(wf, &waterfall_style, LV_PART_MAIN);
     lv_obj_clear_flag(wf, LV_OBJ_FLAG_SCROLLABLE);
     lv_waterfall_set_palette(wf, (lv_color_t *)wf_palette, 256);
-    lv_waterfall_set_size(wf, WIDTH, WF_HEIGHT);
+    lv_waterfall_set_size(wf, WIDTH, WF_HEIGHT - LANE_H);
     lv_waterfall_set_min(wf, WF_MIN_DB);
     lv_waterfall_set_max(wf, WF_MAX_DB);
     wf_due_us = 0; /* the first row is due at once */
@@ -2614,7 +2709,7 @@ static void build_waterfall(void) {
     *sel_call      = '\0';
 
     const lv_style_selector_t band = LV_PART_INDICATOR;
-    lv_obj_set_size(f, WIDTH, WF_HEIGHT);
+    lv_obj_set_size(f, WIDTH, WF_HEIGHT - LANE_H);
     lv_obj_set_pos(f, 0, 0);
     lv_obj_set_style_radius(f, 0, LV_PART_MAIN);
     lv_obj_set_style_border_width(f, 0, LV_PART_MAIN);
@@ -2710,6 +2805,7 @@ static void construct_cb(lv_obj_t *screen) {
     filter_low  = cparam_i_get(cfg_cur_filter_low); /* the edges as the radio took them */
     filter_high = cparam_i_get(cfg_cur_filter_high); /* (each was checked against the other) */
 
+    build_lane();
     build_waterfall();
     build_tx_bar();
     build_list();
@@ -2790,6 +2886,7 @@ static void destruct_cb(void) { /* the app closes: the radio goes back to how it
 
     /* dialog_destruct() deletes these with dialog.obj, right after us */
     waterfall = NULL;
+    lane      = NULL;
     finder    = NULL;
     table     = NULL;
     status    = NULL;
