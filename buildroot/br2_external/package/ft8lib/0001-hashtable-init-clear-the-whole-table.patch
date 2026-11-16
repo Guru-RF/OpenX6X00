@@ -1,0 +1,21 @@
+From: OpenX6X00 <noreply@github.com>
+Subject: [PATCH] hashtable_init: clear the whole table, not a pointer's size of each entry
+
+The memset took sizeof(callsign_hashtable), the pointer, where the malloc took the entry's size, so only the
+first part of a new table was zeroed. A table freed and allocated again (the FT8 app closed and opened) could
+then show calls from before as if they had just been heard.
+---
+ ft8/hashtable.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/ft8/hashtable.c
++++ b/ft8/hashtable.c
+@@ -22,7 +22,7 @@
+     callsign_hashtable_size = 0;
+     callsign_hashtable_max_size = hashtable_max_size;
+     callsign_hashtable = malloc(sizeof(*callsign_hashtable) * callsign_hashtable_max_size);
+-    memset(callsign_hashtable, 0, sizeof(callsign_hashtable) * callsign_hashtable_max_size);
++    memset(callsign_hashtable, 0, sizeof(*callsign_hashtable) * callsign_hashtable_max_size);
+ }
+ 
+ void hashtable_delete()

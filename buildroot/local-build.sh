@@ -383,6 +383,11 @@ if [ $MODEL = x6100 ] && ls -d $BR/build/build/rtl8723bu-wifi-*/ > /dev/null 2>&
         && ! grep -qs "0005-ht-capabilities-element" $BR/build/build/rtl8723bu-wifi-*/.applied_patches_list; then
     make rtl8723bu-wifi-dirclean
 fi
+# ft8_lib with our patch (buildroot/br2_external/package/ft8lib: hashtable_init clears the whole table)
+if ls -d $BR/build/build/ft8lib-*/ > /dev/null 2>&1 \
+        && ! grep -qs "0001-hashtable-init-clear-the-whole-table" $BR/build/build/ft8lib-*/.applied_patches_list; then
+    make ft8lib-dirclean
+fi
 # ffmpeg configured with another list of parts than the one in the defconfig now (ffmpeg's own config.h says what
 # it was built with): buildroot builds a package once and never looks at its options again
 if ls -d $BR/build/build/ffmpeg-[0-9]*/ > /dev/null 2>&1 \
