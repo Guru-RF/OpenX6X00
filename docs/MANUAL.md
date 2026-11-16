@@ -18,7 +18,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8) ([GhostNet](#ghostnet)), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
-- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb), [Flights](#flights), [Internet radio](#internet-radio), [Zello](#zello)
+- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb), [Flights](#flights), [Internet radio](#internet-radio), [Zello](#zello), [Weather](#weather)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
@@ -264,7 +264,7 @@ The APP button opens five pages of apps and tools:
 | APP 2:5 | Settings, CW Trainer, Field Ops, Channels |
 | APP 3:5 | Bands, GPS, Screen rec, CW Keyboard |
 | APP 4:5 | Propagation, Scanner, Internet radio, Zello |
-| APP 5:5 | Flights, HF Air Band, CB |
+| APP 5:5 | Flights, HF Air Band, CB, Weather |
 
 With Icon menus on (Settings > Display > INTERFACE, on by default) APP also
 opens the same apps as a grid of tiles over these pages, with Walkie and
@@ -5908,6 +5908,124 @@ keeps the radio on the channel ("Zello link stays on"); open the app and
 press Disconnect to stop it. Nothing starts it at power on: after a restart
 it is off until you connect again.
 
+### Weather
+
+APP > Weather (APP 5:5, the tile before Settings in the APP grid, or a
+long-press action): the weather where you are, five days of forecast and the warnings
+in force there, in the place's own time. It needs the internet (WiFi or
+Ethernet). Nothing is received by the radio itself, nothing retunes it and
+nothing keys it; ESC closes.
+
+| Button | What |
+|---|---|
+| Now | the temperature, the sky, how it feels, today's low and high, sunrise and sunset; wind and gusts, humidity, pressure, today's chance of rain and how much, clouds, dew point, visibility, UV index. Under them, the place's own warning of the highest level, on its colour, or that none is in force |
+| 5 days | each day's high and low, the sky, the chance of rain and how much, the strongest wind and its gusts, a UV index of 3 or more |
+| Warnings | each warning in force: its level, what it is, from when to when, when it was issued, its areas, and the service's text and instructions as it gives them; the place's own first (*here*), then those nearby. The MFK scrolls |
+| Update | ask now (so does a press of the MFK) |
+| Notices | warning notices on any screen, Off (the default) or On: see below |
+
+- Where: the radio's GPS, else the phone's position from the Panel page's
+  GPS button (when no coarser than 1 km), else the centre of your QTH
+  locator, else the capital (or largest city) of the country set in
+  Settings > General > STATION > Country. A GPS or phone position older than
+  10 minutes is not taken. The header says which: *GPS*, *Phone*, *Locator*
+  and the locator, *Country* and its name. The country's place is only where
+  the weather is asked for: the QTH locator is never set from it. With none
+  of these, the app says what to set and fetches nothing.
+- Times are the place's own (its time zone as Open-Meteo gives it), with the
+  zone's abbreviation: "Mon 16 15:00 to Tue 17 09:00 CET". The units are
+  °C, km/h, hPa, mm and km.
+- The MFK: in Now and 5 days, on to the next view; in Warnings, up and down
+  the text.
+- How often: when the app opens, with Update, then every 15 minutes while
+  the app is open and the screen is lit; not in the background, unless you
+  turn the notices on (below). The app and the web page share an answer for
+  2 minutes.
+- What is sent: your position rounded to 0.1 degree (about 11 km), the
+  screen's language and the firmware's name and version
+  (`OpenX6X00/0.3.12`); never your callsign. The warnings of a country or an
+  area are matched to your position itself on the radio.
+
+Where the data come from; the bottom line of the app and the web page name
+each source of what they show, as their terms ask:
+
+| What | From | Terms |
+|---|---|---|
+| the weather now, the forecast, the time zone | [Open-Meteo](https://open-meteo.com/) | free for non-commercial use; the data under CC BY 4.0, "Weather data by Open-Meteo.com" |
+| the place's name (town, region, country) | OpenStreetMap's [Nominatim](https://nominatim.org/) | © OpenStreetMap contributors, ODbL. Asked only when you open the app or the page, or press Update, never on the 15-minute timer; at most once a second; one request for each 0.1-degree square, kept for good in `/mnt/meteo/places.json` (the last 100). Without a name, the locator is shown |
+| warnings in the US and its territories | the US National Weather Service (api.weather.gov) | public domain; the warnings for the point itself |
+| warnings in the 38 countries of MeteoAlarm (most of Europe, and Israel) | [EUMETNET – MeteoAlarm](https://www.meteoalarm.org/) | CC BY 4.0. Times may lag meteoalarm.org, where the latest warnings are |
+| warnings in Argentina | SMN, the Servicio Meteorológico Nacional (its CAP feed) | CC BY 4.0 |
+| warnings in Brazil | INMET, the Instituto Nacional de Meteorologia (its Alert-AS feed) | may be reproduced with the source cited |
+| warnings elsewhere | worked out on the radio from Open-Meteo's forecast | not official |
+
+- The country whose service is asked: where you are, as OpenStreetMap names
+  it (the radio abroad), else the one set on the radio.
+- A warning's text, areas and times are shown as the service gives them, in
+  its language: MeteoAlarm's in the screen's language where the country
+  issues one in it, else in English. The level's colour (yellow, orange,
+  red) is the service's level; the NWS's levels show as its severity
+  (Moderate, Severe, Extreme).
+- MeteoAlarm names areas, not positions: the place's own warnings are those
+  whose area is your town, county or region as OpenStreetMap names it; the
+  country's other orange and red ones are listed as nearby (at most 12), its
+  other yellow ones are left out. Until the place's name is known (looked up
+  once, on the first opening with the internet), none count as the place's
+  own.
+- SMN's and INMET's warnings come with their areas as polygons: inside one
+  the warning is the place's own, within 150 km it is nearby. Each warning
+  is fetched once and kept in `/tmp` (gone at power-off).
+- Uruguay: INUMET publishes its warnings on its website only, with no data
+  service and no terms for their reuse, so the radio works them out from
+  the forecast there.
+- Worked out from the forecast, for today and tomorrow: gusts of 65 km/h or
+  more (orange from 90, red from 120), 50 mm of rain or more in the day
+  (orange from 100, red from 150), thunderstorms (yellow), thunderstorms
+  with hail (orange), a high of 36 °C or more (orange from 40, red from 44),
+  a low of -12 °C or less (orange from -20), a UV index of 11 or more
+  (yellow). Each says *from the forecast*: they are not official warnings.
+  When the country's service does not answer, the app works them out too
+  and says so.
+- `/mnt/meteo/nominatim.url`: one line, another Nominatim server's address
+  (`https://...`) to ask in its place, or `off` to ask none (the locator is
+  shown instead).
+- The web configurator has the same as Operating > Weather: now, five days
+  and the warnings in the browser, with a **Place** box for a look somewhere
+  else by its locator (empty: the radio's position, as above). It asks while
+  the page is open and in view, every 15 minutes. The country and the QTH
+  locator are set on the radio only.
+- The answers are kept in `/tmp`: `x6100-meteo.json` (the app's and the
+  page's), `x6100-meteo-web.json` (a locator typed on the page).
+- After the CX8ANM edition of OpenX6X00 (condoruy), whose Meteo app this is.
+
+#### Warning notices
+
+APP > Weather > Notices (Off by default; the setting `meteo_alerts`) lets the
+radio check the warnings where it is in the background and tell you of a new
+one on any screen:
+
+- The check: 2 minutes after the start, then every 30 minutes, for the same
+  position as the app (GPS, phone, locator, else the country's capital). It
+  asks Open-Meteo (two days of forecast) and the country's warning service,
+  never Nominatim, so a place's name it has not looked up before is not
+  known to it: MeteoAlarm's warnings then count only once the app has been
+  opened there. No check while the app is open (it asks itself). With the
+  notices off, nothing is asked in the background.
+- A notice is a warning for the place itself: from the country's service
+  yellow and up (NWS: Moderate and up), worked out from the forecast orange
+  and up. It shows for 10 seconds in the message box ("Weather warning.
+  Yellow: ..." and under it "Mon 16 15:00 to Tue 17 09:00 CET"), one at a
+  time and each once: only while receiving (never in TX, while the tuner works or during
+  an SWR scan), with the screen lit, and not while APP > Weather is open.
+  One that must wait shows when it may.
+- Each warning is shown once: those shown, and those the app has shown you,
+  are kept in `/mnt/meteo/seen` until the warning is over (one without an
+  end for 3 days), so a restart does not show them again.
+- The bottom line of the app says when the notices are on; so does the web
+  page.
+- The message box, not a window: it never takes the keys or covers the
+  buttons, and goes by itself.
+
 ## Bluetooth
 
 ### Bluetooth headphones
@@ -6147,6 +6265,7 @@ The menu has General and five groups:
 | | Internet radio | the [Internet radio](#internet-radio)'s favourites: add a station by its name and stream address, edit, move up, delete; whether this card image plays more than MP3 (writes `/mnt/iradio/favorites.tsv`) |
 | | Zello | the [Zello](#zello) app's account (user name, password, the developer key's Issuer and Private Key: only Set or Not set shown again, the user name as its first two characters), Clear account, Test (logs on to zello.io and off again), and the channels, one a line (writes `/mnt/zello`, for root alone; the account not in a Backup and not on the Files page, the channels in the Backup's Apps' lists) |
 | | Flights | the aircraft around the radio, as APP > Flights shows them: plot, list, range, a centre by locator (see [Flights](#flights)) |
+| | Weather | the weather where the radio is, as APP > Weather shows it: now, five days, the warnings, a place by its locator (see [Weather](#weather)) |
 | | SmartCW | SmartCW's own page through the radio, in a new tab on port 8073; in the menu while SmartCW is plugged in (see [SmartCW](#smartcw)) |
 | Files | Files | browse and download `/mnt` |
 | | Gallery | screen recordings, voice recordings, screenshots, SSTV and WeFax pictures (see below) |
@@ -8709,6 +8828,7 @@ The DATA partition, readable on a PC.
 | `digi_text/` | the [text log of the keyboard modes](#text-log-of-the-keyboard-modes): `YYYY-MM-DD.txt`, a file a UTC day |
 | `conditions.txt` | the Propagation app's last band conditions from hamqsl.com |
 | `iradio/` | the [Internet radio](#internet-radio)'s favourites (`favorites.tsv`: name, address, format, kbps, country and the directory's id, tab-separated, a station a line) and the chosen country (`country`) |
+| `meteo/` | the [Weather](#weather) app's place names (`places.json`), the warnings its notices have shown (`seen`) and, if you put it there, `nominatim.url` |
 | `screenrec/` | screen recordings (AVI) |
 | `themes/` | theme files and folders ([docs/THEMES.md](THEMES.md)) |
 | `sstv/` | received SSTV pictures; `tx_pics/` pictures and `tx_text/` text templates to send |

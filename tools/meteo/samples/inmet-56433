@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+<identifier>urn:oid:2.49.0.1.76.0.2026.11.16.56433</identifier>
+<sender>inmet@inmet.gov.br</sender>
+<sent>2026-11-16T10:00:00-03:00</sent>
+<status>Actual</status>
+<msgType>Alert</msgType>
+<scope>Public</scope>
+<info>
+<language>pt-BR</language>
+<category>Met</category>
+<event>Tempestade</event>
+<responseType>Prepare</responseType>
+<urgency>Future</urgency>
+<severity>Severe</severity>
+<certainty>Likely</certainty>
+<onset>2026-11-16T18:00:00-03:00</onset>
+<expires>2026-11-17T23:59:00-03:00</expires>
+<senderName>INMET - Instituto Nacional de Meteorologia</senderName>
+<headline>Aviso de Tempestade</headline>
+<description>Chuva entre 30 e 60 mm/h ou 50 e 100 mm/dia, ventos intensos (60-100 km/h), e queda de granizo.</description>
+<instruction>Em caso de rajadas de vento: nao se abrigue debaixo de arvores.</instruction>
+<web>http://www.inmet.gov.br</web>
+<parameter><valueName>ColorRisk</valueName><value>#FFA500</value></parameter>
+<parameter><valueName>Estados</valueName><value>Rio Grande do Sul</value></parameter>
+<area>
+<areaDesc>Metropolitana de Porto Alegre</areaDesc>
+<polygon>-29.70,-51.60 -29.70,-50.90 -30.40,-50.90 -30.40,-51.60 -29.70,-51.60</polygon>
+</area>
+</info>
+</alert>

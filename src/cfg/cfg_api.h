@@ -225,6 +225,9 @@ extern ParamInt   *cfg_first_start_done;     // p_first_start_done
 // The country the radio is used in: ISO 3166-1 alpha-2 in capitals, "" none set (countries.h reads it)
 extern ParamText  *cfg_country;              // p_country
 
+// APP > Weather > Notices: the warnings checked in the background, a new one as a notice
+extern ParamInt   *cfg_meteo_alerts;         // p_meteo_alerts
+
 // Waterfall Mode Fixed: when the view moves on, and where the line goes
 extern ParamInt   *cfg_wf_fixed_jump;        // p_wf_fixed_jump
 extern ParamInt   *cfg_wf_fixed_after;       // p_wf_fixed_after

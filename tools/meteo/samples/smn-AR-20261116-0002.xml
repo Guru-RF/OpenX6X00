@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cap:alert xmlns:cap="urn:oasis:names:tc:emergency:cap:1.2">
+  <cap:identifier>SMN-AR-20261116-0002</cap:identifier>
+  <cap:sent>2026-11-16T09:00:00-03:00</cap:sent>
+  <cap:status>Actual</cap:status>
+  <cap:msgType>Alert</cap:msgType>
+  <cap:info>
+    <cap:language>es-AR</cap:language>
+    <cap:event>Viento</cap:event>
+    <cap:severity>Moderate</cap:severity>
+    <cap:onset>2026-11-16T12:00:00-03:00</cap:onset>
+    <cap:expires>2026-11-17T12:00:00-03:00</cap:expires>
+    <cap:headline>Alerta naranja por viento</cap:headline>
+    <cap:description>Vientos del sector sur.</cap:description>
+    <cap:area>
+      <cap:areaDesc>Este de La Plata</cap:areaDesc>
+      <cap:polygon>-34.80,-57.70 -34.80,-57.40 -35.10,-57.40 -35.10,-57.70 -34.80,-57.70</cap:polygon>
+    </cap:area>
+  </cap:info>
+</cap:alert>

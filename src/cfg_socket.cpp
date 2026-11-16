@@ -16,9 +16,13 @@
  *                                                        radio is on, for Wavelog's live link (wavelog_cat.h, #245)
  *    {"cmd":"tune","hz":hz,"mode":"USB-D"}            -> {"t":"ok"} or {"t":"err","err":"..."}: a click on a spot in
  *                                                        Wavelog; frequency and mode only, refused while transmitting
- *    {"cmd":"pos_get"}                                -> {"t":"pos","lat":..,"lon":..,"src":"GPS"|"Phone"|"Locator"},
- *                                                        "src":"" without any: where the radio is (station_position),
- *                                                        for the web Flights page
+ *    {"cmd":"pos_get"}                                -> {"t":"pos","lat":..,"lon":..,"src":"GPS"|"Phone"|"Locator"|
+ *                                                        "Country","cc":"BE","country":..,"lang":"nl","notices":0|1}:
+ *                                                        where the radio is (station_position), else the place of its
+ *                                                        country (meteo_position), "src":"" without either; the
+ *                                                        country, the GUI's language and APP > Weather > Notices. For
+ *                                                        the web Flights page (which leaves "Country" aside) and the
+ *                                                        web Weather page
  *  The values are checked here and applied on the LVGL thread through the scheduler, as the
  *  Settings pages apply them.
  *
@@ -32,20 +36,23 @@
 #include "wifi.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cmath>
 
 extern "C" {
     #include "band_plan.h"
     #include "cJSON.h"
+    #include "countries.h"
     #include "digi_freqs.h"
+    #include "i18n.h"
+    #include "meteo.h"
     #include "params/params.h"
     #include "radio.h"
     #include "scheduler.h"
     #include "screen_idle.h"
     #include "screen_light.h"
     #include "screen_main.h"
-    #include "station.h"
     #include "theme.h"
     #include "walkie.h"
     #include "wavelog_cat.h"
@@ -432,7 +439,8 @@ static const char *tune(cJSON *req) {
     return t.err;
 }
 
-/* The web Flights page: where the radio is, read on the LVGL thread (the locator is a setting), this thread waiting */
+/* The web Flights and Weather pages: where the radio is, read on the LVGL thread (the locator is a setting), this
+ * thread waiting */
 typedef struct {
     double      lat, lon;
     const char *src;
@@ -442,18 +450,34 @@ typedef struct {
 static void pos_cb(void *arg) {
     pos_req_t *p = (pos_req_t *)arg;
 
-    p->ok = station_position(&p->lat, &p->lon, &p->src);
+    p->ok = meteo_position(&p->lat, &p->lon, &p->src);
 }
 
 static const char *pos_get(char *out, size_t size, int *l) {
-    pos_req_t p = {0, 0, "", false};
+    pos_req_t   p = {0, 0, "", false};
+    char        cc[3];
+    cJSON      *o;
+    char       *text;
 
     if (!scheduler_call(pos_cb, &p))
         return "Busy, try again";
-    if (p.ok)
-        *l = snprintf(out, size, "{\"t\":\"pos\",\"lat\":%.6f,\"lon\":%.6f,\"src\":\"%s\"}\n", p.lat, p.lon, p.src);
-    else
-        *l = snprintf(out, size, "{\"t\":\"pos\",\"src\":\"\"}\n");
+    o = cJSON_CreateObject();
+    cJSON_AddStringToObject(o, "t", "pos");
+    if (p.ok) {
+        cJSON_AddNumberToObject(o, "lat", p.lat);
+        cJSON_AddNumberToObject(o, "lon", p.lon);
+    }
+    cJSON_AddStringToObject(o, "src", p.ok ? p.src : "");
+    cJSON_AddStringToObject(o, "cc", country_code(cc));
+    cJSON_AddStringToObject(o, "country", country_name(country_now()));
+    cJSON_AddStringToObject(o, "lang", i18n_code()[0] ? i18n_code() : "en");
+    cJSON_AddNumberToObject(o, "notices", cfg_sm.p_meteo_alerts.get());
+    text = cJSON_PrintUnformatted(o);
+    cJSON_Delete(o);
+    if (!text)
+        return "No memory";
+    *l = snprintf(out, size, "%s\n", text);
+    free(text);
     return NULL;
 }
 

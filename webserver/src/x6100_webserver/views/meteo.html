@@ -1,0 +1,223 @@
+% rebase('base.html', title='Weather')
+<style>
+  .mt-ctl { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+  .mt-ctl > div { min-width: 140px; }
+  .mt-now { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 720px) { .mt-now { grid-template-columns: 1fr; } }
+  .mt-temp { font-size: 46px; font-weight: 700; line-height: 1.1; }
+  .mt-sky { color: var(--accent); font-size: 20px; margin: 4px 0 6px; }
+  .mt-left div { color: var(--dim); }
+  .mt-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 14px; }
+  .mt-tiles div span { display: block; color: var(--dim); font-size: 13px; }
+  .mt-tiles div b { font-size: 19px; font-weight: 600; }
+  #mt-days td.r, #mt-days th.r { text-align: right; }
+  .mt-warn { border-left: 8px solid var(--dim); padding: 4px 0 4px 12px; margin: 12px 0; }
+  .mt-warn h4 { margin: 0 0 4px; font-size: 16px; }
+  .mt-warn .t, .mt-warn .a { color: var(--dim); font-size: 14px; }
+  .mt-warn p { margin: 6px 0 0; white-space: pre-line; }
+  .mt-lv2 { border-left-color: #ffd800; } .mt-lv3 { border-left-color: #ff8c00; } .mt-lv4 { border-left-color: #e00000; }
+  .mt-note { color: var(--dim); font-size: 13px; margin-top: 10px; }
+  .mt-credit { color: var(--dim); font-size: 13px; margin-top: 12px; }
+  .mt-credit a { color: var(--dim); }
+  .mt-errors { color: var(--err); font-size: 13px; }
+</style>
+<h2><svg class="i"><use href="#i-cloud"/></svg>Weather</h2>
+<p class="sub">The weather where the radio is, as <b>APP &gt; Weather</b> shows it on its screen: now, five days and the
+warnings in force, in the place's own time. The radio asks for it (it needs WiFi or Ethernet) while this page is open and
+in view, every 15 minutes. Its position leaves the radio rounded to 0.1 degree (about 11 km): the radio's GPS, the
+phone's from the Panel, its QTH locator, else the capital of the country set on the radio.</p>
+
+<section class="dp-card">
+<div class="dp-body">
+<div class="mt-ctl">
+  <div><label for="mt-grid">Place</label><input id="mt-grid" maxlength="8" placeholder="the radio's position" autocomplete="off" spellcheck="false"></div>
+  <button id="mt-upd" type="button"><svg class="i"><use href="#i-sync"/></svg>Update</button>
+  <span class="status" id="mt-status"></span>
+</div>
+<p class="mt-note">Place: empty for the radio's own position, or a locator (JO20, JO20ab) for a look somewhere else. The
+country and the QTH locator are set on the radio: Settings &gt; General &gt; STATION.</p>
+</div>
+</section>
+
+<section class="dp-card" id="mt-now-card" hidden>
+<div class="dp-body">
+<h3 id="mt-place"></h3>
+<div class="mt-now">
+  <div class="mt-left">
+    <div class="mt-temp" id="mt-temp"></div>
+    <div class="mt-sky" id="mt-sky"></div>
+    <div id="mt-feels"></div>
+    <div id="mt-lohi"></div>
+    <div id="mt-sun"></div>
+  </div>
+  <div class="mt-tiles" id="mt-tiles"></div>
+</div>
+</div>
+</section>
+
+<section class="dp-card" id="mt-days-card" hidden>
+<div class="dp-body">
+<h3>Five days</h3>
+<div class="table-wrap">
+  <table id="mt-days">
+    <thead><tr><th>Day</th><th>Sky</th><th class="r">High</th><th class="r">Low</th><th class="r">Rain</th><th class="r">Wind</th><th class="r">Gusts</th><th class="r">UV</th><th>Sun</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+</div>
+</section>
+
+<section class="dp-card" id="mt-warn-card" hidden>
+<div class="dp-body">
+<h3>Warnings</h3>
+<div id="mt-warn-head" class="mt-note"></div>
+<div id="mt-warn"></div>
+</div>
+</section>
+
+<p class="mt-note" id="mt-notices"></p>
+<p class="mt-credit" id="mt-credit"></p>
+<p class="mt-errors" id="mt-errors"></p>
+
+<script>
+const mt = {data: null, timer: null, next: 0, busy: false};
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const LEVELS = ["Notice", "Minor", "Yellow", "Orange", "Red"], SEVERITY = ["Notice", "Minor", "Moderate", "Severe", "Extreme"];
+// Each credit links to its source, as the terms ask
+const LINKS = [["Open-Meteo", "https://open-meteo.com/"], ["OpenStreetMap", "https://www.openstreetmap.org/copyright"],
+               ["MeteoAlarm", "https://www.meteoalarm.org/"], ["National Weather Service", "https://www.weather.gov/"],
+               ["SMN", "https://www.smn.gob.ar/"], ["INMET", "https://portal.inmet.gov.br/"]];
+
+function mtStatus(t, err) {
+  const el = $("#mt-status"); el.toggleClass("error", !!err);
+  el.html('<span class="dot"></span>').append(document.createTextNode(t));
+}
+function n(v, dec, unit) {
+  if (v == null) return "--";
+  let r = Number(v.toFixed(dec || 0));
+  if (r === 0) r = 0;
+  return r.toFixed(dec || 0) + (unit || "");
+}
+function compass(b) { return COMPASS[Math.floor(((b % 360) + 360 + 22.5) / 45) % 8]; }
+function uvWord(u) { return u < 3 ? "low" : u < 6 ? "moderate" : u < 8 ? "high" : u < 11 ? "very high" : "extreme"; }
+function tz() { return mt.data.tz_abbr || mt.data.tz || ""; }
+function weekday(date) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(date || "");
+  return m ? DAYS[new Date(Date.UTC(+m[1], m[2] - 1, +m[3], 12)).getUTCDay()] : "";
+}
+function when(s) { return s ? weekday(s) + " " + Number(s.slice(8, 10)) + " " + s.slice(11, 16) : ""; }
+function title(a) {
+  const level = (a.src === "NWS" ? SEVERITY : LEVELS)[a.level] || "Notice";
+  if (!a.calc) return level + ": " + a.event;
+  const v = a.value, what = {gust: "gusts up to " + v + " km/h", rain: v + " mm of rain", storm: "thunderstorms",
+    hail: "thunderstorms with hail", heat: "heat, a high of " + v + " °C", cold: "cold, a low of " + v + " °C",
+    uv: "extreme UV, index " + v}[a.calc] || a.event;
+  return level + ": " + what + ", from the forecast";
+}
+function span(a) {
+  if (a.calc) return a.day === 0 ? "today" : "tomorrow";
+  const f = when(a.from), t = when(a.to);
+  return (f && t ? f + " to " + t : t ? "until " + t : f ? "from " + f : "") + (f || t ? " " + tz() : "");
+}
+function tile(name, value) {
+  return $("<div>").append($("<span>").text(name)).append($("<b>").text(value));
+}
+
+function renderNow() {
+  const d = mt.data, c = d.now || {}, d0 = (d.days || [])[0] || {};
+  $("#mt-place").text(d.place + "  ·  " + d.where + "  ·  updated " + d.updated + " " + tz());
+  $("#mt-temp").text(n(c.temp, 1, " °C"));
+  $("#mt-sky").text(c.text || "");
+  $("#mt-feels").text("Feels like " + n(c.feels, 0, " °C"));
+  $("#mt-lohi").text("Low " + n(d0.tmin, 0, "°") + ", high " + n(d0.tmax, 0, " °C"));
+  $("#mt-sun").text(d.sun && d.sun.rise ? "Sun " + d.sun.rise + " to " + d.sun.set : "");
+  $("#mt-tiles").empty().append(
+    tile("Wind", c.wind_kmh != null && c.wind_dir != null ? compass(c.wind_dir) + " " + n(c.wind_kmh, 0, " km/h") : n(c.wind_kmh, 0, " km/h")),
+    tile("Gusts", n(c.gust_kmh, 0, " km/h")), tile("Humidity", n(c.hum, 0, " %")),
+    tile("Pressure", n(c.press, 0, " hPa")), tile("Rain today", n(d0.prob, 0, " %") + ", " + n(d0.rain_mm, 1, " mm")),
+    tile("Clouds", n(c.cloud, 0, " %")), tile("Dew point", n(c.dew, 1, " °C")), tile("Visibility", n(c.vis_km, 0, " km")),
+    tile("UV index", c.uv != null ? n(c.uv, 0) + ", " + uvWord(c.uv) : "--"));
+  $("#mt-now-card").prop("hidden", false);
+}
+
+function renderDays() {
+  const tb = $("#mt-days tbody").empty();
+  (mt.data.days || []).forEach((d, i) => {
+    const tr = $("<tr>");
+    [[(i === 0 ? "Today" : weekday(d.date)) + " " + Number(d.date.slice(8))], [d.text], [n(d.tmax, 0, " °C"), "r"],
+     [n(d.tmin, 0, " °C"), "r"], [n(d.prob, 0, " %") + ", " + n(d.rain_mm, 1, " mm"), "r"],
+     [(d.wind_dir != null ? compass(d.wind_dir) + " " : "") + n(d.wind_max, 0, " km/h"), "r"], [n(d.gust_max, 0, " km/h"), "r"],
+     [n(d.uv, 0), "r"], [d.rise ? d.rise + " to " + d.set : ""]]
+      .forEach((v) => tr.append($("<td>").addClass(v[1] || "").text(v[0] || "")));
+    tb.append(tr);
+  });
+  $("#mt-days-card").prop("hidden", !(mt.data.days || []).length);
+}
+
+function renderWarnings() {
+  const d = mt.data, src = d.alerts_src || "", list = $("#mt-warn").empty(), al = d.alerts || [];
+  const mine = al.filter((a) => a.mine).length, failed = src.includes("+");
+  let head = failed ? src.split("+")[0] + " did not answer: the warnings below are worked out from the forecast, not official."
+    : src === "forecast" ? "No official warnings are asked for this country: these are worked out from Open-Meteo's forecast, not official."
+    : src + ": " + mine + " for this place, " + (al.length - mine) + " nearby; their texts as the service gives them.";
+  if (src === "MeteoAlarm")
+    head += " Time delays between this page and meteoalarm.org are possible: for the most up-to-date awareness information, see www.meteoalarm.org.";
+  $("#mt-warn-head").text(head);
+  al.filter((a) => a.mine).concat(al.filter((a) => !a.mine)).forEach((a) => {
+    const w = $("<div class='mt-warn'>").addClass("mt-lv" + a.level);
+    w.append($("<h4>").text(title(a) + "  " + (a.mine ? "(here)" : "(nearby)")));
+    w.append($("<div class='t'>").text(span(a) + (a.sent ? "   issued " + when(a.sent) : "")));
+    if (a.areas) w.append($("<div class='a'>").text(a.areas));
+    if (a.desc) w.append($("<p>").text(a.desc));
+    if (a.instr) w.append($("<p>").text(a.instr));
+    list.append(w);
+  });
+  if (!al.length) list.append($("<p>").text(src === "forecast" ? "None worked out from the forecast." : "No warnings in force here."));
+  $("#mt-warn-card").prop("hidden", false);
+}
+
+function renderCredits() {
+  const c = $("#mt-credit").empty();
+  (mt.data.credits || []).forEach((t, i) => {
+    if (i) c.append(document.createTextNode("  ·  "));
+    const link = LINKS.find((l) => t.includes(l[0]));
+    c.append(link ? $("<a target='_blank' rel='noopener'>").attr("href", link[1]).text(t) : document.createTextNode(t));
+  });
+  $("#mt-errors").text((mt.data.errors || []).join("  ·  "));
+}
+
+function render() {
+  if (!mt.data) return;
+  renderNow(); renderDays(); renderWarnings(); renderCredits();
+  $("#mt-notices").text(mt.data.notices
+    ? "Warning notices on the radio: on. It asks for the warnings where it is every 30 minutes, and shows a new one on any screen (APP > Weather > Notices)."
+    : "Warning notices on the radio: off (APP > Weather > Notices turns them on).");
+}
+
+function schedule(s) {
+  clearTimeout(mt.timer);
+  mt.next = Date.now() + s * 1000;
+  mt.timer = setTimeout(() => update(false), s * 1000);
+}
+
+// Asked only while the page is in view: a hidden tab waits, and asks when it is seen again if it is due. asked: a
+// person asked (the page opened, Update, a place typed): only then may the radio look up a place's name
+function update(asked) {
+  if (mt.busy) return;
+  if (document.hidden) { mt.timer = null; return; }
+  mt.busy = true;
+  mtStatus("Asking…");
+  $.ajax({url: "/api/meteo", data: {grid: $("#mt-grid").val().trim(), asked: asked ? 1 : 0}, dataType: "json", timeout: 160000,
+    success: (d) => { mt.data = d; render(); mtStatus(d.where + " · " + d.updated + " " + tz()); schedule(900); },
+    error: (x) => { mtStatus(x.responseJSON ? x.responseJSON.msg : "No answer from the radio", true); schedule(120); },
+    complete: () => { mt.busy = false; }});
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && !mt.busy && (mt.timer === null || Date.now() >= mt.next)) update(false);
+});
+$("#mt-grid").on("change", () => update(true));
+$("#mt-upd").on("click", () => update(true));
+update(true);
+</script>

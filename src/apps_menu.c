@@ -65,6 +65,7 @@ static const struct {
     {"Flights", "Aircraft around", "flights", OPEN_APP, ACTION_APP_FLIGHTS},
     {"HF Air Band", "Oceanic routes, VOLMET", "aero", OPEN_APP, ACTION_APP_AERO},
     {"CB", "27 MHz channels", "cb", OPEN_APP, ACTION_APP_CB},
+    {"Weather", "Forecast, warnings", "meteo", OPEN_APP, ACTION_APP_METEO},
     {"Settings", "All settings", "settings", OPEN_APP, ACTION_APP_SETTINGS},
 };
 

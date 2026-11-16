@@ -13,7 +13,8 @@ here goes to airplanes.live or adsb.lol.
    airplanes.live fails, a 429 and its Retry-After kept, a second between two requests to one service, no internet,
    wrong arguments.
 3. With bottle: the web page's /api/flights by a locator typed, by the radio's position from the GUI's socket
-   (pos_get), by the QTH locator when the GUI does not answer, and its refusals.
+   (pos_get, not the place of the radio's country it falls back to), by the QTH locator when the GUI does not answer,
+   and its refusals.
 """
 import importlib.machinery
 import importlib.util
@@ -438,6 +439,17 @@ class Web(HelperCase):
         self.assertEqual(st, 200, data)
         self.assertEqual(json.loads(data)["where"], "Locator JO20ft")
         self.assertEqual(Stand.seen[0]["path"], "/a/50.8/4.5/32", "JO20ft: 50.81 N 4.46 E")
+
+    def test_not_the_countrys_place(self):
+        """pos_get, shared with the Weather page, falls back to the country's capital: aircraft around it are not
+        the radio's, so the page takes the QTH locator of params.db, else none"""
+        self.gui({"t": "pos", "lat": 50.8333, "lon": 4.3333, "src": "Country", "cc": "BE", "country": "Belgium"})
+        st, data = self.get("/api/flights?km=50")
+        self.assertEqual(st, 200, data)
+        self.assertEqual(json.loads(data)["where"], "Locator JO20ft")
+        self.qth("")
+        st, data = self.get("/api/flights?km=50")
+        self.assertEqual(st, 409, data)
 
     def test_a_locator_typed(self):
         st, data = self.get("/api/flights?km=200&grid=jo21")

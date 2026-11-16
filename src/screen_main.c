@@ -96,6 +96,7 @@
 #include "dialog_birdie.h"
 #include "dialog_flights.h"
 #include "dialog_zello.h"
+#include "dialog_meteo.h"
 #include "first_start.h"
 #include "control_owner.h"
 #include "kbd_hyper.h"
@@ -510,6 +511,7 @@ static const char *app_name(press_action_t a) {
         case ACTION_APP_FLIGHTS:    return "Flights";
         case ACTION_APP_AERO:       return "HF Air Band";
         case ACTION_APP_CB:         return "CB";
+        case ACTION_APP_METEO:      return "Weather";
         default:                   return NULL;    /* Modes menu: a menu, not an app */
     }
 }
@@ -619,6 +621,7 @@ void main_screen_start_app(press_action_t app_action) {
         {ACTION_APP_FLIGHTS, &dialog_flights},
         {ACTION_APP_AERO, &dialog_aero},
         {ACTION_APP_CB, &dialog_cb},
+        {ACTION_APP_METEO, &dialog_meteo},
     };
 
     if (app_action == ACTION_APP_RTTY) {
@@ -679,7 +682,8 @@ void main_screen_action(press_action_t action) {
             /* Voice mode and battery info were removed but may still be stored: nothing */
             if ((action >= ACTION_APP_RTTY && action <= ACTION_APP_CHANNELS) || action == ACTION_APP_PROPAGATION ||
                 action == ACTION_APP_SCAN || action == ACTION_APP_IRADIO || action == ACTION_APP_ZELLO ||
-                action == ACTION_APP_FLIGHTS || action == ACTION_APP_AERO || action == ACTION_APP_CB) {
+                action == ACTION_APP_FLIGHTS || action == ACTION_APP_AERO || action == ACTION_APP_CB ||
+                action == ACTION_APP_METEO) {
                 main_screen_start_app(action);
             }
             break;

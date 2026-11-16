@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+<title>Avisos</title>
+<link>https://avisos.inmet.gov.br</link>
+<description>Avisos meteorologicos vigentes</description>
+<!-- Licenca de Uso: O conteudo deste site, podera ser reproduzido desde que citada a fonte -->
+<copyright>public domain</copyright>
+<language>pt-BR</language>
+<item><title>Aviso de Tempestade. Severidade Grau: Perigo</title><link>https://apiprevmet3.inmet.gov.br/avisos/rss/56433</link><guid>https://apiprevmet3.inmet.gov.br/avisos/rss/56433</guid><description><![CDATA[<table><tr><th>Evento</th><td>Tempestade</td></tr></table>]]></description></item>
+<item><title>Aviso de Acumulado de Chuva</title><link>https://apiprevmet3.inmet.gov.br/avisos/rss/56430</link><guid>https://apiprevmet3.inmet.gov.br/avisos/rss/56430</guid></item>
+</channel>
+</rss>

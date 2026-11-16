@@ -1,0 +1,917 @@
+#!/usr/bin/env python3
+# The weather where the radio is, for APP > Weather (src/dialog_meteo.c), its notices (src/meteo_alerts.c) and the
+# web Weather page (webserver apps.py):
+#
+#   x6100-meteo update [--asked] LAT LON [CC [SRC [LANG [OUT]]]]
+#       the place, the weather now, five days and the warnings into OUT (/tmp/x6100-meteo.json); "ok" or "error <why>"
+#   x6100-meteo alerts LAT LON [CC [SRC [LANG [OUT]]]]
+#       the warnings alone into OUT (/tmp/x6100-meteo-alerts.json); "ok <n>", n of them for the place itself
+#
+# LAT LON: degrees north and east, as exact as the radio knows them; CC: the country set on the radio (ISO 3166-1,
+# "-" none), used when the place's own country is not known; SRC: where the position came from (GPS, Phone, Locator,
+# Country), shown; LANG: the GUI's language (es, zh_CN, "" or en English), for the place's name and the warnings'
+# language where a service has several. --asked: a person asked (the app or the page opened, Update pressed).
+#
+# The services, each asked as its terms say, with the client named OpenX6X00/<version> and this repository, never
+# the callsign. Every position leaves the radio rounded to 0.1 degree (about 11 km); the warnings of a whole country
+# or area are matched to the exact position here.
+#   - The place (town, region, country): OpenStreetMap's Nominatim (data (c) OpenStreetMap contributors, ODbL), only
+#     when a person asked (--asked): its policy calls an app's periodic requests bulk use. One request per 0.1 degree
+#     square, kept in /mnt/meteo/places.json for good, never two within a second (GATE); otherwise the square's name
+#     from there, or the locator. /mnt/meteo/nominatim.url: another server's address in its place, or "off" for none:
+#     the policy asks that an app can be switched over without an update.
+#   - The weather: Open-Meteo (open-meteo.com, free for non-commercial use, CC BY 4.0: "Weather data by
+#     Open-Meteo.com"), in the place's own time zone, which every time written here is in.
+#   - The official warnings of the place's country: the US (and its territories) the National Weather Service
+#     (public domain); the countries of MeteoAlarm its feed (CC BY 4.0, "EUMETNET - MeteoAlarm" shown with them);
+#     Argentina SMN's CAP feed (CC BY 4.0); Brazil INMET's Alert-AS feed (the source cited). Their texts as they are.
+#     Elsewhere, or when the service does not answer, warnings worked out here from Open-Meteo's forecast (wind gusts,
+#     rain, thunderstorms, heat, cold, UV), marked as not official. Uruguay's INUMET is not asked: its warnings are on
+#     its website alone, with no API or terms for their reuse.
+# The GUI asks while APP > Weather is open, every 15 minutes, and every 30 minutes for the warnings alone when its
+# notices are turned on (off by default); the web server while its page is open and seen. One answer serves the GUI
+# and the page for REUSE_S, one run at a time (LOCK).
+#
+# From condoruy's CX8ANM edition of OpenX6X00 (its Meteo app), rewritten for the rules above.
+import calendar
+import fcntl
+import hashlib
+import html
+import json
+import math
+import os
+import re
+import sys
+import time
+import unicodedata
+import urllib.error
+import urllib.parse
+import urllib.request
+
+try:
+    import zoneinfo
+except ImportError:      # the zone's rules then by the offset Open-Meteo gives for now
+    zoneinfo = None
+
+TMP = os.environ.get("X6100_METEO_TMP", "/tmp")             # the host test's own folders
+DATA = os.environ.get("X6100_METEO_DIR", "/mnt/meteo")
+SAMPLES = os.environ.get("X6100_METEO_SAMPLES", "")        # saved answers in place of the network (PC screenshots)
+OUT = os.path.join(TMP, "x6100-meteo.json")
+OUT_ALERTS = os.path.join(TMP, "x6100-meteo-alerts.json")
+LOCK = os.path.join(TMP, "x6100-meteo.lock")
+GATE = os.path.join(TMP, "x6100-meteo-nominatim")          # its time: the last request to Nominatim
+CAP_DIR = os.path.join(TMP, "x6100-meteo-cap")
+PLACES = os.path.join(DATA, "places.json")
+NOMINATIM_CONF = os.path.join(DATA, "nominatim.url")
+
+NOMINATIM = "https://nominatim.openstreetmap.org"
+OPEN_METEO = "https://api.open-meteo.com/v1/forecast"
+NWS = "https://api.weather.gov/alerts/active"
+METEOALARM = "https://feeds.meteoalarm.org/api/v1/warnings/feeds-"
+
+TIMEOUT_S = 20
+REUSE_S = 120           # an answer this young serves the next ask for the same place
+PLACES_MAX = 100
+ROUND_DEG = 0.1
+NEAR_KM = 150           # a warning for an area this close is listed, not as the place's own
+CAP_MAX = 40            # the CAP messages read of one feed in one run
+CAP_BUDGET_S = 40
+
+# Shown with what each gave, as their terms ask: on the radio, on the web page and in the manual
+CREDIT_OM = "Weather data by Open-Meteo.com (CC BY 4.0)"
+CREDIT_OSM = "Place: \u00a9 OpenStreetMap contributors (ODbL)"
+CREDITS = {
+    "NWS": "Warnings: US National Weather Service",
+    "MeteoAlarm": "Warnings: EUMETNET \u2013 MeteoAlarm (CC BY 4.0)",
+    "SMN": "Warnings: SMN Argentina (CC BY 4.0)",
+    "INMET": "Warnings: INMET Brazil",
+    "forecast": "Warnings worked out by OpenX6X00 from Open-Meteo's forecast, not official",
+}
+
+urlopen = urllib.request.urlopen        # the host test's stand-in replaces it
+sleep = time.sleep
+now = time.time
+
+
+class Fail(Exception):
+    pass
+
+
+def version():
+    v = os.environ.get("X6100_FW")
+    if not v:
+        try:
+            with open("/usr/share/x6100/app-version") as f:
+                v = f.read().strip()
+        except OSError:
+            v = ""
+    return v or "unknown"
+
+
+AGENT = f"OpenX6X00/{version()} (+https://github.com/Guru-RF/OpenX6X00)"
+
+
+# ---------- the network ----------
+
+_ssl = None
+
+
+def ssl_context():
+    global _ssl
+    if _ssl is None:
+        import ssl
+        _ssl = ssl.create_default_context()
+        for ca in ("/etc/ssl/certs/ca-certificates.crt", "/etc/ssl/cert.pem"):
+            if os.path.exists(ca):
+                _ssl.load_verify_locations(ca)
+                break
+    return _ssl
+
+
+def fetch(name, url, accept="application/json", lang=None):
+    """The body of url as text, the service's name in the errors. SAMPLES: <SAMPLES>/<name> instead"""
+    if SAMPLES:
+        try:
+            with open(os.path.join(SAMPLES, name), encoding="utf-8") as f:
+                return f.read()
+        except OSError:
+            raise Fail(f"{name}: no sample")
+    headers = {"User-Agent": AGENT, "Accept": accept}
+    if lang:
+        headers["Accept-Language"] = lang
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urlopen(req, timeout=TIMEOUT_S, context=ssl_context() if url.startswith("https:") else None) as r:
+            return r.read(8 * 1024 * 1024).decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        raise Fail(f"HTTP {e.code}")
+    except Exception as e:
+        raise Fail(" ".join(str(getattr(e, "reason", None) or e).split())[:60] or "no answer")
+
+
+def fetch_json(name, url, accept="application/json", lang=None):
+    try:
+        return json.loads(fetch(name, url, accept, lang))
+    except ValueError:
+        raise Fail("not JSON")
+
+
+# ---------- small things ----------
+
+def rounded(lat, lon):
+    """The position as it is sent: to 0.1 degree (+ 0.0: no "-0.0")"""
+    return round(round(lat / ROUND_DEG) * ROUND_DEG, 1) + 0.0, round(round(lon / ROUND_DEG) * ROUND_DEG, 1) + 0.0
+
+
+def num(v):
+    if v is None or v == "" or isinstance(v, bool):
+        return None
+    try:
+        n = float(str(v).replace(",", "."))
+    except ValueError:
+        return None         # a word for a number ("TRAZA", "n/a")
+    return n if math.isfinite(n) else None
+
+
+def clean(v, n=300):
+    return " ".join(str(v or "").replace("#", "").split())[:n]
+
+
+def dist_km(lat1, lon1, lat2, lon2):
+    r = math.pi / 180
+    a = math.sin((lat2 - lat1) * r / 2) ** 2 + math.cos(lat1 * r) * math.cos(lat2 * r) * math.sin((lon2 - lon1) * r / 2) ** 2
+    return 12742 * math.asin(math.sqrt(min(1, a)))
+
+
+def locator(lat, lon):
+    lon, lat = lon + 180, lat + 90
+    return (chr(65 + int(lon // 20)) + chr(65 + int(lat // 10)) + str(int((lon % 20) // 2)) + str(int(lat % 10))
+            + chr(97 + int((lon % 2) * 12)) + chr(97 + int((lat % 1) * 24)))
+
+
+def norm(s):
+    """Capitals without accents, for comparing names"""
+    s = unicodedata.normalize("NFD", str(s or ""))
+    return "".join(c for c in s if unicodedata.category(c) != "Mn").upper().strip()
+
+
+# The radio's fonts: Latin-1, the French and the typographic marks of src/fonts/latin1_*; Chinese from its own font
+FONT_EXTRA = {0x152, 0x153, 0x2013, 0x2014, 0x2018, 0x2019, 0x201A, 0x201C, 0x201D, 0x201E, 0x2026, 0x20AC}
+PLAIN = {"Ł": "L", "ł": "l", "Đ": "D", "đ": "d", "ı": "i", "Ħ": "H", "ħ": "h", "ŀ": "l", "Ŀ": "L"}
+
+
+def fit(s, lang):
+    """A text as the radio's fonts can draw it: letters beyond them without their accents, the rest left out"""
+    cjk = (lang or "").startswith("zh")
+    out = []
+    for c in str(s or ""):
+        o = ord(c)
+        if o < 0x100 or o in FONT_EXTRA or (cjk and o >= 0x2E80):
+            out.append(c)
+        elif c in PLAIN:
+            out.append(PLAIN[c])
+        else:
+            out.extend(b for b in unicodedata.normalize("NFKD", c) if ord(b) < 0x100)
+    return "".join(out)
+
+
+def fit_all(o, lang):
+    if isinstance(o, str):
+        return fit(o, lang)
+    if isinstance(o, list):
+        return [fit_all(x, lang) for x in o]
+    if isinstance(o, dict):
+        return {k: fit_all(v, lang) for k, v in o.items()}
+    return o
+
+
+# ---------- times: the place's own zone ----------
+
+class Zone:
+    """The place's time zone as Open-Meteo names it; the radio's own when there is none"""
+
+    def __init__(self, name="", abbr="", offset=None):
+        self.name, self.abbr, self.offset = name, abbr, offset
+        self.tz = None
+        if zoneinfo and name:
+            try:
+                self.tz = zoneinfo.ZoneInfo(name)
+            except Exception:
+                self.tz = None
+
+    def parts(self, epoch):
+        """time.struct_time of epoch in the zone"""
+        if self.tz is not None:
+            import datetime
+            return datetime.datetime.fromtimestamp(epoch, self.tz).timetuple()
+        if self.offset is not None:
+            return time.gmtime(epoch + self.offset)
+        return time.localtime(epoch)
+
+    def text(self, epoch):
+        return time.strftime("%Y-%m-%d %H:%M", self.parts(epoch)) if epoch is not None else ""
+
+    def epoch_naive(self, y, mo, d, h, mi, s=0):
+        """The epoch of a wall-clock time in the zone"""
+        if self.tz is not None:
+            import datetime
+            return datetime.datetime(y, mo, d, h, mi, s, tzinfo=self.tz).timestamp()
+        if self.offset is not None:
+            return calendar.timegm((y, mo, d, h, mi, s, 0, 0, 0)) - self.offset
+        return time.mktime((y, mo, d, h, mi, s, 0, 0, -1))
+
+
+ISO = re.compile(r"\s*(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?)?\s*(Z|[+-]\d{2}:?\d{2})?")
+
+
+def epoch_of(iso, zone):
+    """ISO 8601 with or without its offset ("2026-11-12T09:00:00-03:00", "...Z", "2026-11-12 09:00"): without one it
+    is the place's wall clock. None when it is not such a time"""
+    m = ISO.match(str(iso or ""))
+    if not m:
+        return None
+    y, mo, d = (int(m.group(i)) for i in range(1, 4))
+    h, mi, s = int(m.group(4) or 0), int(m.group(5) or 0), int(m.group(6) or 0)
+    tz = m.group(7)
+    try:
+        if tz is None:
+            return zone.epoch_naive(y, mo, d, h, mi, s)
+        e = calendar.timegm((y, mo, d, h, mi, s, 0, 0, 0))
+    except (ValueError, OverflowError):
+        return None
+    if tz != "Z":
+        sign = -1 if tz[0] == "-" else 1
+        tz = tz[1:].replace(":", "")
+        e -= sign * (int(tz[:2]) * 3600 + int(tz[2:]) * 60)
+    return e
+
+
+# ---------- the place: Nominatim ----------
+
+def load_json(path, default):
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, type(default)) else default
+    except (OSError, ValueError):
+        return default
+
+
+def save_json(path, data):
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
+def nominatim_base():
+    """The server to ask, None for none: /mnt/meteo/nominatim.url when it is there"""
+    try:
+        with open(NOMINATIM_CONF) as f:
+            v = (f.readline() or "").strip()
+    except OSError:
+        return NOMINATIM
+    if not v or v.lower() == "off":
+        return None
+    return v.rstrip("/") if re.match(r"https?://[^\s\"']+$", v) else NOMINATIM
+
+
+def gate():
+    """Nominatim at most once a second, from the GUI and the web server together (LOCK keeps them apart)"""
+    try:
+        with open(GATE) as f:
+            last = float(f.read().strip() or 0)
+    except (OSError, ValueError):
+        last = 0
+    wait = last + 1.0 - now()
+    if 0 < wait <= 1.0:
+        sleep(wait)
+    with open(GATE, "w") as f:
+        f.write("%.3f\n" % now())
+
+
+def parse_place(r):
+    """{"city", "county", "state", "country", "cc"} of a Nominatim reverse answer; None without a country (the sea)"""
+    a = r.get("address") if isinstance(r, dict) else None
+    if not isinstance(a, dict):
+        return None
+    geo = {
+        "city": clean(a.get("city") or a.get("town") or a.get("village") or a.get("municipality") or a.get("hamlet")
+                      or a.get("suburb"), 80),
+        "county": clean(a.get("county") or a.get("state_district"), 80),
+        "state": clean(a.get("state") or a.get("province") or a.get("region"), 80),
+        "country": clean(a.get("country"), 80),
+        "cc": clean(a.get("country_code"), 2).upper(),
+    }
+    return geo if re.fullmatch(r"[A-Z]{2}", geo["cc"]) else None
+
+
+def place_of(lat, lon, lang, asked):
+    """The place of the 0.1 degree square of the position, in the GUI's language where OpenStreetMap has it: from
+    places.json, else (asked) one request, then kept. (place, error)"""
+    qlat, qlon = rounded(lat, lon)
+    key = f"{qlat:.1f},{qlon:.1f},{lang}"
+    places = load_json(PLACES, {})
+    if key in places:
+        return places[key], None
+    base = nominatim_base()
+    if not base or not asked:
+        return None, None
+    q = {"lat": f"{qlat:.1f}", "lon": f"{qlon:.1f}", "format": "jsonv2", "zoom": "10", "addressdetails": "1",
+         "accept-language": f"{lang},en" if lang != "en" else "en"}
+    gate()
+    try:
+        geo = parse_place(fetch_json("nominatim.json", base + "/reverse?" + urllib.parse.urlencode(q)))
+    except Fail as e:
+        return None, f"OpenStreetMap: {e}"
+    if geo:     # at sea: asked again next time
+        places[key] = geo
+        while len(places) > PLACES_MAX:
+            del places[next(iter(places))]
+        try:
+            os.makedirs(DATA, exist_ok=True)
+            save_json(PLACES, places)
+        except OSError:
+            pass
+    return geo, None
+
+
+def place_text(geo, lat, lon):
+    if not geo:
+        return locator(lat, lon)[:6]
+    parts = []
+    for k in ("city", "state", "country"):
+        v = geo.get(k)
+        if v and v not in parts:
+            parts.append(v)
+    return ", ".join(parts) or locator(lat, lon)[:6]
+
+
+# ---------- the weather: Open-Meteo ----------
+
+# The WMO weather codes as Open-Meteo gives them; the GUI has these in its own table, to translate them
+WMO = {0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast", 45: "Fog", 48: "Rime fog",
+       51: "Light drizzle", 53: "Drizzle", 55: "Dense drizzle", 56: "Freezing drizzle", 57: "Dense freezing drizzle",
+       61: "Light rain", 63: "Rain", 65: "Heavy rain", 66: "Freezing rain", 67: "Heavy freezing rain",
+       71: "Light snow", 73: "Snow", 75: "Heavy snow", 77: "Snow grains", 80: "Light showers", 81: "Showers",
+       82: "Violent showers", 85: "Snow showers", 86: "Heavy snow showers", 95: "Thunderstorm",
+       96: "Thunderstorm with hail", 99: "Thunderstorm with heavy hail"}
+
+CURRENT = ("temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,"
+           "pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility,dew_point_2m")
+DAILY = ("weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,"
+         "sunset,uv_index_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant")
+
+
+def open_meteo_url(lat, lon, days=5, current=True):
+    qlat, qlon = rounded(lat, lon)
+    q = {"latitude": f"{qlat:.1f}", "longitude": f"{qlon:.1f}", "timezone": "auto", "forecast_days": str(days),
+         "wind_speed_unit": "kmh", "daily": DAILY}
+    if current:
+        q["current"] = CURRENT
+    return OPEN_METEO + "?" + urllib.parse.urlencode(q)
+
+
+def hhmm(iso):
+    m = re.search(r"T(\d{2}):(\d{2})", str(iso or ""))
+    return f"{m.group(1)}:{m.group(2)}" if m else ""
+
+
+def code_of(v):
+    n = num(v)
+    return int(n) if n is not None else None
+
+
+def parse_open_meteo(r):
+    """(now, days, sun, zone) of an Open-Meteo answer: its times are the place's"""
+    if not isinstance(r, dict) or not isinstance(r.get("daily"), dict):
+        raise Fail("not a forecast")
+    zone = Zone(clean(r.get("timezone"), 64), clean(r.get("timezone_abbreviation"), 12),
+                num(r.get("utc_offset_seconds")))
+    c = r.get("current") if isinstance(r.get("current"), dict) else {}
+    vis = num(c.get("visibility"))
+    code = code_of(c.get("weather_code"))
+    cur = None
+    if c:
+        cur = {"time": hhmm(c.get("time")), "code": code, "text": WMO.get(code, ""),
+               "is_day": num(c.get("is_day")), "temp": num(c.get("temperature_2m")),
+               "hum": num(c.get("relative_humidity_2m")), "feels": num(c.get("apparent_temperature")),
+               "dew": num(c.get("dew_point_2m")), "press": num(c.get("pressure_msl")),
+               "wind_kmh": num(c.get("wind_speed_10m")), "wind_dir": num(c.get("wind_direction_10m")),
+               "gust_kmh": num(c.get("wind_gusts_10m")), "precip": num(c.get("precipitation")),
+               "cloud": num(c.get("cloud_cover")), "uv": num(c.get("uv_index")),
+               "vis_km": round(vis / 1000, 1) if vis is not None else None}
+    dd = r["daily"]
+    dates = dd.get("time") if isinstance(dd.get("time"), list) else []
+    days = []
+    for k, date in enumerate(dates):
+        def pick(key):
+            v = dd.get(key)
+            return v[k] if isinstance(v, list) and k < len(v) else None
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(date)):
+            continue
+        code = code_of(pick("weather_code"))
+        days.append({"date": date, "code": code, "text": WMO.get(code, ""),
+                     "tmin": num(pick("temperature_2m_min")), "tmax": num(pick("temperature_2m_max")),
+                     "prob": num(pick("precipitation_probability_max")), "rain_mm": num(pick("precipitation_sum")),
+                     "uv": num(pick("uv_index_max")), "wind_max": num(pick("wind_speed_10m_max")),
+                     "gust_max": num(pick("wind_gusts_10m_max")),
+                     "wind_dir": num(pick("wind_direction_10m_dominant")),
+                     "rise": hhmm(pick("sunrise")), "set": hhmm(pick("sunset"))})
+    sun = {"rise": days[0]["rise"], "set": days[0]["set"]} if days else {}
+    return cur, days, sun, zone
+
+
+def open_meteo(lat, lon, days=5, current=True):
+    return parse_open_meteo(fetch_json("open-meteo.json", open_meteo_url(lat, lon, days, current)))
+
+
+# ---------- warnings: the common form ----------
+
+LEVELS = {2: "yellow", 3: "orange", 4: "red"}
+SEVERITY = {"EXTREME": 4, "SEVERE": 3, "MODERATE": 2, "MINOR": 1}
+
+
+def warning(src, level, event, desc, instr, areas, frm, to, mine, zone, sent="", ident=""):
+    """One warning as the GUI and the web page read it, its times in the place's zone"""
+    level = level if level in (1, 2, 3, 4) else 0
+    e_from, e_to, e_sent = epoch_of(frm, zone), epoch_of(to, zone), epoch_of(sent, zone)
+    key = ident or "|".join((src, clean(event, 80), str(frm), str(to)))
+    return {"src": src, "kind": "official", "level": level, "color": LEVELS.get(level, ""),
+            "event": clean(event, 160), "desc": clean(desc, 4000), "instr": clean(instr, 1500),
+            "areas": clean(areas, 600), "from": zone.text(e_from) if e_from else "",
+            "to": zone.text(e_to) if e_to else "", "sent": zone.text(e_sent) if e_sent else "",
+            "end": int(e_to) if e_to else 0, "mine": bool(mine),
+            "id": hashlib.sha1(key.encode("utf-8", "replace")).hexdigest()[:16]}
+
+
+def expired(iso, zone):
+    e = epoch_of(iso, zone)
+    return e is not None and e < now()
+
+
+def level_of_words(*texts):
+    t = norm(" ".join(str(x or "") for x in texts))
+    for word, lv in (("ROJ", 4), ("RED", 4), ("VERMELH", 4), ("NARANJ", 3), ("ORANGE", 3), ("LARANJ", 3),
+                     ("AMARIL", 2), ("YELLOW", 2), ("AMAREL", 2)):
+        if re.search(r"\b" + word, t):
+            return lv
+    return 0
+
+
+# ---------- geometry: is the position in a warning's area ----------
+
+def in_ring(lat, lon, ring):
+    """ring: [(lat, lon), ...]"""
+    inside = False
+    n = len(ring)
+    for i in range(n):
+        y1, x1 = ring[i]
+        y2, x2 = ring[(i + 1) % n]
+        if (y1 > lat) != (y2 > lat) and lon < (x2 - x1) * (lat - y1) / ((y2 - y1) or 1e-12) + x1:
+            inside = not inside
+    return inside
+
+
+def ring_dist(lat, lon, ring):
+    """km from the position to the nearest corner of the area, 0 inside it"""
+    if in_ring(lat, lon, ring):
+        return 0
+    return min((dist_km(lat, lon, a, b) for a, b in ring), default=99999)
+
+
+# ---------- US: the National Weather Service ----------
+
+NWS_CC = ("US", "PR", "VI", "GU", "AS", "MP", "UM")
+
+
+def nws_alerts(lat, lon, zone):
+    """The warnings in force at the point (0.1 degree): all the place's own"""
+    qlat, qlon = rounded(lat, lon)
+    raw = fetch_json("nws.json", f"{NWS}?point={qlat:.1f},{qlon:.1f}", accept="application/geo+json")
+    if not isinstance(raw, dict) or not isinstance(raw.get("features", []), list):
+        raise Fail("not an alert list")
+    out = []
+    for f in raw.get("features") or []:
+        p = f.get("properties") if isinstance(f, dict) else None
+        if not isinstance(p, dict) or p.get("status", "Actual") != "Actual" or p.get("messageType") == "Cancel":
+            continue
+        end = p.get("ends") or p.get("expires")
+        if expired(end, zone):
+            continue
+        out.append(warning("NWS", SEVERITY.get(norm(p.get("severity")), 0), p.get("event"), p.get("description"),
+                           p.get("instruction"), p.get("areaDesc"), p.get("onset") or p.get("effective"), end, True,
+                           zone, p.get("sent"), str(p.get("id") or "")))
+    return out
+
+
+# ---------- the MeteoAlarm countries ----------
+
+METEOALARM_FEEDS = {
+    "AT": "austria", "BE": "belgium", "BA": "bosnia-herzegovina", "BG": "bulgaria", "HR": "croatia", "CY": "cyprus",
+    "CZ": "czechia", "DK": "denmark", "EE": "estonia", "FI": "finland", "FR": "france", "DE": "germany",
+    "GR": "greece", "HU": "hungary", "IS": "iceland", "IE": "ireland", "IL": "israel", "IT": "italy", "LV": "latvia",
+    "LT": "lithuania", "LU": "luxembourg", "MT": "malta", "MD": "moldova", "ME": "montenegro", "NL": "netherlands",
+    "MK": "republic-of-north-macedonia", "NO": "norway", "PL": "poland", "PT": "portugal", "RO": "romania",
+    "RS": "serbia", "SK": "slovakia", "SI": "slovenia", "ES": "spain", "SE": "sweden", "CH": "switzerland",
+    "UA": "ukraine", "GB": "united-kingdom",
+}
+OTHERS_MAX = 12
+
+
+def same_place(area, geo):
+    """An area's name and the place's town, county or region: one inside the other (4 letters at least)"""
+    a = norm(area)
+    if len(a) < 4:
+        return False
+    for k in ("city", "county", "state"):
+        v = norm(geo.get(k)) if geo else ""
+        if len(v) >= 4 and (v in a or a in v):
+            return True
+    return False
+
+
+def pick_info(infos, lang):
+    """The <info> in the GUI's language, else English, else the first"""
+    infos = [i for i in infos if isinstance(i, dict)]
+    if not infos:
+        return None
+    want = (lang or "en").split("_")[0].upper()
+    for w in (want, "EN"):
+        for i in infos:
+            if norm(i.get("language")).startswith(w):
+                return i
+    return infos[0]
+
+
+def meteoalarm_alerts(cc, geo, lang, zone):
+    """The country's feed: the place's own by their areas' names, and the others of orange and red"""
+    raw = fetch_json("meteoalarm.json", METEOALARM + METEOALARM_FEEDS[cc])
+    if not isinstance(raw, dict) or not isinstance(raw.get("warnings", []), list):
+        raise Fail("not a warnings feed")
+    mine, other = [], []
+    for w in raw.get("warnings") or []:
+        al = w.get("alert") if isinstance(w, dict) else None
+        if not isinstance(al, dict) or al.get("status", "Actual") != "Actual" or al.get("msgType") == "Cancel":
+            continue
+        info = pick_info(al.get("info") or [], lang)
+        if not info or expired(info.get("expires"), zone):
+            continue
+        params = {p.get("valueName"): str(p.get("value") or "") for p in info.get("parameter") or []
+                  if isinstance(p, dict)}
+        try:
+            level = int(params.get("awareness_level", "0").split(";")[0])
+        except ValueError:
+            level = 0
+        if level < 2:
+            continue        # green: nothing to say
+        areas = [a.get("areaDesc") or "" for a in info.get("area") or [] if isinstance(a, dict)]
+        is_mine = any(same_place(a, geo) for a in areas)
+        if not is_mine and level < 3:
+            continue        # the country's other yellow ones: too many
+        item = warning("MeteoAlarm", level, info.get("event") or info.get("headline"), info.get("description"),
+                       info.get("instruction"), ", ".join(areas), info.get("onset") or info.get("effective"),
+                       info.get("expires"), is_mine, zone, al.get("sent"), str(al.get("identifier") or ""))
+        (mine if is_mine else other).append(item)
+    other.sort(key=lambda a: -a["level"])
+    return mine + other[:OTHERS_MAX]
+
+
+# ---------- CAP feeds: Argentina's SMN and Brazil's INMET ----------
+# Each feed is an RSS list of CAP 1.2 messages (OASIS Common Alerting Protocol), one per warning, with the areas as
+# polygons: a message is read once and kept in CAP_DIR (it never changes), and matched to the exact position here.
+
+# source: (sample name, the feed, what an item's link to its CAP message looks like)
+CAP_FEEDS = {
+    "SMN": ("smn.xml", "https://ssl.smn.gob.ar/CAP/AR.php", re.compile(r"\.xml(\?|$)", re.I)),
+    "INMET": ("inmet.xml", "https://apiprevmet3.inmet.gov.br/avisos/rss", re.compile(r"/avisos/rss/\d+$")),
+}
+
+
+def tag(xml, name):
+    """The text of the first <name> (any namespace prefix), CDATA and entities undone; "" none"""
+    m = re.search(r"<(?:\w+:)?" + name + r"\b[^>]*>(.*?)</(?:\w+:)?" + name + r"\s*>", xml, re.S)
+    if not m:
+        return ""
+    v = re.sub(r"^\s*<!\[CDATA\[(.*)\]\]>\s*$", r"\1", m.group(1), flags=re.S)
+    return html.unescape(v).strip()
+
+
+def tags(xml, name):
+    return re.findall(r"<(?:\w+:)?" + name + r"\b[^>]*>(.*?)</(?:\w+:)?" + name + r"\s*>", xml, re.S)
+
+
+def cap_alerts(xml, lat, lon, src, lang, zone):
+    """A CAP 1.2 message's warning for the position: its <info> in the GUI's language (else Spanish, Portuguese,
+    English, the first), when an area of it is within NEAR_KM; the place's own when the position is inside one"""
+    if tag(xml, "status") not in ("", "Actual") or tag(xml, "msgType") == "Cancel":
+        return []
+    infos = tags(xml, "info")
+    if not infos:
+        return []
+    want = (lang or "en").split("_")[0].upper()
+    info = next((i for w in (want, "ES", "PT", "EN") for i in infos if norm(tag(i, "language")).startswith(w)),
+                infos[0])
+    if expired(tag(info, "expires"), zone):
+        return []
+    rings, names = [], []
+    for area in tags(info, "area"):
+        names.append(tag(area, "areaDesc"))
+        for poly in tags(area, "polygon"):
+            ring = []
+            for pt in poly.split():
+                try:
+                    a, b = pt.split(",")[:2]
+                    ring.append((float(a), float(b)))
+                except ValueError:
+                    pass
+            if len(ring) >= 3:
+                rings.append(ring)
+    d = min((ring_dist(lat, lon, r) for r in rings), default=None)
+    if d is None or d > NEAR_KM:
+        return []
+    head, event = tag(info, "headline"), tag(info, "event")
+    level = level_of_words(head, event) or SEVERITY.get(norm(tag(info, "severity")), 0)   # SMN: the colour named
+    return [warning(src, level, event or head, tag(info, "description"), tag(info, "instruction"),
+                    ", ".join(n for n in names if n), tag(info, "onset") or tag(info, "effective"),
+                    tag(info, "expires"), d == 0, zone, tag(xml, "sent"), tag(xml, "identifier"))]
+
+
+def cap_file(src, url):
+    """A CAP message by its address: from CAP_DIR, else fetched and kept there"""
+    os.makedirs(CAP_DIR, exist_ok=True)
+    path = os.path.join(CAP_DIR, hashlib.sha1(url.encode()).hexdigest()[:16] + ".xml")
+    try:
+        with open(path, encoding="utf-8") as f:
+            xml = f.read()
+        os.utime(path, (now(), now()))      # still in the feed: kept
+        return xml
+    except OSError:
+        pass
+    xml = fetch(f"{src.lower()}-{url.rstrip('/').rsplit('/', 1)[-1]}", url, accept="application/xml, text/xml")
+    if not re.search(r"<(\w+:)?alert\b", xml):
+        raise Fail("not CAP")
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
+        f.write(xml)
+    os.replace(path + ".tmp", path)
+    os.utime(path, (now(), now()))
+    return xml
+
+
+def cap_prune(days=3):
+    """The messages no longer in the feed for days: their warnings are over"""
+    try:
+        for n in os.listdir(CAP_DIR):
+            p = os.path.join(CAP_DIR, n)
+            if os.path.getmtime(p) < now() - days * 86400:
+                os.unlink(p)
+    except OSError:
+        pass
+
+
+def cap_feed_alerts(src, lat, lon, lang, zone):
+    """The warnings of a CAP feed for the position: the feed, then each message not kept yet (CAP_MAX of them,
+    for CAP_BUDGET_S at most: the rest the next time)"""
+    sample, url, link = CAP_FEEDS[src]
+    rss = fetch(sample, url, accept="application/rss+xml, application/xml, text/xml")
+    links = []
+    for item in tags(rss, "item"):
+        x = tag(item, "link") or tag(item, "guid")
+        if re.match(r"https?://", x) and link.search(x) and x not in links:
+            links.append(x)
+    out, start = [], now()
+    cap_prune()
+    for x in links[:CAP_MAX]:
+        if now() - start > CAP_BUDGET_S:
+            break
+        try:
+            out += cap_alerts(cap_file(src, x), lat, lon, src, lang, zone)
+        except (Fail, OSError):
+            continue
+    return out
+
+
+# ---------- warnings worked out from the forecast ----------
+
+def computed_alerts(days, where, zone):
+    """Today's and tomorrow's: gusts, rain, thunderstorms, heat, cold, UV; not official ("calc" names it, "value"
+    gives its number, for the GUI's own words)"""
+    out = []
+    for k, d in enumerate((days or [])[:2]):
+        g, mm, code = d.get("gust_max"), d.get("rain_mm"), d.get("code")
+        tmax, tmin, uv = d.get("tmax"), d.get("tmin"), d.get("uv")
+        checks = []
+        if g is not None and g >= 65:
+            checks.append((4 if g >= 120 else 3 if g >= 90 else 2, "gust", g, f"Gusts up to {g:.0f} km/h"))
+        if mm is not None and mm >= 50:
+            checks.append((4 if mm >= 150 else 3 if mm >= 100 else 2, "rain", mm, f"Rain {mm:.0f} mm"))
+        if code in (95, 96, 99):
+            checks.append((3 if code in (96, 99) else 2, "hail" if code in (96, 99) else "storm", None,
+                           "Thunderstorms with hail" if code in (96, 99) else "Thunderstorms"))
+        if tmax is not None and tmax >= 36:
+            checks.append((4 if tmax >= 44 else 3 if tmax >= 40 else 2, "heat", tmax, f"Heat: high of {tmax:.0f} \u00b0C"))
+        if tmin is not None and tmin <= -12:
+            checks.append((3 if tmin <= -20 else 2, "cold", tmin, f"Cold: low of {tmin:.0f} \u00b0C"))
+        if uv is not None and uv >= 11:
+            checks.append((2, "uv", uv, f"Extreme UV ({uv:.0f})"))
+        for level, what, value, text in checks:
+            a = warning("forecast", level, text, "", "", where, f"{d['date']}T00:00", f"{d['date']}T23:59", True,
+                        zone, ident=f"calc|{d['date']}|{what}|{level}")
+            a.update(kind="computed", calc=what, value=round(value) if value is not None else None, day=k)
+            out.append(a)
+    return out
+
+
+# ---------- which service ----------
+
+def official_src(cc):
+    return ("NWS" if cc in NWS_CC else "MeteoAlarm" if cc in METEOALARM_FEEDS else
+            "SMN" if cc == "AR" else "INMET" if cc == "BR" else "")
+
+
+def official_alerts(cc, lat, lon, geo, lang, zone):
+    """The warnings of the country's service; [] for a country without one here. Fail when it does not answer"""
+    src = official_src(cc)
+    if src == "NWS":
+        return nws_alerts(lat, lon, zone)
+    if src == "MeteoAlarm":
+        return meteoalarm_alerts(cc, geo, lang, zone)
+    if src in CAP_FEEDS:
+        return cap_feed_alerts(src, lat, lon, lang, zone)
+    return []
+
+
+def gather_alerts(cc, lat, lon, geo, place, days, lang, zone):
+    """The official warnings, or worked out from the forecast without a service or when it does not answer.
+    (warnings, source, errors): the source "MeteoAlarm", "forecast", "MeteoAlarm+forecast" (it did not answer)"""
+    src = official_src(cc)
+    errors = []
+    alerts = None
+    if src:
+        try:
+            alerts = official_alerts(cc, lat, lon, geo, lang, zone)
+        except Fail as e:
+            errors.append(f"{src}: {e}")
+        except Exception as e:       # an answer of an unexpected form
+            errors.append(f"{src}: {clean(e, 60)}")
+    if alerts is None:
+        return computed_alerts(days, place, zone), (src + "+forecast" if src else "forecast"), errors
+    return alerts, src, errors
+
+
+# ---------- the two commands ----------
+
+def parse_args(args):
+    """(lat, lon, cc, src, lang, out, asked)"""
+    asked = "--asked" in args
+    args = [a for a in args if a != "--asked"]
+    try:
+        lat, lon = float(args[0]), float(args[1])
+    except (IndexError, ValueError):
+        raise Fail("no position (LAT LON)")
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise Fail("no position (LAT LON)")
+    cc = (args[2] if len(args) > 2 else "").strip().upper()
+    cc = cc if re.fullmatch(r"[A-Z]{2}", cc) else ""
+    src = re.sub(r"[^A-Za-z]", "", args[3] if len(args) > 3 else "")[:12]
+    lang = re.sub(r"[^A-Za-z_]", "", args[4] if len(args) > 4 else "")[:15] or "en"
+    out = args[5] if len(args) > 5 else ""
+    return lat, lon, cc, src, lang, out, asked
+
+
+def where(lat, lon, cc, lang, asked):
+    """(geo, country, place text, errors): the country is the place's own when OpenStreetMap says it (the radio
+    abroad), else the radio's"""
+    geo, err = place_of(lat, lon, lang, asked)
+    if geo and geo.get("cc"):
+        cc = geo["cc"]
+    return geo, cc, place_text(geo, lat, lon), [err] if err else []
+
+
+def credits(src, geo):
+    out = [CREDIT_OM]
+    if geo:
+        out.append(CREDIT_OSM)
+    for s in src.split("+"):
+        if s in CREDITS:
+            out.append(CREDITS[s])
+    return out
+
+
+def write(path, data, lang):
+    save_json(path, fit_all(data, lang))
+
+
+def locked(fn):
+    """One run at a time: the GUI's and the web server's, the second then finds the first one's answer"""
+    def run(args):
+        with open(LOCK, "w") as lk:
+            fcntl.flock(lk, fcntl.LOCK_EX)
+            return fn(args)
+    return run
+
+
+@locked
+def cmd_update(args):
+    lat, lon, cc0, src, lang, out, asked = parse_args(args)
+    out = out or OUT
+    key = "%.1f,%.1f,%s,%s" % (rounded(lat, lon) + (cc0, lang))
+    old = load_json(out, {})
+    if old.get("key") == key and old.get("now") and 0 <= now() - (num(old.get("fetched")) or 0) < REUSE_S:
+        print("ok")
+        return
+    geo, cc, place, errors = where(lat, lon, cc0, lang, asked)
+    data = {"key": key, "fetched": int(now()), "place": place, "cc": cc, "country": (geo or {}).get("country", ""),
+            "pos": {"lat": round(lat, 4), "lon": round(lon, 4), "loc": locator(lat, lon)[:6], "src": src},
+            "errors": errors}
+    try:
+        data["now"], data["days"], data["sun"], zone = open_meteo(lat, lon)
+    except Fail as e:
+        raise Fail(f"Open-Meteo: {e}")      # nothing to show: the warnings not asked for either
+    if not data["now"]:
+        raise Fail("Open-Meteo: no weather now")
+    data["tz"], data["tz_abbr"] = zone.name, zone.abbr
+    data["updated"] = zone.text(now())[11:]
+    alerts, asrc, errs = gather_alerts(cc, lat, lon, geo, place, data.get("days") or [], lang, zone)
+    data.update(alerts=alerts, alerts_src=asrc, credits=credits(asrc, geo))
+    data["errors"] += errs
+    write(out, data, lang)
+    print("ok")
+
+
+@locked
+def cmd_alerts(args):
+    lat, lon, cc0, src, lang, out, asked = parse_args(args)
+    out = out or OUT_ALERTS
+    geo, cc, place, errors = where(lat, lon, cc0, lang, False)     # on a timer: the place as known already
+    zone, days = Zone(), []
+    try:
+        _, days, _, zone = open_meteo(lat, lon, days=2, current=False)
+    except Fail as e:
+        errors.append(f"Open-Meteo: {e}")
+    alerts, asrc, errs = gather_alerts(cc, lat, lon, geo, place, days, lang, zone)
+    errors += errs
+    if errs and not days:
+        raise Fail(errors[-1])      # neither the service nor the forecast
+    write(out, {"fetched": int(now()), "place": place, "cc": cc, "tz_abbr": zone.abbr, "alerts": alerts,
+                "alerts_src": asrc, "credits": credits(asrc, geo), "errors": errors}, lang)
+    print("ok", sum(1 for a in alerts if a["mine"]))
+
+
+def main(argv):
+    cmds = {"update": cmd_update, "alerts": cmd_alerts}
+    if len(argv) < 2 or argv[1] not in cmds:
+        print("usage: x6100-meteo update [--asked]|alerts LAT LON [CC [SRC [LANG [OUT]]]]", file=sys.stderr)
+        return 2
+    try:
+        cmds[argv[1]](argv[2:])
+        return 0
+    except Fail as e:
+        print("error", clean(e, 100))
+    except Exception as e:
+        print("error", clean(e, 100))
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

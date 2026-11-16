@@ -265,6 +265,21 @@ def i_zello(p):      # a cloud with a voice in it: talk over the internet (the Z
         p.line([(x, 52 - h), (x, 52 + h)], w=p.w // 2 + 1)
 
 
+def i_meteo(p):      # a sun behind a cloud: the Weather app
+    p.ring(66, 30, 13)
+    for a in (200, 245, 290, 335, 20):
+        c, s = math.cos(math.radians(a)), math.sin(math.radians(a))
+        p.line([(66 + 20 * c, 30 + 20 * s), (66 + 26 * c, 30 + 26 * s)])
+    # the cloud: the outline of three rounds on a flat base, the sun hidden behind it
+    lobes, base = ((24, 68, 14), (46, 56, 18), (66, 68, 14)), (24, 58, 66, 82)
+    for grow, fill in ((p.w / 2, WHITE), (-p.w / 2, (0, 0, 0, 0))):
+        for x, y, r in lobes:
+            (cx, cy), rr = p.p(x, y), r * p.s / 100 + grow
+            p.d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=fill)
+        (x0, y0), (x1, y1) = p.p(base[0], base[1]), p.p(base[2], base[3])
+        p.d.rectangle([x0, y0 - grow, x1, y1 + grow], fill=fill)
+
+
 ICONS = {n[2:]: f for n, f in globals().items() if n.startswith("i_") and callable(f)}
 
 

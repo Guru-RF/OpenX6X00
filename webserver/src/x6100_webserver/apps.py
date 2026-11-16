@@ -4568,7 +4568,8 @@ FLIGHTS_RANGES = (25, 50, 100, 200, 400)
 
 
 def locator_center(grid):
-    """The centre of a Maidenhead locator of 4, 6 or 8 characters as (lat, lon); None when it is not one"""
+    """The centre of a Maidenhead locator of 4, 6 or 8 characters as (lat, lon); None when it is not one. The Flights
+    and the Weather pages"""
     g = (grid or "").strip().upper()
     if len(g) not in (4, 6, 8) or not re.fullmatch(r"[A-R]{2}[0-9]{2}([A-X]{2}([0-9]{2})?)?", g):
         return None
@@ -4588,14 +4589,14 @@ def locator_center(grid):
 
 def flights_position(grid):
     """(lat, lon, where) for the page: the locator typed on it, else where the radio is as the GUI says (its GPS, the
-    phone's, the QTH locator: station_position), else the QTH locator of params.db while the GUI does not answer.
-    None without any"""
+    phone's, the QTH locator: station_position; not the place of its country, which the Weather page takes), else the
+    QTH locator of params.db while the GUI does not answer. None without any"""
     if grid:
         c = locator_center(grid)
         return (c[0], c[1], grid.strip().upper()) if c else None
     reply = display_call({"cmd": "pos_get"}) or {}
-    if reply.get("t") == "pos" and isinstance(reply.get("lat"), (int, float)) and isinstance(reply.get("lon"),
-                                                                                             (int, float)):
+    if reply.get("t") == "pos" and reply.get("src") != "Country" and isinstance(reply.get("lat"), (int, float)) \
+            and isinstance(reply.get("lon"), (int, float)):
         src = str(reply.get("src") or "")
         return reply["lat"], reply["lon"], f"Locator {read_param('qth')}" if src == "Locator" else src
     qth = read_param("qth")
@@ -4643,6 +4644,78 @@ def flights_get():
     except (OSError, ValueError) as e:
         return api_error(502, f"Can't read the answer: {e}")
     doc["where"] = pos[2]
+    return doc
+
+
+# Weather: as APP > Weather shows it (src/dialog_meteo.c), from the same helper (rootfs/usr/sbin/x6100-meteo: Open-Meteo,
+# OpenStreetMap's Nominatim for the place's name, the country's weather service for its warnings; the position sent
+# rounded to 0.1 degree). Asked only while the page is open and seen: its script asks again every 15 minutes, and
+# only the first ask and Update let the helper look up a place's name (Nominatim's policy). The country and the QTH
+# locator are set on the radio, Settings > General > STATION: this page only reads them.
+
+
+def meteo_position(grid):
+    """{lat, lon, src, where, cc, lang, notices} for the page: the locator typed on it, else what the radio asks for
+    (its GPS, the phone's, the QTH locator, else the country's capital: pos_get on the GUI's socket, as the Flights
+    page asks), else the QTH locator of params.db while the GUI does not answer. None without any. notices: APP >
+    Weather > Notices is on"""
+    reply = display_call({"cmd": "pos_get"}) or {}
+    ok = reply.get("t") == "pos"
+    cc = str(reply.get("cc") or "") if ok else read_param("country")
+    lang = str(reply.get("lang") or "") if ok else read_param("language")
+    pos = {"cc": cc if re.fullmatch(r"[A-Z]{2}", cc or "") else "-", "lang": lang or "en",
+           "notices": bool(reply.get("notices")) if ok else read_param("meteo_alerts") == "1"}
+    if grid:
+        c = locator_center(grid)
+        return dict(pos, lat=c[0], lon=c[1], src="Locator", where=grid.strip().upper()) if c else None
+    if ok and isinstance(reply.get("lat"), (int, float)) and isinstance(reply.get("lon"), (int, float)):
+        src = str(reply.get("src") or "")
+        where = {"Locator": f"Locator {read_param('qth')}",
+                 "Country": f"Country {reply.get('country') or cc}"}.get(src, src)
+        return dict(pos, lat=reply["lat"], lon=reply["lon"], src=src, where=where)
+    qth = read_param("qth")
+    c = locator_center(qth)
+    return dict(pos, lat=c[0], lon=c[1], src="Locator", where=f"Locator {qth}") if c else None
+
+
+@app.route('/meteo')
+def meteo_page():
+    return bottle.template('meteo')
+
+
+@app.get('/api/meteo')
+def meteo_get():
+    q = bottle.request.query
+    grid = q.get("grid", "").strip()
+    pos = meteo_position(grid)
+    if not pos:
+        return api_error(400 if grid else 409, "Not a locator: 4, 6 or 8 characters (JO20, JO20ab)" if grid else
+                         "No position: plug in a GPS, or set the QTH locator or the country on the radio "
+                         "(Settings > General > STATION)")
+    out = settings.METEO_WEB_FILE if grid else settings.METEO_FILE
+    try:
+        with open(settings.APP_VERSION) as f:
+            ver = f.read().strip()
+    except OSError:
+        ver = ""
+    env = dict(os.environ, X6100_FW=ver) if ver else dict(os.environ)
+    cmd = [settings.METEO_CMD, "update"] + (["--asked"] if q.get("asked") == "1" else []) + \
+        ["%.5f" % pos["lat"], "%.5f" % pos["lon"], pos["cc"], pos["src"] or "-", pos["lang"], out]
+    try:
+        # its services at 20 s each and a country's warnings: a run of the GUI's before it at most
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=150, env=env)
+        line = (r.stdout or "").strip().splitlines()[-1:] or [""]
+    except (OSError, subprocess.SubprocessError) as e:
+        line = [f"error {e}"]
+    if line[0] != "ok":
+        return api_error(502, line[0][6:] if line[0].startswith("error ") else "No answer from x6100-meteo")
+    try:
+        with open(out, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, ValueError) as e:
+        return api_error(502, f"Can't read the answer: {e}")
+    doc["where"] = pos["where"]
+    doc["notices"] = pos["notices"]
     return doc
 
 
