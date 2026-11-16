@@ -4,9 +4,10 @@
 #   makes under build/.
 # - smartcw_thread_test.c: the keyer thread (src/paddle_keyer.c whole, stand-ins for the radio, the settings and
 #   LVGL in stub_include) on a pseudo-terminal as SmartCW's MIDI port, found by its USB IDs in a sysfs tree of the
-#   test's: the key with SmartCW's notes in each KEY mode, out of CW, during a CW message, with Learn, the paddle notes
-#   through the keyer here (Swap), two sources at once, the SWR protection, unplugged, and another MIDI device by the
-#   MIDI map as before. Real time: each case waits for the key with a margin.
+#   test's: a keyboard there at boot (no settings read before the first scan, its keys the keyer's after it), the key
+#   with SmartCW's notes in each KEY mode, out of CW, during a CW message, with Learn, the paddle notes through the
+#   keyer here (Swap), two sources at once, the SWR protection, unplugged, and another MIDI device by the MIDI map as
+#   before. Real time: each case waits for the key with a margin.
 # - smartcw_proxy_test.py: SmartCW's page on its own port (webserver smartcw.py) against a stand-in SmartCW on
 #   127.0.0.1, the interface it is held to given by the test, and once held to lo by the real SO_BINDTODEVICE: the
 #   configurator's rules, one request a connection, the live events as they come, SmartCW not plugged in or not
