@@ -26,6 +26,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Winlink](#winlink): [Mercury](#mercury-experimental), [XARA](#xara-experimental)
 - [Browser panel](#browser-panel)
 - [Browser remote](#browser-remote)
+- [Browser apps](#browser-apps): [WeFax](#wefax-in-the-browser)
 - [TCI server](#tci-server)
 - [Network name](#network-name): [the radio's own names](#the-radios-own-names)
 - [SSH](#ssh): [a key on Windows](#a-key-on-windows), [on a Mac or on Linux](#a-key-on-a-mac-or-on-linux), [in PuTTY](#a-key-in-putty), [on a security key](#a-key-on-a-security-key), [adding the key on the radio](#adding-the-key-on-the-radio), [the first login](#the-first-login), [after a new card image](#after-a-new-card-image), [when SSH does not let you in](#when-ssh-does-not-let-you-in)
@@ -6406,7 +6407,7 @@ transmitter. Logs > Export and the
 Gallery's ZIP download hold no secret and work by any name; TCI programs, which
 are not browsers, connect by any name as before.
 
-The menu has General and five groups:
+The menu has General and six groups:
 
 | Group | Page | Does |
 |---|---|---|
@@ -6414,6 +6415,7 @@ The menu has General and five groups:
 | Remote | Panel | the radio's own controls in the browser, for a touch screen (see [Browser panel](#browser-panel)) |
 | | Screen | the radio's screen live, its keys and knobs, the audio both ways (see [Browser remote](#browser-remote)) |
 | | Tailscale | Enabled, status, Log in to Tailscale, the radio on your tailnet, Log out, and Funnel (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
+| Apps | WeFax | the radio's WeFax app: the chart live as it comes in, open and close, RX Auto or Cont, Save now, Clear, the stations, the last charts (see [WeFax in the browser](#wefax-in-the-browser)) |
 | Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
 | | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies, and your own for PSK, Olivia and JTTY in the place of their built-in ones; a card shows what the band keys of those three step through, with the band plan ([Frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty)); WSPR band hopping: Hop and each band's Off, RX or RX+TX, set live (see [Band hopping](#band-hopping)) |
 | | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)), on the frequencies the radio tunes |
@@ -7734,6 +7736,41 @@ other sites cannot connect (the browser's Origin is checked), nor can Pat's
 Winlink mailbox (port 8080). So the Panel and the Screen page do not connect
 either when you open them at port 8080 of your own computer, through an SSH
 tunnel or a forwarded port: use another port for that, 8000 for instance.
+
+## Browser apps
+
+The web configurator's Apps menu works the radio's apps from a browser, over
+the Panel's link (the same port, pairing, control and health chips, see
+[Browser panel](#browser-panel)). The radio does the work on its own, with
+or without the page: it decodes, answers and saves as it does when no browser
+is open, and a page that closes or drops leaves it as it was. Anyone on the
+network sees the pages; a change needs a paired browser in control, as on
+the Panel. These pages came from OlivLoze's fork (f4oli-apps).
+
+### WeFax in the browser
+
+Apps > WeFax (`http://x6100.local/wefax`) shows the radio's
+[WeFax](#sstv-wefax-and-navtex) app:
+
+- Chart: the picture row by row as the radio decodes it, the station and its
+  frequency, receiving, waiting for a start tone or listening, the signal and
+  the rows kept. The radio keeps a chart's last 2400 rows, and so does the
+  page: past those the picture moves up as on the radio. With nothing coming
+  in, the chart shows the last one the radio saved.
+- Open the app or Close it, RX Auto (waits for a chart's start tone, saves at
+  its stop tone) or RX Cont (takes the rows at once), Save now (writes the
+  rows kept to `/mnt/wefax` and starts over), Clear (asks first: what was not
+  saved is lost).
+- Stations: the app's own list (DWD, Northwood, Athens and NOAA's five) and
+  your channels named WEFAX ([Channels](#channels), the Memories page), and a
+  box for any other station by its published frequency in kHz. A tap tunes
+  the radio 1.5 kHz under it in USB, as the app's Freq. list does; the station
+  the radio is on is marked.
+- Last charts: the newest eight on the card, a tap opens one; all of them in
+  the Gallery.
+
+The page receives only: the WeFax transmitter ([RTTY and WeFax
+TX](#rtty-and-wefax-tx)) stays on the radio.
 
 ## TCI server
 
