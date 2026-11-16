@@ -9,6 +9,7 @@
 #include "rbn.h"
 
 #include "bands.h"
+#include "../cb.h"
 #include "../cluster/spots.h"
 
 #include <ctype.h>
@@ -235,6 +236,15 @@ static void *thread_cb(void *arg) {
 void field_rbn_start(const char *call) {
     pthread_t t;
 
+    /* The RBN's skimmers are on the amateur bands and its login is for an amateur call: none with a CB call (cb.h) */
+    if (cb_callsign(call)) {
+        field_rbn_stop();
+        pthread_mutex_lock(&lock);
+        my_call[0] = '\0';     /* the amateur call again later starts it again */
+        pthread_mutex_unlock(&lock);
+        state = "not with a CB call";
+        return;
+    }
     pthread_mutex_lock(&lock);
     bool same = !strcasecmp(call, my_call) && strcmp(state, "off");
     snprintf(my_call, sizeof(my_call), "%s", call);

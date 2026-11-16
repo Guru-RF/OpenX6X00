@@ -26,6 +26,9 @@ typedef struct {
     float          freq_hz;
     float          time_sec;
     ftx_msg_type_t type;
+    /* A CB station's free text to us, "1AT106 -07" (WSJT-CB sends its reports, RR73 and 73 to another CB call so):
+     * call_de is the station of the QSO it was taken for, not a call the message names. No spot of it */
+    bool           free_text;
 } ftx_msg_meta_t;
 
 typedef struct {
@@ -50,10 +53,11 @@ class Candidate {
     Candidate(std::string remote_callsign);
     void set_grid(std::string grid);
     void set_report(int report);
-    void set_msg_type(ftx_msg_type_t msg_type);
+    void set_msg_type(ftx_msg_type_t msg_type, float freq_hz = 0.0f);
     void set_local_snr(int snr);
     void set_rcvd_snr(int snr);
     bool match_callsign(std::string callsign);
+    bool heard_near(float freq_hz);
     std::string callsign();
     bool is_finished();
     bool is_over();
@@ -66,7 +70,8 @@ class Candidate {
     bool aside_slot();
     void save_qso(save_qso_cb_t save_qso_cb, bool aside = false);
 
-    std::string get_tx_text(std::string local_callsign, std::string local_qth, bool local_std = true);
+    std::string get_tx_text(std::string local_callsign, std::string local_qth, bool local_std = true,
+                            bool cb_pair = false);
 
   private:
     std::string    _remote_callsign;
@@ -81,6 +86,7 @@ class Candidate {
     std::string    _report_text;    /* our report (or R-report) as made last */
     bool           _report_out=false;   /* a report of ours went out */
     int            _out_snr;        /* the report in it, the one logged: one made since may never go */
+    float          _freq_hz=0.0f;   /* the audio frequency its station was last heard on, 0 not known */
 };
 
 class FTxQsoProcessor {
@@ -104,7 +110,8 @@ class FTxQsoProcessor {
 
     void set_auto(bool);
     /// @brief Our call is a standard one (the default): false for one like KF0QGT/6Y, PA/ON6URE, which answers as
-    /// WSJT-X does, "<W1ABC> KF0QGT/6Y" to a CQ and "<W1ABC> KF0QGT/6Y RR73|73" (type 4, our call in plain text)
+    /// WSJT-X does, "<W1ABC> KF0QGT/6Y" to a CQ and "<W1ABC> KF0QGT/6Y RR73|73" (type 4, our call in plain text).
+    /// A CB call of ours (26AT101) is one too; with another CB call the QSO goes as WSJT-CB makes it (cb_pair)
     void set_local_standard(bool);
     void set_max_repeats(int);
     void set_is_pota(is_pota_cb_t);
@@ -140,6 +147,9 @@ class FTxQsoProcessor {
     std::vector<Candidate *> _aside;
 
     Candidate **get_candidate_to_update(std::string call_de);
+    bool        cb_pair(std::string call);
+    Candidate  *cb_sender(float freq_hz);
+    std::string answer(Candidate *candidate);
     Candidate  *get_or_create_cur_candidate(std::string remote_callsign);
     void        save_current();
     void        put_aside(Candidate *candidate);

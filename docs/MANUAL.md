@@ -3519,6 +3519,38 @@ but Auto does not answer it and a press does not either, as there is no call
 to send the answer to; nothing is logged with it. The call shows once a
 message of that station's with its full call has been decoded.
 
+CB callsigns. The app works CB stations on 11 m with a CB call as WSJT-CB,
+the 27 MHz edition of the desktop program, does, and the two decode each
+other. A CB call (26AT101, 1AT106, 999ZZ999, 999ZZ/ZZ: 1 to 3 digits, 1 or 2
+letters, then 1 to 3 digits or a stroke and 2 letters) goes in Settings >
+General > STATION as any other callsign; the setting says "CB callsign: FT8 sends no
+QTH with it; no DX cluster, RBN or Wavelog". Your CQ is `CQ 1AT106`, with
+no QTH. With another CB call the QSO goes as WSJT-CB makes it: your call to
+its CQ `<26AT101> 1AT106`, then the reports, RR73 and 73 with the other
+station's call alone, as free text: it sends `1AT106 -07`, you `26AT101
+R-05`, it `1AT106 RR73`, you `26AT101 73` (FT8 has no message with two
+such calls and a report). The messages to you name no sender: the app takes
+each one for the QSO whose station it heard on that audio frequency (within
+25 Hz), else for the QSO going on; Auto answers them, a press does too, and
+the QSO is logged as any other, with no grid. One with no QSO it could be
+part of is a message to you (red) that nothing answers. WSJT-CB's call as
+free text, its call and then yours (`1AT107 1AT106`), is taken as a call to
+you too. With an amateur call on the other side, the QSO goes as with a
+long call (above). A CB call has no country: its row shows none and the
+maps no place. A call such as 1A1, which FT8 packs as a standard one, works
+as any standard call, as in WSJT-CB.
+
+Where a CB call goes: PSK Reporter takes CB calls (it shows the 11 m spots
+of WSJT-CB stations), so the app's spots go there as any other, except a
+free-text message to you, whose sender the app worked out itself. The DX
+cluster, the Reverse Beacon Network, the activation programmes and Wavelog
+are amateur ones: with a CB call the cluster does not log in (APP > Cluster
+says "CB call: no amateur cluster login"; a Login set on its web page is
+used as it stands), the RBN does not start, Field Ops posts no spot, and no
+QSO with a CB call on either side goes to Wavelog. Transmitting on 11 m goes
+by the radio's rule, as anywhere outside the amateur bands: refused unless
+TX outside ham bands is on (see [CB](#cb)).
+
 Log Map. Page 3 > Log Map shows the logged stations on a world map centred on you:
 great-circle paths, a dot and the callsign for each station. Calls and dots
 are larger since v0.119. ESC or Log Map closes it.
@@ -4916,6 +4948,10 @@ STATION), used to log in.
   it tries again. To run the radio and a logger at the same time, give the
   radio its own login, your call with `-2`, on the web configurator's Cluster
   page (Link card).
+- A CB callsign (26AT101, for FT8 on 11 m) is not sent to log in: the DX
+  clusters are amateur networks. The status line says "CB call: no amateur
+  cluster login", and the link stays off unless a Login is set on the web
+  page (for a cluster that takes CB calls).
 - Link Off (Cluster page 2, or the web page) ends the login and keeps it off,
   also after a restart. Powering off closes the link at once.
 - Spots older than 60 minutes are dropped. After login it asks for the latest
@@ -5218,7 +5254,8 @@ HIGH / GOOD / FAIR / POOR, the best band marked.
   other mode it is the band's phone frequency, in its sideband (LSB below
   10 MHz, USB above and on 60 m).
 - RBN is connected while the screen is open (the first minute fills the
-  counts); it needs WiFi and the callsign.
+  counts); it needs WiFi and the callsign. Not with a CB callsign: the RBN
+  is an amateur network, and its state says "not with a CB call".
 - The skimmer data comes from the Reverse Beacon Network
   (reversebeacon.net), thanks to its skimmer operators.
 
@@ -5248,7 +5285,9 @@ Upload QRZ, QRZ: <call>, Back.
 
 Spot also posts the spot on the DX cluster (`POTA IT-0123 SSB`, `SOTA
 I/LO-123 CW`), and so does Start in POTA, WWBOTA, HOTA and WWFF; the QSY
-spots don't.
+spots don't. With a CB callsign nothing is spotted, on the programmes'
+sites or on the DX cluster ("No spot with a CB callsign: amateur programmes
+only").
 
 WWBOTA (World Wide Bunkers On The Air) and HOTA (History On The Air) work
 like POTA, with their own tile.
@@ -5764,6 +5803,8 @@ as the plans number them.
   European decision and the FCC's rules, less in some countries) is not set
   by the app: PWR is yours to set. Transmitting there is your responsibility
   under your licence.
+- FT8 and FT4 with a CB callsign (26AT101), as WSJT-CB works them: see CB
+  callsigns under [FT8 and FT4](#ft8-and-ft4).
 
 ### Flights
 
@@ -6729,6 +6770,7 @@ Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavel
 - Set up: the Wavelog URL (the address you open Wavelog with), a read & write API key (Wavelog: your account menu, API Keys, Create a read & write key; in Wavelog 3.1 and later under Legacy API Keys (API v1)), then Load, choose the station profile and switch Upload to Wavelog on. Test connection asks Wavelog for its version and the key's rights, with what is typed, before Save: a read-only key, with which every QSO would be refused, fails the test. Test connection, Load and Send now wait for Wavelog one at a time, their buttons off meanwhile. A Wavelog that doesn't answer gives "no connection" after 20 s; a name lookup the radio's network never answers holds the radio's side longer, and Test connection or Load then says, at 40 s, "no answer in 40 s: check the URL, and that the radio can reach that address". The API tokens of Wavelog's API v2 (wl2_...) don't work yet: the page says so at Test connection, Load and Save. The saved key goes only to the server it was saved with: with the URL of another server (your Wavelog moved), type the key again for Test connection, Load and Save.
 - Station profile Automatic: each QSO goes to the Wavelog profile with the callsign the radio logged it with (Settings > General > STATION). With a profile DF8MH and one DF8MH/P in Wavelog, changing the callsign on the radio is all it takes; when several profiles have the callsign, the one Wavelog marks active. A QSO whose callsign has no profile waits, "Wavelog: no station profile for DF8MH/M, 1 QSO waiting", and the others still go; make the profile in Wavelog, then Send now.
 - From the moment it is switched on: the QSOs logged before are not sent. To send an older log, import its ADIF in Wavelog (Files, Logs page, Export).
+- A CB QSO (a CB callsign on either side, 26AT101: FT8 on 11 m) stays on the radio: Wavelog is an amateur log, with no 11 m band.
 - The display says what happened: "Wavelog: DL1ABC uploaded", "Wavelog: DL1ABC was already there" (Wavelog found it as a duplicate), "Wavelog: no connection, 2 QSOs waiting". A failure is shown once, on the QSO that met it.
 - Each QSO goes once. The radio tells QSOs apart by the other station, the date and time to the second, the band, the mode and your station callsign: two QSOs with DL1ABC in the same minute, or one as ON6URE and one as ON6URE/P, are two, and both go. Wavelog itself takes a second QSO with the same station, band and mode within 15 minutes, under the same callsign of yours, for a duplicate.
 - The mode goes as ADIF 3.1.8 has it: PSK31 and PSK63 as mode PSK with that submode, FT4, FT2, JS8 and JTTY as mode MFSK with theirs, FT8, OLIVIA, CONTESTI, RTTY, CW, SSB, AM and FM as they are. A QSO logged without a mode (by hand in USB-D or LSB-D with no app open, away from FT8 and FT4) waits on the radio: it goes once the Logs page gives it one, so Wavelog never gets it without a mode and then again with one.

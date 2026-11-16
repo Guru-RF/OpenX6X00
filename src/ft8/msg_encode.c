@@ -39,6 +39,25 @@ static bool is_short_ack(const char *extra) {
     return !strcmp(extra, "RRR") || !strcmp(extra, "RR73") || !strcmp(extra, "73");
 }
 
+/* A report, "-07", "+12", or an R-report, "R-07" */
+static bool is_report(const char *s) {
+    if (*s == 'R') s++;
+    if (*s != '+' && *s != '-') return false;
+    size_t n = strlen(++s);
+    return n >= 1 && n <= 2 && strspn(s, "0123456789") == n;
+}
+
+/* Free text as WSJT-X packs it, right-aligned in its 13 characters: the same bits on the air. ft8_lib pads it on the
+ * right; a decoder trims either */
+static ftx_message_rc_t encode_free(ftx_message_t *msg, const char *text) {
+    char padded[14];
+
+    if (strlen(text) > 13) return FTX_MESSAGE_RC_ERROR_TYPE;
+    snprintf(padded, sizeof(padded), "%13s", text);
+    ftx_message_init(msg);
+    return ftx_message_encode_free(msg, padded);
+}
+
 ftx_message_rc_t ftx_encode_text(ftx_message_t *msg, ftx_callsign_hash_interface_t *hash_if, const char *text) {
     char   to[16], de[16], extra[16], rest[4];
     int    n   = sscanf(text, "%15s %15s %15s %3s", to, de, extra, rest);
@@ -57,6 +76,12 @@ ftx_message_rc_t ftx_encode_text(ftx_message_t *msg, ftx_callsign_hash_interface
         if (ftx_message_encode_nonstd(msg, hash_if, to, de, n == 3 ? extra : "") == FTX_MESSAGE_RC_OK)
             return FTX_MESSAGE_RC_OK;
     }
+    /* One call and a report or an end, "26AT101 -07", "26AT101 R-07", "26AT101 RR73", "26AT101 73": WSJT-CB's messages
+     * between two CB calls, which FT8 cannot carry both of with a report. WSJT-X packs any two words that are not two
+     * calls as free text; ft8_lib took "RR73" and "RRR" for a call and sent a hash of them ("<26AT101> <RR73>") */
+    if (n == 2 && (is_report(de) || is_short_ack(de))) return encode_free(msg, text);
     ftx_message_init(msg);
-    return ftx_message_encode(msg, hash_if, text);
+    ftx_message_rc_t rc = ftx_message_encode(msg, hash_if, text);
+    if (rc == FTX_MESSAGE_RC_OK && ftx_message_get_type(msg) == FTX_MESSAGE_TYPE_FREE_TEXT) return encode_free(msg, text);
+    return rc;
 }

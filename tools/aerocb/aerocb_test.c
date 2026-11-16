@@ -7,7 +7,8 @@
  *  its edges and its odd places (23 between 22 and 24, Germany's 41-80 below 1, the UK's 1.25 kHz, Poland's 5 kHz,
  *  the export grid, E ending below 10 m), every channel back from its frequency, the modes per plan and channel
  *  (Germany's 41-80 FM, Australia's no FM, 11 AM, 16 LSB), the knob's steps by channel number, the plan by region and
- *  by country, the names. HF aero: every frequency of the ITU Plan's families on a channel of its raster (Appendix 27,
+ *  by country, the names, the CB callsigns the FT8 app works (#286: WSJT-CB's lists of good and bad ones, and amateur
+ *  calls that must not be taken for one). HF aero: every frequency of the ITU Plan's families on a channel of its raster (Appendix 27,
  *  No. 27/18), ascending, the places the CX8ANM list had wrong, the areas. Both: no frequency of either app is in an
  *  amateur band, so main's rule decides PTT there as anywhere outside them: refused with TX outside ham bands off,
  *  allowed with it on (tx_ranges_check; aerocb_tx_test.cpp does the same through the real cfg_tx_refusal).
@@ -214,6 +215,22 @@ static int size(const aero_family_t *f) {
     return n;
 }
 
+/* The CB callsigns: those WSJT-CB's tests take and refuse (tests/ft8/test_cb_mtd.f90, test_cb_autoseq.cpp), the
+ * issue's examples, and amateur calls, which are never one (their letters follow the digit of the prefix) */
+static void test_cb_callsigns(void) {
+    static const char *const good[] = {
+        "1AT106", "26AT101", "21AT106", "161XZ085", "001AB123", "1AT1000", "999ZZ999", "999ZZ/ZZ", "1A1", "1at106",
+    };
+    static const char *const bad[] = {
+        "", "26AT", "K1ABC", "26AT1000", "1AT?", "1234AT1", "1ABC1", "1AT/ABC", "1AT/A", "<...>", "<26AT101>",
+        "ON6URE", "2E0ABC", "4X1AB", "9A1AA", "3D2AG/P", "PA/ON6URE", "ON6URE/P", "1AT106/P", "26AT101 ", "26AT10A",
+    };
+
+    for (size_t i = 0; i < sizeof(good) / sizeof(good[0]); i++) check(cb_callsign(good[i]), good[i], (long)i);
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) check(!cb_callsign(bad[i]), bad[i], (long)i);
+    check(!cb_callsign(NULL), "NULL", 0);
+}
+
 static void test_aero_lists(void) {
     int total = 0;
 
@@ -305,6 +322,7 @@ int main(void) {
     test_cb_modes();
     test_cb_steps();
     test_cb_plans();
+    test_cb_callsigns();
     test_aero_lists();
     printf("%s: %d checks, %d failed\n", fails ? "FAIL" : "OK", checks, fails);
     return fails != 0;

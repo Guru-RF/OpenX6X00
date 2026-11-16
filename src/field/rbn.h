@@ -27,7 +27,8 @@ typedef struct {
     time_t  when;
 } field_rbn_hit_t;
 
-/* Starts the client for the callsign (again with a new one); stop ends it */
+/* Starts the client for the callsign (again with a new one); stop ends it. A CB callsign (cb.h) is not sent: it stops
+ * the client, its state "not with a CB call" */
 void field_rbn_start(const char *call);
 void field_rbn_stop(void);
 

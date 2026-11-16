@@ -1630,12 +1630,13 @@ static void add_rx_text(int16_t snr, const char *text, const slot_info_t *slot, 
 
     bool parsed = meta.type != FXT_MSG_TYPE_OTHER && meta.call_de[0];
 
-    /* The heard map, PSK Reporter and Auto Sync: the sender of any message we can parse */
+    /* The heard map, PSK Reporter and Auto Sync: the sender of any message we can parse. A CB station's free text
+     * ("1AT106 -07") names no sender: the call is the QSO's it was taken for, no spot */
     if (parsed) {
         auto_sync_heard(slot, meta.call_de, time_sec);
         map_rx_t rx = {meta, odd};
-        js8_map_heard(meta.call_de, meta.grid, snr, meta.to_me, &rx, sizeof(rx));
-        if (param_i_get(cfg_pskreporter)) {
+        if (!meta.free_text) js8_map_heard(meta.call_de, meta.grid, snr, meta.to_me, &rx, sizeof(rx));
+        if (param_i_get(cfg_pskreporter) && !meta.free_text) {
             pskr_spot(params.callsign.x, station_qth(), VERSION, meta.call_de, meta.grid,
                       (uint32_t)cparam_i_get(cfg_fg_freq) + (uint32_t)(freq_hz + 0.5f), snr, mode_name());
         }

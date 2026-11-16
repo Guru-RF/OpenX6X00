@@ -5,7 +5,8 @@
  *  after 6 m, a spot's band and the mode it is tuned in there, and the band filter and the alerts in cluster.conf.
  *  Files of before (filter_bands=40,20,6, alerts on 20,17) read as they were; 2 m and 70 cm saved as 2 and 70, the
  *  numbers the web configurator writes too. The country list is not read: the spotters filter is not tested here.
- *  The call of the spot the dial is on, for the quick QSO log (#245).
+ *  The call of the spot the dial is on, for the quick QSO log (#245). A CB call logs in to no cluster, unless a login
+ *  is set by hand (#286).
  */
 
 #include "cluster/client.h"
@@ -314,6 +315,22 @@ static void spot_on_dial(void) {
           "a spot the filter hides (SSB with only CW shown) is not offered");
 }
 
+/* The DX clusters are amateur networks: a CB call (26AT101) is not sent as the login; one set by hand is (#286) */
+static void login_of_cb_call(void) {
+    char login[CLUSTER_CALL_LEN];
+
+    write_conf("host=dxfun.com\nport=8000\n");
+    cluster_config_login(login, sizeof(login), "ON6URE");
+    check(!strcmp(login, "ON6URE"), "an amateur call logs in with itself");
+    cluster_config_login(login, sizeof(login), "26AT101");
+    check(!login[0], "a CB call, no login set: no login");
+    cluster_config_login(login, sizeof(login), "999ZZ/ZZ");
+    check(!login[0], "a CB call with a stroke: no login");
+    write_conf("host=dxfun.com\nport=8000\nlogin=26AT101-1\n");
+    cluster_config_login(login, sizeof(login), "26AT101");
+    check(!strcmp(login, "26AT101-1"), "a CB call with a login set by hand: that login");
+}
+
 int main(void) {
     bands_of_frequencies();
     modes_of_spots();
@@ -323,6 +340,7 @@ int main(void) {
     filter_of_before();
     filter_saved();
     spot_on_dial();
+    login_of_cb_call();
     remove(CLUSTER_CONF);
     printf("%d cases, %d wrong\n", cases, bad);
     return bad != 0;

@@ -18,6 +18,7 @@
 #include "board.h"
 
 #include "buttons.h"
+#include "cb.h"
 #include "cfg/cfg_api.h"
 #include "cluster/client.h"
 #include "cluster/spots.h"
@@ -1946,6 +1947,8 @@ static bool spot_job(bool qrt) {
 
     if (!ref_ok(st.ref.ref) || !prog_of(st.ref.type)->site)   /* it goes on a command line */
         return false;
+    if (cb_callsign(my_call()))     /* the programmes are amateur ones (spot_to says so) */
+        return false;
     if (st.ref.type == 'B')
         return job_start(spot_done, HELPER " wwbota-spot --call %s --freq-khz %.1f --ref %s --mode %s --id '%s'%s",
                          my_call(), khz, st.ref.ref, m, wwbota_id, qrt ? " --qrt" : "");
@@ -2070,6 +2073,11 @@ static void spot_to(bool cluster) {
     }
     if (!my_call()[0]) {
         msg_update_text_fmt("Set your callsign in Settings");
+        return;
+    }
+    if (cb_callsign(my_call())) {
+        /* 26AT101 (cb.h): the programmes' sites and the DX clusters are for amateur calls */
+        msg_update_text_fmt("No spot with a CB callsign: amateur programmes only");
         return;
     }
     if (st.ref.type == 'X') {

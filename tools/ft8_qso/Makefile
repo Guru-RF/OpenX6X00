@@ -9,12 +9,20 @@
 # non-standard call of ours (KF0QGT/6Y): its answers as WSJT-X makes them, type 4 without a report; and one of the
 # other station's answering our CQ the same way ("<Q1QQQ> PA/A1AAA"). #228's: no station to answer (a call known only
 # as "<...>", free text pressed), and the QSO kj7prs reported, with Auto on and off.
+# Two CB calls (#286): the QSO as WSJT-CB makes it, the call to a CQ as type 4, the reports, RR73 and 73 as free text
+# with one call ("1AT106 -07"), theirs to us taken for the QSO whose station was heard on that audio frequency; a CB
+# call on one side only, the forms of a non-standard call.
 # qso.cpp's own warnings under -Wextra (a switch without FXT_MSG_TYPE_OTHER, an snr unused, the R+report case falling
-# through to the report's on purpose) are left off.
+# through to the report's on purpose) are left off. ft8_lib (msg_encode.c's ftx_call_is_standard) is host/build.sh's
+# (DEPS, build-host/deps by default).
 SRC      := ../../src
-CFLAGS   := -std=gnu11 -Wall -Wextra -O1 -g
-CXXFLAGS := -std=c++17 -Wall -Wextra -Wno-switch -Wno-unused-parameter -Wno-implicit-fallthrough -O1 -g -I $(SRC)/ft8
-SOURCES  := $(SRC)/ft8/qso.cpp $(SRC)/ft8/qso.h $(SRC)/ft8/utils.c $(SRC)/ft8/utils.h $(SRC)/qth/qth.c $(SRC)/qth/qth.h
+DEPS     ?= ../../build-host/deps
+CFLAGS   := -std=gnu11 -Wall -Wextra -O1 -g -I $(DEPS)/include
+CXXFLAGS := -std=c++17 -Wall -Wextra -Wno-switch -Wno-unused-parameter -Wno-implicit-fallthrough -O1 -g -I $(SRC)/ft8 \
+            -I $(DEPS)/include
+LIBS     := -L $(DEPS)/lib -lft8 -lm -Wl,-rpath,$(abspath $(DEPS)/lib)
+SOURCES  := $(SRC)/ft8/qso.cpp $(SRC)/ft8/qso.h $(SRC)/ft8/utils.c $(SRC)/ft8/utils.h $(SRC)/qth/qth.c $(SRC)/qth/qth.h \
+            $(SRC)/ft8/msg_encode.c $(SRC)/ft8/msg_encode.h $(SRC)/cb.c $(SRC)/cb.h
 
 all: test
 
@@ -22,7 +30,9 @@ qso_test: qso_test.cpp $(SOURCES)
 	mkdir -p build
 	$(CC) $(CFLAGS) -c -o build/utils.o $(SRC)/ft8/utils.c
 	$(CC) $(CFLAGS) -c -o build/qth.o $(SRC)/qth/qth.c
-	$(CXX) $(CXXFLAGS) -o $@ qso_test.cpp $(SRC)/ft8/qso.cpp build/utils.o build/qth.o -lm
+	$(CC) $(CFLAGS) -c -o build/msg_encode.o $(SRC)/ft8/msg_encode.c
+	$(CC) $(CFLAGS) -c -o build/cb.o $(SRC)/cb.c
+	$(CXX) $(CXXFLAGS) -o $@ qso_test.cpp $(SRC)/ft8/qso.cpp build/utils.o build/qth.o build/msg_encode.o build/cb.o $(LIBS)
 
 test: qso_test
 	./qso_test

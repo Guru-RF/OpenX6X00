@@ -56,7 +56,8 @@ bool cluster_config_enabled(void);
 bool cluster_enabled_save(bool on);
 
 /* The call to log in with: "login=" in CLUSTER_CONF (e.g. ON6URE-2, so the radio and a logger with ON6URE are not
- * one login to the cluster), else `callsign` */
+ * one login to the cluster), else `callsign`; "" for a CB callsign without a login set (cb.h: the DX clusters are
+ * amateur networks; one set by hand, for a cluster that takes CB calls, is used) */
 void cluster_config_login(char *out, size_t size, const char *callsign);
 
 /* A stamp of CLUSTER_CONF (its mtime, inode and size), 0 when missing: the app reloads the server when it changes
