@@ -1,0 +1,453 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Mon, 16 Nov 2026 15:28:56 +0100
+Subject: [PATCH 3/4] Tests: the fake reflector plays talkers and audio, and
+ runs as a program
+
+FR_SCRIPT: after the login, TCP and UDP heartbeats, and what fr_send() asks
+for: a talker's start and stop, a tone as Opus audio and its flush, an error,
+the connection closed. What the client does (its talkgroup, the set it
+monitors, an over it sent) is told to a report callback. tests/fakerefl_main.c
+runs it as build/fakerefl (make fakerefl), for the tests of a front end that
+runs svxconnect --stdio as its helper.
+---
+ Makefile              |  18 +++-
+ README.md             |   1 +
+ tests/fakerefl.c      | 201 +++++++++++++++++++++++++++++++++++++++++-
+ tests/fakerefl.h      |  23 ++++-
+ tests/fakerefl_main.c |  67 ++++++++++++++
+ 5 files changed, 305 insertions(+), 5 deletions(-)
+ create mode 100644 tests/fakerefl_main.c
+
+diff --git a/Makefile b/Makefile
+index 31aea9d..654174b 100644
+--- a/Makefile
++++ b/Makefile
+@@ -117,7 +117,7 @@ endif
+ OBJ := $(patsubst %.c,$(BUILD)/%.o,$(CSRC)) $(patsubst %.m,$(BUILD)/%.o,$(MSRC))
+ DEP := $(OBJ:.o=.d)
+ 
+-.PHONY: all clean install uninstall asan test check check-tsan check-asan
++.PHONY: all clean install uninstall asan test check check-tsan check-asan fakerefl
+ all: $(BUILD)/$(BIN)
+ 
+ $(BUILD)/$(BIN): $(OBJ)
+@@ -307,6 +307,22 @@ $(BUILD)/connecttest: $(CONNECT_TEST_OBJ)
+ 	@mkdir -p $(@D)
+ 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+ 
++# The fake reflector as a program (tests/fakerefl_main.c): a reflector on
++# loopback that a front end's own tests drive, with svxconnect --stdio as the
++# front end's helper.
++FAKEREFL_OBJ := $(BUILD)/tests/fakerefl_main.o $(BUILD)/tests/fakerefl.o \
++                $(BUILD)/src/audio/codec.o \
++                $(BUILD)/src/common/crypto.o \
++                $(BUILD)/src/common/proto.o \
++                $(BUILD)/src/common/log.o \
++                $(BUILD)/src/common/util.o
++
++$(BUILD)/fakerefl: $(FAKEREFL_OBJ)
++	@mkdir -p $(@D)
++	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ -lssl -lcrypto $(OPUS_LIBS) -lpthread -lm
++
++fakerefl: $(BUILD)/fakerefl
++
+ check: test $(BUILD)/connecttest
+ 	@$(BUILD)/connecttest
+ 
+diff --git a/README.md b/README.md
+index 18f5bcd..5c47fd6 100644
+--- a/README.md
++++ b/README.md
+@@ -271,6 +271,7 @@ make check-tsan # make check under ThreadSanitizer   (in build-tsan/)
+ make check-asan # make check under ASan + UBSan      (in build-asan/)
+ make asan       # AddressSanitizer + UndefinedBehaviorSanitizer build
+ make AUDIO=pipe # the audio through a host program (--stdio), no sound card
++make fakerefl   # build/fakerefl: the fake reflector as a program, for a front end's tests
+ ```
+ 
+ Dependencies: OpenSSL 3, libopus, ncurses. Audio needs no development package
+diff --git a/tests/fakerefl.c b/tests/fakerefl.c
+index 81b74f0..3f4d71d 100644
+--- a/tests/fakerefl.c
++++ b/tests/fakerefl.c
+@@ -3,10 +3,14 @@
+  */
+ #include "fakerefl.h"
+ 
++#include "audio/codec.h"
++#include "audio/dev.h"
+ #include "common/crypto.h"
+ #include "common/proto.h"
+ #include "common/util.h"
+ 
++#include <math.h>
++#include <stdarg.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -180,6 +184,190 @@ static void heartbeats(fakerefl *f, int fd, SSL *ssl, const uint8_t iv4[4],
+     }
+ }
+ 
++/* ------------------------------------------------------------- a script */
++
++static void report(fakerefl *f, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
++static void report(fakerefl *f, const char *fmt, ...) {
++    char    line[512];
++    va_list ap;
++    if (!f->report) return;
++    va_start(ap, fmt);
++    vsnprintf(line, sizeof(line), fmt, ap);
++    va_end(ap);
++    f->report(f->report_user, line);
++}
++
++static int send_msg(SSL *ssl, uint16_t type, const uint8_t *body, size_t blen) {
++    uint8_t buf[600];
++    if (blen > sizeof(buf) - 2) return -1;
++    be_put_u16(buf, type);
++    memcpy(buf + 2, body, blen);
++    return ssl_send_frame(ssl, buf, 2 + blen);
++}
++
++static int send_talker(SSL *ssl, uint16_t type, uint32_t tg, const char *call) {
++    uint8_t body[300];
++    size_t  cl = strlen(call);
++    if (cl > 200) cl = 200;
++    be_put_u32(body, tg);
++    be_put_u16(body + 4, (uint16_t)cl);
++    memcpy(body + 6, call, cl);
++    return send_msg(ssl, type, body, 6 + cl);
++}
++
++static void send_udp(fakerefl *f, crypto_ctx_t *cx, const struct sockaddr_in *peer,
++                     uint16_t type, const uint8_t *body, size_t blen) {
++    uint8_t pt[600], wire[700];
++    size_t  ptlen;
++    if (proto_build_udp_plaintext(pt, sizeof(pt), &ptlen, type, body, blen) != 0) return;
++    ssize_t wn = crypto_encrypt_wire(cx, pt, ptlen, wire, sizeof(wire));
++    if (wn > 0 && sendto(f->ufd, wire, (size_t)wn, 0, (const struct sockaddr *)peer, sizeof(*peer)) == wn)
++        atomic_fetch_add(&f->udp_sent, 1);
++}
++
++/* What the client sent over TCP: the talkgroup it selects, the set it monitors */
++static void client_frames(fakerefl *f, uint8_t *in, size_t *n) {
++    while (*n >= 6) {
++        uint32_t len = be_get_u32(in);
++        if (len < 2 || len > 65536) { *n = 0; return; }
++        if (*n < 4 + (size_t)len) return;
++        uint16_t type = be_get_u16(in + 4);
++        if (type == MSG_SELECT_TG && len >= 6) {
++            report(f, "select %u", (unsigned)be_get_u32(in + 6));
++        } else if (type == MSG_TG_MONITOR && len >= 4) {
++            char     line[400];
++            size_t   k  = (size_t)snprintf(line, sizeof(line), "monitor");
++            uint16_t cnt = be_get_u16(in + 6);
++            for (uint16_t i = 0; i < cnt && 8 + 4 * (size_t)i + 4 <= 4 + (size_t)len && k < sizeof(line) - 12; i++)
++                k += (size_t)snprintf(line + k, sizeof(line) - k, " %u", (unsigned)be_get_u32(in + 8 + 4 * i));
++            report(f, "%s", line);
++        }
++        memmove(in, in + 4 + len, *n - 4 - len);
++        *n -= 4 + len;
++    }
++}
++
++/* TCP and UDP heartbeats as above, and the commands from fr_send() */
++static void script(fakerefl *f, int fd, SSL *ssl, const uint8_t iv4[4], const uint8_t key[16]) {
++    crypto_ctx_t cx;
++    crypto_init(&cx);
++    memcpy(cx.tx_iv_rand, iv4, 4);
++    memcpy(cx.tx_key, key, 16);
++    cx.client_id    = 0;
++    cx.sent_initial = 1;
++
++    svx_codec         *codec = codec_open();
++    struct sockaddr_in peer;
++    socklen_t          pl    = sizeof(peer);
++    int                have  = 0, audio_left = 0, hz = 440, heard = 0;
++    double             phase = 0.0;
++    uint64_t           start = now_ms(), next_tcp = start, next_udp = start, next_audio = 0, heard_ms = 0;
++    uint8_t            in[8192], junk[4096];
++    size_t             in_n  = 0;
++    char               cmd[1024];
++    size_t             cmd_n = 0;
++
++    while (!atomic_load(&f->stop)) {
++        uint64_t now = now_ms();
++        if (now >= next_tcp) {
++            uint8_t hb[2];
++            be_put_u16(hb, MSG_HEARTBEAT);
++            if (ssl_send_frame(ssl, hb, sizeof(hb)) != 0) break;
++            next_tcp = now + 200;
++        }
++        if (have && now >= next_udp) {
++            send_udp(f, &cx, &peer, UDP_MSG_HEARTBEAT, NULL, 0);
++            next_udp = now + 100;
++        }
++        while (audio_left > 0 && have && codec && now >= next_audio) {
++            int16_t pcm[SVX_FRAME];
++            uint8_t opus[SVX_MAX_OPUS];
++            for (int i = 0; i < SVX_FRAME; i++) {
++                pcm[i] = (int16_t)(8000.0 * sin(phase));
++                phase += 2.0 * M_PI * hz / SVX_RATE;
++            }
++            int on = codec_encode(codec, pcm, SVX_FRAME, opus, sizeof(opus));
++            if (on > 0) send_udp(f, &cx, &peer, UDP_MSG_AUDIO, opus, (size_t)on);
++            next_audio = next_audio + 20 < now ? now + 20 : next_audio + 20;
++            if (--audio_left == 0) send_udp(f, &cx, &peer, UDP_MSG_FLUSH_SAMPLES, NULL, 0);
++        }
++        /* The client's over: datagrams bigger than a heartbeat's, until they stop */
++        if (heard && now - heard_ms > 300) {
++            report(f, "audio %d", heard);
++            heard = 0;
++        }
++
++        struct pollfd p[3] = { { .fd = fd, .events = POLLIN }, { .fd = f->ufd, .events = POLLIN },
++                               { .fd = f->cmd[0], .events = POLLIN } };
++        if (poll(p, 3, 10) <= 0) continue;
++        if (p[0].revents) {
++            int r;
++            do {
++                r = SSL_read(ssl, in + in_n, (int)(sizeof(in) - in_n));
++                if (r > 0) in_n += (size_t)r;
++            } while (r > 0 && SSL_pending(ssl) > 0 && in_n < sizeof(in));
++            if (r <= 0 && SSL_get_error(ssl, r) != SSL_ERROR_WANT_READ) {
++                atomic_store(&f->client_gone_at, now_ms());
++                report(f, "gone");
++                break;
++            }
++            client_frames(f, in, &in_n);
++        }
++        if (f->ufd >= 0 && p[1].revents) {
++            pl = sizeof(peer);
++            ssize_t un = recvfrom(f->ufd, junk, sizeof(junk), 0, (struct sockaddr *)&peer, &pl);
++            if (un > 0) have = 1;
++            /* AAD 4 (6) + tag 8 + a 2-byte heartbeat or flush: audio is more */
++            if (un >= 18) { heard++; heard_ms = now_ms(); }
++        }
++        if (p[2].revents) {
++            ssize_t r = read(f->cmd[0], cmd + cmd_n, sizeof(cmd) - 1 - cmd_n);
++            if (r > 0) cmd_n += (size_t)r;
++            char *nl;
++            int   end = 0;
++            while ((nl = memchr(cmd, '\n', cmd_n)) != NULL) {
++                *nl = '\0';
++                unsigned tg = 0;
++                char     who[64] = "", text[400] = "";
++                int      frames = 0, h = 0;
++                if (sscanf(cmd, "talker start %u %63s", &tg, who) == 2) {
++                    send_talker(ssl, MSG_TALKER_START, tg, who);
++                } else if (sscanf(cmd, "talker stop %u %63s", &tg, who) == 2) {
++                    send_talker(ssl, MSG_TALKER_STOP, tg, who);
++                } else if (sscanf(cmd, "audio %d %d", &frames, &h) >= 1) {
++                    audio_left = frames;
++                    hz         = h > 0 ? h : 440;
++                    next_audio = now_ms();
++                } else if (sscanf(cmd, "error %399[^\n]", text) == 1) {
++                    uint8_t body[404];
++                    size_t  tl = strlen(text);
++                    be_put_u16(body, (uint16_t)tl);
++                    memcpy(body + 2, text, tl);
++                    send_msg(ssl, MSG_ERROR, body, 2 + tl);
++                } else if (strcmp(cmd, "close") == 0) {
++                    end = 1;
++                }
++                size_t used = (size_t)(nl - cmd) + 1;
++                memmove(cmd, cmd + used, cmd_n - used);
++                cmd_n -= used;
++            }
++            if (cmd_n == sizeof(cmd) - 1) cmd_n = 0;
++            if (end) {
++                report(f, "closed");
++                break;
++            }
++        }
++    }
++    codec_close(codec);
++}
++
++void fr_send(fakerefl *f, const char *line) {
++    char   buf[1100];
++    size_t n = (size_t)snprintf(buf, sizeof(buf) - 1, "%s", line);
++    buf[n++] = '\n';
++    if (write(f->cmd[1], buf, n) < 0) { /* the fake has stopped */ }
++}
++
+ /* ------------------------------------------------------------- the part */
+ 
+ static void login_and_act(fakerefl *f, int fd) {
+@@ -197,7 +385,7 @@ static void login_and_act(fakerefl *f, int fd) {
+     /* StartUdpEncryption. Empty means "use your key both ways"; when we are
+      * going to send UDP ourselves, it carries our own key. */
+     int     udp = f->after == FR_UDP_STEADY || f->after == FR_UDP_THEN_QUIET ||
+-                  f->after == FR_TCP_ONLY;
++                  f->after == FR_TCP_ONLY || f->after == FR_SCRIPT;
+     uint8_t su[2 + 4 + 16], iv4[4] = { 1, 2, 3, 4 }, key[16];
+     for (int i = 0; i < 16; i++) key[i] = (uint8_t)(0xa0 + i);
+     be_put_u16(su, MSG_START_UDP_ENCRYPTION);
+@@ -206,6 +394,7 @@ static void login_and_act(fakerefl *f, int fd) {
+     if (ssl_send_frame(ssl, si, sizeof(si)) != 0 ||
+         ssl_send_frame(ssl, su, udp ? sizeof(su) : 2) != 0) { SSL_free(ssl); return; }
+     atomic_fetch_add(&f->logged_in, 1);
++    report(f, "login");
+ 
+     /* Let the client adopt the connection and settle. */
+     uint64_t until = now_ms() + 300;
+@@ -239,6 +428,7 @@ static void login_and_act(fakerefl *f, int fd) {
+     case FR_UDP_STEADY:     heartbeats(f, fd, ssl, iv4, key, -1);  break;
+     case FR_UDP_THEN_QUIET: heartbeats(f, fd, ssl, iv4, key, 500); break;
+     case FR_TCP_ONLY:       heartbeats(f, fd, ssl, iv4, key, 0);   break;
++    case FR_SCRIPT:         script(f, fd, ssl, iv4, key);         break;
+     }
+     SSL_free(ssl);
+ }
+@@ -299,8 +489,13 @@ static void *accept_main(void *arg) {
+ int fr_start(fakerefl *f, fr_mode mode, fr_after after, const char *pki_dir,
+              const char *callsign) {
+     const char *text = f->error_text;
++    void (*rep)(void *, const char *) = f->report;
++    void *rep_user = f->report_user;
+     memset(f, 0, sizeof(*f));
+-    f->ufd        = -1;
++    f->ufd         = -1;
++    f->report      = rep;
++    f->report_user = rep_user;
++    if (pipe(f->cmd) != 0) return -1;
+     f->mode       = mode;
+     f->after      = after;
+     f->error_text = text;
+@@ -345,5 +540,7 @@ void fr_stop(fakerefl *f) {
+     pthread_mutex_unlock(&g_mu);
+     close(f->lfd);
+     if (f->ufd >= 0) close(f->ufd);
++    close(f->cmd[0]);
++    close(f->cmd[1]);
+     SSL_CTX_free(f->ctx);
+ }
+diff --git a/tests/fakerefl.h b/tests/fakerefl.h
+index 1cad06d..f322d49 100644
+--- a/tests/fakerefl.h
++++ b/tests/fakerefl.h
+@@ -5,7 +5,9 @@
+  * thread that plays one of a few scripted parts — silent, stalling the TLS
+  * handshake, or logging the client in and then misbehaving in a chosen way.
+  * It speaks just enough of the protocol to get a real rc_client to
+- * RC_CONNECTED.
++ * RC_CONNECTED, and with FR_SCRIPT to play the talkers and the audio of a
++ * reflector to it (tests/fakerefl_main.c runs it as a program, for a front
++ * end's tests).
+  */
+ #ifndef SVX_FAKEREFL_H
+ #define SVX_FAKEREFL_H
+@@ -29,7 +31,10 @@ typedef enum {
+     /* With TCP heartbeats every 200 ms, so the control channel stays alive: */
+     FR_UDP_STEADY,      /* ...and a UDP heartbeat every 100 ms                  */
+     FR_UDP_THEN_QUIET,  /* ...and UDP heartbeats for 500 ms, then no more UDP    */
+-    FR_TCP_ONLY         /* ...and never any UDP                                 */
++    FR_TCP_ONLY,        /* ...and never any UDP                                 */
++    FR_SCRIPT           /* ...and UDP heartbeats, the commands fr_send() queues
++                         * (talkers, audio, an error), and what the client does
++                         * told to `report`                                     */
+ } fr_after;
+ 
+ typedef struct {
+@@ -47,6 +52,13 @@ typedef struct {
+     atomic_int   logged_in;           /* logins completed                      */
+     atomic_int   udp_sent;            /* datagrams sent to the client          */
+     _Atomic uint64_t client_gone_at;  /* now_ms() when the client's socket closed */
++
++    /* FR_SCRIPT: a line for each thing the client did ("login", "select 8",
++     * "monitor 1745 8000", "audio 50" when an over of 50 datagrams has ended,
++     * "gone"), from the connection's thread. Set before fr_start(). */
++    void       (*report)(void *user, const char *line);
++    void        *report_user;
++    int          cmd[2];              /* fr_send()'s pipe to the connection   */
+ } fakerefl;
+ 
+ /* Write a throwaway key + self-signed certificate for `callsign` into `dir`,
+@@ -59,4 +71,11 @@ int  fr_start(fakerefl *f, fr_mode mode, fr_after after, const char *pki_dir,
+               const char *callsign);
+ void fr_stop(fakerefl *f);
+ 
++/* FR_SCRIPT: one command for the connection, played at once:
++ *   talker start <tg> <call> | talker stop <tg> <call>
++ *   audio <frames> [<hz>]      a tone, 20 ms Opus frames, then a flush
++ *   error <text>               MsgError
++ *   close                      end the connection (the client comes back) */
++void fr_send(fakerefl *f, const char *line);
++
+ #endif
+diff --git a/tests/fakerefl_main.c b/tests/fakerefl_main.c
+new file mode 100644
+index 0000000..d94e6f7
+--- /dev/null
++++ b/tests/fakerefl_main.c
+@@ -0,0 +1,67 @@
++/* SPDX-License-Identifier: MIT
++ * SVXConnect-CLI — Copyright (c) 2026 Joeri Van Dooren
++ *
++ * The fake reflector as a program, for the tests of a front end that runs
++ * svxconnect as its helper (svxconnect --stdio): a reflector on 127.0.0.1
++ * that logs a client in and plays what it is told on stdin.
++ *
++ *   build/fakerefl <pki dir> <callsign>
++ *
++ * The client's configuration names the same pki dir and callsign: a throwaway
++ * key and self-signed certificate are made there when there is none, and the
++ * fake presents the same one. It prints "port <n>" first, then a line for each
++ * thing the client does (fakerefl.h: login, select, monitor, audio, gone).
++ * Each line on stdin is one of fr_send()'s commands; "quit" or the end of
++ * stdin stops it.
++ */
++#include "fakerefl.h"
++
++#include "common/log.h"
++
++#include <signal.h>
++#include <stdio.h>
++#include <string.h>
++#include <unistd.h>
++
++static pthread_mutex_t g_out = PTHREAD_MUTEX_INITIALIZER;
++
++static void out(void *user, const char *line) {
++    (void)user;
++    pthread_mutex_lock(&g_out);
++    printf("%s\n", line);
++    fflush(stdout);
++    pthread_mutex_unlock(&g_out);
++}
++
++int main(int argc, char **argv) {
++    if (argc != 3) {
++        fprintf(stderr, "usage: fakerefl <pki dir> <callsign>\n");
++        return 2;
++    }
++    signal(SIGPIPE, SIG_IGN);
++    log_set_level(LOG_WARN);
++
++    char crt[1024];
++    snprintf(crt, sizeof(crt), "%s/%s.crt", argv[1], argv[2]);
++    if (access(crt, R_OK) != 0 && fr_make_pki(argv[1], argv[2]) != 0) {
++        fprintf(stderr, "fakerefl: cannot make a key and certificate in %s\n", argv[1]);
++        return 1;
++    }
++
++    fakerefl f = { .report = out };
++    if (fr_start(&f, FR_LOGIN, FR_SCRIPT, argv[1], argv[2]) != 0) {
++        fprintf(stderr, "fakerefl: cannot listen\n");
++        return 1;
++    }
++    char line[1024];
++    snprintf(line, sizeof(line), "port %d", f.port);
++    out(NULL, line);
++
++    while (fgets(line, sizeof(line), stdin)) {
++        line[strcspn(line, "\r\n")] = '\0';
++        if (strcmp(line, "quit") == 0) break;
++        if (line[0]) fr_send(&f, line);
++    }
++    fr_stop(&f);
++    return 0;
++}

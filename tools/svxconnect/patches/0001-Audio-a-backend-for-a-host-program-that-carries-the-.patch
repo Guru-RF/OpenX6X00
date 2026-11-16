@@ -1,0 +1,361 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Mon, 16 Nov 2026 15:28:56 +0100
+Subject: [PATCH 1/4] Audio: a backend for a host program that carries the
+ audio, make AUDIO=pipe
+
+A program that runs svxconnect as its helper and has its own audio path (a
+radio's GUI that mixes the reflector into its speaker and records the
+microphone itself) gets the audio over its socket instead of a sound card:
+src/audio/dev_pipe.c, built in place of miniaudio with make AUDIO=pipe.
+Playback is paced by a thread at 20 ms, as a sound card's callback would
+take it, and sent only while the jitter buffer plays; the microphone comes
+in through svx_audio_host_feed(). The sound-card backend answers no to the
+attach and keeps its devices.
+---
+ Makefile                  |  11 ++
+ src/audio/dev.h           |  18 ++-
+ src/audio/dev_miniaudio.c |   5 +
+ src/audio/dev_pipe.c      | 237 ++++++++++++++++++++++++++++++++++++++
+ tests/dev_fake.c          |   3 +
+ 5 files changed, 271 insertions(+), 3 deletions(-)
+ create mode 100644 src/audio/dev_pipe.c
+
+diff --git a/Makefile b/Makefile
+index b89d950..31aea9d 100644
+--- a/Makefile
++++ b/Makefile
+@@ -6,6 +6,7 @@
+ #   make                 build build/svxconnect
+ #   make install         install to $(PREFIX)/bin      (PREFIX=/usr/local)
+ #   make asan            build with AddressSanitizer + UBSan
++#   make AUDIO=pipe      the audio through a host program (--stdio), no sound card
+ #   make clean
+ 
+ CC       ?= cc
+@@ -103,6 +104,16 @@ else
+     MSRC :=
+ endif
+ 
++# The audio backend: miniaudio (the sound card) by default, or pipe for a host
++# program that carries the audio itself over the --stdio socket
++# (src/audio/dev_pipe.c): `make AUDIO=pipe`.
++AUDIO ?= miniaudio
++ifeq ($(AUDIO),pipe)
++    CSRC := $(filter-out src/audio/dev_miniaudio.c,$(CSRC))
++else
++    CSRC := $(filter-out src/audio/dev_pipe.c,$(CSRC))
++endif
++
+ OBJ := $(patsubst %.c,$(BUILD)/%.o,$(CSRC)) $(patsubst %.m,$(BUILD)/%.o,$(MSRC))
+ DEP := $(OBJ:.o=.d)
+ 
+diff --git a/src/audio/dev.h b/src/audio/dev.h
+index 93e65b2..33b48cc 100644
+--- a/src/audio/dev.h
++++ b/src/audio/dev.h
+@@ -4,9 +4,11 @@
+  * The audio device seam.
+  *
+  * This is the ONLY audio-device API the rest of the program sees. Today there
+- * is one implementation behind it (dev_miniaudio.c, covering CoreAudio on
+- * macOS and ALSA/PulseAudio/PipeWire/JACK on Linux); a native backend can be
+- * added later as another .c file without touching a single call site.
++ * are two implementations behind it: dev_miniaudio.c, covering CoreAudio on
++ * macOS and ALSA/PulseAudio/PipeWire/JACK on Linux, and dev_pipe.c, which
++ * hands the audio to a host program instead of a sound card (`make
++ * AUDIO=pipe`). Another backend can be added as another .c file without
++ * touching a single call site.
+  *
+  * ==========================================================================
+  * THE REALTIME RULE
+@@ -54,6 +56,16 @@ typedef enum {
+     SVX_DEV_LOST         /* unplugged */
+ } svx_dev_event;
+ 
++/* ---- a host program's audio ----
++ * Under --stdio (hostio.h) the program that started us may carry the audio
++ * itself, over its socket. The pipe backend (dev_pipe.c, `make AUDIO=pipe`)
++ * then plays and records through it: attach before svx_audio_init(), and every
++ * microphone record from the host goes to svx_audio_host_feed(), on the main
++ * thread. A sound-card backend answers -1 to the attach and keeps its devices,
++ * and ignores the feed. */
++int  svx_audio_host_attach(int in_fd, int out_fd);
++void svx_audio_host_feed(const int16_t *pcm, uint32_t n);
++
+ /* ---- library lifetime ---- */
+ int  svx_audio_init(void);
+ void svx_audio_term(void);
+diff --git a/src/audio/dev_miniaudio.c b/src/audio/dev_miniaudio.c
+index aeba03c..c60966d 100644
+--- a/src/audio/dev_miniaudio.c
++++ b/src/audio/dev_miniaudio.c
+@@ -77,6 +77,11 @@ static void on_ma_log(void *user, ma_uint32 level, const char *msg) {
+     log_dbg("miniaudio %s: %.*s", ma_log_level_to_string(level), (int)n, msg);
+ }
+ 
++/* The sound card is this backend's only device: a host program's audio is
++ * the pipe backend's (dev_pipe.c). */
++int  svx_audio_host_attach(int in_fd, int out_fd)          { (void)in_fd; (void)out_fd; return -1; }
++void svx_audio_host_feed(const int16_t *pcm, uint32_t n)   { (void)pcm; (void)n; }
++
+ const char *svx_audio_backend_name(void) {
+     if (!g_ctx_ready) return "none";
+     return ma_get_backend_name(g_ctx.backend);
+diff --git a/src/audio/dev_pipe.c b/src/audio/dev_pipe.c
+new file mode 100644
+index 0000000..4b0ac06
+--- /dev/null
++++ b/src/audio/dev_pipe.c
+@@ -0,0 +1,237 @@
++/* SPDX-License-Identifier: MIT
++ * SVXConnect-CLI — Copyright (c) 2026 Joeri Van Dooren
++ *
++ * Audio device backend for a host program: no sound card. Built in place of
++ * dev_miniaudio.c with `make AUDIO=pipe`.
++ *
++ * A program that runs svxconnect --stdio as its helper and has its own audio
++ * path (a radio's GUI that mixes the reflector into its speaker and records
++ * the microphone itself) gets the audio over the same socket as the events:
++ * each record that starts with a 0 byte carries 16-bit samples at 16 kHz,
++ * mono, in this machine's byte order (see hostio.h for the whole exchange).
++ *
++ * Playback: a thread takes 20 ms from the playback ring every 20 ms, by the
++ * monotonic clock, exactly as a sound card's callback would, and sends it while
++ * the jitter buffer has the gate open. With the gate closed nothing is sent, so
++ * the host hears from us only while there is something to play. The thread is
++ * not a realtime callback: blocking on a full socket only delays it, and the
++ * pacing does not try to catch up on what was lost then.
++ *
++ * Capture: the host sends the microphone the same way; hostio.c hands each
++ * record to svx_audio_host_feed() on the main thread, which writes it into the
++ * capture ring while the device is started. The main thread is then both the
++ * ring's producer and its consumer, which the ring allows.
++ */
++#include "dev.h"
++#include "playout.h"
++#include "common/log.h"
++#include "common/util.h"
++
++#include <errno.h>
++#include <pthread.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <time.h>
++#include <unistd.h>
++
++#define PIPE_LATE_MS 200          /* this far behind: start the pacing again */
++
++struct svx_dev {
++    int              is_capture;
++    _Atomic int      started;
++    svx_ring        *ring;
++    _Atomic float   *peak;
++
++    svx_playout      po;              /* playback: gate, drop requests, counters */
++    _Atomic uint64_t cap_frames;      /* capture: samples delivered, ever */
++    _Atomic uint32_t overruns;
++    _Atomic int      event;
++    _Atomic int      saw_nonsilence;
++
++    pthread_t        th;
++    int              th_live;
++    _Atomic int      quit;
++};
++
++static int      g_in_fd  = -1;
++static int      g_out_fd = -1;
++static svx_dev *g_cap;                /* the open capture device: main thread only */
++
++int svx_audio_host_attach(int in_fd, int out_fd) {
++    g_in_fd  = in_fd;
++    g_out_fd = out_fd;
++    return 0;
++}
++
++void svx_audio_host_feed(const int16_t *pcm, uint32_t n) {
++    svx_dev *d = g_cap;
++    if (!d || !atomic_load(&d->started) || n == 0) return;
++
++    int32_t peak = 0;
++    int     sound = 0;
++    for (uint32_t i = 0; i < n; i++) {
++        int32_t v = pcm[i] < 0 ? -(int32_t)pcm[i] : pcm[i];
++        if (v > peak) peak = v;
++        if (pcm[i]) sound = 1;
++    }
++    uint32_t w = svx_ring_write(d->ring, pcm, n);
++    if (w < n) atomic_fetch_add(&d->overruns, n - w);
++    atomic_fetch_add(&d->cap_frames, n);
++    if (sound) atomic_store(&d->saw_nonsilence, 1);
++    if (d->peak) atomic_store_explicit(d->peak, (float)peak / 32768.0f, memory_order_relaxed);
++}
++
++/* ------------------------------------------------------------ library */
++
++int svx_audio_init(void) {
++    /* Nothing to play on without a host: the client runs without sound, as it
++     * does on a machine with no audio system. */
++    return g_out_fd >= 0 ? 0 : -1;
++}
++
++void svx_audio_term(void) { }
++
++const char *svx_audio_backend_name(void) { return "host"; }
++
++int svx_audio_list(int capture, svx_devinfo *out, int max) {
++    (void)capture;
++    if (max < 1) return 0;
++    memset(out, 0, sizeof(*out));
++    snprintf(out->name, sizeof(out->name), "host program");
++    out->is_default = 1;
++    return 1;
++}
++
++int svx_audio_resolve(int capture, const char *want, svx_devinfo *out) {
++    (void)want;
++    svx_audio_list(capture, out, 1);
++    return 0;
++}
++
++/* ------------------------------------------------------------ playback */
++
++static void sleep_until(struct timespec *t) {
++    while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, t, NULL) == EINTR) { }
++}
++
++static void add_ms(struct timespec *t, long ms) {
++    t->tv_nsec += ms * 1000000L;
++    while (t->tv_nsec >= 1000000000L) { t->tv_nsec -= 1000000000L; t->tv_sec++; }
++}
++
++static long behind_ms(const struct timespec *t) {
++    struct timespec now;
++    clock_gettime(CLOCK_MONOTONIC, &now);
++    return (long)(now.tv_sec - t->tv_sec) * 1000L + (now.tv_nsec - t->tv_nsec) / 1000000L;
++}
++
++static void *play_main(void *arg) {
++    svx_dev        *d = arg;
++    uint8_t         rec[1 + 2 * SVX_FRAME];
++    int16_t         pcm[SVX_FRAME];
++    struct timespec next;
++    int             gone = 0;
++
++    clock_gettime(CLOCK_MONOTONIC, &next);
++    while (!atomic_load(&d->quit)) {
++        add_ms(&next, SVX_FRAME * 1000 / SVX_RATE);
++        sleep_until(&next);
++        if (behind_ms(&next) > PIPE_LATE_MS) clock_gettime(CLOCK_MONOTONIC, &next);
++        if (!atomic_load(&d->started)) continue;
++
++        int   open = atomic_load(&d->po.gate);
++        float pk   = playout_consume(&d->po, d->ring, pcm, SVX_FRAME);
++        if (d->peak) atomic_store_explicit(d->peak, pk, memory_order_relaxed);
++        if (!open || gone) continue;
++
++        rec[0] = 0;
++        memcpy(rec + 1, pcm, sizeof(pcm));
++        ssize_t w;
++        do { w = write(g_out_fd, rec, sizeof(rec)); } while (w < 0 && errno == EINTR);
++        if (w < 0 && errno != EAGAIN) {
++            /* The host has gone: its socket is closed. The main loop sees the
++             * end of its input and stops; until then this only counts. */
++            gone = 1;
++            atomic_store(&d->event, SVX_DEV_LOST);
++        }
++    }
++    return NULL;
++}
++
++/* ------------------------------------------------------------ streams */
++
++static svx_dev *dev_new(int capture, svx_ring *ring, _Atomic float *peak) {
++    if (g_out_fd < 0) return NULL;
++    svx_dev *d = calloc(1, sizeof(*d));
++    if (!d) return NULL;
++    d->is_capture = capture;
++    d->ring       = ring;
++    d->peak       = peak;
++    return d;
++}
++
++svx_dev *svx_dev_open_capture(const char *id, svx_ring *to_app, _Atomic float *peak) {
++    (void)id;
++    if (g_in_fd < 0) return NULL;
++    svx_dev *d = dev_new(1, to_app, peak);
++    if (d) g_cap = d;
++    return d;
++}
++
++svx_dev *svx_dev_open_playback(const char *id, svx_ring *from_app, _Atomic float *peak) {
++    (void)id;
++    svx_dev *d = dev_new(0, from_app, peak);
++    if (!d) return NULL;
++    if (pthread_create(&d->th, NULL, play_main, d) != 0) {
++        free(d);
++        return NULL;
++    }
++    d->th_live = 1;
++    return d;
++}
++
++int svx_dev_start(svx_dev *d) {
++    if (!d) return -1;
++    atomic_store(&d->started, 1);
++    return 0;
++}
++
++int svx_dev_stop(svx_dev *d) {
++    if (d) atomic_store(&d->started, 0);
++    return 0;
++}
++
++void svx_dev_close(svx_dev *d) {
++    if (!d) return;
++    atomic_store(&d->started, 0);
++    if (d->th_live) {
++        atomic_store(&d->quit, 1);
++        pthread_join(d->th, NULL);
++    }
++    if (g_cap == d) g_cap = NULL;
++    free(d);
++}
++
++void svx_dev_set_gate(svx_dev *d, int open)              { if (d) atomic_store(&d->po.gate, open ? 1 : 0); }
++void svx_dev_request_flush(svx_dev *d)                   { if (d) atomic_store(&d->po.flush_req, 1); }
++void svx_dev_request_drop(svx_dev *d, uint32_t n)        { if (d && n) atomic_fetch_add(&d->po.drop_req, n); }
++uint32_t svx_dev_drop_pending(svx_dev *d)                { return d ? atomic_load(&d->po.drop_req) : 0; }
++void svx_dev_request_trim_newest(svx_dev *d, uint32_t n) { if (d) playout_request_trim_newest(&d->po, d->ring, n); }
++
++const char *svx_dev_name(svx_dev *d)   { (void)d; return "host program"; }
++uint32_t svx_dev_underruns(svx_dev *d) { return d ? atomic_load(&d->po.underruns) : 0; }
++uint32_t svx_dev_overruns(svx_dev *d)  { return d ? atomic_load(&d->overruns) : 0; }
++uint64_t svx_dev_dropped(svx_dev *d)   { return d ? atomic_load(&d->po.dropped) : 0; }
++
++uint64_t svx_dev_frames(svx_dev *d) {
++    if (!d) return 0;
++    return d->is_capture ? atomic_load(&d->cap_frames) : atomic_load(&d->po.frames);
++}
++
++svx_dev_event svx_dev_poll_event(svx_dev *d) {
++    return d ? (svx_dev_event)atomic_exchange(&d->event, SVX_DEV_OK) : SVX_DEV_OK;
++}
++
++int  svx_dev_saw_nonsilence(svx_dev *d) { return d ? atomic_load(&d->saw_nonsilence) : 1; }
++void svx_dev_reset_silence(svx_dev *d)  { if (d) atomic_store(&d->saw_nonsilence, 0); }
+diff --git a/tests/dev_fake.c b/tests/dev_fake.c
+index 4537a68..350a822 100644
+--- a/tests/dev_fake.c
++++ b/tests/dev_fake.c
+@@ -77,6 +77,9 @@ void fake_consume(svx_dev *d, int16_t *out, uint32_t n) {
+ 
+ /* ---- audio/dev.h ---- */
+ 
++int  svx_audio_host_attach(int in_fd, int out_fd)        { (void)in_fd; (void)out_fd; return -1; }
++void svx_audio_host_feed(const int16_t *pcm, uint32_t n) { (void)pcm; (void)n; }
++
+ int  svx_audio_init(void)                 { return 0; }
+ void svx_audio_term(void)                 { }
+ const char *svx_audio_backend_name(void)  { return "fake"; }
