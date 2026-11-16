@@ -397,9 +397,55 @@ bool rtty_scope_get(float *x, float *y, float *offset) {
     return tuned;
 }
 
+/* A shortcut's rate, shift and reverse for RTTY's next opening (rtty_open_with), and the operator's own while RTTY
+ * is open on them. LVGL thread, as rtty_set_state */
+static struct {
+    bool     set;
+    uint16_t rate, shift;
+    bool     reverse;
+} next_settings, own_settings;
+
+/* Rate, shift and reverse at once, the decoder made again for them. dirty: saved to the card as well (the
+ * operator's own); a shortcut's are not, so a power cut while RTTY is open on them leaves the operator's there */
+static void settings_set(uint16_t rate, uint16_t shift, bool reverse, bool dirty) {
+    params_lock();
+    params.rtty_rate = rate;
+    params_unlock(dirty ? &params.dirty.rtty_rate : NULL);
+    params_lock();
+    params.rtty_shift = shift;
+    params_unlock(dirty ? &params.dirty.rtty_shift : NULL);
+    params_lock();
+    params.rtty_reverse = reverse;
+    params_unlock(dirty ? &params.dirty.rtty_reverse : NULL);
+    update();
+}
+
+void rtty_open_with(uint16_t rate, uint16_t shift, bool reverse) {
+    next_settings.set     = true;
+    next_settings.rate    = rate;
+    next_settings.shift   = shift;
+    next_settings.reverse = reverse;
+}
+
 void rtty_set_state(rtty_state_t x) {
-    if (x == RTTY_OFF && state != RTTY_OFF)
+    if (x == RTTY_OFF && state != RTTY_OFF) {
         digi_textlog_end();     /* the app closes: its last line onto the card */
+        if (own_settings.set) {
+            /* Opened by a shortcut: the operator's own rate, shift and reverse again, also after a knob turned them */
+            own_settings.set = false;
+            settings_set(own_settings.rate, own_settings.shift, own_settings.reverse, true);
+        }
+    } else if (x != RTTY_OFF && state == RTTY_OFF && next_settings.set) {
+        /* Opened by a shortcut: its settings for this time, the operator's kept for the close */
+        next_settings.set = false;
+        if (!own_settings.set) {
+            own_settings.set     = true;
+            own_settings.rate    = params.rtty_rate;
+            own_settings.shift   = params.rtty_shift;
+            own_settings.reverse = params.rtty_reverse;
+        }
+        settings_set(next_settings.rate, next_settings.shift, next_settings.reverse, false);
+    }
     state = x;
 }
 

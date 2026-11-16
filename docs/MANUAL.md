@@ -3643,10 +3643,10 @@ Saturday. Freq (page 6) has two GhostNet items:
     not listed; neither is the voice window (LSB 7.190, emergencies only).
   - RTTY 7.077 MHz, 45.45 baud: closes JS8 and opens the RTTY app on
     7.077 MHz USB with Rate 45.45, Shift 170 and Reverse off, for the RTTY
-    window of the net. These stay the RTTY app's settings afterwards: for
-    the weather stations (50 baud, 450 Hz shift) set Rate, Shift and Reverse
-    back on RTTY's buttons. The frequency and mode you were on before come
-    back when RTTY closes, as with any app.
+    window of the net, for this time only: when RTTY closes, its own Rate,
+    Shift and Reverse come back (the weather stations' 50 baud and 450 Hz,
+    for example), also when you turned them while it was open, and so do
+    the frequency and mode you were on before, as with any app.
 - **@GSTFLASH**: while @GSTFLASH is in your groups, a message to @GSTFLASH,
   or with the word @GSTFLASH in it, comes up in red in the message box for
   20 seconds ("EMERGENCY @GSTFLASH: ..."), with three beeps when Alerts >

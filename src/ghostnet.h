@@ -202,7 +202,8 @@ const char *ghostnet_country_iso2(void);
 /* The regional group from the settings and the country (ghostnet_region_group) */
 void ghostnet_region_tag(char *out, size_t size);
 /* Opens the RTTY app on GhostNet's RTTY window: 7.077 MHz USB, 45.45 baud, 170 Hz shift, not reversed. After the
- * app that asked has closed (lv_async_call); the radio goes back to where it was when RTTY closes. LVGL thread */
+ * app that asked has closed (lv_async_call); the radio goes back to where it was when RTTY closes, and RTTY to its
+ * own rate, shift and reverse (rtty_open_with). LVGL thread */
 void ghostnet_rtty_open(void);
 
 #ifdef __cplusplus

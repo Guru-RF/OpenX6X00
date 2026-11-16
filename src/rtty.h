@@ -25,6 +25,10 @@ void rtty_init();
 void rtty_put_audio_samples(unsigned int n, float *samples);
 
 void rtty_set_state(rtty_state_t state);
+/* RTTY's next opening on this rate (in 1/100 baud: 4545), shift (Hz) and reverse, as a shortcut opens it (GhostNet's
+ * RTTY window): set when it opens (rtty_set_state from RTTY_OFF), not saved, and the operator's own back when it
+ * closes. Before main_screen_action(ACTION_APP_RTTY). LVGL thread */
+void rtty_open_with(uint16_t rate, uint16_t shift, bool reverse);
 
 /* Tuning scope: the last RTTY_SCOPE_LEN samples through the mark (x) and space (y) filters,
  * the tones' offset from the centre in Hz; false when no symbol was decided lately */

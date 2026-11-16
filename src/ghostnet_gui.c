@@ -14,6 +14,7 @@
 #include "params/params.h"
 #include "radio.h"
 #include "radio_types.h"
+#include "rtty.h"
 #include "screen_main.h"
 
 #include "lvgl/lvgl.h"
@@ -81,15 +82,9 @@ void ghostnet_region_tag(char *out, size_t size) {
 
 static void rtty_go(void *arg) {
     (void)arg;
-    params_lock();
-    params.rtty_rate    = 4545;     /* 45.45 baud */
-    params.rtty_shift   = 170;
-    params.rtty_reverse = false;    /* the mark on the higher frequency, as amateur RTTY */
-    params_unlock(&params.dirty.rtty_rate);
-    params_lock();
-    params_unlock(&params.dirty.rtty_shift);
-    params_lock();
-    params_unlock(&params.dirty.rtty_reverse);
+    /* 45.45 baud, 170 Hz, the mark on the higher frequency as amateur RTTY: for this opening only, RTTY's own
+     * rate, shift and reverse come back when it closes */
+    rtty_open_with(4545, 170, false);
     /* RTTY opens where its memory says, after saving where the radio is: the radio goes back there on its close */
     app_mem_set("RTTY", RTTY_KHZ * 1000, radio_mode_usb);
     main_screen_action(ACTION_APP_RTTY);
