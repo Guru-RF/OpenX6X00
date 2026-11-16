@@ -686,3 +686,9 @@ void table_view_set_actions(const table_view_actions_t *a) {
 const lv_img_dsc_t *table_view_flag(int k) {
     return flag_img(k);
 }
+
+int table_view_flag_of(const char *prefix) {
+    for (size_t i = 0; i < sizeof(flag_of) / sizeof(flag_of[0]); i++)
+        if (!strcmp(flag_of[i].prefix, prefix)) return flag_of[i].flag;
+    return -1;
+}

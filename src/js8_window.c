@@ -26,6 +26,8 @@
 #include "qth/qth.h"
 #include "station.h"
 #include "qso_log.h"
+#include "dxcc.h"
+#include "ft8/decode_list.h"
 
 #include "audio.h"
 #include "buttons.h"
@@ -70,6 +72,7 @@
 #include <unistd.h>
 
 /* Screen geometry */
+#define FLAG_W_JS8       16                        /* flags.h FLAG_W */
 #define WIDTH            771                       /* waterfall, TX line and list, px */
 #define WF_HEIGHT        (DIALOG_H - 26)           /* the dialog less a 13 px border top and bottom */
 #define WF_VISIBLE       0                         /* list drawn over all of the waterfall, for more rows */
@@ -985,8 +988,137 @@ typedef struct {
     char snr[8];
     char heard[40];              /* when they heard us, and how well */
     char grid[8];
-    char dist[16];               /* from our locator */
+    char dist[16];               /* from their locator, else "~" from their country's middle */
+    char country[32];
+    int  flag;                   /* flags.h, -1 none */
 } station_fields_t;
+
+/* ---- Where a station is: its flag, country and distance, as the FT8 list shows them. From cty.dat by the call;
+ * the distance from the locator it sent, else from its country's middle ("~"). Kept 30 s a call: the list is
+ * drawn often and a locator may come later. */
+
+typedef struct {
+    char    call[JS8_RX_CALL_LEN];
+    int64_t at;
+    int     flag;
+    char    country[32], prefix[8];
+    int     km;         /* -1 unknown */
+    bool    approx;     /* from the country */
+} where_t;
+
+#define WHERE_N     48
+#define WHERE_MS    30000
+
+static where_t where_cache[WHERE_N];
+static int     where_next;
+
+static const where_t *station_where(const char *call)
+{
+    int64_t now = now_mono_ms();
+
+    if (!call || !call[0]) return NULL;
+    for (int i = 0; i < WHERE_N; i++)
+        if (where_cache[i].call[0] && !strcmp(where_cache[i].call, call) && now - where_cache[i].at < WHERE_MS)
+            return &where_cache[i];
+
+    where_t    *w = &where_cache[where_next];
+    const char *name, *prefix;
+
+    where_next = (where_next + 1) % WHERE_N;
+    memset(w, 0, sizeof(*w));
+    snprintf(w->call, sizeof(w->call), "%s", call);
+    w->at   = now;
+    w->flag = -1;
+    w->km   = -1;
+    if (dxcc_lookup(call, &name, &prefix)) {
+        snprintf(w->country, sizeof(w->country), "%s", name);
+        snprintf(w->prefix, sizeof(w->prefix), "%s", prefix);
+        w->flag = table_view_flag_of(prefix);
+    }
+
+    const char *mine = station_qth();
+    double      my_lat, my_lon, lat, lon;
+
+    if (!mine[0]) return w;
+    qth_str_to_pos(mine, &my_lat, &my_lon);
+
+    js8_station_t st;
+
+    if (find_station(call, &st) && st.grid[0]) {
+        qth_str_to_pos(st.grid, &lat, &lon);
+        w->km = (int)(qth_pos_dist(lat, lon, my_lat, my_lon) + 0.5);
+    } else if (dxcc_pos(call, &lat, &lon)) {
+        w->km     = (int)(qth_pos_dist(lat, lon, my_lat, my_lon) + 0.5);
+        w->approx = true;
+    }
+    return w;
+}
+
+static lv_coord_t text_w(const char *text, const lv_font_t *font)
+{
+    lv_point_t size;
+    lv_txt_get_size(&size, text, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return size.x;
+}
+
+static void draw_flag(lv_draw_ctx_t *ctx, int flag, lv_coord_t x, const lv_area_t *row)
+{
+    const lv_img_dsc_t *img = table_view_flag(flag);
+    if (!img) return;
+
+    lv_draw_img_dsc_t id;
+    lv_area_t         a;
+    lv_draw_img_dsc_init(&id);
+    a.x1 = x;
+    a.x2 = x + img->header.w - 1;
+    a.y1 = (row->y1 + row->y2 - img->header.h) / 2;
+    a.y2 = a.y1 + img->header.h - 1;
+    lv_draw_img(ctx, &id, &a, img);
+}
+
+/* A message's sender, right-aligned after its text where it fits: flag, country and km; else the prefix; else
+ * the flag and km; else nothing */
+static void draw_message_where(lv_obj_draw_part_dsc_t *d, lv_obj_t *tbl, uint32_t row, const js8_rx_msg_t *msg)
+{
+    const where_t *w = station_where(msg->from);
+    if (!w) return;
+
+    lv_draw_label_dsc_t ld = *d->label_dsc;
+    ld.font                = &sony_20;
+    ld.opa                 = LV_OPA_80;
+
+    /* After the first line: a translation (GhostNet) is a line of its own under it */
+    const char *cell = lv_table_get_cell_value(tbl, row, 0);
+    char        first[ROW_MAX];
+    snprintf(first, sizeof(first), "%.*s", (int)strcspn(cell, "\n"), cell);
+
+    lv_coord_t left     = d->draw_area->x1 + lv_obj_get_style_pad_left(tbl, LV_PART_ITEMS);
+    lv_coord_t text_end = left + text_w(first, d->label_dsc->font);
+    lv_coord_t right    = d->draw_area->x2 - 8;
+    lv_area_t  line     = *d->draw_area; /* the first line, where the flag goes */
+    char       km[16]   = "", with[56];
+
+    line.y1 += lv_obj_get_style_pad_top(tbl, LV_PART_ITEMS);
+    line.y2 = line.y1 + lv_font_get_line_height(d->label_dsc->font) - 1;
+
+    if (w->km >= 0) snprintf(km, sizeof(km), "%s%d km", w->approx ? "~" : "", w->km);
+
+    const char *names[3] = {w->country, w->prefix, ""};
+    for (int i = 0; i < 3; i++) {
+        if (i < 2 && !names[i][0]) continue;
+        snprintf(with, sizeof(with), "%s%s%s", names[i], names[i][0] && km[0] ? "  " : "", km);
+        lv_coord_t tw = text_w(with, ld.font), fw = w->flag >= 0 ? FLAG_W_JS8 + 6 : 0;
+        if (right - tw - fw < text_end + 16) continue;
+
+        lv_area_t a = *d->draw_area;
+        a.x2 = right;
+        a.x1 = right - tw;
+        a.y1 += lv_obj_get_style_pad_top(tbl, LV_PART_ITEMS) + 2;
+        lv_draw_label(d->draw_ctx, &ld, &a, with, NULL);
+        if (fw) draw_flag(d->draw_ctx, w->flag, a.x1 - fw, &line);
+        return;
+    }
+}
 
 static void station_fields(const js8_station_t *stn, int64_t now, station_fields_t *out)
 {
@@ -1007,12 +1139,11 @@ static void station_fields(const js8_station_t *stn, int64_t now, station_fields
         else snprintf(out->heard, sizeof(out->heard), "heard you %+03d (%s)", stn->reported_snr, ago);
     }
 
-    const char *mine = station_qth();
-    if (!stn->grid[0] || !mine[0]) return;
-    double their_lat, their_lon, my_lat, my_lon;
-    qth_str_to_pos(stn->grid, &their_lat, &their_lon);
-    qth_str_to_pos(mine, &my_lat, &my_lon);
-    snprintf(out->dist, sizeof(out->dist), "%.0f km", qth_pos_dist(their_lat, their_lon, my_lat, my_lon));
+    const where_t *w = station_where(stn->call);
+    out->flag = w ? w->flag : -1;
+    if (!w) return;
+    snprintf(out->country, sizeof(out->country), "%s", w->country);
+    if (w->km >= 0) snprintf(out->dist, sizeof(out->dist), "%s%d km", w->approx ? "~" : "", w->km);
 }
 
 /* Who is on the cursor's row (either view). False on text rows and on rows
@@ -1141,8 +1272,9 @@ static void draw_station_columns(lv_obj_draw_part_dsc_t *d, lv_obj_t *tbl, int16
 {
     station_fields_t cols;
     station_fields(&st_rows[slot], now_wall_ms(), &cols);
-    const char *text[] = {cols.star, cols.call, cols.speed, cols.age, cols.snr, cols.heard, cols.grid, cols.dist};
-    static const lv_coord_t col_x[] = {0, 18, 140, 162, 218, 276, 520, 610};
+    const char *text[] = {cols.star, "", cols.call, cols.speed, cols.age, cols.snr, cols.heard, cols.country, cols.grid,
+                          cols.dist};
+    static const lv_coord_t col_x[] = {0, 16, 44, 158, 174, 222, 276, 476, 592, 660};
     const int               ncols   = (int)(sizeof(col_x) / sizeof(col_x[0]));
 
     /* Calls already logged are green, like the worked-before mark on desktop. */
@@ -1156,8 +1288,15 @@ static void draw_station_columns(lv_obj_draw_part_dsc_t *d, lv_obj_t *tbl, int16
     for (int c = 0; c < ncols; c++) {
         cell.x1 = left + col_x[c];
         cell.x2 = c == ncols - 1 ? d->draw_area->x2 : left + col_x[c + 1] - 6;
-        const lv_draw_label_dsc_t *style = (c == 1 && st_worked[slot]) ? &logged : d->label_dsc;
-        lv_draw_label(d->draw_ctx, style, &cell, text[c], NULL);
+        if (c == 1) {
+            draw_flag(d->draw_ctx, cols.flag, cell.x1, d->draw_area);
+            continue;
+        }
+        lv_draw_label_dsc_t style = (c == 2 && st_worked[slot]) ? logged : *d->label_dsc;
+        if (c >= 7) style.font = &sony_20;  /* country, grid, km: the narrower font fits them */
+        if (c >= 7) cell.y1 += 2;
+        lv_draw_label(d->draw_ctx, &style, &cell, text[c], NULL);
+        if (c >= 7) cell.y1 -= 2;
     }
 
     /* Heard sending to @X6100, while we are in it: a small tag at the end of
@@ -1166,8 +1305,9 @@ static void draw_station_columns(lv_obj_draw_part_dsc_t *d, lv_obj_t *tbl, int16
         lv_draw_label_dsc_t tag = *d->label_dsc;
         tag.font                = &sony_14;
         tag.align               = LV_TEXT_ALIGN_RIGHT;
-        cell.x1                 = left + 700;
-        cell.x2                 = d->draw_area->x2 - 2;
+        tag.align               = LV_TEXT_ALIGN_LEFT;
+        cell.x1                 = left + 44 + text_w(cols.call, d->label_dsc->font) + 4;
+        cell.x2                 = cell.x1 + 60;
         cell.y1 += 5;
         lv_draw_label(d->draw_ctx, &tag, &cell, "X6100", NULL);
     }
@@ -1194,6 +1334,7 @@ static void table_draw_end_cb(lv_event_t *ev)
         lv_draw_rect(d->draw_ctx, &mark, &a);
     }
     if (view_stations) draw_station_columns(d, tbl, slot);
+    else if (!history[slot].tx && history[slot].from[0]) draw_message_where(d, tbl, row, &history[slot]);
 }
 
 /* The green line on the waterfall at the selected station's offset. */
