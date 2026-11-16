@@ -142,6 +142,9 @@ void radio_set_mic_override(int mic);
 int radio_get_mic(void);
 void radio_set_modem(bool tx);
 bool radio_get_modem(void);   /* the TX audio from the GUI (apps, recordings), not the mic */
+/* fn runs before each key down from the GUI (radio_set_ptt, radio_set_modem), on the thread that keys, with no lock
+ * held: what plays on the speaker and is not TX audio stops first (the Zello app, dialog_zello.c). One; NULL: none */
+void radio_set_tx_prepare_fn(void (*fn)(void));
 /* How many times the SWR protection stopped a transmission since the start. Any thread */
 unsigned radio_swr_trips(void);
 /* How many times the radio stopped the GUI's own TX where it may not transmit (#121: moved outside the amateur bands

@@ -84,6 +84,7 @@ typedef enum {
 
     /* The CX8ANM edition's numbers (condoruy's fork), so a key given one of its apps there opens it here as well */
     ACTION_APP_IRADIO = 201,  /* Internet radio (dialog_iradio.c) */
+    ACTION_APP_ZELLO = 202,   /* Zello (dialog_zello.c) */
     ACTION_APP_FLIGHTS = 203, /* Flights */
     ACTION_APP_AERO = 204,  /* HF Air Band */
     ACTION_APP_CB = 205,    /* CB */

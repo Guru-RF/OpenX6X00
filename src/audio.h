@@ -54,6 +54,10 @@ void audio_listen_cut(void);
 bool audio_play_lowlat_begin(void);
 void audio_play_lowlat_end(void);
 bool audio_play_if_room(int16_t *buf, size_t samples);
+/* What fits now of a write, the count of samples taken: the rest is the caller's to write later (audio.c) */
+size_t audio_play_room(int16_t *buf, size_t samples);
+/* Drops the audio waiting on the codec's stream, from any thread (the Zello app's, before the GUI keys) */
+void audio_play_flush_speaker(void);
 
 void audio_gain_db(int16_t *buf, size_t samples, float gain, int16_t *out);
 void audio_gain_db_transition(int16_t *buf, size_t samples, float gain1, float gain2, int16_t *out);

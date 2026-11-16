@@ -256,6 +256,14 @@ def i_iradio(p):     # a radio set with its antenna and a wave: the Internet rad
     p.line([(30, 40), (70, 12)], w=p.w // 2 + 1)
     p.ring(74, 12, 8, w=p.w // 2 + 1, start=200, end=340)
 
+def i_zello(p):      # a cloud with a voice in it: talk over the internet (the Zello app; not the service's logo)
+    p.ring(26, 56, 16, start=90, end=270)
+    p.ring(46, 38, 20, start=180, end=320)
+    p.ring(72, 54, 18, start=235, end=90)
+    p.line([(26, 72), (72, 72)])
+    for x, h in ((38, 7), (50, 14), (62, 5)):
+        p.line([(x, 52 - h), (x, 52 + h)], w=p.w // 2 + 1)
+
 
 ICONS = {n[2:]: f for n, f in globals().items() if n.startswith("i_") and callable(f)}
 

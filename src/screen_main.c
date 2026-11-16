@@ -95,6 +95,7 @@
 #include "apps_menu.h"
 #include "dialog_birdie.h"
 #include "dialog_flights.h"
+#include "dialog_zello.h"
 #include "first_start.h"
 #include "control_owner.h"
 #include "kbd_hyper.h"
@@ -502,12 +503,13 @@ static const char *app_name(press_action_t a) {
         case ACTION_APP_BIRDIE:     return "Birdie Cal";
         case ACTION_APP_PROPAGATION: return "Propagation";
         case ACTION_APP_SCAN:       return "Scanner";
-        case ACTION_APP_IRADIO:     return "Internet radio";
-        case ACTION_APP_AERO:       return "HF Air Band";
-        case ACTION_APP_CB:         return "CB";
         case ACTION_APP_FREEDV:     return "RADE";
         case ACTION_APP_FIRST_START: return "First start";
+        case ACTION_APP_IRADIO:     return "Internet radio";
+        case ACTION_APP_ZELLO:      return "Zello";
         case ACTION_APP_FLIGHTS:    return "Flights";
+        case ACTION_APP_AERO:       return "HF Air Band";
+        case ACTION_APP_CB:         return "CB";
         default:                   return NULL;    /* Modes menu: a menu, not an app */
     }
 }
@@ -610,12 +612,13 @@ void main_screen_start_app(press_action_t app_action) {
         {ACTION_APP_BIRDIE, &dialog_birdie},
         {ACTION_APP_PROPAGATION, &dialog_propagation},
         {ACTION_APP_SCAN, &dialog_scan},
-        {ACTION_APP_IRADIO, &dialog_iradio},
-        {ACTION_APP_AERO, &dialog_aero},
-        {ACTION_APP_CB, &dialog_cb},
         {ACTION_APP_FREEDV, &dialog_freedv},
         {ACTION_APP_FIRST_START, &dialog_first_start},
+        {ACTION_APP_IRADIO, &dialog_iradio},
+        {ACTION_APP_ZELLO, &dialog_zello},
         {ACTION_APP_FLIGHTS, &dialog_flights},
+        {ACTION_APP_AERO, &dialog_aero},
+        {ACTION_APP_CB, &dialog_cb},
     };
 
     if (app_action == ACTION_APP_RTTY) {
@@ -675,8 +678,8 @@ void main_screen_action(press_action_t action) {
         default:
             /* Voice mode and battery info were removed but may still be stored: nothing */
             if ((action >= ACTION_APP_RTTY && action <= ACTION_APP_CHANNELS) || action == ACTION_APP_PROPAGATION ||
-                action == ACTION_APP_SCAN || action == ACTION_APP_IRADIO || action == ACTION_APP_FLIGHTS ||
-                action == ACTION_APP_AERO || action == ACTION_APP_CB) {
+                action == ACTION_APP_SCAN || action == ACTION_APP_IRADIO || action == ACTION_APP_ZELLO ||
+                action == ACTION_APP_FLIGHTS || action == ACTION_APP_AERO || action == ACTION_APP_CB) {
                 main_screen_start_app(action);
             }
             break;
@@ -1030,7 +1033,11 @@ static void front_key_cb(lv_event_t *e) {
             break;
 
         case KEYPAD_PTT:
-            ptt_key(ev->state);
+            /* With the Zello app open the key talks on its channel and never keys the radio; a release goes where its
+             * press went, so the radio's own press is let go even if the app opened meanwhile (zello_ptt.h) */
+            if (!dialog_zello_ptt_key(ev->state)) {
+                ptt_key(ev->state);
+            }
             break;
 
         case KEYPAD_VM:

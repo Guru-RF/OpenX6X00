@@ -391,6 +391,7 @@ static button_data_t btn_bands = app_btn("Bands", ACTION_APP_BANDS);
 static button_data_t btn_prop = app_btn("Propa-\ngation", ACTION_APP_PROPAGATION);
 static button_data_t btn_scan = app_btn("Scanner", ACTION_APP_SCAN);
 static button_data_t btn_iradio = app_btn("Internet\nradio", ACTION_APP_IRADIO);
+static button_data_t btn_zello = app_btn("Zello", ACTION_APP_ZELLO);
 static button_data_t btn_flights = app_btn("Flights", ACTION_APP_FLIGHTS);
 static button_data_t btn_aero = app_btn("HF Air\nBand", ACTION_APP_AERO);
 static button_data_t btn_cb = app_btn("CB", ACTION_APP_CB);
@@ -439,7 +440,7 @@ static buttons_page_t page_app_1 = {{&btn_app_p1, &btn_modes, &btn_cluster, &btn
 static buttons_page_t page_app_2 = {{&btn_app_p2, &btn_settings, &btn_cwt, &btn_field, &btn_chans}};
 /* Screen rec: the MFK 3:4 one too */
 static buttons_page_t page_app_3 = {{&btn_app_p3, &btn_bands, &btn_gps, &btn_screen_rec, &btn_cwkbd}};
-static buttons_page_t page_app_4 = {{&btn_app_p4, &btn_prop, &btn_scan, &btn_iradio}};
+static buttons_page_t page_app_4 = {{&btn_app_p4, &btn_prop, &btn_scan, &btn_iradio, &btn_zello}};
 static buttons_page_t page_app_5 = {{&btn_app_p5, &btn_flights, &btn_aero, &btn_cb}};
 
 static buttons_page_t page_key_1 = {{&btn_key_p1, &btn_key_speed, &btn_key_vol, &btn_key_train, &btn_key_tone}};

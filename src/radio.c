@@ -1223,6 +1223,24 @@ static bool tx_refused(tx_by_t by) {
            no_data_refused(by);
 }
 
+static void (*_Atomic tx_prepare_fn)(void);    /* radio_set_tx_prepare_fn */
+
+void radio_set_tx_prepare_fn(void (*fn)(void)) {
+    atomic_store(&tx_prepare_fn, fn);
+}
+
+/* Before the GUI keys, on the thread that keys and with no lock held: the speaker's own audio stops, so none of it
+ * goes out with the TX audio (the PTT, and the modem that sends the codec's audio): the Internet radio's station
+ * (audio.h), then the Zello app's channel */
+static void tx_prepare(void) {
+    void (*fn)(void) = atomic_load(&tx_prepare_fn);
+
+    audio_listen_cut();
+    if (fn) {
+        fn();
+    }
+}
+
 static atomic_bool ptt_on;      /* the GUI's PTT as last set: the keyboard's toggle follows it (kbd_ptt.h) */
 static atomic_bool modem_on;    /* read on other threads (Winlink's on_air) while tx_player's thread keys */
 static bool modem_moved;        /* the VFO in use on the TX frequency for the modem: back when it lets go. key_mux */
@@ -1236,7 +1254,7 @@ bool radio_set_ptt(bool tx) {
         return false;
     }
     if (tx) {
-        audio_listen_cut();     /* the Internet radio's station out of the audio before the key (audio.h) */
+        tx_prepare();
     }
     pthread_mutex_lock(&key_mux);
     if (tx && ptt_moves()) {
@@ -1293,7 +1311,7 @@ void radio_set_modem(bool tx) {
         return;
     }
     if (tx) {
-        audio_listen_cut();     /* the modem sends the codec's audio: the Internet radio's station out of it first */
+        tx_prepare();
     }
     pthread_mutex_lock(&key_mux);
     if (tx && param_i_get(cfg_band_split) && !atomic_load(&split_held)) {

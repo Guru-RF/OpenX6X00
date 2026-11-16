@@ -6,7 +6,9 @@ bottle's WSGI app, every path of the radio it uses moved into a new temporary fo
 
 The secrets stored: the Wavelog key and the live link's token (the path Wavelog's page tunes the radio by, #245),
 three QRZ Logbook keys, the HOTA and WWFF keys, the Winlink page's password and
-one typed in Pat's own Settings, two WiFi passwords. On the DATA partition the files that hold them: field/*.conf,
+one typed in Pat's own Settings, two WiFi passwords, the Zello account (its user name, password, Issuer and the
+developer key's Private Key). On the DATA partition the files that hold them: field/*.conf, zello/account.conf and
+zello/private_key.pem,
 backups/ (backup.tgz, bluetooth.tgz), an uploaded backup waiting in backup_work, the WiFi networks a restore replaced
 in backup_before_restore/wifi, and a second name for the Wavelog key's file (a hard link here; on the radio's FAT,
 WAVELOG.CONF or the short name WAVELO~1.CON).
@@ -15,10 +17,11 @@ WAVELOG.CONF or the short name WAVELO~1.CON).
    A GET route the test does not know fails it: add it to ROUTES.
 2. The Files page, followed link by link from /files/: no secret in any page or file, the files that hold them
    listed without a link and refused when asked for by name, the others still downloaded.
-3. The answers after a Save with the secret fields empty, and Clear (Wavelog, QRZ, HOTA, WWFF, Winlink).
+3. The answers after a Save with the secret fields empty, and Clear (Wavelog, QRZ, HOTA, WWFF, Winlink, Zello);
+   Zello's files written for root alone.
 4. The answers that pass on what a helper or a server said, with stand-in helpers that say the secrets: Wavelog's
    Test, Load and Sync (with the stored key, and with one typed and not saved), the reference list update, Winlink's
-   errors, its status and its logs download.
+   errors, its status and its logs download, Zello's Test.
 5. The Backup download, which is the owner's own file: without its WiFi part no secret; with it the WiFi passwords,
    as before (said, not changed).
 
@@ -74,7 +77,13 @@ WIFI_PSKS = ("home-wifi-psk-1234", "club-wifi-psk-5678")
 BT_KEY = "B1E2C3D4E5F60718293A4B5C6D7E8F90"      # a Bluetooth link key in bluetooth.tgz
 TYPED_KEY = "wlTYPEDnotsaved1"                   # typed on the Wavelog page, not saved
 CAT_TOKEN = "cAtT0ken-live-link-245x"            # in the cat_url the radio gives Wavelog (wavelog_live.py)
-SECRETS = (WAVELOG_KEY, *QRZ_KEYS, HOTA_KEY, WWFF_KEY, WINLINK_PW, PAT_PW, *WIFI_PSKS, BT_KEY, TYPED_KEY, CAT_TOKEN)
+ZELLO_USER = "zellofan42"                        # the Zello page shows its first two characters only
+ZELLO_PW = "Zello-acct-pw-77"
+ZELLO_ISSUER = "WyJNVFl4TWpNME5UWTNPRGt3IiwiZGV2In0="
+ZELLO_KEY_LINES = ("MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7", "ZeLLoPrIvAtEkEyLiNeTwOaaaabbbbccccddddeeeeffff0000")
+ZELLO_PEM = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(ZELLO_KEY_LINES) + "\n-----END PRIVATE KEY-----\n"
+SECRETS = (WAVELOG_KEY, *QRZ_KEYS, HOTA_KEY, WWFF_KEY, WINLINK_PW, PAT_PW, *WIFI_PSKS, BT_KEY, TYPED_KEY, CAT_TOKEN,
+           ZELLO_USER, ZELLO_PW, ZELLO_ISSUER, *ZELLO_KEY_LINES)
 HOST = "192.168.1.10"     # an address: one of the radio's own names, by which every page and answer is given
 
 # The GET routes with parameters, filled in; None: asked for elsewhere (the Files page, the Backup download)
@@ -188,6 +197,7 @@ class Secrets(unittest.TestCase):
         settings.DB_PATH = DB.path = r + "/mnt/params.db"
         settings.WAVELOG_CMD = r + "/bin/x6100-wavelog"
         settings.FIELD_CMD = r + "/bin/x6100-field"
+        settings.ZELLO_CMD = r + "/bin/x6100-zello"
         os.makedirs(r + "/mnt")
         con = sqlite3.connect(DB.path)
         with open(os.path.join(TOP, "sql", "params.sql")) as f:
@@ -221,6 +231,8 @@ class Secrets(unittest.TestCase):
         write(settings.BACKUP_WORK + "/stage/wifi/Home.nmconnection", profile("Home", WIFI_PSKS[0]))
         write(settings.BACKUP_SAFETY + "/wifi/Club.nmconnection", profile("Club", WIFI_PSKS[1]))
         write(settings.BACKUP_SAFETY + "/channels.json", '{"version": 1, "channels": []}')
+        cls.write_zello()
+        write(settings.ZELLO_DIR + "/channels.txt", "Test channel\n")
         write(m + "/ft_log.adi", "<call:6>ON4ABC <eor>\n")
         write(m + "/shot.png", b"\x89PNG\r\n\x1a\n")
         write(m + "/digi_text/2026-11-13.txt", "12:00 RX CQ ON4ABC\n")
@@ -232,12 +244,20 @@ class Secrets(unittest.TestCase):
         stub(settings.WAVELOG_CMD, f'echo "error HTTP 404 /index.php/api/station_info/${{X6100_WAVELOG_KEY:-'
                                    f'{WAVELOG_KEY}}} not found"\n')
         stub(settings.FIELD_CMD, f'echo "error the list server refused {HOTA_KEY} and {WWFF_KEY}"\n')
+        stub(settings.ZELLO_CMD, f'echo "error logon of {ZELLO_USER} with {ZELLO_PW}, {ZELLO_ISSUER}, '
+                                 f'{ZELLO_KEY_LINES[0]} refused"\n')
         stub(apps.WINLINK_CMD, f'echo "$*" >> {cls.calls}\n'
                                f'case "$1" in\n'
                                f'  logs) echo "Pat: login {WINLINK_PW} / {PAT_PW}; wifi {WIFI_PSKS[0]}" ;;\n'
                                f'  set-password) cat > /dev/null ;;\n'
                                f'  on) echo "error login {WINLINK_PW} refused" >&2; exit 1 ;;\n'
                                f'esac\n')
+
+    @staticmethod
+    def write_zello():
+        write(settings.ZELLO_DIR + "/account.conf", f"user={ZELLO_USER}\npassword={ZELLO_PW}\nissuer={ZELLO_ISSUER}\n",
+              0o600)
+        write(settings.ZELLO_DIR + "/private_key.pem", ZELLO_PEM, 0o600)
 
     @classmethod
     def tearDownClass(cls):
@@ -292,8 +312,9 @@ class Secrets(unittest.TestCase):
                     self.get(path)
                     seen += 1
         self.assertGreater(seen, 50)
-        for path in ("/wavelog", "/field", "/winlink", "/backup", "/cluster", "/tailscale", "/ssh", "/api/wavelog",
-                     "/api/field", "/api/winlink", "/api/backup", "/api/cluster", "/api/tailscale"):
+        for path in ("/wavelog", "/field", "/winlink", "/backup", "/cluster", "/tailscale", "/ssh", "/zello",
+                     "/api/wavelog", "/api/field", "/api/winlink", "/api/backup", "/api/cluster", "/api/tailscale",
+                     "/api/zello"):
             self.get(path, 200)
 
     def test_says_only_whether_one_is_set(self):
@@ -305,6 +326,9 @@ class Secrets(unittest.TestCase):
         wl = json.loads(self.get("/api/winlink", 200)[1])
         self.assertEqual((wl["password"], wl["password_set"]), ("page", True))
         self.assertEqual(wl["text"], "Pat stopped: login (hidden) refused")
+        z = json.loads(self.get("/api/zello", 200)[1])
+        self.assertEqual((z["user"], z["user_set"], z["password_set"], z["issuer_set"], z["key_set"]),
+                         ("ze\u2026", True, True, True, True))
 
     def test_files_page(self):
         todo, seen, files = ["/files/"], set(), set()
@@ -323,12 +347,13 @@ class Secrets(unittest.TestCase):
             else:
                 files.add(path)
         for path in ("/files/ft_log.adi", "/files/shot.png", "/files/backup_before_restore/channels.json",
-                     "/files/field/logs/2026-11-13-ONFF-0001.adi"):
+                     "/files/field/logs/2026-11-13-ONFF-0001.adi", "/files/zello/channels.txt"):
             self.assertIn(path, files)       # the others are still downloaded
         for path in ("/files/field/wavelog.conf", "/files/field/qrz.conf", "/files/field/hota.conf",
                      "/files/field/wwff.conf", "/files/field/copy-of-wavelog.conf", "/files/backups/backup.tgz",
                      "/files/backups/bluetooth.tgz", "/files/backup_work/stage/wifi/Home.nmconnection",
-                     "/files/backup_before_restore/wifi/Club.nmconnection"):
+                     "/files/backup_before_restore/wifi/Club.nmconnection", "/files/zello/account.conf",
+                     "/files/zello/private_key.pem"):
             self.assertNotIn(path, files)
             self.get(path, 403)              # asked for by name
         st, data = self.get("/files/field/", 200)
@@ -358,6 +383,38 @@ class Secrets(unittest.TestCase):
         self.assertNoSecret("Winlink Clear", data)
         with open(self.calls) as f:
             self.assertIn("clear-password", f.read().split("\n"))
+
+    def test_zello_save_test_clear(self):
+        """Saved empty: kept, nothing said back. A new password: written for root alone and not said back. Test: the
+        helper's line with the account hidden, the user name too. Clear: gone, the channels stay"""
+        self.addCleanup(self.write_zello)
+        acc, key = settings.ZELLO_DIR + "/account.conf", settings.ZELLO_DIR + "/private_key.pem"
+        st, data = self.req("POST", "/api/zello", {"user": "", "password": "", "issuer": "", "private_key": "",
+                                                   "channels": ["Test channel", "Second"]})
+        self.assertEqual(st, 200, data)
+        self.assertNoSecret("Zello Save", data)
+        with open(acc) as f:
+            self.assertEqual(f.read(), f"user={ZELLO_USER}\npassword={ZELLO_PW}\nissuer={ZELLO_ISSUER}\n")
+        self.assertEqual(json.loads(data)["channels"], ["Test channel", "Second"])
+        st, data = self.req("POST", "/api/zello", {"password": "brand-new-pw-1", "private_key": "not a key"})
+        self.assertEqual(st, 400, data)
+        st, data = self.req("POST", "/api/zello", {"password": "brand-new-pw-1", "private_key": ZELLO_PEM})
+        self.assertEqual(st, 200, data)
+        self.assertNotIn(b"brand-new-pw-1", data)
+        self.assertNoSecret("Zello Save, a new password", data)
+        for path in (acc, key):
+            self.assertEqual(os.stat(path).st_mode & 0o777, 0o600, path)
+        self.write_zello()
+        st, data = self.req("POST", "/api/zello/test")
+        self.assertEqual(st, 200, data)
+        self.assertNoSecret("Zello Test", data)
+        self.assertEqual(json.loads(data), {"ok": False, "msg": "logon of (hidden) with (hidden), (hidden), (hidden) "
+                                                                 "refused"})
+        st, data = self.req("POST", "/api/zello", {"clear": True})
+        self.assertEqual(st, 200, data)
+        self.assertNoSecret("Zello Clear", data)
+        self.assertFalse(os.path.exists(acc) or os.path.exists(key))
+        self.assertEqual(json.loads(data)["channels"], ["Test channel", "Second"])
 
     def test_what_a_helper_said(self):
         form = {"url": "https://log.example.org", "key": "", "verify_tls": True}

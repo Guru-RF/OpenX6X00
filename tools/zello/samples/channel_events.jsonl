@@ -1,0 +1,11 @@
+{"seq":1,"success":true,"refresh_token":"sample-refresh-token"}
+{"command":"on_channel_status","channel":"Test channel","status":"online","users_online":3,"images_supported":true,"texting_supported":true,"locations_supported":true}
+{"command":"on_stream_start","type":"audio","codec":"opus","codec_header":"gD4BPA==","packet_duration":60,"stream_id":7,"channel":"Test channel","from":"alice"}
+{"command":"on_stream_start","type":"audio","codec":"opus","codec_header":"gD4BFA==","packet_duration":20,"stream_id":8,"channel":"Test channel","from":"bob"}
+{"command":"on_stream_stop","stream_id":7}
+{"command":"on_stream_stop","stream_id":8}
+{"command":"on_stream_stop","stream_id":99}
+{"command":"on_image","channel":"Test channel","from":"carol","message_id":5,"type":"jpeg","height":100,"width":100,"source":"camera"}
+{"command":"on_stream_start","type":"image","stream_id":9,"from":"carol"}
+{"command":"on_error","error":"channel is not ready"}
+{"command":"on_channel_status","channel":"Test channel","status":"offline"}
