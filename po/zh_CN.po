@@ -752,13 +752,21 @@ msgstr "网络广播"
 msgid "Internet stations"
 msgstr "互联网电台"
 
-#: src/apps_menu.c src/button_bar.cpp src/screen_main.c
+#: src/apps_menu.c src/button_bar.cpp src/screen_main.c src/zello.c
 msgid "Zello"
 msgstr ""
 
 #: src/apps_menu.c
 msgid "Internet voice"
 msgstr "网络语音"
+
+#: src/apps_menu.c src/button_bar.cpp src/screen_main.c
+msgid "SVXConnect"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Reflector talkgroups"
+msgstr ""
 
 #: src/apps_menu.c src/button_bar.cpp src/screen_main.c
 msgid "Flights"
@@ -5769,6 +5777,293 @@ msgstr ""
 "瀑布贪吃蛇\n"
 "#%06x 转动旋钮控制方向 - 按 MFK 开始#"
 
+#: src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
+#: src/wifi_window.c
+msgid "Disconnect"
+msgstr "断开"
+
+#: src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
+#: src/wifi_window.c
+msgid "Connect"
+msgstr "连接"
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid ""
+"Stop\n"
+"talking"
+msgstr ""
+"停止\n"
+"讲话"
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid ""
+"No BT\n"
+"mic"
+msgstr ""
+"无蓝牙\n"
+"话筒"
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid "Talk"
+msgstr "讲话"
+
+#: src/dialog_svx.c
+msgid ""
+"Lock:\n"
+"On"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid ""
+"Lock:\n"
+"Off"
+msgstr ""
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid ""
+"Talk via:\n"
+"Bluetooth"
+msgstr ""
+"讲话用:\n"
+"蓝牙"
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid ""
+"Talk via:\n"
+"Hand mic"
+msgstr ""
+"讲话用:\n"
+"手咪"
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid ""
+"CW ID:\n"
+"Off"
+msgstr ""
+"CW ID:\n"
+"关"
+
+#: src/dialog_svx.c src/dialog_zello.c
+#, c-format
+msgid ""
+"TX limit:\n"
+"%d s"
+msgstr ""
+"发射上限:\n"
+"%d s"
+
+#: src/dialog_svx.c src/dialog_zello.c
+#, c-format
+msgid ""
+"Pause:\n"
+"%d s"
+msgstr ""
+"间隔:\n"
+"%d s"
+
+#: src/dialog_svx.c
+#, c-format
+msgid "SVXConnect: %s"
+msgstr ""
+
+#: src/dialog_svx.c src/svx.c
+msgid "not on the reflector yet"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "SVXConnect: talk through a Bluetooth headset's mic"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "SVXConnect: talk through the hand mic"
+msgstr ""
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid "link is on"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "SVX to RF"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "SVX to RF: set your callsign first (Settings), the link sends it as its CW ID"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "SVX to RF: set the squelch (SQL) first, the link keys only while it is closed"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "SVX to RF: it transmits in LSB, USB, AM or FM only"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "SVX to RF on: the talkgroup's overs are transmitted on this frequency"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "SVX to RF off"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "RF to SVX"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "RF to SVX: set the squelch (SQL) first, it tells when a station is on"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "RF to SVX on: what the squelch opens on goes to the talkgroup"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "RF to SVX off"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "SVX link: the CW ID can be off where your licence lets an unattended station go without it"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "Not set up: the radio's web page, SVXConnect"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "No talkgroups yet"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "Connect: the talkgroups come from the web page"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "Recent"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "nobody yet"
+msgstr ""
+
+#: src/dialog_svx.c
+#, c-format
+msgid "#%06x SVXCONNECT#  #%06x %s#"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "reflector talkgroups on the internet, never on the air"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "on the air: the talkgroup"
+msgstr ""
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid "on the air: CW ID"
+msgstr "正在发射: CW ID"
+
+#: src/dialog_svx.c
+msgid "receiver to the talkgroup"
+msgstr ""
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid "amateur bands only"
+msgstr ""
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid "outside the amateur bands"
+msgstr ""
+
+#: src/dialog_svx.c
+#, c-format
+msgid "#%06x SVXCONNECT#  #%06x %s%s%s#  #%06x %s#"
+msgstr ""
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid "SIMPLEX REPEATER"
+msgstr "单工中继"
+
+#: src/dialog_svx.c
+msgid "No certificate: request one on the web page (SVXConnect)"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "Certificate expired: request a new one on the web page"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "Certificate unreadable: request a new one on the web page"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "Certificate not valid yet: is the radio's clock right?"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "Set up the reflector on the radio's web page: SVXConnect"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "Not connected: press Connect"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "Not connected"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "Connecting to the reflector"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "Talking on"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "speak into the Bluetooth headset"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "speak into the hand mic"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "No audio: talking on SVXConnect uses the hand mic"
+msgstr ""
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid "Talking now:"
+msgstr "正在讲话:"
+
+#: src/dialog_svx.c
+msgid "Choose a talkgroup with the MFK to talk on it"
+msgstr ""
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid "PTT or Talk: speak into the Bluetooth headset"
+msgstr "PTT 或\"讲话\": 请对蓝牙耳麦说话"
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid "No Bluetooth mic: a headset on its headset profile"
+msgstr "无蓝牙话筒: 请以耳麦模式连接耳麦"
+
+#: src/dialog_svx.c src/dialog_zello.c
+msgid "PTT or Talk: speak into the hand mic, without its own PTT"
+msgstr "PTT 或\"讲话\": 请对手咪说话, 不要按手咪自己的 PTT"
+
+#: src/dialog_svx.c
+msgid "SVXConnect: set up the reflector on the radio's web page first"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "SVXConnect: the helper could not start"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "listened to only, not switchable (web page)"
+msgstr ""
+
 #: src/dialog_wspr.c
 msgid "WSPR: no band of the hop here, beacon stopped"
 msgstr "WSPR: 此处没有跳波段用的波段, 信标已停止"
@@ -6041,76 +6336,6 @@ msgstr ""
 msgid "(ZELLO 3:3)"
 msgstr ""
 
-#: src/dialog_zello.c src/settings_window.cpp src/wifi_window.c
-msgid "Disconnect"
-msgstr "断开"
-
-#: src/dialog_zello.c src/settings_window.cpp src/wifi_window.c
-msgid "Connect"
-msgstr "连接"
-
-#: src/dialog_zello.c
-msgid ""
-"Stop\n"
-"talking"
-msgstr ""
-"停止\n"
-"讲话"
-
-#: src/dialog_zello.c
-msgid ""
-"No BT\n"
-"mic"
-msgstr ""
-"无蓝牙\n"
-"话筒"
-
-#: src/dialog_zello.c
-msgid "Talk"
-msgstr "讲话"
-
-#: src/dialog_zello.c
-msgid ""
-"Talk via:\n"
-"Bluetooth"
-msgstr ""
-"讲话用:\n"
-"蓝牙"
-
-#: src/dialog_zello.c
-msgid ""
-"Talk via:\n"
-"Hand mic"
-msgstr ""
-"讲话用:\n"
-"手咪"
-
-#: src/dialog_zello.c
-msgid ""
-"CW ID:\n"
-"Off"
-msgstr ""
-"CW ID:\n"
-"关"
-
-#: src/dialog_zello.c
-#, c-format
-msgid ""
-"TX limit:\n"
-"%d s"
-msgstr ""
-"发射上限:\n"
-"%d s"
-
-#: src/dialog_zello.c
-#, c-format
-msgid ""
-"Pause:\n"
-"%d s"
-msgstr ""
-"间隔:\n"
-"%d s"
-
 #: src/dialog_zello.c
 msgid "Zello: talk through a Bluetooth headset's mic"
 msgstr "Zello: 用蓝牙耳麦的话筒讲话"
@@ -6118,6 +6343,10 @@ msgstr "Zello: 用蓝牙耳麦的话筒讲话"
 #: src/dialog_zello.c
 msgid "Zello: talk through the hand mic"
 msgstr "Zello: 用手咪讲话"
+
+#: src/dialog_zello.c
+msgid "Zello to RF"
+msgstr ""
 
 #: src/dialog_zello.c
 msgid "Zello to RF: set your callsign first (Settings), the link sends it as its CW ID"
@@ -6138,6 +6367,10 @@ msgstr "Zello 转射频开: 频道里的消息将在此频率发射"
 #: src/dialog_zello.c
 msgid "Zello to RF off"
 msgstr "Zello 转射频关"
+
+#: src/dialog_zello.c
+msgid "RF to Zello"
+msgstr "射频转 Zello"
 
 #: src/dialog_zello.c
 msgid "RF to Zello: set the squelch (SQL) first, it tells when a station is on"
@@ -6173,10 +6406,6 @@ msgid "on the air: the channel"
 msgstr "正在发射: 频道"
 
 #: src/dialog_zello.c
-msgid "on the air: CW ID"
-msgstr "正在发射: CW ID"
-
-#: src/dialog_zello.c
 msgid "receiver to the channel"
 msgstr "接收机送往频道"
 
@@ -6184,10 +6413,6 @@ msgstr "接收机送往频道"
 #, c-format
 msgid "#%06x ZELLO#  #%06x %s%s%s#  #%06x %s#"
 msgstr ""
-
-#: src/dialog_zello.c
-msgid "SIMPLEX REPEATER"
-msgstr "单工中继"
 
 #: src/dialog_zello.c
 msgid "Not connected: choose a channel and press the MFK"
@@ -6212,22 +6437,6 @@ msgstr "正在 Zello 上讲话: 请对手咪说话"
 #: src/dialog_zello.c
 msgid "No audio: talking on Zello uses the hand mic"
 msgstr "无音频: 在 Zello 上讲话使用手咪"
-
-#: src/dialog_zello.c
-msgid "Talking now:"
-msgstr "正在讲话:"
-
-#: src/dialog_zello.c
-msgid "PTT or Talk: speak into the Bluetooth headset"
-msgstr "PTT 或\"讲话\": 请对蓝牙耳麦说话"
-
-#: src/dialog_zello.c
-msgid "No Bluetooth mic: a headset on its headset profile"
-msgstr "无蓝牙话筒: 请以耳麦模式连接耳麦"
-
-#: src/dialog_zello.c
-msgid "PTT or Talk: speak into the hand mic, without its own PTT"
-msgstr "PTT 或\"讲话\": 请对手咪说话, 不要按手咪自己的 PTT"
 
 #: src/dialog_zello.c
 msgid "Zello: the helper could not start"
@@ -10914,6 +11123,10 @@ msgid " APP Zello "
 msgstr ""
 
 #: src/settings_window.cpp
+msgid " APP SVXConnect "
+msgstr ""
+
+#: src/settings_window.cpp
 msgid " APP Flights "
 msgstr " APP 航班 "
 
@@ -12748,6 +12961,34 @@ msgstr "QTH 网格不正确"
 msgid "Phone"
 msgstr "手机"
 
+#: src/svx.c
+msgid "the Bluetooth mic gives no audio"
+msgstr ""
+
+#: src/svx.c
+msgid "ptt on\n"
+msgstr ""
+
+#: src/svx.c
+msgid "the Bluetooth mic did not start"
+msgstr ""
+
+#: src/svx.c
+msgid "ptt off\n"
+msgstr ""
+
+#: src/svx.c
+msgid "SVX LINK"
+msgstr ""
+
+#: src/svx.c
+msgid "lock on\n"
+msgstr ""
+
+#: src/svx.c
+msgid "lock off\n"
+msgstr ""
+
 #: src/swrscan_window.c
 msgid "SWR scan: not while transmitting or tuning"
 msgstr "驻波扫描: 发射或调谐时不可用"
@@ -12932,6 +13173,48 @@ msgstr "发射已停止: %d s 无音频"
 msgid "TX 0 W: level %.0f dB, Line-in %u"
 msgstr "发射 0 W: 电平 %.0f dB, 线路输入 %u"
 
+#: src/voice_link.c
+msgid "Net"
+msgstr ""
+
+#: src/voice_link.c
+#, c-format
+msgid "%s to RF stopped: the radio ended the transmission"
+msgstr ""
+
+#: src/voice_link.c
+msgid "Link: amateur bands only, unkeyed"
+msgstr ""
+
+#: src/voice_link.c
+#, c-format
+msgid "%s to RF: time limit, unkeyed"
+msgstr ""
+
+#: src/voice_link.c
+#, c-format
+msgid "Link: amateur bands only, RF to %s ended"
+msgstr ""
+
+#: src/voice_link.c
+#, c-format
+msgid "RF to %s: time limit, until the squelch closes"
+msgstr ""
+
+#: src/voice_link.c
+#, c-format
+msgid "Link: amateur bands only, nothing to %s"
+msgstr ""
+
+#: src/voice_link.c
+msgid "Link: amateur bands only"
+msgstr ""
+
+#: src/voice_link.c
+#, c-format
+msgid "RF>%s: outside the amateur bands, check your licence"
+msgstr ""
+
 #: src/voice_messages.c
 msgid "No messages yet: press Rec"
 msgstr "暂无消息: 按\"录制\""
@@ -13096,6 +13379,72 @@ msgstr ""
 #, c-format
 msgid "VOICE KEYER (TX) - #%06x %s#"
 msgstr "语音键控 (发射) - #%06x %s#"
+
+#: src/voice_net.c
+msgid "not sent"
+msgstr ""
+
+#: src/voice_net.c
+#, c-format
+msgid "RF to %s: %s: %s"
+msgstr ""
+
+#: src/voice_net.c
+#, c-format
+msgid "%s link: the transmission hung, unkeyed"
+msgstr ""
+
+#: src/voice_net.c
+msgid "message ended, the radio transmits"
+msgstr ""
+
+#: src/voice_net.c
+msgid "message ended, disconnected"
+msgstr ""
+
+#: src/voice_net.c
+msgid "(off)"
+msgstr ""
+
+#: src/voice_net.c
+msgid "(no SQL)"
+msgstr ""
+
+#: src/voice_net.c
+msgid "(no ham band)"
+msgstr ""
+
+#: src/voice_net.c
+msgid "(outside bands)"
+msgstr ""
+
+#: src/voice_net.c
+msgid "Simplex repeater on"
+msgstr ""
+
+#: src/voice_net.c
+msgid " to RF "
+msgstr ""
+
+#: src/voice_net.c
+msgid "RF to "
+msgstr ""
+
+#: src/voice_net.c
+msgid "link stays on"
+msgstr ""
+
+#: src/voice_net.c
+msgid "link unkeyed: press again to talk"
+msgstr ""
+
+#: src/voice_net.c
+msgid "not while the radio transmits"
+msgstr ""
+
+#: src/voice_net.c
+msgid "no Bluetooth mic connected"
+msgstr ""
 
 #: src/walkie.c
 msgid "Band +"
@@ -13728,85 +14077,87 @@ msgid ""
 msgstr ""
 
 #: src/zello.c
-msgid "Zello: not sent"
-msgstr "Zello: 未发送"
+msgid "talk stop\n"
+msgstr ""
 
 #: src/zello.c
-msgid "RF to Zello: not sent"
-msgstr "射频转 Zello: 未发送"
+msgid "talk start bt\n"
+msgstr ""
 
 #: src/zello.c
-msgid "Zello link: the transmission hung, unkeyed"
-msgstr "Zello 链路: 发射卡住, 已停止发射"
+msgid "talk start\n"
+msgstr ""
 
 #: src/zello.c
-msgid "Zello: message ended, the radio transmits"
-msgstr "Zello: 消息结束, 电台正在发射"
+msgid "talkvia bt\n"
+msgstr ""
 
 #: src/zello.c
-msgid "Zello: message ended, off the channel"
-msgstr "Zello: 消息结束, 已离开频道"
+msgid "talkvia mic\n"
+msgstr ""
 
 #: src/zello.c
 msgid "ZELLO LINK"
 msgstr "ZELLO 链路"
 
 #: src/zello.c
-msgid " Z>RF(no SQL)"
-msgstr " Z>RF(无静噪)"
-
-#: src/zello.c
-msgid " RF>Z(no SQL)"
-msgstr " RF>Z(无静噪)"
-
-#: src/zello.c
-#, c-format
-msgid "Simplex repeater on: %s%s"
-msgstr "单工中继开: %s%s"
-
-#: src/zello.c
-msgid "Zello to RF "
-msgstr "Zello 转射频 "
-
-#: src/zello.c
-msgid "RF to Zello"
-msgstr "射频转 Zello"
-
-#: src/zello.c
-msgid "Zello link stays on"
-msgstr "Zello 链路保持开启"
-
-#: src/zello.c
-msgid "Zello: not on a channel yet"
-msgstr "Zello: 尚未进入频道"
-
-#: src/zello.c
-msgid "Zello link unkeyed: press again to talk"
-msgstr "Zello 链路已停止发射: 再按一次讲话"
-
-#: src/zello.c
-msgid "Zello: not while the radio transmits"
-msgstr "Zello: 电台发射时不可用"
-
-#: src/zello.c
-msgid "Zello: no Bluetooth mic connected"
-msgstr "Zello: 未连接蓝牙话筒"
-
-#: src/zello_link.c
-msgid "Zello to RF stopped: the radio ended the transmission"
-msgstr "Zello 转射频已停止: 电台结束了发射"
-
-#: src/zello_link.c
-msgid "Zello to RF: time limit, unkeyed"
-msgstr "Zello 转射频: 达到时间上限, 已停止发射"
-
-#: src/zello_link.c
-msgid "RF to Zello: time limit, until the squelch closes"
-msgstr "射频转 Zello: 达到时间上限, 静噪关闭前暂停"
+msgid "not on a channel yet"
+msgstr ""
 
 #. not in the list: a line or a word of a longer text
 msgid "SETTINGS"
 msgstr "设置"
+
+#~ msgid "Zello: not sent"
+#~ msgstr "Zello: 未发送"
+
+#~ msgid "RF to Zello: not sent"
+#~ msgstr "射频转 Zello: 未发送"
+
+#~ msgid "Zello link: the transmission hung, unkeyed"
+#~ msgstr "Zello 链路: 发射卡住, 已停止发射"
+
+#~ msgid "Zello: message ended, the radio transmits"
+#~ msgstr "Zello: 消息结束, 电台正在发射"
+
+#~ msgid "Zello: message ended, off the channel"
+#~ msgstr "Zello: 消息结束, 已离开频道"
+
+#~ msgid " Z>RF(no SQL)"
+#~ msgstr " Z>RF(无静噪)"
+
+#~ msgid " RF>Z(no SQL)"
+#~ msgstr " RF>Z(无静噪)"
+
+#~ msgid "Simplex repeater on: %s%s"
+#~ msgstr "单工中继开: %s%s"
+
+#~ msgid "Zello to RF "
+#~ msgstr "Zello 转射频 "
+
+#~ msgid "Zello link stays on"
+#~ msgstr "Zello 链路保持开启"
+
+#~ msgid "Zello: not on a channel yet"
+#~ msgstr "Zello: 尚未进入频道"
+
+#~ msgid "Zello link unkeyed: press again to talk"
+#~ msgstr "Zello 链路已停止发射: 再按一次讲话"
+
+#~ msgid "Zello: not while the radio transmits"
+#~ msgstr "Zello: 电台发射时不可用"
+
+#~ msgid "Zello: no Bluetooth mic connected"
+#~ msgstr "Zello: 未连接蓝牙话筒"
+
+#~ msgid "Zello to RF stopped: the radio ended the transmission"
+#~ msgstr "Zello 转射频已停止: 电台结束了发射"
+
+#~ msgid "Zello to RF: time limit, unkeyed"
+#~ msgstr "Zello 转射频: 达到时间上限, 已停止发射"
+
+#~ msgid "RF to Zello: time limit, until the squelch closes"
+#~ msgstr "射频转 Zello: 达到时间上限, 静噪关闭前暂停"
 
 #~ msgid "Not set by NTP or a GPS: set it below, or join WiFi (step 1)"
 #~ msgstr "未由 NTP 或 GPS 设置: 在下面设置, 或连接 WiFi (第 1 步)"
