@@ -79,6 +79,8 @@ def not_shown(s):
         return True
     for line in t.split('\n'):                      # vfo:0,0,%d;  org.bluez.Device1  (ssv)  AT+BYPASS=1
         line = line.strip(' \t()')                # a page button's "(SETTINGS" "1:3)" is words
+        if re.match(r'^[A-Za-z0-9]+>[A-Za-z0-9]+:?$', line):   # a link's direction ("RF>SVX:"): words
+            continue
         if LETTERS.search(line) and ' ' not in line and re.search(r'[;=+(){}\[\]<>|\\]|:.|[a-z]\.[a-zA-Z]', line):
             return True
     if re.match(r'^[A-Z0-9_]+=', t) or re.match(r'^-{1,2}[a-z]', t):           # KEY=, --option

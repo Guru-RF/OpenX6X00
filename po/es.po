@@ -5805,6 +5805,54 @@ msgstr ""
 "Hablar por:\n"
 "Mic. mano"
 
+#: src/dialog_svx.c
+msgid ""
+"SVX>RF:\n"
+"Off"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid ""
+"SVX>RF:\n"
+"Stopped"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid ""
+"SVX>RF:\n"
+"No ham band"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid ""
+"SVX>RF:\n"
+"On"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid ""
+"RF>SVX:\n"
+"Off"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid ""
+"RF>SVX:\n"
+"No ham band"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid ""
+"RF>SVX:\n"
+"Outside bands"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid ""
+"RF>SVX:\n"
+"On"
+msgstr ""
+
 #: src/dialog_svx.c src/dialog_zello.c
 msgid ""
 "CW ID:\n"
@@ -6308,6 +6356,54 @@ msgid "(ZELLO 3:3)"
 msgstr ""
 
 #: src/dialog_zello.c
+msgid ""
+"Zello>RF:\n"
+"Off"
+msgstr ""
+
+#: src/dialog_zello.c
+msgid ""
+"Zello>RF:\n"
+"Stopped"
+msgstr ""
+
+#: src/dialog_zello.c
+msgid ""
+"Zello>RF:\n"
+"No ham band"
+msgstr ""
+
+#: src/dialog_zello.c
+msgid ""
+"Zello>RF:\n"
+"On"
+msgstr ""
+
+#: src/dialog_zello.c
+msgid ""
+"RF>Zello:\n"
+"Off"
+msgstr ""
+
+#: src/dialog_zello.c
+msgid ""
+"RF>Zello:\n"
+"No ham band"
+msgstr ""
+
+#: src/dialog_zello.c
+msgid ""
+"RF>Zello:\n"
+"Outside bands"
+msgstr ""
+
+#: src/dialog_zello.c
+msgid ""
+"RF>Zello:\n"
+"On"
+msgstr ""
+
+#: src/dialog_zello.c
 msgid "Zello: talk through a Bluetooth headset's mic"
 msgstr "Zello: hablar por el micrófono de los auriculares Bluetooth"
 
@@ -6383,6 +6479,14 @@ msgstr "receptor al canal"
 #: src/dialog_zello.c
 #, c-format
 msgid "#%06x ZELLO#  #%06x %s%s%s#  #%06x %s#"
+msgstr ""
+
+#: src/dialog_zello.c
+msgid " Zello>RF"
+msgstr ""
+
+#: src/dialog_zello.c
+msgid " RF>Zello"
 msgstr ""
 
 #: src/dialog_zello.c
