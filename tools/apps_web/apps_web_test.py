@@ -9,7 +9,10 @@ See the Makefile:
    list has them (none within 50 Hz of a station, none past INT32_MAX).
 2. Through bottle's WSGI app (skipped without BOTTLE): each app's page, in the menu and on General, what it puts
    into its script as JavaScript that a name cannot break out of, and every file it loads from /static there.
-3. src/remote_server.c: a page's "watching" words ("wefax rows 1", "ft8 wf 1", "js8 wf 1") are taken before the
+3. Countries and flags: /api/dxcc reads cty.dat as src/dxcc.c does, and the pages' lookup (app_wall.js, run
+   under node when there is one) says what dxcc_lookup says (build/dxcc_calls, the Makefile's) for every prefix and
+   whole call of cty.dat and for the hard ones (/P, DL/..., <...>, /MM); flags.json and flags.png are src/flags.h's.
+4. src/remote_server.c: a page's "watching" words ("wefax rows 1", "ft8 wf 1", "js8 wf 1") are taken before the
    app's own branch, which wants operate and control: after it, a viewer's "ft8 wf 1" was refused as an unknown
    command. "js8 send TEXT" is taken before the words are split (its text has spaces), a text message of 500
    characters fits TEXT_MAX, and the JS8 page's ring and lines are as the page reads them.
@@ -18,8 +21,11 @@ Its files go in build/ (the Makefile empties it first).
 import io
 import json
 import os
+import gzip
 import re
+import shutil
 import sqlite3
+import subprocess
 import sys
 import types
 import unittest
@@ -81,6 +87,21 @@ def write_channels(path, channels):
                                               for c in channels]}, f)
 
 
+def get(path, headers=None):
+    """GET through bottle's WSGI app: (status, body, headers)"""
+    env = {"REQUEST_METHOD": "GET", "PATH_INFO": path, "HTTP_HOST": "192.168.1.10"}
+    env.update(headers or {})
+    setup_testing_defaults(env)
+    got = {}
+
+    def start(status, hdrs, exc=None):
+        got["status"] = int(status.split()[0])
+        got["headers"] = dict(hdrs)
+
+    out = b"".join(apps.app(env, start))
+    return got["status"], out, got["headers"]
+
+
 @unittest.skipIf(apps is None, "no bottle: give BOTTLE=<a folder with bottle.py>")
 class WefaxStations(unittest.TestCase):
     def setUp(self):
@@ -125,17 +146,7 @@ class Pages(unittest.TestCase):
         settings.DB_PATH = os.path.join(d, "params.db")
 
     def req(self, path, headers=None):
-        env = {"REQUEST_METHOD": "GET", "PATH_INFO": path, "HTTP_HOST": "192.168.1.10"}
-        env.update(headers or {})
-        setup_testing_defaults(env)
-        got = {}
-
-        def start(status, hdrs, exc=None):
-            got["status"] = int(status.split()[0])
-            got["headers"] = dict(hdrs)
-
-        out = b"".join(apps.app(env, start))
-        return got["status"], out, got["headers"]
+        return get(path, headers)
 
     def test_wefax_page(self):
         write_channels(settings.CHANNELS_FILE, [{"name": "WEFAX </script><b>x", "frequency": 9000000}])
@@ -217,6 +228,91 @@ class Pages(unittest.TestCase):
         self.assertEqual((code, body[:3], hdrs.get("Content-Encoding")), (200, b"\xff\xd8\xff", None))
         code, body, hdrs = self.req("/static/js/app_wall.js", {"HTTP_ACCEPT_ENCODING": "gzip"})
         self.assertEqual(hdrs.get("Content-Encoding"), "gzip" if config_pages.gzip else None)
+
+
+CTY = os.path.join(TOP, "third-party", "cty", "cty.dat")
+STATIC = os.path.join(TOP, "webserver", "src", "x6100_webserver", "static")
+
+
+@unittest.skipIf(apps is None, "no bottle: give BOTTLE=<a folder with bottle.py>")
+class Countries(unittest.TestCase):
+    def test_short_names(self):
+        """short_name in src/dxcc.c, those that change a name"""
+        body = source("dxcc.c")
+        body = body[body.index("static const char *short_name("):]
+        pairs = re.findall(r'\{ "([^"]+)", +"([^"]+)" \}', body[:body.index("NULL, NULL")])
+        self.assertEqual(apps.CTY_SHORT, {a: b for a, b in pairs if a != b})
+
+    def test_flags(self):
+        """flags.json is src/flags.h's list, flags.png has a 40 x 30 cell for each of its flags"""
+        src = source("flags.h")
+        iso = re.findall(r'"([a-z]{2})"', src[src.index("flag_iso"):src.index("flag_of")])
+        of = {p: int(i) for p, i in re.findall(r'\{"([^"]+)", (\d+)\}', src[src.index("flag_of"):])}
+        with open(os.path.join(STATIC, "img", "flags.json")) as f:
+            got = json.load(f)
+        self.assertEqual(got["of"], of)
+        with open(os.path.join(STATIC, "img", "flags.png"), "rb") as f:
+            head = f.read(24)
+        n = got["n"]
+        self.assertEqual((head[:8], int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")),
+                         (b"\x89PNG\r\n\x1a\n", n * 40, (len(iso) + n - 1) // n * 30))
+
+    def test_table(self):
+        with open(CTY, encoding="latin-1") as f:
+            t = apps.cty_table(f.read())
+        e = t["e"][t["p"]["ON"]]
+        self.assertEqual(e[:2], ["Belgium", "ON"])
+        self.assertAlmostEqual(e[3], 4.0, delta=1)          # east positive
+        # a primary prefix not among the entity's own prefixes is not one of its (1S: Spratly; CE9: Antarctica,
+        # whose CE9 is another's): as on the radio
+        for i in (t["e"].index(e) for e in t["e"] if e[0] in ("Spratly Islands", "Antarctica")):
+            self.assertNotEqual(t["p"].get(t["e"][i][1]), i, t["e"][i])
+        self.assertEqual(t["e"][t["p"]["DL"]][0], "Germany")
+
+    def test_api(self):
+        """The table whole, gzipped where the radio's Python has zlib and the browser takes it, plain otherwise"""
+        self.addCleanup(setattr, apps, "CTY_PATHS", apps.CTY_PATHS)
+        apps.CTY_PATHS = ("/nonexistent/cty.dat", CTY)
+        with open(CTY, encoding="latin-1") as f:
+            table = apps.cty_table(f.read())
+        code, body, hdrs = get("/api/dxcc")
+        self.assertEqual((code, hdrs.get("Content-Encoding"), json.loads(body)), (200, None, table))
+        code, body, hdrs = get("/api/dxcc", {"HTTP_ACCEPT_ENCODING": "gzip, deflate"})
+        if apps.gzip:
+            self.assertEqual(hdrs.get("Content-Encoding"), "gzip")
+            body = gzip.decompress(body)
+        self.assertEqual(json.loads(body), table)
+        apps.CTY_PATHS = ("/nonexistent/cty.dat",)
+        self.assertEqual(get("/api/dxcc")[0], 404)
+
+    @unittest.skipUnless(shutil.which("node") and os.path.exists(os.path.join(BUILD, "dxcc_calls")),
+                         "no node, or no build/dxcc_calls (make builds it)")
+    def test_lookup_as_the_radio(self):
+        with open(CTY, encoding="latin-1") as f:
+            t = apps.cty_table(f.read())
+        table = os.path.join(BUILD, "dxcc.json")
+        with open(table, "w") as f:
+            json.dump(t, f)
+        # whole calls listed under two entities: the radio's binary search finds either
+        counts = {}
+        with open(CTY, encoding="latin-1") as f:
+            for c in re.findall(r"=([^,;(\[<{~\s]+)", f.read()):
+                counts[c] = counts.get(c, 0) + 1
+        twice = {c for c, n in counts.items() if n > 1}
+        calls = ["ON6URE", "EA8/ON6URE", "ON6URE/P", "ON6URE/QRP", "F/ON6URE/P", "W1AW/7", "W1AW/MM", "W1AW/AM",
+                 "<...>", "<ON6URE>", "on6ure", "K", "4X/G4ABC", "KH6/W1AW", "W1AW/KH6", "VP2E/W1AW", "R0AA",
+                 "UA9ABC", "TA1AA", "IT9ABC", "3D2AG", "BY1AA", "JA1QRZ", "VK2DEF", "PY2AAA", "SP5XX/QRP", "OH2BBB",
+                 "DL/SP2KMO", "SP2KMO/DL", "CE9AA", "1S1A", "A/B/C/D", "ON6URE/1/P", "WAYTOOLONGCALLSIGN12345/P", "W1AW/LGT"]
+        calls += [p + "9XZ" for p in sorted(t["p"])] + [x for x in sorted(t["x"]) if x not in twice]
+        stdin = "\n".join(calls) + "\n"
+        radio = subprocess.run([os.path.join(BUILD, "dxcc_calls")], input=stdin, capture_output=True, text=True,
+                               encoding="latin-1", check=True).stdout.splitlines()
+        page = subprocess.run(["node", os.path.join(HERE, "country_js.js"), os.path.join(STATIC, "js", "app_wall.js"),
+                               table, os.path.join(STATIC, "img", "flags.json")], input=stdin, capture_output=True,
+                              text=True, check=True).stdout.splitlines()
+        self.assertEqual((len(radio), len(page)), (len(calls), len(calls)))
+        diff = [(a, b) for a, b in zip(radio, page) if a != b]
+        self.assertEqual(diff[:10], [], "%d of %d differ" % (len(diff), len(radio)))
 
 
 class RemoteWords(unittest.TestCase):

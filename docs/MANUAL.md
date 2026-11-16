@@ -7782,7 +7782,7 @@ app (FT4 and FT2 too) as four screens over the app's buttons:
   browser keeps the choice. Everything comes from the radio: the page needs no
   internet.
 - Band activity: the decodes slot by slot with the dB, the audio Hz, the
-  country and the distance; a tap on a CQ or a call answers it in our next
+  sender's flag, its country and the distance; a tap on a CQ or a call answers it in our next
   slot and arms TX, as a tap on the radio's list does. Clear empties the
   page's list only.
 - QSO: our messages, the stations calling us and the station worked.
@@ -7791,6 +7791,11 @@ app (FT4 and FT2 too) as four screens over the app's buttons:
   steps (listening, queued, next slot, sending, logged), the QSO's six
   messages with the next one lit, what the app does next in words, and the
   seconds to our next slot.
+
+The country of a call is the radio's own answer: the pages read the radio's
+cty.dat (a newer one put on the card as `/mnt/cty.dat` counts there too)
+and look a call up as the FT8 list does, and the flags are the radio's,
+drawn larger. Both load once an hour at most (about 100 kB).
 
 The radio's own list and its rules decide: CQ and Auto go on when the page
 closes or drops, a reply waits for its slot, and Stop ends the transmission,
@@ -7815,10 +7820,11 @@ four screens over its buttons, as the FT8 page:
   heartbeat, the others, each its colour), us at the radio's locator, and Sat
   as on the FT8 page.
 - Band activity: the messages with the time, the dB, the audio Hz (F, T or S
-  after it for Fast, Turbo or Slow), a message still coming in in italics,
-  growing as its frames arrive. HB hides the heartbeats and their SNR
-  answers; Stations lists the stations heard instead (those that called us
-  first). A tap on a message or a station selects it on the radio, as its map
+  after it for Fast, Turbo or Slow), the sender's flag, a message still
+  coming in in italics, growing as its frames arrive. HB hides the
+  heartbeats and their SNR answers; Stations lists the stations heard
+  instead (those that called us first) with their flag and how far they are:
+  from the locator they sent, or about (≈) from their country's centre. A tap on a message or a station selects it on the radio, as its map
   does.
 - Conversation: our messages, those to us and those of the station
   selected, and a box to write in (500 characters, Enter sends). With a
@@ -7841,9 +7847,9 @@ Chat (the switch at the top, the browser keeps the choice) shows the same
 messages as conversations, for writing from a computer's or a phone's
 keyboard:
 
-- The chats: one per station (what it sends us and what we send it) and one
-  per group (@NAME), the newest on top with its last message and the
-  messages not read yet; the stations heard in the last half hour under
+- The chats: one per station (what it sends us and what we send it, its
+  flag, country and distance) and one per group (@NAME), the newest on top
+  with its last message and the messages not read yet; the stations heard in the last half hour under
   them, a tap starts a chat. A call or a group typed in the box above starts
   one with a station not heard yet (a sked) or with @ALLCALL. Heartbeats, CQs
   and SNR answers stay out. Open and CQ are there too.

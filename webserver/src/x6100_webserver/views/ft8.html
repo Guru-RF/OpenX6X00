@@ -246,7 +246,7 @@ and nothing keys the transmitter. The buttons work from a paired browser in cont
     const $m = $("<span class='m'>").text(msg);
     if (cls === "wk") $m.prepend(CHECK);
     $r.append($("<span class='u'>").text(t), $("<span class='r'>").text(go ? snr(r.snr) : ""), $("<span class='r'>").text(go ? r.f : ""), $m,
-              $("<span class='k'>").text(go ? where(r) : ""));
+              kCell(go ? r.c : "", go ? where(r) : ""));
     if (go) {
       $r.attr("title", "Answer " + (r.c || "") + " in our next slot");
       $r.on("click", function() { if (act("ft8 reply " + r.id)) status("Answering " + (r.c || msg)); });
@@ -254,6 +254,19 @@ and nothing keys the transmitter. The buttons work from a paired browser in cont
     }
     return $r;
   }
+  /* The country and the distance (the radio's), the sender's flag first: once the countries are loaded, the rows
+   * already shown get theirs */
+  function kCell(call, text) {
+    const $k = $("<span class='k'>"), f = AppWall.flag(call);
+    if (f) $k.append(f);
+    return $k.append(document.createTextNode(text));
+  }
+  AppWall.ready(function() {
+    $(".row[data-c]").each(function() {
+      const k = this.querySelector(".k"), f = this.dataset.c && AppWall.flag(this.dataset.c);
+      if (k && f && !k.querySelector(".flag")) k.prepend(f);
+    });
+  });
   function addTo(which, $l, el, $row, t) {
     follow(el, function() {
       if (t && lastSlot[which] !== t) { lastSlot[which] = t; $l.append($("<div class='sep'>").text(t + (which === "dec" && pendingSep ? " · " + pendingSep : ""))); }

@@ -92,6 +92,9 @@ main h2{margin-bottom:6px}
 .acts{display:grid;grid-template-columns:repeat(3,auto);gap:6px}
 .desk .status{grid-column:1/-1;margin:0;min-height:20px}
 .app-help{margin:10px 0 0;font-size:13px}
+/* a sender's flag (app_wall.js flag(): the radio's flags, 40 x 30 in flags.png, shown at half) */
+.flag{display:inline-block;width:20px;height:15px;border-radius:2px;background:url(/static/img/flags.png?v=1) no-repeat;background-size:320px auto;
+  box-shadow:0 0 0 1px rgba(255,255,255,.14);vertical-align:-2px;flex:none;margin-right:6px}
 .tabs,.mbar{display:none}
 
 /* a phone: two pairs of tabs (the waterfall or the map, one list or the other), the main buttons in a bar under

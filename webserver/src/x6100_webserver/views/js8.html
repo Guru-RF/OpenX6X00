@@ -16,7 +16,7 @@
 .t-sel{border-left-color:var(--c-cq)}
 .t-part .m{font-style:italic} .t-part .m::after{content:" …";color:var(--dim)}
 .t-lc .m{opacity:.6}
-.srow{display:grid;grid-template-columns:minmax(0,1fr) 40px 50px 64px 54px;gap:6px;align-items:center;padding:3px 10px 3px 12px;font:12.5px/1.55 var(--mono);font-variant-numeric:tabular-nums;border-left:2px solid transparent;cursor:pointer}
+.srow{display:grid;grid-template-columns:minmax(0,1fr) 40px 50px 72px 54px;gap:6px;align-items:center;padding:3px 10px 3px 12px;font:12.5px/1.55 var(--mono);font-variant-numeric:tabular-nums;border-left:2px solid transparent;cursor:pointer}
 .srow:hover{background:rgba(255,255,255,.05)}
 .srow b{font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .srow span{text-align:right;color:var(--dim)}
@@ -63,9 +63,10 @@
 .av{position:relative;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font:700 13px var(--mono);color:#0b1320;background:var(--c,var(--c-oth));flex:none}
 .av.grp{background:var(--well);color:var(--c-grp);border:1px solid rgba(255,92,180,.4)}
 .av .on{position:absolute;right:0;bottom:1px;width:11px;height:11px;border-radius:50%;background:var(--ok);border:2px solid var(--panel)}
-.th .nm{display:flex;align-items:baseline;gap:8px;min-width:0}
-.th .nm b{font:600 14px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.th .nm small{font:11.5px var(--mono);color:var(--dim);white-space:nowrap}
+.th .nm{display:flex;align-items:center;gap:7px;min-width:0}
+.th .nm .flag{margin:0}
+.th .nm b{font:600 14px var(--mono);white-space:nowrap;flex:none}
+.th .nm small{font:11.5px var(--mono);color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .th .pv{font-size:13px;line-height:1.35;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 .th .pv .tk{vertical-align:-2px;margin-right:3px}
 .th .rt{display:flex;flex-direction:column;align-items:flex-end;gap:5px;font:11.5px var(--mono);color:var(--dim)}
@@ -216,7 +217,7 @@
         <div class="empty" id="band-empty">Nothing heard yet. A tap on a message selects its station: the conversation and the box are then with it.</div>
       </div>
       <div class="list" id="stl" hidden>
-        <div class="srow thead"><span style="text-align:left">Call</span><span>dB</span><span>Hz</span><span class="gr">Grid</span><span>Heard</span></div>
+        <div class="srow thead"><span style="text-align:left">Call</span><span>dB</span><span>Hz</span><span class="gr">km</span><span>Heard</span></div>
       </div>
     </div>
   </article>
@@ -364,6 +365,7 @@ group, kept in this browser. The buttons work from a paired browser in control, 
     if (SUB_L[r.sp]) $hz.append($("<span class='sp'>").text(SUB_L[r.sp]));
     $r.append($("<span class='u'>").text(utcText(r.utc)), $("<span class='r'>").text(r.tx ? "TX" : snr(r.snr)), $hz,
               $("<span class='m'>").text(r.lc ? "[" + r.x + "]" : r.x));
+    const fl = !r.tx && AppWall.flag(r.fr); if (fl) $r.find(".m").prepend(fl);
     if (r.fr && !r.tx) {
       $r.addClass("go").attr("title", "Select " + r.fr + ": the box writes to it").attr("data-c", r.fr);
       $r.on("click", function() { pick(r.fr); });
@@ -417,7 +419,9 @@ group, kept in this browser. The buttons work from a paired browser in control, 
     $stl.children(":not(.thead)").remove();
     list.forEach(function(h) {
       const $r = $("<div class='srow'>").toggleClass("me", !!h.me).toggleClass("sel", h.c === sel())
-        .append($("<b>").text(h.c), $("<span>").text(snr(h.snr)), $("<span>").text(h.f), $("<span class='gr'>").text(h.g || ""), $("<span>").text(ago(h.t)));
+        .append($("<b>").text(h.c).prepend(AppWall.flag(h.c) || ""), $("<span>").text(snr(h.snr)), $("<span>").text(h.f),
+                $("<span class='gr'>").text(AppWall.distance(ME, h.c, h.g).replace(" km", "")).attr("title", [h.g, (AppWall.country(h.c) || {}).k].filter(Boolean).join(" · ")),
+                $("<span>").text(ago(h.t)));
       $r.on("click", function() { pick(h.c); });
       $stl.append($r);
     });
@@ -571,10 +575,11 @@ group, kept in this browser. The buttons work from a paired browser in control, 
   }
   function isCall(w) { return /^([A-Z0-9]{1,4}\/)?[A-Z0-9]{1,3}[0-9][A-Z0-9]*[A-Z](\/[A-Z0-9]+)?$/.test(w || ""); }
   function isGroup(w) { return /^@[A-Z0-9]{1,15}$/.test(w || ""); }
-  function km(g) {
-    const a = ME, b = AppWall.loc2ll(g); if (!a || !b) return 0;
-    const r = Math.PI / 180, d = Math.sin((b[0] - a[0]) * r / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin((b[1] - a[1]) * r / 2) ** 2;
-    return Math.round(12742 * Math.asin(Math.sqrt(d)));
+  /* Under a chat's name: its country and how far, a group's nothing */
+  function where(n) {
+    if (n[0] === "@") return "group";
+    const h = heard[n], c = AppWall.country(n);
+    return [c ? c.k : "", AppWall.distance(ME, n, h && h.g)].filter(Boolean).join(" · ");
   }
   /* What went on the air, the newest 600: one waiting, refused or still coming in is not kept */
   function save() {
@@ -630,7 +635,7 @@ group, kept in this browser. The buttons work from a paired browser in control, 
   }
   function bubble(m, prev) {
     const $b = $("<div class='bub'>").addClass(m.dir).toggleClass("oh", !!m.oh).toggleClass("cont", !!prev && prev.dir === m.dir && prev.fr === m.fr && m.ts - prev.ts < 120000);
-    if (m.fr && m.th[0] === "@" && !$b.hasClass("cont")) $b.append($("<span class='fr'>").css("--c", avColor(m.fr)).text(m.fr));
+    if (m.fr && m.th[0] === "@" && !$b.hasClass("cont")) $b.append($("<span class='fr'>").css("--c", avColor(m.fr)).text(m.fr).prepend(AppWall.flag(m.fr) || ""));
     if (m.oh) $b.append($("<span class='to'>").text("to " + m.to));
     $b.append(document.createTextNode(m.text || " "));
     if (m.part) $b.append("<span class='dots'><i></i><i></i><i></i></span>");
@@ -668,7 +673,7 @@ group, kept in this browser. The buttons work from a paired browser in control, 
       const h = heard[n], $rt = $("<div class='rt'>").append($("<span>").text(last ? utcText(last.utc || 0).slice(0, 5) : ""));
       if (t.un) $rt.append($("<span class='un'>").text(t.un));
       const $t = $("<div class='th'>").toggleClass("cur", n === chat.cur).toggleClass("has-un", !!t.un)
-        .append($a, $("<div>").append($("<div class='nm'>").append($("<b>").text(n), $("<small>").text(h && h.g ? h.g.slice(0, 4) : "")), $pv), $rt);
+        .append($a, $("<div>").append($("<div class='nm'>").append(AppWall.flag(n) || "", $("<b>").text(n), $("<small>").text(where(n))), $pv), $rt);
       $t.on("click", function() { openThread(n); });
       $l.append($t);
     });
@@ -679,7 +684,7 @@ group, kept in this browser. The buttons work from a paired browser in control, 
       $l.append($("<div class='cl-sec'>").text("Heard now: a tap starts a chat"));
       more.forEach(function(h) {
         const $a = $("<span class='av'>"); avatar($a, h.c);
-        const $t = $("<div class='th'>").append($a, $("<div>").append($("<div class='nm'>").append($("<b>").text(h.c), $("<small>").text(h.g || "")),
+        const $t = $("<div class='th'>").append($a, $("<div>").append($("<div class='nm'>").append(AppWall.flag(h.c) || "", $("<b>").text(h.c), $("<small>").text(where(h.c))),
           $("<div class='pv'>").text(snr(h.snr) + " dB · " + h.f + " Hz · " + ago(h.t) + " ago")), $("<div class='rt'>"));
         $t.on("click", function() { thread(h.c).last = Date.now(); openThread(h.c); });
         $l.append($t);
@@ -702,12 +707,13 @@ group, kept in this browser. The buttons work from a paired browser in control, 
     const n = chat.cur, $b = $("#cv-b");
     $("#cv-h, #cv-f").prop("hidden", !n);
     if (!n) { $b.empty().append($("<div class='cv-empty'>").html("Pick a chat, or a station heard, on the left.<br>A message to us starts one by itself.")); drawThread.last = ""; return; }
-    const h = heard[n], d = h && h.g ? km(h.g) : 0;
+    const h = heard[n], c = AppWall.country(n), dist = AppWall.distance(ME, n, h && h.g);
     avatar($("#cv-av"), n);
-    $("#cv-name").text(n);
+    $("#cv-name").text(n).prepend(n[0] === "@" ? "" : AppWall.flag(n) || "");
     const online = h && Date.now() - h.t < 300000;
     $("#cv-sub").toggleClass("on", !!online).text(n[0] === "@" ? "Group: every station in it gets these" :
-      h ? (online ? "On the air · " : "Heard " + ago(h.t) + " ago · ") + snr(h.snr) + " dB · " + h.f + " Hz" + (h.g ? " · " + h.g : "") + (d ? " · " + d + " km" : "") : "Not heard on this band yet");
+      [h ? (online ? "On the air" : "Heard " + ago(h.t) + " ago") : "Not heard on this band yet", h ? snr(h.snr) + " dB" : "", h ? h.f + " Hz" : "",
+       c ? c.k : "", h && h.g ? h.g : "", dist].filter(Boolean).join(" · "));
     const atEnd = $b[0].scrollHeight - $b[0].scrollTop - $b[0].clientHeight < 60;
     $b.empty();
     let prev = null, day = "";
@@ -798,6 +804,12 @@ group, kept in this browser. The buttons work from a paired browser in control, 
     drawList();
   })();
   setInterval(function() { if (chat.on) { drawList(); if (chat.cur) drawThread(); } }, 15000);
+
+  /* the countries loaded: the flags of what is shown already */
+  AppWall.ready(function() {
+    $(".row[data-c]").each(function() { const m = this.querySelector(".m"), f = AppWall.flag(this.dataset.c); if (m && f && !m.querySelector(".flag")) m.prepend(f); });
+    showStations(); chatShow();
+  });
 
   AppWall.tabs("js8", function(id) { if (id === "m-map") map.draw(); if (id === "m-wf") wf.redraw(); });
 

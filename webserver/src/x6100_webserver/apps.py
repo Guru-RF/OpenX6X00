@@ -1,8 +1,9 @@
 from datetime import datetime
 try:
+    import gzip
     import zlib
-except ImportError:   # images built before python3-zlib was selected
-    zlib = None
+except ImportError:   # images built before python3-zlib was selected (gzip needs it)
+    gzip = zlib = None
 import base64
 import binascii
 import csv
@@ -529,6 +530,66 @@ def ft8_page():
 @app.route('/js8')
 def js8_page():
     return bottle.template('js8', me=js_value(read_callsign() or ""), grid=js_value(read_param("qth") or ""))
+
+
+# The country of a call for the apps' pages (their flags and distances): AD1C's cty.dat as the radio reads it
+# (src/dxcc.c), /mnt/cty.dat first so a newer one put on the card counts here too, then the image's; the last is the
+# source tree's (a server on a PC). Sent whole, compact, and looked up in the page as dxcc_lookup does (app_wall.js):
+# {"e": [[name, primary prefix, lat, lon]], "p": {prefix: e}, "x": {whole call: e}}, lon east positive (cty.dat's is
+# west). From OlivLoze's fork
+CTY_PATHS = ("/mnt/cty.dat", "/usr/share/x6100/cty.dat",
+             os.path.join(PACKAGE_DIR, "..", "..", "..", "third-party", "cty", "cty.dat"))
+CTY_SHORT = {"Fed. Rep. of Germany": "Germany", "United States": "USA", "European Russia": "Russia",
+             "Republic of Korea": "South Korea", "DPR of Korea": "North Korea", "United Arab Emirates": "UAE",
+             "Slovak Republic": "Slovakia", "Czech Republic": "Czechia", "Bosnia-Herzegovina": "Bosnia",
+             "Dem. Rep. of the Congo": "DR Congo", "Republic of the Congo": "Congo",
+             "Republic of South Sudan": "South Sudan", "Antigua & Barbuda": "Antigua", "Trinidad & Tobago": "Trinidad",
+             "Turks & Caicos Islands": "Turks & Caicos", "St. Kitts & Nevis": "St. Kitts",
+             "Sov Mil Order of Malta": "SMOM", "UK Base Areas on Cyprus": "UK Cyprus"}   # short_name in src/dxcc.c
+_cty = {"key": None, "json": None, "gz": None}
+
+
+def cty_table(text):
+    """parse() in src/dxcc.c: eight ':'-ended fields, then the prefixes up to ';' (split at commas and spaces),
+    "=CALL" a whole call, what follows a ( [ < { ~ cut off. The primary prefix counts only where it is listed, as
+    there. A whole call listed under two entities (4U1A and a few more of the UN's): the first here, either one
+    there (its binary search)"""
+    ents, pfx, exact = [], {}, {}
+    for block in text.split(";"):
+        f = block.split(":", 8)
+        if len(f) < 9:
+            break                   # a truncated file: what came before it
+        try:
+            lat, lon = float(f[4]), -float(f[5])
+        except ValueError:
+            lat = lon = 0.0
+        e, name, prim = len(ents), f[0].strip(), f[7].strip()
+        ents.append([CTY_SHORT.get(name, name), prim[1:] if prim.startswith("*") else prim, lat, lon])
+        for a in re.split(r"[,\s]+", f[8]):
+            whole = a.startswith("=")
+            a = re.split(r"[(\[<{~]", a[whole:], maxsplit=1)[0]
+            if a:
+                (exact if whole else pfx).setdefault(a, e)
+    return {"e": ents, "p": pfx, "x": exact}
+
+
+@app.get('/api/dxcc')
+def dxcc_table():
+    path = next((p for p in CTY_PATHS if os.path.exists(p)), None)
+    if not path:
+        raise bottle.HTTPError(404, "No cty.dat on the radio")
+    key = (path, os.path.getmtime(path))
+    if _cty["key"] != key:
+        with open(path, encoding="latin-1") as f:
+            _cty["json"] = json.dumps(cty_table(f.read()), separators=(",", ":")).encode()
+        _cty["gz"] = gzip.compress(_cty["json"]) if gzip else None
+        _cty["key"] = key
+    bottle.response.content_type = "application/json"
+    bottle.response.set_header("Cache-Control", "max-age=3600")
+    if _cty["gz"] and "gzip" in bottle.request.headers.get("Accept-Encoding", ""):
+        bottle.response.set_header("Content-Encoding", "gzip")
+        return _cty["gz"]
+    return _cty["json"]
 
 
 # Tailscale Funnel (#58): the Panel and the Screen page for the internet, written at the start into a folder in RAM

@@ -25,6 +25,69 @@ const AppWall = (function() {
     return b ? b[2] : "";
   }
 
+  /* ---- Countries and flags: cty.dat as the radio reads it (/api/dxcc, looked up as dxcc_lookup in src/dxcc.c
+   * does), the radio's flags (src/flags.h's list, drawn larger in flags.png by tools/flags_web). Loaded once;
+   * ready(fn) runs fn when they are */
+  const cty = {t: null, f: null, fns: [], cache: {}};
+  if (window.fetch) Promise.all([fetch("/api/dxcc").then(function(r) { return r.json(); }),
+                                 fetch("/static/img/flags.json?v=1").then(function(r) { return r.json(); })]).then(function(v) {
+    cty.t = v[0]; cty.f = v[1];
+    cty.fns.forEach(function(fn) { fn(); });
+  }).catch(function() {});
+  function ready(fn) { if (cty.t) fn(); else cty.fns.push(fn); }
+  /* is_modifier there: how or where a station operates, not its country */
+  const MODS = {P: 1, M: 1, A: 1, B: 1, R: 1, T: 1, J: 1, QRP: 1, QRPP: 1, LH: 1, LGT: 1, AE: 1, AG: 1, KT: 1};
+  function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+  function longest(s) { for (let n = s.length; n > 0; n--) if (has(cty.t.p, s.slice(0, n))) return cty.t.p[s.slice(0, n)]; return -1; }
+  function byCall(s) { return has(cty.t.x, s) ? cty.t.x[s] : longest(s); }
+  function lookup(s) {
+    if (s.length < 2 || s.indexOf("...") >= 0) return -1;     /* "<...>": a hash not resolved */
+    if (has(cty.t.x, s)) return cty.t.x[s];                   /* whole calls may have a '/' themselves */
+    const parts = [];
+    for (const p of s.split("/")) {
+      if (!p) continue;
+      if (parts.length >= 3) break;
+      if (p === "MM" || p === "AM") return -1;                /* maritime or aeronautical mobile */
+      if (parts.length && (has(MODS, p) || /^\d$/.test(p))) continue;
+      parts.push(p);
+    }
+    if (parts.length === 1) return byCall(parts[0]);
+    if (parts.length < 2) return -1;
+    const sh = parts[1].length < parts[0].length ? 1 : 0;     /* "DL/SP2KMO" or "SP2KMO/DL": the shorter says where */
+    const e = longest(parts[sh]);
+    return e >= 0 ? e : byCall(parts[1 - sh]);
+  }
+  /* {k: "Italy", pfx: "I", ll: [lat, lon] of the country's centre, cell: its flag in flags.png or -1}, null unknown */
+  function country(call) {
+    if (!cty.t || !call) return null;
+    const s = String(call).toUpperCase().replace(/[<>\s]/g, "").slice(0, 23);     /* CALL_MAX there */
+    if (has(cty.cache, s)) return cty.cache[s];
+    const e = lookup(s), en = e >= 0 ? cty.t.e[e] : null;
+    return cty.cache[s] = en ? {k: en[0], pfx: en[1], ll: [en[2], en[3]], cell: has(cty.f.of, en[1]) ? cty.f.of[en[1]] : -1} : null;
+  }
+  /* The flag of a call's country, as an element (null when unknown); 20 x 15 here, 40 x 30 in flags.png */
+  function flag(call) {
+    const c = country(call);
+    if (!c || c.cell < 0) return null;
+    const n = cty.f.n, el = document.createElement("span");
+    el.className = "flag"; el.title = c.k;
+    el.style.backgroundPosition = (-(c.cell % n) * 20) + "px " + (-Math.floor(c.cell / n) * 15) + "px";
+    return el;
+  }
+  /* Kilometres between two [lat, lon] */
+  function km(a, b) {
+    if (!a || !b) return 0;
+    const r = Math.PI / 180, d = Math.pow(Math.sin((b[0] - a[0]) * r / 2), 2) + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.pow(Math.sin((b[1] - a[1]) * r / 2), 2);
+    return Math.round(12742 * Math.asin(Math.sqrt(d)));
+  }
+  /* How far a station is from me: from its locator, else from its country's centre ("≈") */
+  function distance(me, call, grid) {
+    const g = loc2ll(grid);
+    if (g) { const d = km(me, g); return d ? d.toLocaleString("en").replace(/,/g, " ") + " km" : ""; }
+    const c = country(call), d = c ? km(me, c.ll) : 0;
+    return d ? "≈ " + d.toLocaleString("en").replace(/,/g, " ") + " km" : "";
+  }
+
   /* ---- The app's waterfall: binary rows {u16 0xFFFD, u16 bins, u16 low Hz, u16 high Hz} then int8 dB over the
    * noise floor, the newest on top. o.now(): the radio's clock (ms) a row is stamped with; o.draw(ctx, W, H, wf):
    * the page's marks over it; o.click(hz) */
@@ -289,5 +352,6 @@ const AppWall = (function() {
     return {send: send, act: act, status: status};
   }
 
-  return {pad: pad, hms: hms, loc2ll: loc2ll, band: band, waterfall: waterfall, map: map, tabs: tabs, fit: fit, connect: connect, MONO: MONO};
+  return {pad: pad, hms: hms, loc2ll: loc2ll, band: band, ready: ready, country: country, flag: flag, km: km, distance: distance,
+          waterfall: waterfall, map: map, tabs: tabs, fit: fit, connect: connect, MONO: MONO};
 })();
