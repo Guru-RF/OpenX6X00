@@ -81,6 +81,8 @@ typedef enum {
     ACTION_APP_SCAN,     /* 127: Scanner */
     ACTION_APP_FREEDV,   /* 128: RADE (FreeDV) */
     ACTION_APP_FIRST_START, /* 129: the first-start guide (first_start.c), from Settings > General; no key gets it */
+    /* The CX8ANM edition's apps (condoruy) keep its numbers, from 200: a key set to one there does the same here */
+    ACTION_APP_IRADIO = 201, /* Internet radio (dialog_iradio.c) */
 } press_action_t;
 
 typedef enum {

@@ -18,7 +18,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
-- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner)
+- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [Internet radio](#internet-radio)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
@@ -244,7 +244,7 @@ The APP button opens four pages of apps and tools:
 | APP 1:4 | Modes, Cluster, SWR Scan, RX Recorder |
 | APP 2:4 | Settings, CW Trainer, Field Ops, Channels |
 | APP 3:4 | Bands, GPS, Screen rec, CW Keyboard |
-| APP 4:4 | Propagation, Scanner |
+| APP 4:4 | Propagation, Scanner, Internet radio |
 
 With Icon menus on (Settings > Display > INTERFACE, on by default) APP also
 opens the same apps as a grid of tiles over these pages, with Walkie and
@@ -352,7 +352,7 @@ Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 |---|---|
 | Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, CW decoder on/off, CW ZAP (in CW and CW-R, the dial onto the signal the CW Tuner hears, as the CW 1:2 ZAP button; up to v0.3.9 neither was a key action, #196), SWL panel (as the X6100 hand mic's GENE: the broadcast stations on the air within 2 kHz, again the next one), SWL: save channel (as its NW: the station shown saved as a channel; up to v0.3.11 neither was a key action, so an X6200 could not open the panel, #155), ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex, RADE |
-| Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Propagation, Channels, Scanner, RX recorder, SWR Scan, GPS, QTH grid, Settings |
+| Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Propagation, Channels, Scanner, Internet radio, RX recorder, SWR Scan, GPS, QTH grid, Settings |
 
 The hand mic F1 and F2 keys (and the H-22's F3 on the X6200), short and long
 press, are set in the same tab, from the quick actions (all but the
@@ -5404,6 +5404,59 @@ frequency and mode: a band key goes where it went before the scan.
   and two in three of those are not in the list. CB is in AM, where CEPT CB
   is mostly FM: put FM channels in the Channels app for those.
 
+### Internet radio
+
+APP > Internet radio (APP 4:4, the Web radio tile at the end of the APP grid,
+or a long-press action): Internet radio stations on the radio's speaker, at its VOL, or on
+Bluetooth headphones while they stand in for the speaker (Mute speaker on).
+Needs WiFi or Ethernet. The station lists come from
+[radio-browser.info](https://www.radio-browser.info/), the open directory of
+Internet radio stations, which anyone can add a station to.
+
+| Button | What |
+|---|---|
+| Play / Stop | plays the station selected, or stops the one playing (the MFK press and a tap on a row do the same; pressed on the station playing, it stops) |
+| Favourite | the station selected into your favourites, or out of them |
+| List | Favourites, then the country's stations, the most listened in the world, the last search, and round again |
+| Country | the countries the directory has stations of, with how many; a press chooses one, ESC goes back. The radio keeps it |
+| Search | a station's name or a genre (jazz, news: the directory's tags, asked when the names give fewer than 15), or a stream address (`http://...`), which goes straight into the favourites |
+
+- The window opens on your favourites, or the country's stations when there
+  are none, or the countries when no country is chosen yet. The lists are
+  ordered by how often the directory's listeners play them, 100 stations at
+  most; a star (`*`) marks a station that is in your favourites.
+- Above the list: the station playing, its format and bitrate, and the title
+  of the programme or song when the station sends one. The header says
+  Connecting, Playing, Stopped or Error, the reason under the station's name.
+  A station that drops is tried again, three times in a row at most.
+- **Formats.** MP3 plays on every card image (mpg123). AAC, Ogg Vorbis,
+  Opus, FLAC and HLS streams play on a card image that has ffmpeg. On one
+  without it the lists have MP3 stations only, the status line says that a
+  newer card image plays the others, and a favourite in another format stays
+  in the list marked "not playable". A playlist address (`.pls`, `.m3u`,
+  `.asx`, `.xspf`) plays its first stream.
+- **It stops** when the window closes (ESC, GEN, another app), at Stop, and
+  as soon as the radio transmits, whatever keys it: the PTT, CAT, TCI, the
+  browser, an app, the hand mic, VOX, the KEY jack. Nothing in it keys the
+  radio, and a station never plays into what the radio sends. Play again
+  after the over.
+- While a station plays the speaker plays it in place of the receiver, as
+  for the RX recorder's playback; the receiver comes back at Stop.
+- The radio fetches a list when you show it and keeps it an hour (the
+  countries a day), and it fetches the station only while it plays: nothing
+  goes out while the window is closed. To the directory it says
+  `OpenX6X00/<version>`, never your callsign, and as the directory asks of
+  players, each station started is counted on it (its click count). The
+  radio picks one of the directory's servers at random each time, as the
+  directory asks, and the next one when a server does not answer.
+- The favourites are in `/mnt/iradio/favorites.tsv`, the chosen country in
+  `/mnt/iradio/country`. The web configurator's Internet radio page edits
+  the favourites: add any stream address there, rename, reorder, delete.
+  They are not in the Backup.
+- The lists are what the directory has: a station may be off the air, or
+  have moved. Error says why one did not play ("not a stream: a web page",
+  "the station answered HTTP 404").
+
 ## Bluetooth
 
 ### Bluetooth headphones
@@ -5638,6 +5691,7 @@ The menu has General and five groups:
 | | Winlink | Winlink email over HF with Pat and ARDOP, or Mercury or XARA (both experimental): Enabled, callsign, locator, the Winlink password (write only, and where Pat's is set), the modem, ARDOP's, Mercury's or XARA's bandwidth, the VARA HF licence tick box (XARA's full speed; the radio does not check it), the status and Open the mailbox (Pat's page on port 8080), the radio before a connection, the last connection with what to do next, and the logs as a download (writes `/mnt/winlink.conf`, see [Winlink](#winlink)) |
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
+| | Internet radio | the [Internet radio](#internet-radio)'s favourites: add a station by its name and stream address, edit, move up, delete; whether this card image plays more than MP3 (writes `/mnt/iradio/favorites.tsv`) |
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV; the text of the keyboard modes, a file a day: read, download, delete (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
 | | SmartCW | SmartCW's own page through the radio, in a new tab on port 8073; in the menu while SmartCW is plugged in (see [SmartCW](#smartcw)) |
 | Files | Files | browse and download `/mnt` |
@@ -8200,6 +8254,7 @@ The DATA partition, readable on a PC.
 | `field/` | Field Ops state and activation logs (`field/logs/`) |
 | `digi_text/` | the [text log of the keyboard modes](#text-log-of-the-keyboard-modes): `YYYY-MM-DD.txt`, a file a UTC day |
 | `conditions.txt` | the Propagation app's last band conditions from hamqsl.com |
+| `iradio/` | the [Internet radio](#internet-radio)'s favourites (`favorites.tsv`: name, address, format, kbps, country and the directory's id, tab-separated, a station a line) and the chosen country (`country`) |
 | `screenrec/` | screen recordings (AVI) |
 | `themes/` | theme files and folders ([docs/THEMES.md](THEMES.md)) |
 | `sstv/` | received SSTV pictures; `tx_pics/` pictures and `tx_text/` text templates to send |

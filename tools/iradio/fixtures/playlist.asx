@@ -1,0 +1,6 @@
+<ASX version="3.0">
+  <Title>Example ASX</Title>
+  <Entry>
+    <Ref HREF="http://asx.example.org/stream?id=1&amp;q=hi" />
+  </Entry>
+</ASX>

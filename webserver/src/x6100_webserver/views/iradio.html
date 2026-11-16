@@ -1,0 +1,114 @@
+% rebase('base.html', title='Internet radio')
+<h2><svg class="i"><use href="#i-speaker"/></svg>Internet radio</h2>
+<p class="sub">The favourite stations of APP &rarr; Internet radio on the radio. Add one by its name and the address of its audio stream (or of its playlist, .pls or .m3u); the radio also adds the station selected in its lists with its Favourite button. The radio reads the list each time it shows its favourites. A row is saved with its own Save, or all at once; a deleted station can be brought back for twenty seconds.</p>
+<p class="sub" id="formats"></p>
+
+<section class="dp-card">
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-speaker"/></svg></span><div><h3>Favourites</h3><p id="count"></p></div><div class="dp-x"><button class="primary" id="add"><svg class="i"><use href="#i-plus"/></svg>Add</button></div></div>
+<div class="dp-body tbl">
+<div class="table-wrap">
+<table id="t-fav">
+  <thead>
+    <tr><th>Name</th><th>Stream address</th><th>Format</th><th>kbps</th><th>Country</th><th></th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+</div>
+<div class="actions"><span class="status" id="s-fav"></span></div>
+</div>
+</section>
+<p class="sub">The station lists on the radio (by country, the most listened, a search) come from <a href="https://www.radio-browser.info/" target="_blank" rel="noopener">radio-browser.info</a>, the open directory of Internet radio stations, while the app is open.</p>
+
+<script src="/static/js/edit_flow.js?v=3"></script>
+<script>
+EditFlow.effect($("#t-fav").closest(".dp-card").find("h3"), "the next time the radio shows its favourites");
+
+var showStatus = function(text, error=false) {
+  const el = $("#s-fav");
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var button = function(cls, icon, title) {
+  return $("<button class='action'>").addClass(cls).attr("title", title).append($("<i>").addClass(icon));
+}
+
+/* type url payload, then done(state), one request of the table at a time (EditFlow.ajax); on an error the row of
+ * the save tk (EditFlow.submit) says why and keeps what was typed */
+var call = function(type, url, payload, tk, done) {
+  EditFlow.ajax($("#t-fav>tbody"), {
+    url: "/api/iradio" + url, type: type, data: payload ? JSON.stringify(payload) : undefined,
+    contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
+    success: function(r) { done(r); },
+    error: function(xhr, why) {
+      const msg = x6100FailText(xhr, why);
+      if (tk) EditFlow.failed(tk, msg); else showStatus(msg, true);
+    }
+  });
+}
+
+var state = null;
+
+// s.id is null for a new, not yet saved station. The row's key is its address, which the list has once
+var stationRow = function(s) {
+  const row = $("<tr>").attr("data-key", s.id === null ? "" : s.url);
+  const input = function(v, max, width, hint) {
+    return $("<input class='name' autocomplete='off'>").attr({maxlength: max, placeholder: hint || ""}).val(v || "").css("width", width);
+  };
+  const name = input(s.name, 63, "100%", "Station name"), url = input(s.url, 255, "100%", "http://.../stream");
+  const codec = input(s.codec, 8, "5em", "MP3"), kbps = input(s.kbps, 6, "4em", "128"), cc = input(s.cc, 2, "3em", "BE");
+  row.append($("<td>").css("width", "30%").append(name), $("<td>").css("width", "70%").append(url),
+             $("<td>").append(codec), $("<td>").append(kbps), $("<td>").append(cc));
+  if (state && !state.every && s.id !== null && s.codec && s.codec !== "MP3")
+    codec.attr("title", "Not played on this card image (MP3 only)").css("text-decoration", "line-through");
+  const actions = $("<td class='action-cell'>").css("white-space", "nowrap").appendTo(row);
+  const save = function() {
+    const tk = EditFlow.submit(row); if (!tk) return;
+    const d = {name: name.val(), url: url.val().trim(), codec: codec.val(), kbps: kbps.val(), cc: cc.val()};
+    if (s.id === null) call("POST", "", d, tk, function(r) { EditFlow.saved(tk, function() { row.remove(); return render(r)[d.url]; }); });
+    else call("PUT", "/" + s.id, d, tk, function(r) { EditFlow.saved(tk, function() { return render(r)[d.url]; }); });
+  };
+  actions.append(button("save", "si-disk", "Save").on("click", save));
+  if (s.id) actions.append(" ", $("<button class='action up' title='Move up'>").text("▲").on("click", function() {
+    call("POST", "/" + s.id + "/up", null, null, function(r) { render(r); });
+  }));
+  actions.append(" ", button("remove", "si-trash", "Delete").on("click", function() {
+    if (s.id === null) { row.remove(); EditFlow.tools(null, $("#t-fav>tbody")); return; }
+    if (!EditFlow.confirmDelete('the station "' + s.name + '"', "Its address: " + s.url)) return;
+    call("DELETE", "/" + s.id, null, null, function(r) {
+      render(r);
+      EditFlow.undo($("#s-fav"), 'Deleted "' + s.name + '".', function() {
+        call("POST", "", {name: s.name, url: s.url, codec: s.codec, kbps: s.kbps, cc: s.cc}, null, function(r2) {
+          /* back where it was: up from the end */
+          let at = r2.stations.length - 1;
+          const step = function(r3) { if (at > s.id) { at--; call("POST", "/" + (at + 1) + "/up", null, null, step); } else { render(r3); showStatus("Brought back"); } };
+          step(r2);
+        });
+      });
+    });
+  }));
+  EditFlow.watch(row, save);
+  if (s.id === null) EditFlow.state(row, "unsaved");
+  return row;
+}
+
+var render = function(data) {
+  state = data;
+  $("#count").text(data.stations.length + " of " + data.max);
+  $("#formats").text(data.every
+    ? "This card image plays MP3, AAC, Ogg Vorbis, Opus, FLAC and HLS streams."
+    : "This card image plays MP3 streams only: a newer card image also plays AAC, Ogg Vorbis, Opus and HLS. A favourite in another format stays in the list, marked, and is not played.");
+  const body = $("#t-fav>tbody");
+  return EditFlow.rebuild(body, function() { body.empty(); data.stations.forEach(function(s) { body.append(stationRow(s)); }); });
+}
+
+$("#add").on("click", function() {
+  if (!state) return;
+  if ($("#t-fav>tbody>tr").length >= state.max) return showStatus("All " + state.max + " places are used, delete a station first", true);
+  const row = stationRow({id: null});
+  $("#t-fav>tbody").append(row);
+  row.find("input").first().focus();
+});
+
+$.get('/api/iradio', {}, render);
+</script>

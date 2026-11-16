@@ -61,6 +61,7 @@ static const struct {
     {"Walkie", "Portrait screen", "walkie", OPEN_WALKIE, 0},
     {"Birdie Cal", "Find birdies, antenna off", "birdie", OPEN_APP, ACTION_APP_BIRDIE},
     {"Settings", "All settings", "settings", OPEN_APP, ACTION_APP_SETTINGS},
+    {"Web radio", "Internet stations", "iradio", OPEN_APP, ACTION_APP_IRADIO},     /* "Internet radio" is cut in 1bit */
 };
 
 #define APPS_N ((int)(sizeof(apps) / sizeof(apps[0])))

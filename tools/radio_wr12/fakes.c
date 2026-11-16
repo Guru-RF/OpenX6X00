@@ -862,6 +862,9 @@ bool btaudio_speaker_muted(void) {
     return false;
 }
 
+void audio_listen_cut(void) {
+}
+
 void clock_update_estimate(int minutes, bool approx) {
     (void)approx;
     shown.est = minutes;

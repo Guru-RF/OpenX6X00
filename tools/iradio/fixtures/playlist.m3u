@@ -1,0 +1,6 @@
+﻿#EXTM3U
+#EXTINF:-1,Example M3U
+https://m3u.example.org/stream.mp3
+# a comment
+https://m3u.example.org/stream.mp3
+http://m3u2.example.org/s

@@ -74,6 +74,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     sun.c prop_map.c conditions.c beacons.c dialog_propagation.c
     scan.c dialog_scan.c band_keep.c
     dialog_snake.c
+    dialog_iradio.c iradio_list.c
     remote_server.c
     control_owner.c
     winlink.c

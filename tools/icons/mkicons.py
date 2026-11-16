@@ -230,6 +230,14 @@ def i_scan(p):       # a sweep through the channels, stopped on one
     p.line([(57, 22), (57, 88)])
     p.poly([(49, 12), (65, 12), (57, 24)])
 
+def i_iradio(p):     # a radio set with its antenna and a wave: the Internet radio (the CX8ANM edition's drawing)
+    p.box(10, 40, 90, 86, r=8)
+    p.ring(36, 63, 11)
+    for y in (56, 70):
+        p.line([(58, y), (78, y)], w=p.w // 2 + 1)
+    p.line([(30, 40), (70, 12)], w=p.w // 2 + 1)
+    p.ring(74, 12, 8, w=p.w // 2 + 1, start=200, end=340)
+
 
 ICONS = {n[2:]: f for n, f in globals().items() if n.startswith("i_") and callable(f)}
 
