@@ -15,6 +15,7 @@
 #include <math.h>
 
 #include <pulse/pulseaudio.h>
+#include <pulse/rtclock.h>
 #include <alsa/asoundlib.h>
 #include <alsa/mixer.h>
 
@@ -341,19 +342,40 @@ static void loop_mute_ref(pa_stream *s, int d) {
     }
 }
 
+#define STREAM_OPEN_LIMIT_US (3 * PA_USEC_PER_SEC)
+
+/* The mainloop's timer at the end of stream_open's wait */
+static void stream_open_late(pa_mainloop_api *a, pa_time_event *e, const struct timeval *tv, void *late) {
+    (void)a; (void)e; (void)tv;
+    *(bool *)late = true;
+    pa_threaded_mainloop_signal(mloop, 0);
+}
+
 /* A playback stream on sink, ready, or NULL. With the mainloop locked */
 static pa_stream *stream_open(const char *name, const char *sink, const pa_buffer_attr *attr) {
     pa_sample_spec    spec = { .format = PA_SAMPLE_S16NE, .rate = AUDIO_PLAY_RATE, .channels = 1 };
     pa_stream_state_t st = PA_STREAM_FAILED;
     pa_stream         *s = pa_stream_new(ctx, name, &spec, NULL);
 
+    bool              late = false;
+    pa_time_event     *limit;
+
     pa_stream_set_state_callback(s, on_stream_state, NULL);
+    /* the wait has an end: a stream PulseAudio never readies (or never fails) would hold its caller, and with it
+     * owner_lock and every app's sound, for ever */
+    limit = pa_context_rttime_new(ctx, pa_rtclock_now() + STREAM_OPEN_LIMIT_US, stream_open_late, &late);
     if (pa_stream_connect_playback(s, sink, attr, PA_STREAM_ADJUST_LATENCY | PA_STREAM_DONT_MOVE, NULL, NULL) == 0) {
-        while ((st = pa_stream_get_state(s)) == PA_STREAM_CREATING) {
+        while ((st = pa_stream_get_state(s)) == PA_STREAM_CREATING && !late) {
             pa_threaded_mainloop_wait(mloop);
         }
     }
+    if (limit) {
+        mlapi->time_free(limit);
+    }
     pa_stream_set_state_callback(s, NULL, NULL);
+    if (late) {
+        LV_LOG_ERROR("Play on %s: not ready in %d s", sink, (int)(STREAM_OPEN_LIMIT_US / PA_USEC_PER_SEC));
+    }
     if (st != PA_STREAM_READY) {
         LV_LOG_ERROR("Play on %s failed", sink);
         pa_stream_disconnect(s);
