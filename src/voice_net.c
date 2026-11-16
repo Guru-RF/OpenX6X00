@@ -1037,16 +1037,16 @@ static void timer_cb(lv_timer_t *t) {
 
         if (P(a, to_rf)) {
             snprintf(rf, sizeof(rf), " %s>RF%s", a->tag,
-                     atomic_load(&link_stopped)     ? "(off)"
-                     : param_i_get(cfg_squelch) == 0 ? "(no SQL)"
-                     : atomic_load(&off_band)        ? "(no ham band)"
+                     atomic_load(&link_stopped)     ? _("(off)")
+                     : param_i_get(cfg_squelch) == 0 ? _("(no SQL)")
+                     : atomic_load(&off_band)        ? _("(no ham band)")
                                                      : "");
         }
         if (P(a, to_net)) {
             snprintf(rx, sizeof(rx), " RF>%s%s", a->tag,
-                     param_i_get(cfg_squelch) == 0  ? "(no SQL)"
-                     : atomic_load(&rx_off_band)    ? "(no ham band)"
-                     : atomic_load(&rx_outside)     ? "(outside bands)"
+                     param_i_get(cfg_squelch) == 0  ? _("(no SQL)")
+                     : atomic_load(&rx_off_band)    ? _("(no ham band)")
+                     : atomic_load(&rx_outside)     ? _("(outside bands)")
                                                     : "");
         }
         if (s == VNET_SHOW_TO_NET) {
@@ -1134,7 +1134,7 @@ bool vnet_connect(const vnet_app_t *a) {
     }
     if (P(a, to_rf) || P(a, to_net)) {
         msg_schedule_text_fmt("%s: %s%s%s%s", _("Simplex repeater on"), P(a, to_rf) ? a->net : "",
-                              P(a, to_rf) ? " to RF " : "", P(a, to_net) ? "RF to " : "", P(a, to_net) ? a->net : "");
+                              P(a, to_rf) ? _(" to RF ") : "", P(a, to_net) ? _("RF to ") : "", P(a, to_net) ? a->net : "");
     }
     return true;
 }
