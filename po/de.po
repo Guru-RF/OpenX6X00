@@ -1431,7 +1431,7 @@ msgstr ""
 msgid "SHANNON VOLMET"
 msgstr ""
 
-#: src/channel_list.c src/info_bar.c
+#: src/channel_list.c src/field_map.c src/info_bar.c
 msgid "AUTO"
 msgstr ""
 
@@ -3057,7 +3057,23 @@ msgid "LAKE"
 msgstr ""
 
 #: src/dialog_field.c
-msgid "SPBHFTCMLGK"
+msgid ""
+"Your own\n"
+"places"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "SPOT"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"All places\n"
+"nearby"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "SPBHFTCMLGKXN"
 msgstr ""
 
 #: src/dialog_field.c
@@ -3079,6 +3095,10 @@ msgid ""
 msgstr ""
 "Aktivität\n"
 "RBN, Bake"
+
+#: src/dialog_field.c
+msgid "PHONE"
+msgstr ""
 
 #: src/dialog_field.c
 msgid "error no answer"
@@ -3128,6 +3148,18 @@ msgid ""
 msgstr ""
 "Log-\n"
 "buch"
+
+#: src/dialog_field.c
+msgid ""
+"Zoom\n"
+"-"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Zoom\n"
+"+"
+msgstr ""
 
 #: src/dialog_field.c
 msgid "LOGBOOK"
@@ -3200,6 +3232,12 @@ msgstr ""
 
 #: src/dialog_field.c
 msgid ""
+"View:\n"
+"map only"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
 "Re-spot\n"
 "On"
 msgstr ""
@@ -3219,6 +3257,42 @@ msgid "MFK: choose, press to open.   GEN: back to the radio"
 msgstr ""
 
 #: src/dialog_field.c
+msgid "Bunker:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Ruin:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Ruine:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Remains:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Vestige:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Memorial:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Memoire:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Abandoned:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Abandonne:"
+msgstr ""
+
+#: src/dialog_field.c
 msgid "No reference list"
 msgstr "Keine Referenzliste"
 
@@ -3231,12 +3305,21 @@ msgid "Ref...: type your tile"
 msgstr ""
 
 #: src/dialog_field.c
+msgid "Your xota.tsv is empty"
+msgstr ""
+
+#: src/dialog_field.c
 msgid "None in the list: Update list"
 msgstr "Keine in der Liste: Liste aktualisieren"
 
 #: src/dialog_field.c
 msgid "Looking..."
 msgstr "Suche..."
+
+#. not in the list: a line or a word of a longer text
+#: src/dialog_field.c
+msgid " (old)"
+msgstr " (alt)"
 
 #: src/dialog_field.c
 #, c-format
@@ -3253,14 +3336,41 @@ msgstr ""
 msgid "GPS, phone or locator needed"
 msgstr "GPS, Telefon oder Locator nötig"
 
-#. not in the list: a line or a word of a longer text
-#: src/dialog_field.c
-msgid " (old)"
-msgstr " (alt)"
-
 #: src/dialog_field.c
 msgid "NOT ACTIVE"
 msgstr "NICHT AKTIV"
+
+#: src/dialog_field.c
+msgid "Downloading the reference lists..."
+msgstr ""
+
+#: src/dialog_field.c
+msgid "4-character locator: Ref... your tile, or GPS"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "MFK: a tile (km: to its edge).  Ref...: any tile"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "XOTA is your own list: copy your xota.tsv to /mnt/field (see the manual)"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "No reference list yet: Update list (page 2), with WiFi"
+msgstr "Noch keine Referenzliste: Liste aktualisieren (Seite 2), mit WLAN"
+
+#: src/dialog_field.c
+msgid "MFK: choose the castle.  Ref...: any castle by its number (most have no position)"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Every programme, nearest first.  Press: open it in its own.  Start: activate it"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "MFK: choose the reference, press to use it.  Start: begin the activation"
+msgstr "MFK: Referenz wählen, drücken zum Benutzen.  Start: Aktivierung beginnen"
 
 #: src/dialog_field.c
 #, c-format
@@ -3276,30 +3386,6 @@ msgstr "STATUS"
 #, c-format
 msgid "%s\tKM\tNAME"
 msgstr ""
-
-#: src/dialog_field.c
-msgid "Downloading the reference lists..."
-msgstr ""
-
-#: src/dialog_field.c
-msgid "4-character locator: Ref... your tile, or GPS"
-msgstr ""
-
-#: src/dialog_field.c
-msgid "MFK: a tile (km: to its edge).  Ref...: any tile"
-msgstr ""
-
-#: src/dialog_field.c
-msgid "No reference list yet: Update list (page 2), with WiFi"
-msgstr "Noch keine Referenzliste: Liste aktualisieren (Seite 2), mit WLAN"
-
-#: src/dialog_field.c
-msgid "MFK: choose the castle.  Ref...: any castle by its number (most have no position)"
-msgstr ""
-
-#: src/dialog_field.c
-msgid "MFK: choose the reference, press to use it.  Start: begin the activation"
-msgstr "MFK: Referenz wählen, drücken zum Benutzen.  Start: Aktivierung beginnen"
 
 #: src/dialog_field.c
 #, c-format
@@ -3378,6 +3464,10 @@ msgid " %s --call %s --freq-khz %.1f --ref %s --mode %s%s"
 msgstr ""
 
 #: src/dialog_field.c
+msgid "NOTA: no reference near yet (a position is needed)"
+msgstr ""
+
+#: src/dialog_field.c
 #, c-format
 msgid "Choose the %s reference first"
 msgstr "Zuerst die %s-Referenz wählen"
@@ -3404,6 +3494,14 @@ msgstr "Ende nochmals drücken, um die Aktivierung zu beenden"
 #, c-format
 msgid "%s spot: %s"
 msgstr "%s-Spot: %s"
+
+#: src/dialog_field.c
+msgid "NOTA: press the row to open it in its programme first"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "XOTA is a list of your own: no spot"
+msgstr ""
 
 #: src/dialog_field.c
 #, c-format
@@ -3726,6 +3824,10 @@ msgstr ""
 #: src/dialog_field.c
 #, c-format
 msgid "QRZ profile: %s"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "You are there: Start to activate it"
 msgstr ""
 
 #: src/dialog_freedv.c
@@ -4939,6 +5041,18 @@ msgstr ""
 
 #: src/field/refs.c
 msgid "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYTsaaaaaaaceeeeiiiidnooooo/ouuuuytyAaAaAaCcCcCcCcDdDdEeEeEeEeEeGgGgGgGgHhHhIiIiIiIiIiIiJjKkkLlLlLlLlLlNnNnNnnNnOoOoOoOoRrRrRrSsSsSsSsTtTtTtUuUuUuUuUuUuWwYyYZzZzZzs"
+msgstr ""
+
+#: src/field_map.c
+msgid "ZOOM"
+msgstr ""
+
+#: src/field_map.c
+msgid "No map here"
+msgstr ""
+
+#: src/field_map.c
+msgid "outside the area of the tiles on the card"
 msgstr ""
 
 #: src/first_start.c
@@ -8519,6 +8633,36 @@ msgstr ""
 
 #: src/remote_server.c
 msgid "a TCI client"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk slow %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk ntp %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk gps %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk ok %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "Clock set from the phone: %+.1f s"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk set %lld"
 msgstr ""
 
 #: src/remote_server.c

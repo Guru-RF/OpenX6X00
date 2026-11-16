@@ -1355,7 +1355,7 @@ msgstr ""
 msgid "SHANNON VOLMET"
 msgstr ""
 
-#: src/channel_list.c src/info_bar.c
+#: src/channel_list.c src/field_map.c src/info_bar.c
 msgid "AUTO"
 msgstr ""
 
@@ -2945,7 +2945,23 @@ msgid "LAKE"
 msgstr ""
 
 #: src/dialog_field.c
-msgid "SPBHFTCMLGK"
+msgid ""
+"Your own\n"
+"places"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "SPOT"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"All places\n"
+"nearby"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "SPBHFTCMLGKXN"
 msgstr ""
 
 #: src/dialog_field.c
@@ -2962,6 +2978,10 @@ msgstr ""
 msgid ""
 "Activity\n"
 "RBN, beacon"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "PHONE"
 msgstr ""
 
 #: src/dialog_field.c
@@ -3007,6 +3027,18 @@ msgstr ""
 msgid ""
 "Log\n"
 "book"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Zoom\n"
+"-"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Zoom\n"
+"+"
 msgstr ""
 
 #: src/dialog_field.c
@@ -3072,6 +3104,12 @@ msgstr ""
 
 #: src/dialog_field.c
 msgid ""
+"View:\n"
+"map only"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
 "Re-spot\n"
 "On"
 msgstr ""
@@ -3091,6 +3129,42 @@ msgid "MFK: choose, press to open.   GEN: back to the radio"
 msgstr ""
 
 #: src/dialog_field.c
+msgid "Bunker:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Ruin:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Ruine:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Remains:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Vestige:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Memorial:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Memoire:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Abandoned:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Abandonne:"
+msgstr ""
+
+#: src/dialog_field.c
 msgid "No reference list"
 msgstr ""
 
@@ -3103,11 +3177,19 @@ msgid "Ref...: type your tile"
 msgstr ""
 
 #: src/dialog_field.c
+msgid "Your xota.tsv is empty"
+msgstr ""
+
+#: src/dialog_field.c
 msgid "None in the list: Update list"
 msgstr ""
 
 #: src/dialog_field.c
 msgid "Looking..."
+msgstr ""
+
+#: src/dialog_field.c
+msgid " (old)"
 msgstr ""
 
 #: src/dialog_field.c
@@ -3123,26 +3205,7 @@ msgid "GPS, phone or locator needed"
 msgstr ""
 
 #: src/dialog_field.c
-msgid " (old)"
-msgstr ""
-
-#: src/dialog_field.c
 msgid "NOT ACTIVE"
-msgstr ""
-
-#: src/dialog_field.c
-#, c-format
-msgid "%s MODE"
-msgstr ""
-
-#: src/dialog_field.c src/js8/directed_msg.cpp src/js8/frame_joiner.cpp
-#: src/js8_window.c
-msgid "STATUS"
-msgstr ""
-
-#: src/dialog_field.c
-#, c-format
-msgid "%s\tKM\tNAME"
 msgstr ""
 
 #: src/dialog_field.c
@@ -3158,6 +3221,10 @@ msgid "MFK: a tile (km: to its edge).  Ref...: any tile"
 msgstr ""
 
 #: src/dialog_field.c
+msgid "XOTA is your own list: copy your xota.tsv to /mnt/field (see the manual)"
+msgstr ""
+
+#: src/dialog_field.c
 msgid "No reference list yet: Update list (page 2), with WiFi"
 msgstr ""
 
@@ -3166,7 +3233,26 @@ msgid "MFK: choose the castle.  Ref...: any castle by its number (most have no p
 msgstr ""
 
 #: src/dialog_field.c
+msgid "Every programme, nearest first.  Press: open it in its own.  Start: activate it"
+msgstr ""
+
+#: src/dialog_field.c
 msgid "MFK: choose the reference, press to use it.  Start: begin the activation"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s MODE"
+msgstr ""
+
+#: src/dialog_field.c src/js8/directed_msg.cpp src/js8/frame_joiner.cpp
+#: src/js8_window.c
+msgid "STATUS"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s\tKM\tNAME"
 msgstr ""
 
 #: src/dialog_field.c
@@ -3246,6 +3332,10 @@ msgid " %s --call %s --freq-khz %.1f --ref %s --mode %s%s"
 msgstr ""
 
 #: src/dialog_field.c
+msgid "NOTA: no reference near yet (a position is needed)"
+msgstr ""
+
+#: src/dialog_field.c
 #, c-format
 msgid "Choose the %s reference first"
 msgstr ""
@@ -3271,6 +3361,14 @@ msgstr ""
 #: src/dialog_field.c
 #, c-format
 msgid "%s spot: %s"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "NOTA: press the row to open it in its programme first"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "XOTA is a list of your own: no spot"
 msgstr ""
 
 #: src/dialog_field.c
@@ -3594,6 +3692,10 @@ msgstr ""
 #: src/dialog_field.c
 #, c-format
 msgid "QRZ profile: %s"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "You are there: Start to activate it"
 msgstr ""
 
 #: src/dialog_freedv.c
@@ -4788,6 +4890,18 @@ msgstr ""
 
 #: src/field/refs.c
 msgid "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYTsaaaaaaaceeeeiiiidnooooo/ouuuuytyAaAaAaCcCcCcCcDdDdEeEeEeEeEeGgGgGgGgHhHhIiIiIiIiIiIiJjKkkLlLlLlLlLlNnNnNnnNnOoOoOoOoRrRrRrSsSsSsSsTtTtTtUuUuUuUuUuUuWwYyYZzZzZzs"
+msgstr ""
+
+#: src/field_map.c
+msgid "ZOOM"
+msgstr ""
+
+#: src/field_map.c
+msgid "No map here"
+msgstr ""
+
+#: src/field_map.c
+msgid "outside the area of the tiles on the card"
 msgstr ""
 
 #: src/first_start.c
@@ -8326,6 +8440,36 @@ msgstr ""
 
 #: src/remote_server.c
 msgid "a TCI client"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk slow %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk ntp %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk gps %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk ok %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "Clock set from the phone: %+.1f s"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk set %lld"
 msgstr ""
 
 #: src/remote_server.c

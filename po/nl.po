@@ -1515,7 +1515,7 @@ msgstr "Onbekend commando"
 msgid "SHANNON VOLMET"
 msgstr ""
 
-#: src/channel_list.c src/info_bar.c
+#: src/channel_list.c src/field_map.c src/info_bar.c
 msgid "AUTO"
 msgstr ""
 
@@ -3189,7 +3189,27 @@ msgid "LAKE"
 msgstr "MEER"
 
 #: src/dialog_field.c
-msgid "SPBHFTCMLGK"
+msgid ""
+"Your own\n"
+"places"
+msgstr ""
+"Eigen\n"
+"plaatsen"
+
+#: src/dialog_field.c
+msgid "SPOT"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"All places\n"
+"nearby"
+msgstr ""
+"Alle plaatsen\n"
+"in de buurt"
+
+#: src/dialog_field.c
+msgid "SPBHFTCMLGKXN"
 msgstr ""
 
 #: src/dialog_field.c
@@ -3211,6 +3231,10 @@ msgid ""
 msgstr ""
 "Activiteit\n"
 "RBN, baken"
+
+#: src/dialog_field.c
+msgid "PHONE"
+msgstr "TELEFOON"
 
 #: src/dialog_field.c
 msgid "error no answer"
@@ -3260,6 +3284,18 @@ msgid ""
 msgstr ""
 "Log-\n"
 "boek"
+
+#: src/dialog_field.c
+msgid ""
+"Zoom\n"
+"-"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Zoom\n"
+"+"
+msgstr ""
 
 #: src/dialog_field.c
 msgid "LOGBOOK"
@@ -3332,6 +3368,14 @@ msgstr ""
 
 #: src/dialog_field.c
 msgid ""
+"View:\n"
+"map only"
+msgstr ""
+"Weergave:\n"
+"alleen kaart"
+
+#: src/dialog_field.c
+msgid ""
 "Re-spot\n"
 "On"
 msgstr ""
@@ -3355,6 +3399,42 @@ msgid "MFK: choose, press to open.   GEN: back to the radio"
 msgstr "MFK: kiezen, drukken om te openen.   GEN: terug naar de radio"
 
 #: src/dialog_field.c
+msgid "Bunker:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Ruin:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Ruine:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Remains:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Vestige:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Memorial:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Memoire:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Abandoned:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Abandonne:"
+msgstr ""
+
+#: src/dialog_field.c
 msgid "No reference list"
 msgstr "Geen referentielijst"
 
@@ -3367,12 +3447,20 @@ msgid "Ref...: type your tile"
 msgstr "Ref...: typ je tegel"
 
 #: src/dialog_field.c
+msgid "Your xota.tsv is empty"
+msgstr "Je xota.tsv is leeg"
+
+#: src/dialog_field.c
 msgid "None in the list: Update list"
 msgstr "Geen in de lijst: Lijst bijwerken"
 
 #: src/dialog_field.c
 msgid "Looking..."
 msgstr "Zoeken..."
+
+#: src/dialog_field.c
+msgid " (old)"
+msgstr " (oud)"
 
 #: src/dialog_field.c
 #, c-format
@@ -3390,12 +3478,40 @@ msgid "GPS, phone or locator needed"
 msgstr "GPS, telefoon of locator nodig"
 
 #: src/dialog_field.c
-msgid " (old)"
-msgstr " (oud)"
-
-#: src/dialog_field.c
 msgid "NOT ACTIVE"
 msgstr "NIET ACTIEF"
+
+#: src/dialog_field.c
+msgid "Downloading the reference lists..."
+msgstr "Referentielijsten downloaden..."
+
+#: src/dialog_field.c
+msgid "4-character locator: Ref... your tile, or GPS"
+msgstr "Locator van 4 tekens: Ref... je tegel, of GPS"
+
+#: src/dialog_field.c
+msgid "MFK: a tile (km: to its edge).  Ref...: any tile"
+msgstr "MFK: een tegel (km: tot de rand).  Ref...: elke tegel"
+
+#: src/dialog_field.c
+msgid "XOTA is your own list: copy your xota.tsv to /mnt/field (see the manual)"
+msgstr "XOTA is je eigen lijst: kopieer je xota.tsv naar /mnt/field (zie de handleiding)"
+
+#: src/dialog_field.c
+msgid "No reference list yet: Update list (page 2), with WiFi"
+msgstr "Nog geen referentielijst: Lijst bijwerken (pagina 2), met WiFi"
+
+#: src/dialog_field.c
+msgid "MFK: choose the castle.  Ref...: any castle by its number (most have no position)"
+msgstr "MFK: kasteel kiezen.  Ref...: elk kasteel op nummer (de meeste hebben geen positie)"
+
+#: src/dialog_field.c
+msgid "Every programme, nearest first.  Press: open it in its own.  Start: activate it"
+msgstr "Elk programma, dichtstbijzijnde eerst.  Drukken: in zijn eigen openen.  Start: activeren"
+
+#: src/dialog_field.c
+msgid "MFK: choose the reference, press to use it.  Start: begin the activation"
+msgstr "MFK: referentie kiezen, drukken om ze te gebruiken.  Start: activatie beginnen"
 
 #: src/dialog_field.c
 #, c-format
@@ -3411,30 +3527,6 @@ msgstr ""
 #, c-format
 msgid "%s\tKM\tNAME"
 msgstr "%s\tKM\tNAAM"
-
-#: src/dialog_field.c
-msgid "Downloading the reference lists..."
-msgstr "Referentielijsten downloaden..."
-
-#: src/dialog_field.c
-msgid "4-character locator: Ref... your tile, or GPS"
-msgstr "Locator van 4 tekens: Ref... je tegel, of GPS"
-
-#: src/dialog_field.c
-msgid "MFK: a tile (km: to its edge).  Ref...: any tile"
-msgstr "MFK: een tegel (km: tot de rand).  Ref...: elke tegel"
-
-#: src/dialog_field.c
-msgid "No reference list yet: Update list (page 2), with WiFi"
-msgstr "Nog geen referentielijst: Lijst bijwerken (pagina 2), met WiFi"
-
-#: src/dialog_field.c
-msgid "MFK: choose the castle.  Ref...: any castle by its number (most have no position)"
-msgstr "MFK: kasteel kiezen.  Ref...: elk kasteel op nummer (de meeste hebben geen positie)"
-
-#: src/dialog_field.c
-msgid "MFK: choose the reference, press to use it.  Start: begin the activation"
-msgstr "MFK: referentie kiezen, drukken om ze te gebruiken.  Start: activatie beginnen"
 
 #: src/dialog_field.c
 #, c-format
@@ -3513,6 +3605,10 @@ msgid " %s --call %s --freq-khz %.1f --ref %s --mode %s%s"
 msgstr ""
 
 #: src/dialog_field.c
+msgid "NOTA: no reference near yet (a position is needed)"
+msgstr "NOTA: nog geen referentie in de buurt (een positie is nodig)"
+
+#: src/dialog_field.c
 #, c-format
 msgid "Choose the %s reference first"
 msgstr "Kies eerst de %s-referentie"
@@ -3539,6 +3635,14 @@ msgstr "Druk nog eens op Einde om de activatie te beëindigen"
 #, c-format
 msgid "%s spot: %s"
 msgstr "%s-spot: %s"
+
+#: src/dialog_field.c
+msgid "NOTA: press the row to open it in its programme first"
+msgstr "NOTA: druk eerst op de rij om ze in haar programma te openen"
+
+#: src/dialog_field.c
+msgid "XOTA is a list of your own: no spot"
+msgstr "XOTA is je eigen lijst: geen spot"
 
 #: src/dialog_field.c
 #, c-format
@@ -3872,6 +3976,10 @@ msgstr "QRZ-profiel niet opgeslagen"
 #, c-format
 msgid "QRZ profile: %s"
 msgstr "QRZ-profiel: %s"
+
+#: src/dialog_field.c
+msgid "You are there: Start to activate it"
+msgstr "Je bent er: Start om te activeren"
 
 #: src/dialog_freedv.c
 msgid "Discard"
@@ -5124,6 +5232,18 @@ msgstr ""
 #: src/field/refs.c
 msgid "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYTsaaaaaaaceeeeiiiidnooooo/ouuuuytyAaAaAaCcCcCcCcDdDdEeEeEeEeEeGgGgGgGgHhHhIiIiIiIiIiIiJjKkkLlLlLlLlLlNnNnNnnNnOoOoOoOoRrRrRrSsSsSsSsTtTtTtUuUuUuUuUuUuWwYyYZzZzZzs"
 msgstr ""
+
+#: src/field_map.c
+msgid "ZOOM"
+msgstr ""
+
+#: src/field_map.c
+msgid "No map here"
+msgstr "Hier geen kaart"
+
+#: src/field_map.c
+msgid "outside the area of the tiles on the card"
+msgstr "buiten het gebied van de kaarttegels op de kaart"
 
 #: src/first_start.c
 msgid "the GPS"
@@ -8750,6 +8870,36 @@ msgstr "de operator van de radio"
 #: src/remote_server.c
 msgid "a TCI client"
 msgstr "een TCI-client"
+
+#: src/remote_server.c
+#, c-format
+msgid "clk slow %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk ntp %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk gps %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk ok %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "Clock set from the phone: %+.1f s"
+msgstr "Klok gezet vanaf de telefoon: %+.1f s"
+
+#: src/remote_server.c
+#, c-format
+msgid "clk set %lld"
+msgstr ""
 
 #: src/remote_server.c
 msgid "pairing code shown on the radio for 2 min"

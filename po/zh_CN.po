@@ -1514,7 +1514,7 @@ msgstr "未知命令"
 msgid "SHANNON VOLMET"
 msgstr ""
 
-#: src/channel_list.c src/info_bar.c
+#: src/channel_list.c src/field_map.c src/info_bar.c
 msgid "AUTO"
 msgstr "自动"
 
@@ -3222,7 +3222,27 @@ msgid "LAKE"
 msgstr "湖泊"
 
 #: src/dialog_field.c
-msgid "SPBHFTCMLGK"
+msgid ""
+"Your own\n"
+"places"
+msgstr ""
+"自己的\n"
+"地点"
+
+#: src/dialog_field.c
+msgid "SPOT"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"All places\n"
+"nearby"
+msgstr ""
+"附近的\n"
+"全部地点"
+
+#: src/dialog_field.c
+msgid "SPBHFTCMLGKXN"
 msgstr ""
 
 #: src/dialog_field.c
@@ -3244,6 +3264,10 @@ msgid ""
 msgstr ""
 "活动\n"
 "RBN, 信标"
+
+#: src/dialog_field.c
+msgid "PHONE"
+msgstr "手机"
 
 #: src/dialog_field.c
 msgid "error no answer"
@@ -3293,6 +3317,18 @@ msgid ""
 msgstr ""
 "查看\n"
 "日志"
+
+#: src/dialog_field.c
+msgid ""
+"Zoom\n"
+"-"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Zoom\n"
+"+"
+msgstr ""
 
 #: src/dialog_field.c
 msgid "LOGBOOK"
@@ -3367,6 +3403,14 @@ msgstr "报告"
 
 #: src/dialog_field.c
 msgid ""
+"View:\n"
+"map only"
+msgstr ""
+"视图:\n"
+"仅地图"
+
+#: src/dialog_field.c
+msgid ""
 "Re-spot\n"
 "On"
 msgstr ""
@@ -3390,6 +3434,42 @@ msgid "MFK: choose, press to open.   GEN: back to the radio"
 msgstr "MFK: 选择, 按下打开.   GEN: 返回电台"
 
 #: src/dialog_field.c
+msgid "Bunker:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Ruin:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Ruine:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Remains:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Vestige:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Memorial:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Memoire:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Abandoned:"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Abandonne:"
+msgstr ""
+
+#: src/dialog_field.c
 msgid "No reference list"
 msgstr "无编号列表"
 
@@ -3402,12 +3482,20 @@ msgid "Ref...: type your tile"
 msgstr "编号...: 输入你的方格"
 
 #: src/dialog_field.c
+msgid "Your xota.tsv is empty"
+msgstr "你的 xota.tsv 是空的"
+
+#: src/dialog_field.c
 msgid "None in the list: Update list"
 msgstr "列表中没有: 更新列表"
 
 #: src/dialog_field.c
 msgid "Looking..."
 msgstr "查找中..."
+
+#: src/dialog_field.c
+msgid " (old)"
+msgstr " (旧)"
 
 #: src/dialog_field.c
 #, c-format
@@ -3425,12 +3513,40 @@ msgid "GPS, phone or locator needed"
 msgstr "需要 GPS, 手机或网格"
 
 #: src/dialog_field.c
-msgid " (old)"
-msgstr " (旧)"
-
-#: src/dialog_field.c
 msgid "NOT ACTIVE"
 msgstr "未激活"
+
+#: src/dialog_field.c
+msgid "Downloading the reference lists..."
+msgstr "正在下载编号列表..."
+
+#: src/dialog_field.c
+msgid "4-character locator: Ref... your tile, or GPS"
+msgstr "4 位网格: 用\"编号...\"输入方格, 或用 GPS"
+
+#: src/dialog_field.c
+msgid "MFK: a tile (km: to its edge).  Ref...: any tile"
+msgstr "MFK: 选方格 (km: 到其边缘).  编号...: 任意方格"
+
+#: src/dialog_field.c
+msgid "XOTA is your own list: copy your xota.tsv to /mnt/field (see the manual)"
+msgstr "XOTA 是你自己的列表: 把 xota.tsv 复制到 /mnt/field (见手册)"
+
+#: src/dialog_field.c
+msgid "No reference list yet: Update list (page 2), with WiFi"
+msgstr "还没有编号列表: 连 WiFi 后按\"更新列表\" (第 2 页)"
+
+#: src/dialog_field.c
+msgid "MFK: choose the castle.  Ref...: any castle by its number (most have no position)"
+msgstr "MFK: 选择城堡.  编号...: 按编号选任意城堡 (多数没有位置)"
+
+#: src/dialog_field.c
+msgid "Every programme, nearest first.  Press: open it in its own.  Start: activate it"
+msgstr "全部活动, 最近的在前.  按下: 在其活动中打开.  Start: 激活"
+
+#: src/dialog_field.c
+msgid "MFK: choose the reference, press to use it.  Start: begin the activation"
+msgstr "MFK: 选择编号, 按下使用.  开始: 开始激活"
 
 #: src/dialog_field.c
 #, c-format
@@ -3446,30 +3562,6 @@ msgstr "状态"
 #, c-format
 msgid "%s\tKM\tNAME"
 msgstr "%s\tKM\t名称"
-
-#: src/dialog_field.c
-msgid "Downloading the reference lists..."
-msgstr "正在下载编号列表..."
-
-#: src/dialog_field.c
-msgid "4-character locator: Ref... your tile, or GPS"
-msgstr "4 位网格: 用\"编号...\"输入方格, 或用 GPS"
-
-#: src/dialog_field.c
-msgid "MFK: a tile (km: to its edge).  Ref...: any tile"
-msgstr "MFK: 选方格 (km: 到其边缘).  编号...: 任意方格"
-
-#: src/dialog_field.c
-msgid "No reference list yet: Update list (page 2), with WiFi"
-msgstr "还没有编号列表: 连 WiFi 后按\"更新列表\" (第 2 页)"
-
-#: src/dialog_field.c
-msgid "MFK: choose the castle.  Ref...: any castle by its number (most have no position)"
-msgstr "MFK: 选择城堡.  编号...: 按编号选任意城堡 (多数没有位置)"
-
-#: src/dialog_field.c
-msgid "MFK: choose the reference, press to use it.  Start: begin the activation"
-msgstr "MFK: 选择编号, 按下使用.  开始: 开始激活"
 
 #: src/dialog_field.c
 #, c-format
@@ -3548,6 +3640,10 @@ msgid " %s --call %s --freq-khz %.1f --ref %s --mode %s%s"
 msgstr ""
 
 #: src/dialog_field.c
+msgid "NOTA: no reference near yet (a position is needed)"
+msgstr "NOTA: 附近还没有编号 (需要位置)"
+
+#: src/dialog_field.c
 #, c-format
 msgid "Choose the %s reference first"
 msgstr "请先选择 %s 编号"
@@ -3574,6 +3670,14 @@ msgstr "再按\"结束\"结束激活"
 #, c-format
 msgid "%s spot: %s"
 msgstr "%s 报告: %s"
+
+#: src/dialog_field.c
+msgid "NOTA: press the row to open it in its programme first"
+msgstr "NOTA: 先按该行, 在其活动中打开"
+
+#: src/dialog_field.c
+msgid "XOTA is a list of your own: no spot"
+msgstr "XOTA 是你自己的列表: 不发报告"
 
 #: src/dialog_field.c
 #, c-format
@@ -3907,6 +4011,10 @@ msgstr "QRZ 配置未保存"
 #, c-format
 msgid "QRZ profile: %s"
 msgstr "QRZ 配置: %s"
+
+#: src/dialog_field.c
+msgid "You are there: Start to activate it"
+msgstr "你在这里: 按 Start 激活"
 
 #: src/dialog_freedv.c
 msgid "Discard"
@@ -5171,6 +5279,18 @@ msgstr ""
 #: src/field/refs.c
 msgid "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYTsaaaaaaaceeeeiiiidnooooo/ouuuuytyAaAaAaCcCcCcCcDdDdEeEeEeEeEeGgGgGgGgHhHhIiIiIiIiIiIiJjKkkLlLlLlLlLlNnNnNnnNnOoOoOoOoRrRrRrSsSsSsSsTtTtTtUuUuUuUuUuUuWwYyYZzZzZzs"
 msgstr ""
+
+#: src/field_map.c
+msgid "ZOOM"
+msgstr ""
+
+#: src/field_map.c
+msgid "No map here"
+msgstr "此处无地图"
+
+#: src/field_map.c
+msgid "outside the area of the tiles on the card"
+msgstr "超出存储卡上地图瓦片的范围"
 
 #: src/first_start.c
 msgid "the GPS"
@@ -8803,6 +8923,36 @@ msgstr "电台操作员"
 #: src/remote_server.c
 msgid "a TCI client"
 msgstr "TCI 客户端"
+
+#: src/remote_server.c
+#, c-format
+msgid "clk slow %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk ntp %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk gps %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "clk ok %lld"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "Clock set from the phone: %+.1f s"
+msgstr "已从手机设置时钟: %+.1f s"
+
+#: src/remote_server.c
+#, c-format
+msgid "clk set %lld"
+msgstr ""
 
 #: src/remote_server.c
 msgid "pairing code shown on the radio for 2 min"
