@@ -16,6 +16,9 @@
  *                                                        radio is on, for Wavelog's live link (wavelog_cat.h, #245)
  *    {"cmd":"tune","hz":hz,"mode":"USB-D"}            -> {"t":"ok"} or {"t":"err","err":"..."}: a click on a spot in
  *                                                        Wavelog; frequency and mode only, refused while transmitting
+ *    {"cmd":"pos_get"}                                -> {"t":"pos","lat":..,"lon":..,"src":"GPS"|"Phone"|"Locator"},
+ *                                                        "src":"" without any: where the radio is (station_position),
+ *                                                        for the web Flights page
  *  The values are checked here and applied on the LVGL thread through the scheduler, as the
  *  Settings pages apply them.
  *
@@ -42,6 +45,7 @@ extern "C" {
     #include "screen_idle.h"
     #include "screen_light.h"
     #include "screen_main.h"
+    #include "station.h"
     #include "theme.h"
     #include "walkie.h"
     #include "wavelog_cat.h"
@@ -92,6 +96,7 @@ static const struct {
     {"spectrum_line_color", &cfg_sm.p_spectrum_line_color, -1, 0xffffff},
     {"spectrum_fill_color", &cfg_sm.p_spectrum_fill_color, -1, 0xffffff},
     {"spectrum_fill_gradient", &cfg_sm.p_spectrum_fill_gradient, 0, 1},
+    {"spectrum_fill_level", &cfg_sm.p_spectrum_fill_level, 0, 1},
     {"smeter_bar_color", &cfg_sm.p_smeter_bar_color, -1, 0xffffff},
     {"swr_color", &cfg_sm.p_swr_color, -1, 0xffffff},
     {"smeter_lamp", &cfg_sm.p_smeter_lamp, 0, 1},
@@ -427,6 +432,31 @@ static const char *tune(cJSON *req) {
     return t.err;
 }
 
+/* The web Flights page: where the radio is, read on the LVGL thread (the locator is a setting), this thread waiting */
+typedef struct {
+    double      lat, lon;
+    const char *src;
+    bool        ok;
+} pos_req_t;
+
+static void pos_cb(void *arg) {
+    pos_req_t *p = (pos_req_t *)arg;
+
+    p->ok = station_position(&p->lat, &p->lon, &p->src);
+}
+
+static const char *pos_get(char *out, size_t size, int *l) {
+    pos_req_t p = {0, 0, "", false};
+
+    if (!scheduler_call(pos_cb, &p))
+        return "Busy, try again";
+    if (p.ok)
+        *l = snprintf(out, size, "{\"t\":\"pos\",\"lat\":%.6f,\"lon\":%.6f,\"src\":\"%s\"}\n", p.lat, p.lon, p.src);
+    else
+        *l = snprintf(out, size, "{\"t\":\"pos\",\"src\":\"\"}\n");
+    return NULL;
+}
+
 /* The answer to one request line */
 static int handle_line(const char *line, char *out, size_t size) {
     cJSON      *req  = cJSON_Parse(line);
@@ -456,6 +486,8 @@ static int handle_line(const char *line, char *out, size_t size) {
         l = wavelog_cat_state(out, size);
     } else if (!strcmp(name->valuestring, "tune")) {
         err = tune(req);
+    } else if (!strcmp(name->valuestring, "pos_get")) {
+        err = pos_get(out, size, &l);
     } else if (!strcmp(name->valuestring, "tx_ranges_read")) {
         if (!scheduler_call(tx_ranges_read_cb, NULL)) {
             err = "Busy, try again";

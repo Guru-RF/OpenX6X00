@@ -1,0 +1,284 @@
+#!/usr/bin/env python3
+# The aircraft around the radio for APP > Flights (src/dialog_flights.c) and the web Flights page: their ADS-B
+# positions as networks of volunteers' receivers share them, free for personal, non-commercial use without a key.
+#
+#   x6100-flights update LAT LON KM [OUT]   the aircraft within KM km of LAT, LON (degrees, north and east
+#                                           positive) into OUT (/tmp/x6100-flights.json); prints "ok N NEXT" (N
+#                                           aircraft, ask again in NEXT seconds) or "error <why>"
+#
+# airplanes.live first: one request a second at most, non-commercial use, no guarantee. adsb.lol when that one does
+# not answer: 500 requests a day from an address without a key, its data under the ODbL 1.0. Both are credited where
+# the aircraft are shown. Only aircraft some volunteer's receiver nearby picks up are there.
+#
+# The position leaves the radio rounded to 0.1 degree (about 11 km): the radius asked is wider by what the rounding
+# moved the centre, and each aircraft's distance and bearing are worked out here from the position itself. The GUI
+# asks only while the app is open, the web server only while its page is open and seen, every NEXT seconds: 20 with
+# airplanes.live, 60 with adsb.lol (at most 60 an hour of its 500 a day). One answer serves both for CACHE_S, and the
+# requests of both are taken one at a time (LOCK), each service not asked again before the time kept in STATE (a
+# second after the last request; a "429 too many" with its Retry-After).
+#
+# From condoruy's CX8ANM edition of OpenX6X00 (its Flights app), rewritten for the rules above.
+import fcntl
+import json
+import math
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
+
+TMP = os.environ.get("X6100_FLIGHTS_TMP", "/tmp")     # the host test's own folder
+OUT = os.path.join(TMP, "x6100-flights.json")
+CACHE = os.path.join(TMP, "x6100-flights-cache.json")
+STATE = os.path.join(TMP, "x6100-flights-state.json")
+LOCK = os.path.join(TMP, "x6100-flights.lock")
+CACHE_S = 10
+TIMEOUT_S = 10
+KM_PER_NM = 1.852
+FT_M = 0.3048
+ROUND_DEG = 0.1
+ROUND_KM = 8.0          # the furthest a 0.1 degree rounding moves a point: 0.05 degree each way, 5.6 km, diagonally
+MAX_NM = 250            # the services' widest
+MAX_KM = 400
+MAX_AC = 200
+STALE_S = 60            # a position not heard for longer is left out
+
+# name, URL ({lat}, {lon}, {nm}), seconds between requests, seconds to the next poll, the credit shown
+SERVICES = [
+    ("airplanes.live", "https://api.airplanes.live/v2/point/{lat}/{lon}/{nm}", 1, 20, "airplanes.live"),
+    ("adsb.lol", "https://api.adsb.lol/v2/point/{lat}/{lon}/{nm}", 60, 60, "adsb.lol (ODbL)"),
+]
+RETRY_S = 60            # after an error: the GUI's and the page's next try
+BUSY_S = 900            # a 429 without a Retry-After
+DOWN_S = 30             # a service that answered with an error, not asked again before
+
+
+def version():
+    v = os.environ.get("X6100_FW")
+    if not v:
+        try:
+            with open("/usr/share/x6100/app-version") as f:
+                v = f.read().strip()
+        except OSError:
+            v = ""
+    return v or "unknown"
+
+
+AGENT = f"OpenX6X00/{version()} (+https://github.com/Guru-RF/OpenX6X00)"
+
+
+def services():
+    """SERVICES, or X6100_FLIGHTS_URLS="name=url|name=url" in their place (the host test's stand-ins)"""
+    alt = os.environ.get("X6100_FLIGHTS_URLS")
+    if not alt:
+        return SERVICES
+    out = []
+    for part in alt.split("|"):
+        name, _, url = part.partition("=")
+        known = next((s for s in SERVICES if s[0] == name), None)
+        out.append((name, url) + (known[2:] if known else (1, 20, name)))
+    return out
+
+
+def rounded(lat, lon):
+    """The position as it is sent: to 0.1 degree (+ 0.0: no "-0.0")"""
+    return round(round(lat / ROUND_DEG) * ROUND_DEG, 1) + 0.0, round(round(lon / ROUND_DEG) * ROUND_DEG, 1) + 0.0
+
+
+def radius_nm(km):
+    """The radius asked, in nautical miles: km and what the rounding may have moved the centre"""
+    return max(1, min(MAX_NM, int(math.ceil((km + ROUND_KM) / KM_PER_NM))))
+
+
+def dist_brg(lat1, lon1, lat2, lon2):
+    """Great-circle distance (km) and initial bearing (degrees from north) from 1 to 2"""
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    d = 2 * 6371.0 * math.asin(min(1.0, math.sqrt(a)))
+    y = math.sin(dl) * math.cos(p2)
+    x = math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl)
+    return d, (math.degrees(math.atan2(y, x)) + 360) % 360
+
+
+def number(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def text(v, n=16):
+    return " ".join(str(v).split())[:n] if isinstance(v, (str, int)) and not isinstance(v, bool) else ""
+
+
+def aircraft_list(doc):
+    """The list of aircraft of an answer (readsb's JSON: "ac", "aircraft" in older ones); None: not such an answer"""
+    if not isinstance(doc, dict):
+        return None
+    ac = doc.get("ac", doc.get("aircraft"))
+    if isinstance(ac, list):
+        return ac
+    if ac is None and ("now" in doc or "total" in doc or "msg" in doc):   # nothing in the area
+        return []
+    return None
+
+
+def clean(a):
+    """What is kept of one aircraft (units of the screen: m, km/h, m/min), None without a recent position"""
+    if not isinstance(a, dict) or not number(a.get("lat")) or not number(a.get("lon")):
+        return None
+    if not (-90 <= a["lat"] <= 90 and -180 <= a["lon"] <= 180):
+        return None
+    if number(a.get("seen_pos")) and a["seen_pos"] > STALE_S:
+        return None
+    alt = a.get("alt_baro", a.get("alt_geom"))
+    ground = alt == "ground"
+    gs, trk = a.get("gs"), a.get("track", a.get("true_heading"))
+    vr = a.get("baro_rate", a.get("geom_rate"))
+    return {
+        "hex": text(a.get("hex"), 8).upper().lstrip("~"),
+        "call": text(a.get("flight"), 8),
+        "reg": text(a.get("r"), 10),
+        "type": text(a.get("t"), 4),
+        "desc": text(a.get("desc"), 40),
+        "lat": round(a["lat"], 5),
+        "lon": round(a["lon"], 5),
+        "alt_m": None if ground or not number(alt) else int(round(alt * FT_M)),
+        "ground": ground,
+        "kmh": int(round(gs * KM_PER_NM)) if number(gs) else None,
+        "trk": int(round(trk)) % 360 if number(trk) else None,
+        "vs": int(round(vr * FT_M)) if number(vr) else None,
+        "squawk": text(a.get("squawk"), 4),
+        "emerg": text(a.get("emergency"), 16) not in ("", "none"),
+    }
+
+
+def place(aircraft, lat, lon, km):
+    """The aircraft within km of lat, lon with their distance and bearing from there, the nearest first"""
+    out = []
+    for c in aircraft:
+        d, b = dist_brg(lat, lon, c["lat"], c["lon"])
+        if d <= km:
+            out.append(dict(c, dist_km=round(d, 1), brg=int(round(b)) % 360))
+    out.sort(key=lambda c: c["dist_km"])
+    return out[:MAX_AC]
+
+
+def parse(body):
+    """An answer's bytes to the cleaned aircraft; ValueError when it is not one"""
+    try:
+        ac = aircraft_list(json.loads(body.decode("utf-8", "replace")))
+    except ValueError:
+        ac = None
+    if ac is None:
+        raise ValueError("not an aircraft list")
+    return [c for c in (clean(a) for a in ac) if c]
+
+
+def read_json(path, default):
+    try:
+        with open(path) as f:
+            v = json.load(f)
+        return v if isinstance(v, type(default)) else default
+    except (OSError, ValueError):
+        return default
+
+
+def write_json(path, doc):
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(doc, f, separators=(",", ":"))
+    os.replace(tmp, path)
+
+
+def short(e):
+    """A network error in a few words"""
+    if isinstance(e, urllib.error.HTTPError):
+        return "HTTP %d" % e.code
+    msg = str(getattr(e, "reason", "") or e)
+    if "Name or service" in msg or "Temporary failure" in msg or "unreachable" in msg or "No address" in msg:
+        return "no internet"
+    if "timed out" in msg:
+        return "no answer"
+    return msg[:60]
+
+
+def fetch(qlat, qlon, nm, now, state):
+    """(service, its aircraft) from the first service that answers; RuntimeError with the reasons. state: when each
+    may be asked again, updated"""
+    why = []
+    for name, url, gap, _, _ in services():
+        wait = state.get(name, 0) - now
+        if wait > 2:
+            why.append("%s: next try in %d s" % (name, math.ceil(wait)))
+            continue
+        if wait > 0:
+            time.sleep(wait)        # the other one of GUI and web page asked a moment ago
+            now += wait
+        state[name] = now + gap
+        req = urllib.request.Request(url.format(lat="%.1f" % qlat, lon="%.1f" % qlon, nm=nm),
+                                     headers={"User-Agent": AGENT, "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
+                return name, parse(r.read(4 * 1024 * 1024))
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                try:
+                    after = int(e.headers.get("Retry-After", ""))
+                except ValueError:
+                    after = BUSY_S
+                state[name] = now + max(gap, min(after, 86400))
+                why.append("%s: busy" % name)
+            else:
+                state[name] = now + max(gap, DOWN_S)
+                why.append("%s: HTTP %d" % (name, e.code))
+        except ValueError as e:
+            state[name] = now + max(gap, DOWN_S)
+            why.append("%s: %s" % (name, e))
+        except Exception as e:      # noqa: BLE001 (the network, TLS: the next service is tried)
+            why.append("%s: %s" % (name, short(e)))
+    if why and all(w.endswith("no internet") for w in why):
+        raise RuntimeError("no internet (WiFi?)")
+    raise RuntimeError("; ".join(why) or "no service")
+
+
+def update(lat, lon, km, out=OUT, now=None):
+    """The aircraft around lat, lon into out; (how many, seconds to the next poll)"""
+    now = time.time() if now is None else now
+    qlat, qlon = rounded(lat, lon)
+    nm = radius_nm(km)
+    with open(LOCK, "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        cache = read_json(CACHE, {})
+        if (cache.get("at") == [qlat, qlon] and number(cache.get("nm")) and cache["nm"] >= nm and
+                number(cache.get("t")) and 0 <= now - cache["t"] < CACHE_S and isinstance(cache.get("ac"), list)):
+            src, aircraft = cache.get("src", ""), cache["ac"]
+        else:
+            state = read_json(STATE, {})
+            try:
+                src, aircraft = fetch(qlat, qlon, nm, now, state)
+            finally:
+                write_json(STATE, state)
+            write_json(CACHE, {"at": [qlat, qlon], "nm": nm, "t": now, "src": src, "ac": aircraft})
+    service = next((s for s in services() if s[0] == src), (src, "", 1, RETRY_S, src))
+    ac = place(aircraft, lat, lon, km)
+    write_json(out, {"t": int(now), "time": time.strftime("%H:%M:%S", time.localtime(now)), "src": src,
+                     "credit": service[4], "km": km, "next": service[3], "ac": ac})
+    return len(ac), service[3]
+
+
+def main():
+    if len(sys.argv) in (5, 6) and sys.argv[1] == "update":
+        try:
+            lat, lon, km = float(sys.argv[2]), float(sys.argv[3]), float(sys.argv[4])
+            if not (-90 <= lat <= 90 and -180 <= lon <= 180 and 1 <= km <= MAX_KM):
+                raise ValueError("position or range out of bounds")
+            n, nxt = update(lat, lon, km, sys.argv[5] if len(sys.argv) == 6 else OUT)
+            print("ok %d %d" % (n, nxt))
+        except Exception as e:      # noqa: BLE001 (one line for the GUI and the web page)
+            print("error %s" % str(e)[:110])
+        return
+    print("Usage: x6100-flights update LAT LON KM [OUT]")
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,35 @@
+{
+ "ac": [
+  {
+   "hex": "4ca7b5",
+   "type": "adsb_icao",
+   "flight": "RYR4TP",
+   "r": "EI-EVJ",
+   "t": "B738",
+   "alt_baro": 36975,
+   "gs": 447.0,
+   "track": 135.6,
+   "lat": 51.101,
+   "lon": 4.902,
+   "seen_pos": 0.6
+  },
+  {
+   "hex": "485a32",
+   "type": "mlat",
+   "flight": "KLM29T",
+   "r": "PH-EXR",
+   "t": "E75L",
+   "alt_baro": 8400,
+   "gs": 290.0,
+   "track": 47.0,
+   "lat": 50.702,
+   "lon": 4.203,
+   "seen_pos": 2.0
+  }
+ ],
+ "msg": "No error",
+ "now": 1763300001000,
+ "total": 2,
+ "ctime": 1763300001050,
+ "ptime": 1
+}

@@ -835,6 +835,7 @@ static const key_action_t front_actions[] = {
     {" APP Propagation ", ACTION_APP_PROPAGATION},
     {" APP Channels ", ACTION_APP_CHANNELS},
     {" APP Scanner ", ACTION_APP_SCAN},
+    {" APP Flights ", ACTION_APP_FLIGHTS},
     {" APP HF Air Band ", ACTION_APP_AERO},
     {" APP CB ", ACTION_APP_CB},
     {" APP RX recorder ", ACTION_APP_RECORDER},
@@ -4346,6 +4347,7 @@ static void make_display_page() {
     if (cfg_sm.p_spectrum_show.get()) {
         row = make_spectrum_fill_peak(row);
         row = make_param_switch(row, "Fill gradient", cfg_sm.p_spectrum_fill_gradient);
+        row = make_param_switch(row, "Fill by level", cfg_sm.p_spectrum_fill_level);   /* over the gradient when on */
         /* Filter passband on the spectrum and waterfall: the theme's colour or a preset (theme_filter_color()) */
         row = make_param_choice(row, "Filter colour",
                                 " Theme \n Blue \n Cyan \n Green \n Yellow \n Orange \n Red \n Violet \n White ",

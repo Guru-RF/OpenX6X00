@@ -4355,5 +4355,91 @@ def restore_backup():
         backup_lock.release()
 
 
+# Flights: the aircraft around the radio, as APP > Flights shows them (src/dialog_flights.c), from the same helper
+# (rootfs/usr/sbin/x6100-flights: airplanes.live, else adsb.lol; the position sent rounded to 0.1 degree). Asked only
+# while the page is open and seen: its script asks again when the helper says, nothing runs here between.
+
+FLIGHTS_RANGES = (25, 50, 100, 200, 400)
+
+
+def locator_center(grid):
+    """The centre of a Maidenhead locator of 4, 6 or 8 characters as (lat, lon); None when it is not one"""
+    g = (grid or "").strip().upper()
+    if len(g) not in (4, 6, 8) or not re.fullmatch(r"[A-R]{2}[0-9]{2}([A-X]{2}([0-9]{2})?)?", g):
+        return None
+    lon = (ord(g[0]) - 65) * 20 - 180 + int(g[2]) * 2
+    lat = (ord(g[1]) - 65) * 10 - 90 + int(g[3])
+    w, h = 2.0, 1.0
+    if len(g) >= 6:
+        w, h = w / 24, h / 24
+        lon += (ord(g[4]) - 65) * w
+        lat += (ord(g[5]) - 65) * h
+    if len(g) == 8:
+        w, h = w / 10, h / 10
+        lon += int(g[6]) * w
+        lat += int(g[7]) * h
+    return lat + h / 2, lon + w / 2
+
+
+def flights_position(grid):
+    """(lat, lon, where) for the page: the locator typed on it, else where the radio is as the GUI says (its GPS, the
+    phone's, the QTH locator: station_position), else the QTH locator of params.db while the GUI does not answer.
+    None without any"""
+    if grid:
+        c = locator_center(grid)
+        return (c[0], c[1], grid.strip().upper()) if c else None
+    reply = display_call({"cmd": "pos_get"}) or {}
+    if reply.get("t") == "pos" and isinstance(reply.get("lat"), (int, float)) and isinstance(reply.get("lon"),
+                                                                                             (int, float)):
+        src = str(reply.get("src") or "")
+        return reply["lat"], reply["lon"], f"Locator {read_param('qth')}" if src == "Locator" else src
+    qth = read_param("qth")
+    c = locator_center(qth)
+    return (c[0], c[1], f"Locator {qth}") if c else None
+
+
+@app.route('/flights')
+def flights_page():
+    return bottle.template('flights', ranges=FLIGHTS_RANGES)
+
+
+@app.get('/api/flights')
+def flights_get():
+    q = bottle.request.query
+    try:
+        km = int(q.get("km", "100"))
+    except ValueError:
+        km = 0
+    if km not in FLIGHTS_RANGES:
+        return api_error(400, "Range: one of " + ", ".join(map(str, FLIGHTS_RANGES)) + " km")
+    grid = q.get("grid", "").strip()
+    pos = flights_position(grid)
+    if not pos:
+        return api_error(400 if grid else 409, "Not a locator: 4, 6 or 8 characters (JO20, JO20ab)" if grid else
+                         "No position: set the QTH locator on the radio (Settings > General), or plug in a GPS")
+    try:
+        with open(settings.APP_VERSION) as f:
+            ver = f.read().strip()
+    except OSError:
+        ver = ""
+    env = dict(os.environ, X6100_FW=ver) if ver else dict(os.environ)
+    try:
+        # the helper's two services at 10 s each, a wait for the GUI's request at most: a little longer here
+        r = subprocess.run([settings.FLIGHTS_CMD, "update", "%.5f" % pos[0], "%.5f" % pos[1], str(km),
+                            settings.FLIGHTS_FILE], capture_output=True, text=True, timeout=45, env=env)
+        line = (r.stdout or "").strip().splitlines()[-1:] or [""]
+    except (OSError, subprocess.SubprocessError) as e:
+        line = [f"error {e}"]
+    if not line[0].startswith("ok "):
+        return api_error(502, line[0][6:] if line[0].startswith("error ") else "No answer from x6100-flights")
+    try:
+        with open(settings.FLIGHTS_FILE, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, ValueError) as e:
+        return api_error(502, f"Can't read the answer: {e}")
+    doc["where"] = pos[2]
+    return doc
+
+
 # The Bands, Digital modes, Time and Files pages, static files: config_pages.py adds their routes to app
 from . import config_pages   # noqa: E402,F401  (last: it imports app and api_error from here)

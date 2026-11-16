@@ -76,6 +76,7 @@ const CARDS = [
     ["spectrum_line_color", "Trace colour", "The theme's, or your own", "color", "Theme"],
     ["spectrum_fill_color", "Fill colour", "As the trace, or your own", "color", "As trace"],
     ["spectrum_fill_gradient", "Fill gradient", "The fill fading to the background at the bottom", "sw"],
+    ["spectrum_fill_level", "Fill by level", "Each height of the fill in the waterfall's colour for its level, weak at the foot, strong up high; over the fill colour and the gradient", "sw"],
     ["filter_color", "Filter colour", "The receive filter's passband on the spectrum and the waterfall", "sel", ["Theme", "Blue", "Cyan", "Green", "Yellow", "Orange", "Red", "Violet", "White"]],
     ["filter_shade", "Filter shade", "How strongly the shade is drawn; Edges draws only the passband's two edges, the signals inside clear", "sel", ["Edges", "25 %", "50 %", "75 %", "Full"]],
     ["filter_shade_where", "Shaded part", "Where the filter shade goes: over the passband, or over the rest of the view with the passband clear", "seg", ["Passband", "Outside"]],
@@ -307,7 +308,7 @@ var refresh = function() {
   $("#opt-wf_3d").prop({checked: !!D.wf_3d && !amber, disabled: amber});
   $("#row-wf_3d_colors, #row-wf_3d_depth, #row-wf_3d_tilt, #row-wf_3d_floor, #row-wf_3d_range, #row-wf_3d_peak, #row-wf_3d_glide").toggleClass("off", !D.wf_3d || amber);
   $("#row-spectrum_filled, #row-spectrum_peak, #row-spectrum_height, #row-spectrum_line_color").toggleClass("off", !D.spectrum_show);
-  $("#row-spectrum_fill_color, #row-spectrum_fill_gradient").toggleClass("off", !D.spectrum_show || !D.spectrum_filled);
+  $("#row-spectrum_fill_color, #row-spectrum_fill_gradient, #row-spectrum_fill_level").toggleClass("off", !D.spectrum_show || !D.spectrum_filled);
   $("#row-smeter_bar_color").toggleClass("off", D.smeter_color !== 0 || (D.smeter_needle === 1 && D.smeter_lamp === 1));
   $("#row-smeter_lamp").toggleClass("off", D.smeter_needle !== 1);
   $("#row-smeter_color").toggleClass("off", D.smeter_needle === 1 && D.smeter_lamp === 1);

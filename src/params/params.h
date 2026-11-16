@@ -83,8 +83,9 @@ typedef enum {
     ACTION_APP_FIRST_START, /* 129: the first-start guide (first_start.c), from Settings > General; no key gets it */
 
     /* The CX8ANM edition's numbers (condoruy's fork), so a key given one of its apps there opens it here as well */
+    ACTION_APP_FLIGHTS = 203, /* Flights */
     ACTION_APP_AERO = 204,  /* HF Air Band */
-    ACTION_APP_CB,          /* 205: CB */
+    ACTION_APP_CB = 205,    /* CB */
 } press_action_t;
 
 typedef enum {

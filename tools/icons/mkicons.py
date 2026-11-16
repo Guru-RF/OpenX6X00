@@ -244,6 +244,10 @@ def i_cb(p):         # a mobile set with its hand microphone: CB
     p.line([(70, 47), (83, 56), (83, 68)], w=p.w // 2 + 1)
     p.fill_box(73, 68, 93, 94, r=8)
 
+def i_flights(p):    # an aircraft seen from above, nose up: the Flights app
+    p.line([(50, 8), (57, 18), (57, 38), (92, 58), (92, 66), (57, 56), (57, 76), (70, 86), (70, 92), (50, 87),
+            (30, 92), (30, 86), (43, 76), (43, 56), (8, 66), (8, 58), (43, 38), (43, 18), (50, 8)], w=p.w // 2 + 2)
+
 
 ICONS = {n[2:]: f for n, f in globals().items() if n.startswith("i_") and callable(f)}
 

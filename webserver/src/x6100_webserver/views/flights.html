@@ -1,0 +1,179 @@
+% rebase('base.html', title='Flights')
+<style>
+  .fl-wrap { display: grid; grid-template-columns: minmax(260px, 380px) 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 720px) { .fl-wrap { grid-template-columns: 1fr; } }
+  #fl-plot { width: 100%; height: auto; display: block; background: #0b1422; border: 1px solid var(--line); border-radius: 10px; }
+  #fl-plot .ring { fill: none; stroke: #2a3c55; stroke-width: 1; }
+  #fl-plot .axis { stroke: #22324a; stroke-width: 1; }
+  #fl-plot text { font: 11px system-ui, sans-serif; fill: var(--dim); }
+  #fl-plot text.n { font-weight: 700; fill: var(--accent); font-size: 13px; }
+  #fl-plot .me { fill: var(--accent); }
+  #fl-plot .ac { color: var(--ok); }
+  #fl-plot .ac.gnd { color: var(--dim); }
+  #fl-plot .ac.emg { color: var(--err); }
+  #fl-plot .ac.sel { color: #fff; }
+  #fl-plot .ac circle { fill: currentColor; }
+  #fl-plot .ac line { stroke: currentColor; stroke-width: 2; }
+  #fl-plot .ac text { fill: currentColor; }
+  #fl-table tbody tr { cursor: pointer; }
+  #fl-table tr.sel td { background: rgba(255,176,32,.16); }
+  #fl-table tr.emg td { color: var(--err); }
+  #fl-table td.r, #fl-table th.r { text-align: right; }
+  #fl-detail { min-height: 2.6em; color: var(--dim); font-size: 14px; margin-top: 10px; }
+  #fl-detail b { color: var(--text); }
+  .fl-ctl { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+  .fl-ctl > div { min-width: 120px; }
+  .fl-credit { color: var(--dim); font-size: 13px; margin-top: 10px; }
+</style>
+<h2><svg class="i"><use href="#i-plane"/></svg>Flights</h2>
+<p class="sub">The aircraft around the radio, as <b>APP &gt; Flights</b> shows them on its screen: their ADS-B positions
+as networks of volunteers' receivers share them, so only aircraft a receiver nearby picks up are there. The radio asks
+for them (it needs WiFi or Ethernet) while this page is open and in view, every 20 s (60 s from adsb.lol). Its position
+leaves the radio rounded to 0.1 degree (about 11 km).</p>
+
+<section class="dp-card">
+<div class="dp-body">
+<div class="fl-ctl">
+  <div><label for="fl-km">Range</label><select id="fl-km">
+    % for km in ranges:
+    <option value="{{km}}"{{!' selected' if km == 100 else ''}}>{{km}} km</option>
+    % end
+  </select></div>
+  <div><label for="fl-grid">Centre</label><input id="fl-grid" maxlength="8" placeholder="the radio's position" autocomplete="off" spellcheck="false"></div>
+  <button id="fl-upd" type="button"><svg class="i"><use href="#i-sync"/></svg>Update</button>
+  <span class="status" id="fl-status"></span>
+</div>
+<p style="color: var(--dim); font-size: 13px; margin: 8px 0 14px">Centre: empty for the radio's own position (its GPS, the phone's from the Panel, else its QTH locator), or a locator (JO20, JO20ab).</p>
+<div class="fl-wrap">
+  <div><svg id="fl-plot" viewBox="0 0 320 320" role="img" aria-label="Aircraft around the centre, north up"></svg></div>
+  <div class="table-wrap">
+    <table id="fl-table">
+      <thead><tr><th>Flight</th><th>Type</th><th class="r">Altitude</th><th class="r">Speed</th><th class="r">Distance</th><th>Bearing</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="fl-detail"></div>
+  </div>
+</div>
+<p class="fl-credit">Data: <span id="fl-credit">airplanes.live, adsb.lol (ODbL)</span>. airplanes.live and adsb.lol are free for personal, non-commercial use.</p>
+</div>
+</section>
+
+<script>
+const fl = {data: null, sel: null, timer: null, next: 0, busy: false};
+const NS = "http://www.w3.org/2000/svg";
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+function flStatus(t, err) {
+  const el = $("#fl-status"); el.toggleClass("error", !!err);
+  el.html('<span class="dot"></span>').append(document.createTextNode(t));
+}
+function km() { return Number($("#fl-km").val()); }
+function ident(a) { return a.call || a.reg || a.hex; }
+function fmtAlt(a) { return a.ground ? "ground" : a.alt_m != null ? a.alt_m + " m" : "-"; }
+function compass(b) { return COMPASS[Math.floor((b + 22.5) / 45) % 8]; }
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+// North up, the centre in the middle, rings at a third, two thirds and the range
+function drawPlot() {
+  const svg = document.getElementById("fl-plot"), c = 160, r = 140, range = km();
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  for (let k = 1; k <= 3; k++) {
+    el("circle", {cx: c, cy: c, r: r * k / 3, class: "ring"}, svg);
+    el("text", {x: c + 3, y: c - r * k / 3 + 12}, svg, Math.round(range * k / 3) + " km");
+  }
+  el("line", {x1: c - r, y1: c, x2: c + r, y2: c, class: "axis"}, svg);
+  el("line", {x1: c, y1: c - r, x2: c, y2: c + r, class: "axis"}, svg);
+  el("text", {x: c - 4, y: c - r - 5, class: "n"}, svg, "N");
+  el("circle", {cx: c, cy: c, r: 3, class: "me"}, svg);
+  if (!fl.data) return;
+  const many = fl.data.ac.length > 30;
+  fl.data.ac.forEach((a) => {
+    if (a.dist_km > range) return;
+    const rad = a.brg * Math.PI / 180, d = r * a.dist_km / range;
+    const x = c + d * Math.sin(rad), y = c - d * Math.cos(rad), sel = fl.sel === a.hex;
+    const g = el("g", {class: "ac" + (a.emerg ? " emg" : sel ? " sel" : a.ground ? " gnd" : "")}, svg);
+    if (a.trk != null && !a.ground) {
+      const t = a.trk * Math.PI / 180;
+      el("line", {x1: x, y1: y, x2: x + 11 * Math.sin(t), y2: y - 11 * Math.cos(t)}, g);
+    }
+    el("circle", {cx: x, cy: y, r: sel ? 4.5 : 3}, g);
+    if (sel || !many) el("text", {x: x + 6, y: y + 4}, g, ident(a));
+    el("title", {}, g, ident(a) + "  " + fmtAlt(a) + "  " + a.dist_km + " km");
+    g.addEventListener("click", () => choose(a.hex));
+  });
+}
+
+function showDetail() {
+  const a = fl.data && fl.data.ac.find((x) => x.hex === fl.sel);
+  const d = $("#fl-detail").empty();
+  if (!fl.data) return;
+  if (!fl.data.ac.length) { d.text("No aircraft in range just now."); return; }
+  if (!a) return;
+  const bits = [fmtAlt(a)];
+  if (a.kmh != null) bits.push(a.kmh + " km/h");
+  if (a.trk != null) bits.push("track " + compass(a.trk) + " " + a.trk);
+  if (a.vs != null && Math.abs(a.vs) >= 60) bits.push((a.vs > 0 ? "+" : "") + a.vs + " m/min");
+  if (a.squawk) bits.push("squawk " + a.squawk);
+  if (a.emerg) bits.push("EMERGENCY");
+  d.append($("<b>").text(ident(a))).append(document.createTextNode("  " + [a.reg, a.type, a.desc].filter(Boolean).join("  ")))
+   .append("<br>").append(document.createTextNode(bits.join("  ·  ")));
+}
+
+function render() {
+  const tb = $("#fl-table tbody").empty();
+  if (fl.data) {
+    fl.data.ac.forEach((a) => {
+      const tr = $("<tr>").toggleClass("sel", fl.sel === a.hex).toggleClass("emg", !!a.emerg).on("click", () => choose(a.hex));
+      [[ident(a)], [a.type], [fmtAlt(a), "r"], [a.kmh != null ? a.kmh + " km/h" : "-", "r"],
+       [a.dist_km + " km", "r"], [compass(a.brg) + " " + a.brg]]
+        .forEach((v) => tr.append($("<td>").addClass(v[1] || "").text(v[0] || "")));
+      tb.append(tr);
+    });
+    if (!fl.data.ac.length) tb.append($("<tr>").append($('<td colspan="6">').text("No aircraft in range just now.")));
+    $("#fl-credit").text(fl.data.credit || fl.data.src);
+  }
+  drawPlot();
+  showDetail();
+}
+
+function choose(hex) { fl.sel = hex; render(); }
+
+function schedule(s) {
+  clearTimeout(fl.timer);
+  fl.next = Date.now() + s * 1000;
+  fl.timer = setTimeout(update, s * 1000);
+}
+
+// Asked only while the page is in view: a hidden tab waits, and asks when it is seen again if it is due
+function update() {
+  if (fl.busy) return;
+  if (document.hidden) { fl.timer = null; return; }
+  fl.busy = true;
+  flStatus("Asking…");
+  $.ajax({url: "/api/flights", data: {km: km(), grid: $("#fl-grid").val().trim()}, dataType: "json", timeout: 50000,
+    success: (d) => {
+      fl.data = d;
+      if (!d.ac.some((a) => a.hex === fl.sel)) fl.sel = d.ac.length ? d.ac[0].hex : null;
+      render();
+      flStatus(d.ac.length + " aircraft · " + d.where + " · " + d.time);
+      schedule(d.next || 60);
+    },
+    error: (x) => { flStatus(x.responseJSON ? x.responseJSON.msg : "No answer from the radio", true); schedule(60); },
+    complete: () => { fl.busy = false; }});
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && !fl.busy && (fl.timer === null || Date.now() >= fl.next)) update();
+});
+$("#fl-km").on("change", () => { fl.data = null; render(); update(); });
+$("#fl-grid").on("change", () => { fl.data = null; render(); update(); });
+$("#fl-upd").on("click", update);
+render();
+update();
+</script>

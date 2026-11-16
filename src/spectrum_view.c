@@ -232,6 +232,35 @@ static bool fill_grad(void) {
            !theme_shape.mono;                                                                           /* 1bit: bars */
 }
 
+/* The fill by level (Settings > Display > Fill by level, from condoruy's CX8ANM edition): each height of the fill in
+ * the waterfall's colour for the level it stands for, weak at the foot, strong up high, the trace drawn over it.
+ * 1bit: bars, as every other fill */
+static bool fill_level(void) {
+    return params.spectrum_filled.x && param_i_get(cfg_spectrum_fill_level) && wf_palette && !theme_shape.mono;
+}
+
+/* The colours of the h rows of the fill by level, the top one first: the level each row stands for on the spectrum's
+ * scale (min..max), in the waterfall's colour for it on the waterfall's scale (its own levels, its reference), so a
+ * signal's fill reaches the colour it has in the waterfall. Once a frame: h divisions, then each column a copy */
+static void level_colors(uint32_t *tab, int32_t h, float min, float max) {
+    float wmin, wmax;
+
+    waterfall_get_levels(data_tx, &wmin, &wmax);
+
+    float k = 255.0f / (wmax - wmin);
+
+    for (int32_t y = 0; y < h; y++) {
+        float db = max - (max - min) * (y + 0.5f) / h;
+        float v  = (db - wmin) * k;
+
+        tab[y] = wf_palette[v < 0.0f ? 0 : v > 255.0f ? 255 : (int)v] | 0xff000000u;
+    }
+}
+
+#define LEVEL_ROWS_MAX BOARD_DISP_H
+
+static uint32_t level_tab[LEVEL_ROWS_MAX];
+
 /* ---- LVGL drawing: the walkie's bandscope, the main spectrum without planes, the markers ---- */
 
 static lv_coord_t level_y(float db, float min, float max, lv_coord_t top, lv_coord_t h) {
@@ -259,11 +288,34 @@ static void tone_lines(lv_draw_ctx_t *ctx, const lv_draw_line_dsc_t *dsc, lv_coo
     vline(ctx, dsc, vfo_x + w * (pass_hi > 0 ? hi : -hi) / span, top, h);
 }
 
+/* The fill by level of the LVGL drawing: the columns written into the draw buffer, as direct_hole_cb writes its hole
+ * (each one a lv_draw call per colour band cost the frame hundreds of calls more than the other fills) */
+static void level_columns(lv_draw_ctx_t *ctx, lv_coord_t x0, lv_coord_t top, lv_coord_t w, lv_coord_t h, float min,
+                          float max) {
+    lv_area_t  clip;
+    lv_coord_t stride = lv_area_get_width(ctx->buf_area);
+
+    if (h <= 0 || h > LEVEL_ROWS_MAX || !_lv_area_intersect(&clip, ctx->clip_area, ctx->buf_area)) return;
+    level_colors(level_tab, h, min, max);
+    for (int i = 0; i < POINTS; i++) {
+        lv_coord_t x = x0 + i * w / POINTS;
+        lv_coord_t y = LV_MAX(level_y(trace_db[i], min, max, top, h), LV_MAX(top, clip.y1));
+        lv_coord_t foot = LV_MIN(top + h - 1, clip.y2);
+
+        if (x < clip.x1 || x > clip.x2 || y > foot) continue;
+        for (lv_color_t *px = (lv_color_t *)ctx->buf + (y - ctx->buf_area->y1) * stride + (x - ctx->buf_area->x1);
+             y <= foot; y++, px += stride) {
+            px->full = level_tab[y - top];
+        }
+    }
+}
+
 /* The trace and its peaks: a line through the points, or a column under each when filled */
 static void trace_draw(lv_draw_ctx_t *ctx, lv_obj_t *o, lv_coord_t shift, const lv_draw_line_dsc_t *body) {
     lv_coord_t         x0 = o->coords.x1 + shift, top = o->coords.y1;
     lv_coord_t         w = lv_obj_get_width(o), h = lv_obj_get_height(o);
-    bool               filled = params.spectrum_filled.x, grad = fill_grad(), over = fill_own() || grad;
+    bool               filled = params.spectrum_filled.x, lvl = fill_level(), grad = !lvl && fill_grad();
+    bool               over = fill_own() || grad || lvl;
     bool               peaks = params.spectrum_peak.x && !data_tx;
     /* From the foot of the first point: from the left corner, a shifted trace (Fixed mode) had a
      * slope across the side tuned away from */
@@ -292,6 +344,7 @@ static void trace_draw(lv_draw_ctx_t *ctx, lv_obj_t *o, lv_coord_t shift, const 
     grad_dsc.bg_grad.stops[0].color = fill;
     grad_dsc.bg_grad.stops[1].color = bg;
 
+    if (lvl) level_columns(ctx, x0, top, w, h, min, max);   /* first: the peaks and the trace over it */
     for (int i = 0; i < POINTS; i++) {
         lv_coord_t x = x0 + i * w / POINTS;
         lv_point_t p = {x, level_y(trace_db[i], min, max, top, h)};
@@ -305,6 +358,8 @@ static void trace_draw(lv_draw_ctx_t *ctx, lv_obj_t *o, lv_coord_t shift, const 
         if (!filled) {
             lv_draw_line(ctx, body, &p, &prev);
             prev = p;
+        } else if (lvl) {
+            /* drawn before the loop */
         } else if (grad) {
             lv_area_t col = {x, p.y, x, top + h};
 
@@ -575,13 +630,14 @@ static void markers_check(void) {
     }
 }
 
-/* Filled: a column under each point, flat or fading to the panel */
+/* Filled: a column under each point, flat, fading to the panel, or by level (a copy of the level colours) */
 static void fill_columns(float min, float max, lv_coord_t shift) {
     lv_color_t fc = fill_color(), pc = TC(panel);
     uint32_t   flat = fc.full | 0xff000000u;
-    bool       grad = fill_grad();
+    bool       lvl = fill_level() && strip_h <= LEVEL_ROWS_MAX, grad = !lvl && fill_grad();
     int32_t    h = strip_h;
 
+    if (lvl) level_colors(level_tab, h, min, max);
     for (int i = 0; i < POINTS; i++) {
         int x = i + shift;
 
@@ -592,6 +648,10 @@ static void fill_columns(float min, float max, lv_coord_t shift) {
         uint32_t *col = &strip[(POINTS - 1 - x) * h];
 
         top = LV_MAX(top, 0);
+        if (lvl) {
+            if (top < h) memcpy(&col[top], &level_tab[top], (h - top) * sizeof(uint32_t));
+            continue;
+        }
         for (int y = top; y < h; y++) {
             col[y] = grad ? lv_color_mix(fc, pc, (h - y) * 255 / (h - top)).full | 0xff000000u : flat;
         }
@@ -635,7 +695,7 @@ static void direct_render(void) {
     if (params.spectrum_filled.x) {
         fill_columns(min, max, shift);
     }
-    if (!params.spectrum_filled.x || fill_own() || fill_grad()) {
+    if (!params.spectrum_filled.x || fill_own() || fill_grad() || fill_level()) {
         polyline(trace_db, 0, POINTS, min, max, shift, line, false);
     }
     pthread_mutex_unlock(&data_mux);

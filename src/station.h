@@ -27,6 +27,11 @@ bool station_qth_save(const char *qth);
  * else the saved QTH (params.qth.x itself, never overwritten by the GPS). */
 const char *station_qth(void);
 
+/* Where the radio is, for an app that shows what is around it: its GPS's fix, else the phone's (the Panel page's GPS
+ * button, when it is no coarser than 1 km), else the centre of the QTH locator; each fix at most 10 minutes old (as
+ * Field Ops takes them). src: "GPS", "Phone", "Locator". False with none of the three. LVGL thread */
+bool station_position(double *lat, double *lon, const char **src);
+
 #ifdef __cplusplus
 }
 #endif

@@ -87,6 +87,7 @@ extern ParamInt         *cfg_filter_shade_where; // p_filter_shade_where: 0 the 
 extern ParamInt         *cfg_spectrum_line_color; // p_spectrum_line_color
 extern ParamInt         *cfg_spectrum_fill_color; // p_spectrum_fill_color
 extern ParamInt         *cfg_spectrum_fill_gradient; // p_spectrum_fill_gradient
+extern ParamInt         *cfg_spectrum_fill_level; // p_spectrum_fill_level
 extern ParamInt         *cfg_smeter_bar_color;   // p_smeter_bar_color
 extern ParamInt         *cfg_swr_color;          // p_swr_color
 extern ParamInt         *cfg_swr_protect;        // p_swr_protect

@@ -18,7 +18,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
-- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb)
+- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb), [Flights](#flights)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
@@ -256,21 +256,22 @@ welcome (issue #157).
 
 ### Buttons and knobs
 
-The APP button opens four pages of apps and tools:
+The APP button opens five pages of apps and tools:
 
 | Page | Buttons |
 |---|---|
-| APP 1:4 | Modes, Cluster, SWR Scan, RX Recorder |
-| APP 2:4 | Settings, CW Trainer, Field Ops, Channels |
-| APP 3:4 | Bands, GPS, Screen rec, CW Keyboard |
-| APP 4:4 | Propagation, Scanner, HF Air Band, CB |
+| APP 1:5 | Modes, Cluster, SWR Scan, RX Recorder |
+| APP 2:5 | Settings, CW Trainer, Field Ops, Channels |
+| APP 3:5 | Bands, GPS, Screen rec, CW Keyboard |
+| APP 4:5 | Propagation, Scanner |
+| APP 5:5 | Flights, HF Air Band, CB |
 
 With Icon menus on (Settings > Display > INTERFACE, on by default) APP also
 opens the same apps as a grid of tiles over these pages, with Walkie and
 Birdie Cal besides: the MFK chooses a tile, a press opens it, APP or ESC
 closes the grid. Four rows are in sight; the grid scrolls to the rows below
 as the MFK goes there (or by a swipe on the touch screen). "APP > CW Keyboard" in this manual is the tile, or the
-button on APP 3:4.
+button on APP 3:5.
 
 - Each app has its own button pages, named like `(JS8 1:7)`. The first
   button goes to the next page.
@@ -1442,6 +1443,7 @@ of the waterfall. With Spectrum on, the card has:
 | Fill | the area under the trace filled |
 | Peaks | the peaks held for a moment |
 | Fill gradient | the fill fades from its colour at the trace to the background at the bottom |
+| Fill by level | off by default (the fill as before): each height of the fill in the waterfall's colour for the level it stands for, weak at the foot and strong up high, so a signal's column reaches the colour it has in the waterfall (the Waterfall colours and the waterfall's reference level count); the trace is drawn over it. On, it takes the place of the fill colour and the gradient; the 1bit theme keeps its bars |
 | Filter colour | the filter passband on the spectrum and the waterfall: Theme (default), Blue, Cyan, Green, Yellow, Orange, Red, Violet, White |
 | Filter shade | how strongly the passband is shaded: Full (the default, as up to v0.3.9), 75 %, 50 %, 25 %, or Edges: only its two edges, in the filter colour, the signals inside it clear (#167). With Shaded part Outside the strength is that of the shade outside the passband. The 1bit theme always draws the edges |
 | Shaded part | where the filter shade goes, on the spectrum and the waterfall (2D and 3D): Passband (the default, as up to v0.3.11), or Outside: the same shade over everything left and right of the passband, the passband itself clear, so the signals in it are not dimmed and you still see at a glance where it is (#250). Edges draws the two edges with either. A passband partly off the screen (a high zoom) leaves the part on the screen clear. The 1bit theme always draws the edges |
@@ -1562,7 +1564,7 @@ iaru-r3.org), 47 CFR Part 97 of the FCC (ecfr.gov) and the ARRL band plan
 Records the screen and the audio to an AVI file (MJPEG video, 800x480,
 8 frames/s, mono audio).
 
-- Start and stop: APP 3:4 > Screen rec (the button reads Stop rec while
+- Start and stop: APP 3:5 > Screen rec (the button reads Stop rec while
   recording), or a long-press action (screen rec on/off).
 - Files: `/mnt/screenrec/screen-YYYYMMDD-HHMMSS.avi`. The web configurator's
   Gallery lists them and can convert them to MP4.
@@ -1724,7 +1726,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | Card | Options |
 |---|---|
 | BACKLIGHT | Timeout (0 off), Brightness (see below), buttons brightness (Always Off, Always On, Temporarily On), Screensaver (None, Matrix rain), Screensaver (min) (with a screensaver: 1-120 minutes without use), Rain speed (Normal, Slow, Very slow), Screen off (min) (minutes without use, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser, no screensaver; POWER shows it for the blank time, a minute at least); see [Screensaver](#screensaver) |
-| SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Filter shade, Shaded part, Height (see [Waterfall](#waterfall)) |
+| SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Fill by level, Filter colour, Filter shade, Shaded part, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
 | MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
 | INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Keep knob lines, Theme, Font, Language, Decoder text, FT8/FT4 info |
@@ -2884,7 +2886,7 @@ Not tried on a radio with a transverter yet: checked on the PC build.
 
 ### SWR scan and the tuner
 
-SWR scan: APP 1:4 > SWR Scan. It transmits a carrier (AM on the X6100, FM on
+SWR scan: APP 1:5 > SWR Scan. It transmits a carrier (AM on the X6100, FM on
 the X6200) and sweeps it across the span around the frequency the radio
 transmits on (the other VFO in split), drawing the SWR as it goes. The carrier
 is 1 W: on the X6200 also when PWR is set lower, as the stock firmware does
@@ -5222,7 +5224,7 @@ to the bands, and the beacons heard here, see [Propagation](#propagation).
 
 ### Propagation
 
-APP > Propagation (APP 4:4, or a long-press action): how the bands are doing,
+APP > Propagation (APP 4:5, or a long-press action): how the bands are doing,
 on a map of the world with your QTH in the middle, night shaded and the grey
 line (dawn and dusk, when 80 and 40 m reach furthest) lit. Two views, the
 second button changes between them; ESC closes, and the radio goes back to
@@ -5387,7 +5389,7 @@ APP Channels, or the V/M key of the hand mic.
 
 ### Scanner
 
-APP > Scanner (APP 4:4, or a long-press action): through a list of
+APP > Scanner (APP 4:5, or a long-press action): through a list of
 frequencies, a short look at each, a stop on one where something is on the
 air, and on again when it has been quiet for the hang time, as a scanner
 does. The speaker is quiet while it looks, so there is no burst of noise at
@@ -5431,7 +5433,7 @@ frequency and mode: a band key goes where it went before the scan.
 
 ### HF Air Band
 
-APP > HF Air Band (APP 4:4, or a long-press action): the HF frequencies of
+APP > HF Air Band (APP 5:5, or a long-press action): the HF frequencies of
 aviation, to listen to. The VOLMET weather broadcasts, the air traffic of
 the oceanic and remote air routes (the ITU's Major World Air Route Areas,
 MWARA: NAT the North Atlantic, SAT the South Atlantic, CEP and CWP the
@@ -5473,7 +5475,7 @@ list (the carrier), as aircraft and ground stations use them.
 
 ### CB
 
-APP > CB (APP 4:4, or a long-press action): the 27 MHz Citizens Band
+APP > CB (APP 5:5, or a long-press action): the 27 MHz Citizens Band
 channels of a country's plan, each with its frequency, the mode it is
 tuned in and what the plan keeps it for (9 emergency, 19 the road in most
 countries).
@@ -5520,6 +5522,55 @@ as the plans number them.
   European decision and the FCC's rules, less in some countries) is not set
   by the app: PWR is yours to set. Transmitting there is your responsibility
   under your licence.
+
+### Flights
+
+APP > Flights (APP 5:5, or a long-press
+action): the aircraft around you, from their ADS-B positions as networks of
+volunteers' receivers share them on the internet (WiFi or Ethernet). Only
+aircraft that some receiver near you picks up are there: far from one, the
+list stays short or empty. Nothing is received by the radio itself and
+nothing retunes it; ESC closes.
+
+- The plot: north up, you in the middle, rings at a third, two thirds and
+  the whole range (their distances in km on them). Each aircraft is a dot
+  with a stroke the way it flies, named while there are 15 or fewer; on the
+  ground in grey, an emergency in red, the one chosen larger.
+- The list, the nearest first: flight number (else the registration, else
+  the transponder's address), type, altitude in metres (*ground*), speed in
+  km/h, distance and bearing from you ("22 km  SW 236"). The MFK chooses
+  one; the two lines under the list have its registration, type,
+  description, track, climb or descent in m/min and squawk, and
+  *EMERGENCY* when it squawks one.
+- **Range**: 25, 50, 100 (the default), 200 or 400 km; kept until the radio
+  is switched off. **Update** (or a press of the MFK): ask now.
+- The header says where the plot is centred: *GPS* (the radio's GPS), *Phone*
+  (the position the Panel page's GPS button sends, when it is no coarser
+  than 1 km), else *Locator* and your QTH locator (Settings > General). A
+  GPS or phone position older than 10 minutes is not taken. With none of
+  the three the app asks for a locator and fetches nothing.
+- The data: [airplanes.live](https://airplanes.live/) first, and
+  [adsb.lol](https://adsb.lol/) when that one does not answer. Both are free
+  for personal, non-commercial use, without a key; adsb.lol's data are under
+  the Open Database Licence (ODbL 1.0). The bottom line always names the
+  source of what is shown, and when it was fetched.
+- What is sent: your position rounded to 0.1 degree (about 11 km) and the
+  range, with the firmware's name and version (`OpenX6X00/0.3.12`); never
+  your callsign. The distances and bearings are worked out on the radio
+  from your position itself.
+- How often: when the app opens, then every 20 s (every 60 s while the data
+  come from adsb.lol, which allows 500 requests a day from an address
+  without a key), only while the app is open and the screen is lit; never
+  in the background. airplanes.live allows one request a second, adsb.lol
+  answers "too many" with a time to wait, which the radio keeps. The app
+  and the web page (below) share an answer for 10 s, so having both open
+  costs no extra requests.
+- The web configurator has the same as Operating > Flights: the plot and
+  the list in the browser, with Range and a **Centre** box for another
+  place by its locator (empty: the radio's position, as above). It asks
+  only while the page is open and in view; a tab in the background waits.
+- The answers are kept in `/tmp` (gone at power-off): `x6100-flights.json`
+  for the app, `x6100-flights-web.json` for the page.
 
 ## Bluetooth
 
@@ -5756,6 +5807,7 @@ The menu has General and five groups:
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV; the text of the keyboard modes, a file a day: read, download, delete (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
+| | Flights | the aircraft around the radio, as APP > Flights shows them: plot, list, range, a centre by locator (see [Flights](#flights)) |
 | | SmartCW | SmartCW's own page through the radio, in a new tab on port 8073; in the menu while SmartCW is plugged in (see [SmartCW](#smartcw)) |
 | Files | Files | browse and download `/mnt` |
 | | Gallery | screen recordings, voice recordings, screenshots, SSTV and WeFax pictures (see below) |
