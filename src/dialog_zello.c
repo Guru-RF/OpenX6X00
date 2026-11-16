@@ -3,12 +3,13 @@
  *
  *  OpenX6X00 - Zello: the radio on a channel of Zello, the push-to-talk voice service on the internet. The window: the
  *  channels, Connect, Talk, the mic to talk with, and the Simplex repeater's switches; the session itself (the helper,
- *  the audio, the link) is zello.c's. A channel chosen here starts rootfs/usr/sbin/x6100-zello; closing the window
+ *  the audio, the link) is zello.c's and voice_net.c's. A channel chosen here starts rootfs/usr/sbin/x6100-zello; closing the window
  *  ends it, unless the Simplex repeater is on (the main screen says so then); nothing connects otherwise.
  *
  *  Talking on Zello never keys the radio: with the window open the PTT key talks on the channel and never reaches the
- *  radio's PTT (zello_ptt.h, screen_main.c); the voice from the hand mic without its own PTT, or a Bluetooth headset's
- *  mic. The Simplex repeater, off by default, is the one thing that keys the radio, under main's TX rules (zello.c).
+ *  radio's PTT (voice_ptt.h, screen_main.c); the voice from the hand mic without its own PTT, or a Bluetooth headset's
+ *  mic. The Simplex repeater, off by default, is the one thing that keys the radio, under main's TX rules and only
+ *  inside the amateur bands (voice_net.c, shared with SVXConnect: one app's link at a time).
  *
  *  The account, the developer key and the channels are set on the web page's Zello page (webserver apps.py); the GUI
  *  reads the channel list only.
@@ -138,7 +139,8 @@ static const char *via_label(void) {
 
 static const char *to_rf_label(void) {
     if (!param_i_get(cfg_zello_to_rf)) return "Zello>RF:\nOff";
-    return zs.to_rf_stopped ? "Zello>RF:\nStopped" : "Zello>RF:\nOn";
+    if (zs.to_rf_stopped) return "Zello>RF:\nStopped";
+    return zs.off_band ? "Zello>RF:\nNo ham band" : "Zello>RF:\nOn";
 }
 
 static const char *to_zello_label(void) {
@@ -306,10 +308,11 @@ static void show_head(void) {
                               _("voice channels on the internet, never on the air"));
         return;
     }
-    const char *what = zs.link_show == ZELLO_LINK_SHOW_TX         ? _("on the air: the channel")
-                       : zs.link_show == ZELLO_LINK_SHOW_ID       ? _("on the air: CW ID")
-                       : zs.link_show == ZELLO_LINK_SHOW_TO_ZELLO ? _("receiver to the channel")
-                                                                  : "";
+    const char *what = zs.link_show == VNET_SHOW_TX     ? _("on the air: the channel")
+                       : zs.link_show == VNET_SHOW_ID     ? _("on the air: CW ID")
+                       : zs.link_show == VNET_SHOW_TO_NET ? _("receiver to the channel")
+                       : zs.off_band && rf               ? _("amateur bands only")
+                                                          : "";
 
     lv_label_set_text_fmt(head_lbl, "#%06x ZELLO#  #%06x %s%s%s#  #%06x %s#", theme_hex(TC_text_head),
                           theme_hex(TC_warn), _("SIMPLEX REPEATER"), rf ? " Zello>RF" : "", rx ? " RF>Zello" : "",
@@ -423,10 +426,6 @@ static void reload_cb(button_data_t *b) {
     load_channels();
     show_all();
     msg_update_text_fmt("Zello channels: %d", channels_n);
-}
-
-bool dialog_zello_ptt_key(int state) {
-    return zello_ptt_key(state, dialog.run);
 }
 
 static void pressed_cb(lv_event_t *e) {

@@ -2407,6 +2407,11 @@ of a transverter you turned on, and never on the X6200's receive-only ranges
 - Not in the table, the switch below covers them: Ireland's blocks at 30-40,
   45-49 and 54-55 MHz (Irish operators turn it on for those), Somalia's
   5.060-5.250 MHz, Japan's 4.630 MHz emergency channel.
+- The [Zello Simplex repeater](#zello-simplex-repeater) keys only inside this
+  table or a transverter's range you turned on, whatever TX outside ham bands
+  and the TX ranges below say: it can run unattended, and the radio tunes CB
+  and the aeronautical bands too (the Scanner's lists, for one), which are
+  outside the amateur bands.
 
 TX outside ham bands. Where: Settings > TX Cal > TX PROTECTION > TX outside
 ham bands (also on the web Display page, Transmitter card). Off by default,
@@ -5526,11 +5531,22 @@ Its switches are on pages 2 and 3 of the app and are kept:
 It keeps every TX rule of the radio:
 
 - It transmits only where the radio may: the TX ranges, the
-  [amateur bands](#amateur-bands-only), TX outside them, the transverter's
-  limits and [data from the base](#no-tx-without-data-from-the-base). If the
-  radio refuses a transmission, or the SWR protection or a band stop ends
-  one, Zello>RF stops (its button says Stopped) until you turn it off and on
+  [amateur bands](#amateur-bands-only), the transverter's limits and
+  [data from the base](#no-tx-without-data-from-the-base). If the radio
+  refuses a transmission, or the SWR protection or a band stop ends one,
+  Zello>RF stops (its button says Stopped) until you turn it off and on
   again.
+- **Amateur bands only**, always: the link keys only inside the
+  [table of the amateur bands](#amateur-bands-only) or on a transverter's
+  range you turned on, even with TX outside ham bands on or a TX list of your
+  own that reaches outside them. The radio tunes CB and the aeronautical
+  bands too, and a link left running there would put the internet's voices
+  on CB or on an aeronautical frequency with nobody at the radio. Tuned
+  outside them, the link does not key and says "Link: amateur bands only"
+  once; its button says No ham band and the main screen Z>RF(no ham band).
+  Tuned out of a band while it transmits, it unkeys at once, and the rest of
+  that message is not sent. RF>Zello sends nothing on the air and is not held
+  to them.
 - The power is your TX power setting, at most 7 W (the cap the apps
   transmit with) and at most what the radio allows there.
 - Never over anyone: it does not key while the squelch is open, while the

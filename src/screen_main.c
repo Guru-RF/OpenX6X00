@@ -92,6 +92,7 @@
 #include "apps_menu.h"
 #include "dialog_birdie.h"
 #include "dialog_zello.h"
+#include "voice_net.h"
 #include "first_start.h"
 #include "control_owner.h"
 #include "kbd_hyper.h"
@@ -1020,9 +1021,10 @@ static void front_key_cb(lv_event_t *e) {
             break;
 
         case KEYPAD_PTT:
-            /* With the Zello app open the key talks on its channel and never keys the radio; a release goes where its
-             * press went, so the radio's own press is let go even if the app opened meanwhile (zello_ptt.h) */
-            if (!dialog_zello_ptt_key(ev->state)) {
+            /* With an internet voice app open (Zello, SVXConnect) the key talks on its network and never keys the
+             * radio; a release goes where its press went, so the radio's own press is let go even if the app opened
+             * meanwhile (voice_ptt.h) */
+            if (!vnet_ptt_key(ev->state)) {
                 ptt_key(ev->state);
             }
             break;
