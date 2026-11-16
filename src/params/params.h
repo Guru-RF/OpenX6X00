@@ -89,6 +89,7 @@ typedef enum {
     ACTION_APP_FLIGHTS = 203, /* Flights */
     ACTION_APP_AERO = 204,  /* HF Air Band */
     ACTION_APP_CB = 205,    /* CB */
+    ACTION_APP_SVX = 206,   /* SVXConnect (dialog_svx.c) */
 } press_action_t;
 
 typedef enum {

@@ -27,7 +27,7 @@
 
 #include "dialog_msg_voice.h"
 #include "dialog_freedv.h"
-#include "zello.h"
+#include "voice_net.h"
 #include "freedv_tx.h"
 
 extern "C" {
@@ -705,11 +705,11 @@ void dsp_put_audio_samples(size_t nsamples, int16_t *samples) {
         freedv_tx_put_mic(nsamples, samples);
         return;
     }
-    if (zello_mic()) {                      /* Zello: the hand mic goes to the channel, never on the air */
-        zello_put_mic(nsamples, samples);
+    if (vnet_mic()) {                       /* Zello, SVXConnect: the hand mic goes to the network, never on the air */
+        vnet_put_mic(nsamples, samples);
         return;
     }
-    zello_put_rx(nsamples, samples);        /* Zello's Simplex repeater: the squelch, RF to Zello */
+    vnet_put_rx(nsamples, samples);         /* their Simplex repeater: the squelch, RF to the network */
     if (recorder_is_on())
         recorder_put_audio_samples(nsamples, samples);
 

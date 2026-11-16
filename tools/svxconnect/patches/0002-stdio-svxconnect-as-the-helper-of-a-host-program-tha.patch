@@ -1,0 +1,676 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Mon, 16 Nov 2026 15:28:56 +0100
+Subject: [PATCH 2/4] --stdio: svxconnect as the helper of a host program that
+ is the interface
+
+A radio's GUI or a panel starts svxconnect --stdio with its own socket as
+stdin and stdout. It sends the control FIFO's commands (app_control, through
+ctl_dispatch_line), and is told in a line whatever it shows when it changes:
+the connection, the talkgroup and the lock, the watched talkgroups with their
+priorities, who is talking where, the recent overs, our transmission and why
+one was refused or ended, the certificate, the banner. The log goes to
+stderr. Over a SOCK_SEQPACKET socket the audio crosses in records of its own
+when built with AUDIO=pipe. src/hostio.h has the whole exchange.
+
+--cert-status prints the certificate's state on one line of key=value, for a
+program that shows the enrolment.
+---
+ README.md         |  18 +++
+ src/app.c         |   1 +
+ src/app.h         |   4 +
+ src/ctl/ctlfifo.c |   7 +
+ src/ctl/ctlfifo.h |   5 +
+ src/hostio.c      | 356 ++++++++++++++++++++++++++++++++++++++++++++++
+ src/hostio.h      |  51 +++++++
+ src/main.c        |  63 +++++++-
+ 8 files changed, 504 insertions(+), 1 deletion(-)
+ create mode 100644 src/hostio.c
+ create mode 100644 src/hostio.h
+
+diff --git a/README.md b/README.md
+index d99786b..18f5bcd 100644
+--- a/README.md
++++ b/README.md
+@@ -242,6 +242,23 @@ echo "status"    > ~/.local/state/svxconnect/ctl
+ Full vocabulary in [docs/PTT.md](docs/PTT.md); service setup in
+ [DEPLOY.md](DEPLOY.md).
+ 
++### Under a host program: `--stdio`
++
++A program that is the user interface itself (a radio's own screen, a panel)
++runs `svxconnect --stdio` as its helper, with one of its sockets as stdin and
++stdout. It sends the control FIFO's commands, and gets a line whenever
++something it shows changes: the connection, the talkgroup and the lock, the
++watched talkgroups with their priorities, who is talking where, the recent
++overs, our own transmission (and why one was refused or ended), the
++certificate. The log goes to stderr. Over a `SOCK_SEQPACKET` socket the audio
++crosses too, 16 kHz mono in records of its own, when svxconnect is built with
++`make AUDIO=pipe`: then there is no sound card at all, and the host plays and
++records. The whole exchange is described in [src/hostio.h](src/hostio.h).
++
++`svxconnect --cert-status` prints the certificate's state on one line
++(`status=valid usable=1 request=0 not_after=... renew_at=... days=...`), for a
++program that shows the enrolment.
++
+ ## Building and testing
+ 
+ ```sh
+@@ -253,6 +270,7 @@ make check      # the above, plus the client against a fake reflector (about a m
+ make check-tsan # make check under ThreadSanitizer   (in build-tsan/)
+ make check-asan # make check under ASan + UBSan      (in build-asan/)
+ make asan       # AddressSanitizer + UndefinedBehaviorSanitizer build
++make AUDIO=pipe # the audio through a host program (--stdio), no sound card
+ ```
+ 
+ Dependencies: OpenSSL 3, libopus, ncurses. Audio needs no development package
+diff --git a/src/app.c b/src/app.c
+index a7a4c58..ed3c0c8 100644
+--- a/src/app.c
++++ b/src/app.c
+@@ -1066,6 +1066,7 @@ void app_reconnect(svx_app *a) {
+ }
+ 
+ void app_quit(svx_app *a)                    { a->quit = 1; }
++void app_control(svx_app *a, const char *line) { ctl_dispatch_line(&a->ctl, line); }
+ int  app_should_quit(const svx_app *a)       { return a->quit; }
+ 
+ void app_toggle_connect(svx_app *a) {
+diff --git a/src/app.h b/src/app.h
+index ddba367..ef9c5b3 100644
+--- a/src/app.h
++++ b/src/app.h
+@@ -76,6 +76,10 @@ void     app_test_tone(svx_app *a);
+ void     app_reconnect(svx_app *a);
+ void     app_toggle_connect(svx_app *a);
+ void     app_quit(svx_app *a);
++
++/* One line of the control FIFO's vocabulary (ctlfifo.h) from another source:
++ * a host program's socket under --stdio. */
++void     app_control(svx_app *a, const char *line);
+ int      app_should_quit(const svx_app *a);
+ 
+ /* ---- state, for rendering ---- */
+diff --git a/src/ctl/ctlfifo.c b/src/ctl/ctlfifo.c
+index 7b5a26d..de01c52 100644
+--- a/src/ctl/ctlfifo.c
++++ b/src/ctl/ctlfifo.c
+@@ -162,6 +162,13 @@ static void dispatch(ctl_fifo *c, char *line) {
+     }
+ }
+ 
++void ctl_dispatch_line(ctl_fifo *c, const char *line) {
++    char buf[sizeof(c->buf)];
++    if (!c || !line) return;
++    snprintf(buf, sizeof(buf), "%s", line);
++    dispatch(c, buf);
++}
++
+ void ctl_drain(ctl_fifo *c) {
+     if (!c || c->fd < 0) return;
+ 
+diff --git a/src/ctl/ctlfifo.h b/src/ctl/ctlfifo.h
+index fcf3f87..ac5b12e 100644
+--- a/src/ctl/ctlfifo.h
++++ b/src/ctl/ctlfifo.h
+@@ -63,6 +63,11 @@ int  ctl_fd(const ctl_fifo *c);
+ /* Read and dispatch whatever is pending. Never blocks. */
+ void ctl_drain(ctl_fifo *c);
+ 
++/* Dispatch one command line that came another way than the FIFO (a host
++ * program's socket under --stdio), with the same vocabulary and callbacks.
++ * Works with the FIFO disabled: ctl_open() keeps the callbacks either way. */
++void ctl_dispatch_line(ctl_fifo *c, const char *line);
++
+ void ctl_close(ctl_fifo *c);
+ 
+ #endif
+diff --git a/src/hostio.c b/src/hostio.c
+new file mode 100644
+index 0000000..9842ba5
+--- /dev/null
++++ b/src/hostio.c
+@@ -0,0 +1,356 @@
++/* SPDX-License-Identifier: MIT
++ * SVXConnect-CLI — Copyright (c) 2026 Joeri Van Dooren
++ *
++ * --stdio: the session under a host program. See hostio.h for what crosses.
++ *
++ * The session is the app core's, as headless runs it; this file only carries
++ * it over the host's socket. What the host is told is worked out from the
++ * core's state after each pass of the loop and sent when it differs from what
++ * was sent last, so a line is never lost to a callback that was not hooked.
++ * Two things are taken from the log instead, because the core says them only
++ * there: why a ptt on was refused ("PTT refused: ...") and why a transmission
++ * ended ("TX OFF ... — why").
++ */
++#include "hostio.h"
++
++#include "app.h"
++#include "audio/dev.h"
++#include "common/log.h"
++#include "common/pki.h"
++#include "common/util.h"
++#include "reflector/cert.h"
++#include "reflector/client.h"
++#include "tg/tgmanager.h"
++
++#include <errno.h>
++#include <poll.h>
++#include <pthread.h>
++#include <signal.h>
++#include <stdarg.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/socket.h>
++#include <time.h>
++#include <unistd.h>
++
++#define HOST_REC_MAX   8192         /* bytes of a record from the host */
++#define HOST_LINE_MAX  4096         /* a line to the host */
++#define CERT_LOOK_MS   60000        /* the certificate looked at again */
++
++static const char DASH[] = " \xe2\x80\x94 ";   /* " — ", as tx_stop() writes it */
++
++static struct {
++    int             records;        /* the host's socket carries records, audio too */
++    pthread_mutex_t mu;             /* the two below: the log sink runs on any thread */
++    char            last_warn[240];
++    char            last_txoff[240];
++
++    /* What the host was told last */
++    char            conn[320], server[320], tg[48], tgs[2048], active_key[2048], recent_key[2048];
++    char            cert[160], banner[320];
++    int             tx;
++    uint64_t        cert_ms;
++} H = { .mu = PTHREAD_MUTEX_INITIALIZER, .tx = -1 };
++
++static volatile sig_atomic_t g_quit;
++static void on_signal(int sig) { (void)sig; g_quit = 1; }
++
++/* One text record (or line) to the host. A host that has gone is noticed by
++ * the end of stdin. */
++static void send_line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
++static void send_line(const char *fmt, ...) {
++    char    buf[HOST_LINE_MAX];
++    va_list ap;
++    va_start(ap, fmt);
++    int n = vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
++    va_end(ap);
++    if (n < 0) return;
++    if (n > (int)sizeof(buf) - 2) n = (int)sizeof(buf) - 2;
++    buf[n++] = '\n';
++    ssize_t w;
++    do { w = write(STDOUT_FILENO, buf, (size_t)n); } while (w < 0 && errno == EINTR);
++}
++
++void hostio_fail(const char *text) {
++    send_line("error %s", text);
++}
++
++/* The log: to stderr as the default sink writes it, and the two reasons kept */
++static void sink(int level, const char *line, void *user) {
++    (void)user;
++    char      ts[16];
++    time_t    now = time(NULL);
++    struct tm tm;
++    localtime_r(&now, &tm);
++    strftime(ts, sizeof(ts), "%H:%M:%S", &tm);
++    fprintf(stderr, "%s [%s] %s\n", ts, log_level_name(level), line);
++    fflush(stderr);
++
++    pthread_mutex_lock(&H.mu);
++    if (level <= LOG_WARN) snprintf(H.last_warn, sizeof(H.last_warn), "%s", line);
++    if (strncmp(line, "TX OFF", 6) == 0) {
++        const char *why = strstr(line, DASH);
++        snprintf(H.last_txoff, sizeof(H.last_txoff), "%s", why ? why + strlen(DASH) : "");
++    }
++    pthread_mutex_unlock(&H.mu);
++}
++
++static void take(char *dst, size_t cap, char *src) {
++    pthread_mutex_lock(&H.mu);
++    snprintf(dst, cap, "%s", src);
++    src[0] = '\0';
++    pthread_mutex_unlock(&H.mu);
++}
++
++/* Send line when it differs from what was sent for this item (last) */
++static void update(char *last, size_t cap, const char *line) {
++    if (strcmp(last, line) == 0) return;
++    snprintf(last, cap, "%s", line);
++    send_line("%s", line);
++}
++
++static int is_switchable(const svx_config *cfg, uint32_t id) {
++    for (int i = 0; i < cfg->n_switchable; i++)
++        if (cfg->switchable[i].id == id) return 1;
++    return 0;
++}
++
++static void add(char *buf, size_t cap, size_t *n, const char *fmt, ...) __attribute__((format(printf, 4, 5)));
++static void add(char *buf, size_t cap, size_t *n, const char *fmt, ...) {
++    if (*n >= cap - 1) return;
++    va_list ap;
++    va_start(ap, fmt);
++    int k = vsnprintf(buf + *n, cap - *n, fmt, ap);
++    va_end(ap);
++    if (k > 0) *n = *n + (size_t)k < cap - 1 ? *n + (size_t)k : cap - 1;
++}
++
++/* Everything the host shows, sent where it changed */
++static void publish(svx_app *a) {
++    rc_client        *rc  = app_rc(a);
++    tg_manager       *m   = app_tgm(a);
++    const svx_config *cfg = app_config(a);
++    uint64_t          now = now_ms();
++    char              line[HOST_LINE_MAX], key[2048];
++    size_t            n, k;
++
++    rc_state st = rc_get_state(rc);
++    if (st == RC_CONNECTED || st == RC_CONNECTING)
++        snprintf(line, sizeof(line), "conn %s", rc_state_name(st));
++    else
++        snprintf(line, sizeof(line), "conn %s %s", rc_state_name(st), rc_last_error(rc));
++    int conn_changed = strcmp(line, H.conn) != 0;
++    update(H.conn, sizeof(H.conn), line);
++    if (st == RC_CONNECTED) {
++        snprintf(line, sizeof(line), "server %s %u %u %d", rc_host(rc), (unsigned)rc_port(rc),
++                 (unsigned)rc_client_id(rc), rc_node_count(rc));
++        update(H.server, sizeof(H.server), line);
++    }
++
++    snprintf(line, sizeof(line), "tg %u %d", (unsigned)tgm_selected(m), tgm_locked(m) ? 1 : 0);
++    update(H.tg, sizeof(H.tg), line);
++
++    n = 0;
++    add(line, sizeof(line), &n, "tgs");
++    for (int pass = 0; pass < 2; pass++) {
++        const svx_tg_entry *v  = pass ? cfg->monitored : cfg->switchable;
++        int                 nv = pass ? cfg->n_monitored : cfg->n_switchable;
++        for (int i = 0; i < nv; i++) {
++            uint32_t id = v[i].id;
++            if (pass && is_switchable(cfg, id)) continue;
++            int sw = is_switchable(cfg, id), mu = tgm_is_muted(m, id);
++            add(line, sizeof(line), &n, " %u:%d:%s%s%s", (unsigned)id, tgm_priority(m, id), sw ? "s" : "",
++                mu ? "m" : "", sw || mu ? "" : "-");
++        }
++    }
++    update(H.tgs, sizeof(H.tgs), line);
++
++    /* Who talks: sent when the set changes; the host counts the time from the ms */
++    n = k = 0;
++    add(line, sizeof(line), &n, "active");
++    for (int i = 0; i < m->n_active; i++) {
++        const tgm_talker *t = &m->active[i];
++        add(line, sizeof(line), &n, " %u:%s:%llu", (unsigned)t->tg, t->full,
++            (unsigned long long)(now >= t->start_ms ? now - t->start_ms : 0));
++        add(key, sizeof(key), &k, "%u:%s:%llu ", (unsigned)t->tg, t->full, (unsigned long long)t->start_ms);
++    }
++    key[k] = '\0';
++    if (strcmp(key, H.active_key) != 0) {
++        snprintf(H.active_key, sizeof(H.active_key), "%s", key);
++        send_line("%s", line);
++    }
++
++    n = k = 0;
++    add(line, sizeof(line), &n, "recent");
++    for (int i = 0; i < m->n_recent; i++) {
++        const tgm_recent *r = &m->recent[i];
++        add(line, sizeof(line), &n, " %u:%s:%llu:%u", (unsigned)r->tg, r->full,
++            (unsigned long long)(now >= r->stop_ms ? (now - r->stop_ms) / 1000 : 0), (unsigned)r->duration_s);
++        add(key, sizeof(key), &k, "%u:%s:%llu ", (unsigned)r->tg, r->full, (unsigned long long)r->stop_ms);
++    }
++    key[k] = '\0';
++    if (strcmp(key, H.recent_key) != 0) {
++        snprintf(H.recent_key, sizeof(H.recent_key), "%s", key);
++        send_line("%s", line);
++    }
++
++    int tx = app_tx_active(a) ? 1 : 0;
++    if (tx != H.tx) {
++        if (tx) {
++            send_line("tx on %u", (unsigned)tgm_selected(m));
++        } else if (H.tx == 1) {
++            char why[240];
++            take(why, sizeof(why), H.last_txoff);
++            if (why[0]) send_line("tx off %s", why);
++            else        send_line("tx off");
++        } else {
++            send_line("tx off");
++        }
++        H.tx = tx;
++    }
++
++    const char *b = app_banner(a);
++    if (b) snprintf(line, sizeof(line), "banner %s", b);
++    else   snprintf(line, sizeof(line), "banner");
++    update(H.banner, sizeof(H.banner), line);
++
++    if (conn_changed || !H.cert[0] || now - H.cert_ms >= CERT_LOOK_MS) {
++        cert_state cs;
++        time_t     t = time(NULL);
++        H.cert_ms = now;
++        cert_assess(cfg, t, &cs, 0);
++        snprintf(line, sizeof(line), "cert %s %lld %d", pki_cert_status_str(cs.status),
++                 (long long)cs.info.not_after,
++                 cs.status == PKI_CERT_MISSING ? 0 : pki_days_until(cs.info.not_after, t));
++        update(H.cert, sizeof(H.cert), line);
++    }
++}
++
++static void resync(void) {
++    H.conn[0] = H.server[0] = H.tg[0] = H.tgs[0] = H.cert[0] = H.banner[0] = '\0';
++    snprintf(H.active_key, sizeof(H.active_key), "-");
++    snprintf(H.recent_key, sizeof(H.recent_key), "-");
++    H.tx = -1;
++}
++
++/* A command line from the host */
++static void command(svx_app *a, char *s) {
++    s = str_trim(s);
++    if (!*s || *s == '#') return;
++    if (str_ieq(s, "sync")) {
++        resync();
++        return;
++    }
++
++    /* A ptt on, or a toggle while off: a start the host wants to hear about */
++    char verb[8] = "", arg[16] = "";
++    sscanf(s, "%7s %15s", verb, arg);
++    int was   = app_tx_active(a);
++    int start = str_ieq(verb, "ptt") && !was &&
++                (!arg[0] || str_ieq(arg, "on") || str_ieq(arg, "toggle") || str_ieq(arg, "1"));
++
++    pthread_mutex_lock(&H.mu);
++    H.last_warn[0] = '\0';
++    pthread_mutex_unlock(&H.mu);
++    app_control(a, s);
++    if (start && !app_tx_active(a)) {
++        char        why[240];
++        const char *w = why;
++        take(why, sizeof(why), H.last_warn);
++        if (strncmp(w, "PTT refused: ", 13) == 0) w += 13;
++        send_line("refused %s", *w ? w : "transmit did not start");
++    }
++}
++
++/* What the host sent: records, or with a stream text lines in pieces */
++static int read_host(svx_app *a) {
++    static char   stream[HOST_REC_MAX];
++    static size_t have;
++    uint8_t       rec[HOST_REC_MAX + 1];
++
++    ssize_t r = read(STDIN_FILENO, rec, HOST_REC_MAX);
++    if (r == 0) return -1;                       /* the host has gone */
++    if (r < 0) return (errno == EINTR || errno == EAGAIN) ? 0 : -1;
++
++    if (H.records) {
++        if (rec[0] == 0) {
++            int16_t pcm[HOST_REC_MAX / 2];
++            size_t  ns = ((size_t)r - 1) / 2;
++            memcpy(pcm, rec + 1, ns * 2);        /* after the first byte: not aligned */
++            svx_audio_host_feed(pcm, (uint32_t)ns);
++            return 0;
++        }
++        rec[r] = '\0';
++        char *save = NULL;
++        for (char *l = strtok_r((char *)rec, "\n", &save); l; l = strtok_r(NULL, "\n", &save))
++            command(a, l);
++        return 0;
++    }
++
++    for (ssize_t i = 0; i < r; i++) {
++        if (rec[i] == '\n') {
++            stream[have] = '\0';
++            command(a, stream);
++            have = 0;
++        } else if (have < sizeof(stream) - 1) {
++            stream[have++] = (char)rec[i];
++        }
++    }
++    return 0;
++}
++
++static int seqpacket(int fd) {
++    int       type = 0;
++    socklen_t l    = sizeof(type);
++    return getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &l) == 0 && type == SOCK_SEQPACKET;
++}
++
++int run_hostio(const svx_config *cfg, int no_tx, const char *version) {
++    struct sigaction sa;
++    memset(&sa, 0, sizeof(sa));
++    sa.sa_handler = on_signal;
++    sigaction(SIGINT,  &sa, NULL);
++    sigaction(SIGTERM, &sa, NULL);
++
++    H.records = seqpacket(STDIN_FILENO) && seqpacket(STDOUT_FILENO);
++    resync();
++    log_set_sink(sink, NULL);
++    if (H.records && svx_audio_host_attach(STDIN_FILENO, STDOUT_FILENO) == 0)
++        log_info("audio: through the host program");
++
++    svx_app *a = app_new(cfg, no_tx);
++    if (!a) { hostio_fail("out of memory"); log_set_sink(NULL, NULL); return 1; }
++    app_set_owner_kind(a, "host");
++
++    send_line("hello %s", version);
++    log_info("svxconnect --stdio — %s -> %s:%d%s", cfg->callsign, cfg->reflector, cfg->port,
++             no_tx ? " (receive only)" : "");
++    app_start(a);
++
++    while (!g_quit && !app_should_quit(a)) {
++        struct pollfd p[11];
++        int n  = app_poll_fds(a, p, 10);
++        int to = app_next_timeout_ms(a, now_ms());
++        p[n].fd      = STDIN_FILENO;
++        p[n].events  = POLLIN;
++        p[n].revents = 0;
++
++        int pr = poll(p, (nfds_t)n + 1, to);
++        if (pr < 0 && errno != EINTR) {
++            log_err("poll failed: %s", strerror(errno));
++            break;
++        }
++        if (pr > 0 && (p[n].revents & (POLLIN | POLLHUP | POLLERR)) && read_host(a) != 0) {
++            log_info("the host program has gone");
++            break;
++        }
++        app_service(a, now_ms());
++        publish(a);
++    }
++
++    log_info("shutting down");
++    app_free(a);
++    log_set_sink(NULL, NULL);
++    return 0;
++}
+diff --git a/src/hostio.h b/src/hostio.h
+new file mode 100644
+index 0000000..2c09525
+--- /dev/null
++++ b/src/hostio.h
+@@ -0,0 +1,51 @@
++/* SPDX-License-Identifier: MIT
++ * SVXConnect-CLI — Copyright (c) 2026 Joeri Van Dooren
++ *
++ * --stdio: svxconnect as the helper of a host program that is the user
++ * interface (a radio's GUI, a panel). The host starts it with its own socket
++ * as stdin and stdout; the session is the headless one, and everything a user
++ * interface needs crosses that socket.
++ *
++ * Records. On a SOCK_SEQPACKET socket every message is a record:
++ *   - a first byte 0: audio, 16-bit samples at 16 kHz, mono, in this
++ *     machine's byte order. To the host: what to play (with the pipe backend,
++ *     `make AUDIO=pipe`, only while there is something to play); from the
++ *     host: the microphone, while it transmits.
++ *   - anything else: text, one or more lines.
++ * On any other stdin and stdout (a pipe, a terminal) there are text lines
++ * only, and the audio stays on the sound card.
++ *
++ * From the host: the control FIFO's commands (ctlfifo.h: ptt on|off, tg <n>,
++ * lock on|off, mute <n>, ...), and `sync`, which has every line below sent
++ * again. The end of stdin ends the session.
++ *
++ * To the host, each when it changes (and all of them at the start):
++ *   hello <version>
++ *   error <text>                       could not start; the program ends
++ *   conn connected | connecting | idle <why> | reconnecting <why>
++ *   server <host> <port> <client id> <nodes>
++ *   tg <selected> <locked 0|1>         0: monitoring only
++ *   tgs <id>:<priority>:<flags> ...    the talkgroups watched: the switchable
++ *                                      ones first, in order; flags s
++ *                                      switchable, m muted, - neither
++ *   active <tg>:<call>:<ms> ...        who is talking now, ms since they began
++ *   recent <tg>:<call>:<ago s>:<s> ... the last overs, the newest first
++ *   tx on <tg> | tx off [<why>]        our own transmission
++ *   refused <why>                      a ptt on that did not start
++ *   cert <status> <not after> <days>   the certificate (pki_cert_status_str),
++ *                                      its end in seconds since 1970
++ *   banner [<text>]                    what the interface should show now
++ * The log goes to stderr, a line each, as without a sink.
++ */
++#ifndef SVX_HOSTIO_H
++#define SVX_HOSTIO_H
++
++#include "common/config.h"
++
++/* Run the session under the host. Returns a process exit code. */
++int  run_hostio(const svx_config *cfg, int no_tx, const char *version);
++
++/* Tell the host why the session could not start: an `error` line. */
++void hostio_fail(const char *text);
++
++#endif
+diff --git a/src/main.c b/src/main.c
+index be516d5..218be52 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -11,6 +11,8 @@
+ #include "common/pki.h"
+ #include "common/util.h"
+ #include "headless.h"
++#include "hostio.h"
++#include "reflector/cert.h"
+ #include "reflector/enroll.h"
+ #include "audio/audiotest.h"
+ #include "app.h"
+@@ -24,6 +26,7 @@
+ #include <string.h>
+ #include <locale.h>
+ #include <signal.h>
++#include <time.h>
+ #include <unistd.h>
+ #include <getopt.h>
+ 
+@@ -44,7 +47,9 @@ enum {
+     MODE_LIST_DEVICES,
+     MODE_AUDIO_TEST,
+     MODE_DUMP_CONFIG,
+-    MODE_INIT_CONFIG
++    MODE_INIT_CONFIG,
++    MODE_STDIO,
++    MODE_CERT_STATUS
+ };
+ 
+ /* Print, after a validation failure, where the configuration is expected and
+@@ -378,6 +383,29 @@ static int run_init_config(const char *conf_path, const char **sets, int n_sets,
+     return 0;
+ }
+ 
++/* --cert-status: the certificate as the connection will see it, one line of
++ * key=value for a program to read (a web page that shows the enrolment): its
++ * status (pki_cert_status_str, spaces as '_'), its end and when the reflector
++ * renews it in seconds since 1970 (0 without one), the days left, and whether
++ * a request is waiting for the sysop (a CSR on disk with no usable
++ * certificate). Exit 0 when a certificate can log in, 1 when not. */
++static int run_cert_status(const svx_config *cfg) {
++    time_t     now = time(NULL);
++    cert_state cs;
++    char       st[32];
++
++    cert_assess(cfg, now, &cs, 0);
++    int usable  = enroll_have_usable_cert(cfg, now);
++    int pending = !usable && pki_file_exists(cs.csr_path);
++    snprintf(st, sizeof(st), "%s", pki_cert_status_str(cs.status));
++    for (char *p = st; *p; p++) if (*p == ' ') *p = '_';
++    printf("status=%s usable=%d request=%d not_after=%lld renew_at=%lld days=%d\n", st, usable, pending,
++           cs.status == PKI_CERT_MISSING ? 0LL : (long long)cs.info.not_after,
++           cs.status == PKI_CERT_MISSING ? 0LL : (long long)cs.info.renew_at,
++           cs.status == PKI_CERT_MISSING ? 0 : pki_days_until(cs.info.not_after, now));
++    return usable ? 0 : 1;
++}
++
+ static void usage(FILE *f) {
+     fprintf(f,
+ "svxconnect " SVX_VERSION " — terminal client for SvxLink reflectors\n"
+@@ -393,6 +421,9 @@ static void usage(FILE *f) {
+ "  -v, --verbose         log at debug level\n"
+ "      --no-tx           receive only; never open the microphone\n"
+ "      --headless        no TUI, log events to stdout\n"
++"      --stdio           run under a host program that is the interface: its\n"
++"                        commands on stdin, the events (and with AUDIO=pipe the\n"
++"                        audio) on stdout, the log on stderr (src/hostio.h)\n"
+ "      --init-config     write a fully commented configuration, asking for your\n"
+ "                        callsign, email and reflector; --set fills in any key\n"
+ "      --force           with --init-config: replace an existing file (kept as .bak)\n"
+@@ -401,6 +432,7 @@ static void usage(FILE *f) {
+ "      --list-devices    list audio input and output devices, then exit\n"
+ "      --audio-test      loop the microphone back to the speaker, then exit\n"
+ "      --dump-config     print every setting with its resolved value\n"
++"      --cert-status     the certificate's state on one line, for a program\n"
+ "      --ascii           draw the TUI with ASCII only (same as unicode = off)\n"
+ "  -V, --version         print the version and exit\n"
+ "  -h, --help            this help\n"
+@@ -448,6 +480,8 @@ int main(int argc, char **argv) {
+         { "ascii",        no_argument,       0,  8  },
+         { "init-config",  no_argument,       0,  9  },
+         { "force",        no_argument,       0, 10  },
++        { "stdio",        no_argument,       0, 11  },
++        { "cert-status",  no_argument,       0, 12  },
+         { "version",      no_argument,       0, 'V' },
+         { "help",         no_argument,       0, 'h' },
+         { 0, 0, 0, 0 }
+@@ -472,6 +506,8 @@ int main(int argc, char **argv) {
+         case  8: force_ascii = 1; break;
+         case  9: mode = MODE_INIT_CONFIG; break;
+         case 10: force = 1; break;
++        case 11: mode = MODE_STDIO; break;
++        case 12: mode = MODE_CERT_STATUS; break;
+         case 'V': printf("svxconnect %s\n", SVX_VERSION); return 0;
+         case 'h': usage(stdout); return 0;
+         default:  usage(stderr); return 2;
+@@ -549,6 +585,31 @@ int main(int argc, char **argv) {
+         return rc == 0 ? 0 : (rc > 0 ? 1 : 2);
+     }
+ 
++    case MODE_CERT_STATUS:
++        if (config_validate(&cfg, 1) != 0) { config_help(resolved); return 2; }
++        return run_cert_status(&cfg);
++
++    case MODE_STDIO:
++        /* The host hears why in an `error` line, and the details are on stderr */
++        if (config_validate(&cfg, 0) != 0) {
++            hostio_fail("the configuration is incomplete");
++            config_help(resolved);
++            return 1;
++        }
++        if (require_enrolled(&cfg) != 0) {
++            hostio_fail("not enrolled: no certificate yet");
++            return 4;
++        }
++        if (acquire_run_lock(&cfg, "host") != 0) {
++            hostio_fail("another SVXConnect holds the reflector connection");
++            return 5;
++        }
++        {
++            int rc = run_hostio(&cfg, no_tx, SVX_VERSION);
++            svx_lock_release();
++            return rc;
++        }
++
+     case MODE_LIST_DEVICES:
+         return audio_list_devices(&cfg);
+ 

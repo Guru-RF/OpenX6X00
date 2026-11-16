@@ -37,7 +37,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     dialog_modes.c
     apps_menu.c
     birdie.c dialog_birdie.c dialog_flights.c
-    dialog_zello.c zello.c zello_link.c zello_ptt.c
+    dialog_zello.c zello.c voice_net.c voice_link.c voice_ptt.c dialog_svx.c svx.c svx_proto.c
     dialog_meteo.c meteo.c meteo_alerts.c
     first_start.c first_start_rule.c
     dialog_cw_trainer.c

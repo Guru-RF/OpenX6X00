@@ -62,6 +62,7 @@ static const struct {
     {"Birdie Cal", "Find birdies, antenna off", "birdie", OPEN_APP, ACTION_APP_BIRDIE},
     {"Web radio", "Internet stations", "iradio", OPEN_APP, ACTION_APP_IRADIO},     /* "Internet radio" is cut in 1bit */
     {"Zello", "Internet voice", "zello", OPEN_APP, ACTION_APP_ZELLO},
+    {"SVXConnect", "Reflector talkgroups", "svx", OPEN_APP, ACTION_APP_SVX},
     {"Flights", "Aircraft around", "flights", OPEN_APP, ACTION_APP_FLIGHTS},
     {"HF Air Band", "Oceanic routes, VOLMET", "aero", OPEN_APP, ACTION_APP_AERO},
     {"CB", "27 MHz channels", "cb", OPEN_APP, ACTION_APP_CB},

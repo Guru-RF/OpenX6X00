@@ -315,6 +315,19 @@ sed -i "/_CONF_OPTS += -DRADE_PREFIX=/d" $GUI_MK
 sed -i "s|^\$(eval \$(cmake-package))|${GUI_VAR}_CONF_OPTS += -DRADE_PREFIX=$RADE_PREFIX\n&|" $GUI_MK
 grep -q "^${GUI_VAR}_CONF_OPTS += -DRADE_PREFIX=$RADE_PREFIX" $GUI_MK
 
+echo "== SVXConnect, the SVXConnect app's reflector client (tools/svxconnect/build.sh): one ARMv7 binary, same gcc"
+# SVXConnect-CLI at the pinned tag with our patches, kept in $HOME/.cache/openx6x00/svxconnect; the GUI's CMake
+# installs it as /usr/bin/svxconnect, so it is in the image and in the update bundle. It links the tree's OpenSSL
+# and Opus, both in the image already (the checks below), which a tree built for the first time builds here, and
+# finds them with buildroot's pkg-config (host/bin, first on the PATH): the build container has none of its own
+for o in BR2_PACKAGE_LIBOPENSSL BR2_PACKAGE_OPUS; do grep -q "^$o=y" $BR/build/.config; done
+(cd $BR/build && make host-pkgconf libopenssl opus)
+SVX_BIN=$(PATH=$BR/build/host/bin:$PATH CC=$XARA_CC bash $GUI/tools/svxconnect/build.sh)
+[ -x "$SVX_BIN" ]
+sed -i "/_CONF_OPTS += -DSVXCONNECT_BINARY=/d" $GUI_MK
+sed -i "s|^\$(eval \$(cmake-package))|${GUI_VAR}_CONF_OPTS += -DSVXCONNECT_BINARY=$SVX_BIN\n&|" $GUI_MK
+grep -q "^${GUI_VAR}_CONF_OPTS += -DSVXCONNECT_BINARY=$SVX_BIN" $GUI_MK
+
 echo "== Build"
 cd $BR/build
 # U-Boot's release tarball comes from ftp.denx.de (buildroot's mirror has the X6100's 2026.07, not the X6200's

@@ -18,7 +18,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8) ([GhostNet](#ghostnet)), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
-- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb), [Flights](#flights), [Internet radio](#internet-radio), [Zello](#zello), [Weather](#weather)
+- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb), [Flights](#flights), [Internet radio](#internet-radio), [Zello](#zello), [SVXConnect](#svxconnect), [Weather](#weather)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
@@ -256,22 +256,23 @@ welcome (issue #157).
 
 ### Buttons and knobs
 
-The APP button opens five pages of apps and tools:
+The APP button opens six pages of apps and tools:
 
 | Page | Buttons |
 |---|---|
-| APP 1:5 | Modes, Cluster, SWR Scan, RX Recorder |
-| APP 2:5 | Settings, CW Trainer, Field Ops, Channels |
-| APP 3:5 | Bands, GPS, Screen rec, CW Keyboard |
-| APP 4:5 | Propagation, Scanner, Internet radio, Zello |
-| APP 5:5 | Flights, HF Air Band, CB, Weather |
+| APP 1:6 | Modes, Cluster, SWR Scan, RX Recorder |
+| APP 2:6 | Settings, CW Trainer, Field Ops, Channels |
+| APP 3:6 | Bands, GPS, Screen rec, CW Keyboard |
+| APP 4:6 | Propagation, Scanner, Internet radio, Zello |
+| APP 5:6 | SVXConnect, Flights, HF Air Band, CB |
+| APP 6:6 | Weather |
 
 With Icon menus on (Settings > Display > INTERFACE, on by default) APP also
 opens the same apps as a grid of tiles over these pages, with Walkie and
 Birdie Cal besides: the MFK chooses a tile, a press opens it, APP or ESC
 closes the grid. Four rows are in sight; the grid scrolls to the rows below
 as the MFK goes there (or by a swipe on the touch screen). "APP > CW Keyboard" in this manual is the tile, or the
-button on APP 3:5.
+button on APP 3:6.
 
 - Each app has its own button pages, named like `(JS8 1:7)`. The first
   button goes to the next page.
@@ -1564,7 +1565,7 @@ iaru-r3.org), 47 CFR Part 97 of the FCC (ecfr.gov) and the ARRL band plan
 Records the screen and the audio to an AVI file (MJPEG video, 800x480,
 8 frames/s, mono audio).
 
-- Start and stop: APP 3:5 > Screen rec (the button reads Stop rec while
+- Start and stop: APP 3:6 > Screen rec (the button reads Stop rec while
   recording), or a long-press action (screen rec on/off).
 - Files: `/mnt/screenrec/screen-YYYYMMDD-HHMMSS.avi`. The web configurator's
   Gallery lists them and can convert them to MP4.
@@ -2432,6 +2433,12 @@ of a transverter you turned on, and never on the X6200's receive-only ranges
 - Not in the table, the switch below covers them: Ireland's blocks at 30-40,
   45-49 and 54-55 MHz (Irish operators turn it on for those), Somalia's
   5.060-5.250 MHz, Japan's 4.630 MHz emergency channel.
+- The Simplex repeaters of [Zello](#zello-simplex-repeater) and
+  [SVXConnect](#svxconnect-simplex-repeater) key only inside this table or a
+  transverter's range you turned on, whatever TX outside ham bands and the TX
+  ranges below say: they can run unattended, and the radio tunes CB and the
+  aeronautical bands too (the Scanner's lists, for one), which are outside
+  the amateur bands.
 
 TX outside ham bands. Where: Settings > TX Cal > TX PROTECTION > TX outside
 ham bands (also on the web Display page, Transmitter card). Off by default,
@@ -2886,7 +2893,7 @@ Not tried on a radio with a transverter yet: checked on the PC build.
 
 ### SWR scan and the tuner
 
-SWR scan: APP 1:5 > SWR Scan. It transmits a carrier (AM on the X6100, FM on
+SWR scan: APP 1:6 > SWR Scan. It transmits a carrier (AM on the X6100, FM on
 the X6200) and sweeps it across the span around the frequency the radio
 transmits on (the other VFO in split), drawing the SWR as it goes. The carrier
 is 1 W: on the X6200 also when PWR is set lower, as the stock firmware does
@@ -5343,7 +5350,7 @@ to the bands, and the beacons heard here, see [Propagation](#propagation).
 
 ### Propagation
 
-APP > Propagation (APP 4:5, or a long-press action): how the bands are doing,
+APP > Propagation (APP 4:6, or a long-press action): how the bands are doing,
 on a map of the world with your QTH in the middle, night shaded and the grey
 line (dawn and dusk, when 80 and 40 m reach furthest) lit. Two views, the
 second button changes between them; ESC closes, and the radio goes back to
@@ -5508,7 +5515,7 @@ APP Channels, or the V/M key of the hand mic.
 
 ### Scanner
 
-APP > Scanner (APP 4:5, or a long-press action): through a list of
+APP > Scanner (APP 4:6, or a long-press action): through a list of
 frequencies, a short look at each, a stop on one where something is on the
 air, and on again when it has been quiet for the hang time, as a scanner
 does. The speaker is quiet while it looks, so there is no burst of noise at
@@ -5552,7 +5559,7 @@ frequency and mode: a band key goes where it went before the scan.
 
 ### HF Air Band
 
-APP > HF Air Band (APP 5:5, or a long-press action): the HF frequencies of
+APP > HF Air Band (APP 5:6, or a long-press action): the HF frequencies of
 aviation, to listen to. The VOLMET weather broadcasts, the air traffic of
 the oceanic and remote air routes (the ITU's Major World Air Route Areas,
 MWARA: NAT the North Atlantic, SAT the South Atlantic, CEP and CWP the
@@ -5594,7 +5601,7 @@ list (the carrier), as aircraft and ground stations use them.
 
 ### CB
 
-APP > CB (APP 5:5, or a long-press action): the 27 MHz Citizens Band
+APP > CB (APP 5:6, or a long-press action): the 27 MHz Citizens Band
 channels of a country's plan, each with its frequency, the mode it is
 tuned in and what the plan keeps it for (9 emergency, 19 the road in most
 countries).
@@ -5647,7 +5654,7 @@ as the plans number them.
 
 ### Flights
 
-APP > Flights (APP 5:5, or a long-press
+APP > Flights (APP 5:6, or a long-press
 action): the aircraft around you, from their ADS-B positions as networks of
 volunteers' receivers share them on the internet (WiFi or Ethernet). Only
 aircraft that some receiver near you picks up are there: far from one, the
@@ -5696,7 +5703,7 @@ nothing retunes it; ESC closes.
 
 ### Internet radio
 
-APP > Internet radio (APP 4:5, the Web radio tile of the APP grid,
+APP > Internet radio (APP 4:6, the Web radio tile of the APP grid,
 or a long-press action): Internet radio stations on the radio's speaker, at its VOL, or on
 Bluetooth headphones while they stand in for the speaker (Mute speaker on).
 Needs WiFi or Ethernet. The station lists come from
@@ -5732,10 +5739,11 @@ Internet radio stations, which anyone can add a station to.
   after the over.
 - While a station plays the speaker plays it in place of the receiver, as
   for the RX recorder's playback; the receiver comes back at Stop.
-- A message of a [Zello](#zello) channel (with its Simplex repeater on, the
-  Zello session stays when its app closes) is heard over the station: the
-  station drops out while the message plays and comes back after it, on the
-  speaker and on Bluetooth headphones alike.
+- A message of a [Zello](#zello) channel or an over on an
+  [SVXConnect](#svxconnect) talkgroup (with its Simplex repeater on, the
+  session stays when its app closes) is heard over the station: the station
+  drops out while the message plays and comes back after it, on the speaker
+  and on Bluetooth headphones alike.
 - The radio fetches a list when you show it and keeps it an hour (the
   countries a day), and it fetches the station only while it plays: nothing
   goes out while the window is closed. To the directory it says
@@ -5753,7 +5761,7 @@ Internet radio stations, which anyone can add a station to.
 
 ### Zello
 
-APP > Zello (APP 4:5, or a long-press action) puts the radio on a channel of
+APP > Zello (APP 4:6, or a long-press action) puts the radio on a channel of
 Zello, the push-to-talk voice service on the internet (the free Zello, as in
 the app on a phone). It needs
 the network (WiFi, Ethernet or USB) and goes over the internet only: talking
@@ -5877,11 +5885,24 @@ Its switches are on pages 2 and 3 of the app and are kept:
 It keeps every TX rule of the radio:
 
 - It transmits only where the radio may: the TX ranges, the
-  [amateur bands](#amateur-bands-only), TX outside them, the transverter's
-  limits and [data from the base](#no-tx-without-data-from-the-base). If the
-  radio refuses a transmission, or the SWR protection or a band stop ends
-  one, Zello>RF stops (its button says Stopped) until you turn it off and on
+  [amateur bands](#amateur-bands-only), the transverter's limits and
+  [data from the base](#no-tx-without-data-from-the-base). If the radio
+  refuses a transmission, or the SWR protection or a band stop ends one,
+  Zello>RF stops (its button says Stopped) until you turn it off and on
   again.
+- **Amateur bands only**, always: the link keys only inside the
+  [table of the amateur bands](#amateur-bands-only) or on a transverter's
+  range you turned on, even with TX outside ham bands on or a TX list of your
+  own that reaches outside them. The radio tunes CB and the aeronautical
+  bands too, and a link left running there would put the internet's voices
+  on CB or on an aeronautical frequency with nobody at the radio. Tuned
+  outside them, the link does not key and says "Link: amateur bands only"
+  once; its button says No ham band and the main screen Z>RF(no ham band).
+  Tuned out of a band while it transmits, it unkeys at once, and the rest of
+  that message is not sent. RF>Zello sends nothing on the air and is not held
+  to them.
+- One link at a time: while SVXConnect's Simplex repeater is on, Zello's
+  switches say so and stay off (and the other way round).
 - The power is your TX power setting, at most 7 W (the cap the apps
   transmit with) and at most what the radio allows there.
 - Never over anyone: it does not key while the squelch is open, while the
@@ -5908,9 +5929,129 @@ keeps the radio on the channel ("Zello link stays on"); open the app and
 press Disconnect to stop it. Nothing starts it at power on: after a restart
 it is off until you connect again.
 
+### SVXConnect
+
+APP > SVXConnect (APP 5:6, the tile after Zello in the APP grid, or a
+long-press action) puts the radio on the talkgroups of an SvxLink reflector,
+the servers that link repeaters and hotspots over the internet. The radio is
+a client of the reflector, as SVXConnect is on a computer: the same program
+([SVXConnect-CLI](https://github.com/Guru-RF/SVXConnect-CLI), MIT licence,
+`/usr/bin/svxconnect`), with the radio as its sound card. It logs in with a
+certificate the reflector's sysop signed and its audio is encrypted. It
+needs the network (WiFi, Ethernet or USB) and goes over the internet only:
+talking on a talkgroup never keys the radio's transmitter and never changes
+a TX setting. The one thing in the app that transmits is the
+[Simplex repeater](#svxconnect-simplex-repeater), off until you turn it on.
+Everything that is not about the reflector works as in [Zello](#zello).
+
+**The settings**, on the web configurator's SVXConnect page (Operating >
+SVXConnect):
+
+- Callsign, e-mail and the reflector (its host name; the port when it has no
+  DNS record of its own, 5300 unless its sysop says otherwise). The
+  callsign and the e-mail go into the certificate request.
+- **Switchable**: the talkgroups you choose in the app and talk on, as `8,
+  1745, 8000`. **Monitored**: those you hear and see the talkers of, as
+  `8++, 1745+, 9990`. A + gives a talkgroup priority (up to +++): a talker
+  on a talkgroup of higher priority pulls the radio over from a quieter one,
+  unless the talkgroup is locked. 32 talkgroups at most in the two lists.
+- Start on (the talkgroup selected at Connect, one of the switchable ones; 0
+  the first of them),
+  Locked at the start, **Linger** (seconds a talkgroup is held after its
+  talker stops before another may pull the radio over, 30 unless you change
+  it), **Idle** (seconds of quiet everywhere after which it drops to
+  monitoring only; 0, never, unless you change it), **TX time-out** (seconds
+  after which an over of yours ends by itself, 30 to 600, 120 unless you
+  change it), Roger beep, and a Location shown with your callsign on the
+  reflector.
+- **Certificate**: Request makes a key on the radio and sends the request
+  with your callsign and e-mail to the reflector, where the sysop signs it by
+  hand. That can take minutes or days: the page says "Waiting for the sysop
+  to sign the request" while the radio asks again every 30 seconds. The page
+  can be closed meanwhile; Stop, and a new Request, carry on with the same
+  request. Signed, the page says until when the certificate is valid and
+  from when the reflector renews it. With a certificate, Request (then
+  "Check with the reflector") asks the reflector whether it still takes it.
+  The reflector renews a certificate by itself once two thirds of its time
+  have gone, while the app has been connected for ten minutes; the page says
+  "renewal due" until then. A new callsign or another reflector needs a new
+  certificate: Remove certificate, then Request.
+- The key, the request and the certificate are kept on the radio's DATA
+  partition (`/mnt/svxconnect/pki`), readable by root only (the DATA
+  partition is FAT, which has no owners: on the radio everything runs as
+  root), never shown, never written to a log, not in a Backup and not on the
+  Files page. The settings are in `/mnt/svxconnect/svxconnect.conf`, which
+  the page writes whole at each Save.
+
+**On the radio:**
+
+- Connect (page 1) logs in to the reflector with the saved settings. The top
+  line says what happens: "Connecting to the reflector", the reflector, the
+  talkgroup selected (and "locked") and how many nodes are on, or why it is
+  not connected; a missing, expired or not yet valid certificate is said
+  there too. A connection lost is tried again by itself.
+- The table lists the talkgroups: > marks the selected one, + its priority,
+  "listen" one that is monitored only, and on the right who talks on it and
+  for how long. Turn the MFK to a switchable talkgroup and press it to select
+  it. **Lock** (page 1) keeps the selected talkgroup whoever talks
+  elsewhere.
+- **Recent**, on the right: the last overs, newest first: the callsign, the
+  talkgroup, how long ago and how long.
+- What the selected talkgroup says plays on the speaker at the radio's
+  volume (VOL), as Zello's channel does, and the line under the top line says
+  who talks. Between overs the speaker is the receiver's. An over wins over
+  the [Internet radio](#internet-radio)'s station, which drops out for it and
+  comes back after it.
+- To talk: press and hold the radio's PTT key (or press Talk, and again to
+  end) and speak into the **hand mic, without pressing the hand mic's own
+  PTT**, as in Zello. The over goes to the selected talkgroup; with none
+  selected (monitoring only, after Idle) choose one first. Someone talking
+  on it already: "not sent: ON7ABC is talking on TG 8". An over ends by
+  itself at the TX time-out. With no hand mic, after 3 seconds the radio
+  says "No audio: talking on SVXConnect uses the hand mic".
+- Talk via (page 2), the PTT key while the app is open, the pause while the
+  radio transmits and the connection only while the app is connected or the
+  Simplex repeater is on: as in [Zello](#zello).
+- A report for a problem: `/mnt/app_logs/svxconnect.txt` (Files page), and
+  `svxconnect-enroll.txt` beside it for the last certificate request; never
+  the key.
+
+#### SVXConnect: Simplex repeater
+
+The Simplex repeater links the selected talkgroup to the frequency the radio
+is on: its overs are transmitted there, and what the radio receives goes to
+the talkgroup. It is a link station (a gateway) that can run with nobody at
+the radio, so **you must hold a licence that allows an internet-linked or
+unattended station where you operate it**, on that band and frequency. Many
+countries ask for a special permit or a club or repeater licence for this,
+allow it on some bands or frequencies only, or not at all. Check before you
+turn it on. Both directions are off until you turn them on.
+
+- **SVX>RF** and **RF>SVX** (page 2), **CW ID** (page 2), **TX limit** and
+  **Pause** (page 3) are Zello's, with the same rules and the same
+  defaults: see [Zello: Simplex repeater](#zello-simplex-repeater). That
+  includes **amateur bands only**: the link keys only inside the
+  [amateur bands](#amateur-bands-only) or a transverter's range, whatever TX
+  outside ham bands and the TX ranges say ("Link: amateur bands only"; the
+  button says No ham band).
+- The talkgroup selected is the one relayed. A talker on a talkgroup of
+  higher priority pulls the selection over, and its overs then go on the
+  air too: Lock the talkgroup for a link that relays one talkgroup only.
+  RF>SVX needs a talkgroup selected, and is refused while someone talks on
+  it.
+- One link at a time: while Zello's Simplex repeater is on, SVXConnect's
+  switches say so and stay off (and the other way round).
+- The main screen shows **SVX LINK** with the directions that are on (S>RF,
+  RF>S), red with [TX] or [ID] while it transmits and [RX>S] while the
+  receiver goes to the talkgroup.
+
+Connect with a direction on to start it. Closing the app then keeps the
+radio on the reflector ("SVXConnect link stays on"); open the app and press
+Disconnect to stop it. Nothing starts it at power on.
+
 ### Weather
 
-APP > Weather (APP 5:5, the tile before Settings in the APP grid, or a
+APP > Weather (APP 6:6, the tile before Settings in the APP grid, or a
 long-press action): the weather where you are, five days of forecast and the warnings
 in force there, in the place's own time. It needs the internet (WiFi or
 Ethernet). Nothing is received by the radio itself, nothing retunes it and

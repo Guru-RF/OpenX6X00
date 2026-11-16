@@ -1,0 +1,90 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Mon, 16 Nov 2026 15:28:56 +0100
+Subject: [PATCH 4/4] Build: make TUI=0 leaves the terminal interface and
+ ncurses out
+
+A machine whose interface is another program's (--stdio) or that runs the
+client as a service (--headless) needs no ncurses: src/ui/ui_none.c stands in
+for the interface and says how to run it instead.
+---
+ Makefile         | 14 ++++++++++++++
+ README.md        |  1 +
+ src/ui/ui_none.c | 17 +++++++++++++++++
+ 3 files changed, 32 insertions(+)
+ create mode 100644 src/ui/ui_none.c
+
+diff --git a/Makefile b/Makefile
+index 654174b..2fbe06e 100644
+--- a/Makefile
++++ b/Makefile
+@@ -7,6 +7,7 @@
+ #   make install         install to $(PREFIX)/bin      (PREFIX=/usr/local)
+ #   make asan            build with AddressSanitizer + UBSan
+ #   make AUDIO=pipe      the audio through a host program (--stdio), no sound card
++#   make TUI=0           no terminal interface: --headless and --stdio, no ncurses
+ #   make clean
+ 
+ CC       ?= cc
+@@ -93,6 +94,10 @@ ifeq ($(strip $(NCURSES_LIBS)),)
+ endif
+ CPPFLAGS += $(NCURSES_CFLAGS)
+ 
++ifeq ($(TUI),0)
++    NCURSES_LIBS :=
++endif
++
+ LDLIBS := -lssl -lcrypto -lresolv $(OPUS_LIBS) $(NCURSES_LIBS) -lm $(PLATFORM_LIBS)
+ 
+ # ---------------------------------------------------------------- sources
+@@ -114,6 +119,15 @@ else
+     CSRC := $(filter-out src/audio/dev_pipe.c,$(CSRC))
+ endif
+ 
++# The terminal interface, or none (`make TUI=0`, src/ui/ui_none.c): a build
++# for --headless and --stdio only, without ncurses.
++TUI ?= 1
++ifeq ($(TUI),0)
++    CSRC := $(filter-out src/ui/ui.c,$(CSRC))
++else
++    CSRC := $(filter-out src/ui/ui_none.c,$(CSRC))
++endif
++
+ OBJ := $(patsubst %.c,$(BUILD)/%.o,$(CSRC)) $(patsubst %.m,$(BUILD)/%.o,$(MSRC))
+ DEP := $(OBJ:.o=.d)
+ 
+diff --git a/README.md b/README.md
+index 5c47fd6..6949f02 100644
+--- a/README.md
++++ b/README.md
+@@ -271,6 +271,7 @@ make check-tsan # make check under ThreadSanitizer   (in build-tsan/)
+ make check-asan # make check under ASan + UBSan      (in build-asan/)
+ make asan       # AddressSanitizer + UndefinedBehaviorSanitizer build
+ make AUDIO=pipe # the audio through a host program (--stdio), no sound card
++make TUI=0      # no terminal interface, no ncurses: --headless and --stdio only
+ make fakerefl   # build/fakerefl: the fake reflector as a program, for a front end's tests
+ ```
+ 
+diff --git a/src/ui/ui_none.c b/src/ui/ui_none.c
+new file mode 100644
+index 0000000..bf9f9e1
+--- /dev/null
++++ b/src/ui/ui_none.c
+@@ -0,0 +1,17 @@
++/* SPDX-License-Identifier: MIT
++ * SVXConnect-CLI — Copyright (c) 2026 Joeri Van Dooren
++ *
++ * The terminal interface in a build without it (make TUI=0): a program built
++ * for a machine whose interface is another program's (--stdio), or that runs
++ * as a service only (--headless), needs no ncurses.
++ */
++#include "ui.h"
++
++#include <stdio.h>
++
++int ui_run(svx_app *app) {
++    (void)app;
++    fprintf(stderr, "svxconnect: built without the terminal interface (make TUI=0); "
++                    "run it with --headless or --stdio\n");
++    return 2;
++}

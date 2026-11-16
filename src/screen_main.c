@@ -97,6 +97,8 @@
 #include "dialog_flights.h"
 #include "dialog_zello.h"
 #include "dialog_meteo.h"
+#include "dialog_svx.h"
+#include "voice_net.h"
 #include "first_start.h"
 #include "control_owner.h"
 #include "kbd_hyper.h"
@@ -508,6 +510,7 @@ static const char *app_name(press_action_t a) {
         case ACTION_APP_FIRST_START: return "First start";
         case ACTION_APP_IRADIO:     return "Internet radio";
         case ACTION_APP_ZELLO:      return "Zello";
+        case ACTION_APP_SVX:        return "SVXConnect";
         case ACTION_APP_FLIGHTS:    return "Flights";
         case ACTION_APP_AERO:       return "HF Air Band";
         case ACTION_APP_CB:         return "CB";
@@ -618,6 +621,7 @@ void main_screen_start_app(press_action_t app_action) {
         {ACTION_APP_FIRST_START, &dialog_first_start},
         {ACTION_APP_IRADIO, &dialog_iradio},
         {ACTION_APP_ZELLO, &dialog_zello},
+        {ACTION_APP_SVX, &dialog_svx},
         {ACTION_APP_FLIGHTS, &dialog_flights},
         {ACTION_APP_AERO, &dialog_aero},
         {ACTION_APP_CB, &dialog_cb},
@@ -1037,9 +1041,10 @@ static void front_key_cb(lv_event_t *e) {
             break;
 
         case KEYPAD_PTT:
-            /* With the Zello app open the key talks on its channel and never keys the radio; a release goes where its
-             * press went, so the radio's own press is let go even if the app opened meanwhile (zello_ptt.h) */
-            if (!dialog_zello_ptt_key(ev->state)) {
+            /* With an internet voice app open (Zello, SVXConnect) the key talks on its network and never keys the
+             * radio; a release goes where its press went, so the radio's own press is let go even if the app opened
+             * meanwhile (voice_ptt.h) */
+            if (!vnet_ptt_key(ev->state)) {
                 ptt_key(ev->state);
             }
             break;

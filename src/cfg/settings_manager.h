@@ -430,8 +430,9 @@ class SettingsManager {
     // The Zello app (dialog_zello.c): talk on Zello from a Bluetooth headset's mic instead of the hand mic
     Parameter<int32_t> p_zello_talk_bt{"zello_talk_bt", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    // The Zello app's Simplex repeater (zello_link.h), off by default: a channel's messages transmitted on the
-    // frequency the radio is on (it keys the radio), and what the receiver hears with the squelch open sent to it
+    // The Zello app's Simplex repeater (voice_link.h, shared with SVXConnect), off by default: a channel's messages
+    // transmitted on the frequency the radio is on (it keys the radio), and what the receiver hears with the squelch
+    // open sent to it
     Parameter<int32_t> p_zello_to_rf{"zello_to_rf", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_zello_to_zello{"zello_to_zello", false, 0, 1,
@@ -445,6 +446,24 @@ class SettingsManager {
     Parameter<int32_t> p_zello_id{"zello_id", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_zello_id_min{"zello_id_min", 60, 5, 120,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // The SVXConnect app (dialog_svx.c): talk on the reflector from a Bluetooth headset's mic instead of the hand mic
+    Parameter<int32_t> p_svx_talk_bt{"svx_talk_bt", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Its Simplex repeater, the same rules as Zello's (voice_link.h), off by default: a talkgroup's overs transmitted
+    // on the frequency the radio is on, and what the receiver hears with the squelch open sent to the talkgroup. One
+    // app's link at a time (dialog_svx.c, dialog_zello.c)
+    Parameter<int32_t> p_svx_to_rf{"svx_to_rf", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_svx_to_svx{"svx_to_svx", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_svx_limit{"svx_limit", 120, 30, 300,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_svx_pause{"svx_pause", 3, 1, 30,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_svx_id{"svx_id", true, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_svx_id_min{"svx_id_min", 60, 5, 120,
         StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // Field Ops: start in Field Ops at power on
