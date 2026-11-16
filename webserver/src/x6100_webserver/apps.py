@@ -3961,7 +3961,14 @@ def backup_files():
             "tci.conf": ("tci", settings.TCI_CONF),
             "qso_log.db": ("qso", settings.QSO_LOG_DB),
             "cw_trainer.json": ("cw", settings.CW_TRAINER_FILE),
-            "bootlogo.png": ("bootpic", settings.BOOT_PICTURE)}
+            "bootlogo.png": ("bootpic", settings.BOOT_PICTURE),
+            # The apps' own lists and settings, none of their accounts or keys (Zello's account.conf and
+            # private_key.pem stay out): the GUI reads each again when its app opens, GhostNet's when it changes
+            "ghostnet.conf": ("apps", settings.GHOSTNET_CONF),
+            "ghostnet_nets.txt": ("apps", settings.GHOSTNET_NETS_USER),
+            "iradio/favorites.tsv": ("apps", settings.IRADIO_FAV_FILE),
+            "iradio/country": ("apps", settings.IRADIO_COUNTRY_FILE),
+            "zello/channels.txt": ("apps", os.path.join(settings.ZELLO_DIR, "channels.txt"))}
 
 
 def backup_member(name):
@@ -4128,6 +4135,21 @@ def describe_backup(files, date=None):
             out["wifi"] = plural(len(wifi), "network")
         if "bootlogo.png" in files:
             out["bootpic"] = "your own, " + fmt_size(os.path.getsize(files["bootlogo.png"]))
+        apps_in = []
+        if "ghostnet.conf" in files or "ghostnet_nets.txt" in files:
+            apps_in.append("GhostNet " + " and ".join(w for n, w in (("ghostnet.conf", "settings"),
+                                                                     ("ghostnet_nets.txt", "nets")) if n in files))
+        if "iradio/favorites.tsv" in files:
+            favs = sum(1 for x in read_text(files["iradio/favorites.tsv"]).splitlines()
+                       if x.split("\t")[0] and iradio_url_ok((x.split("\t") + [""])[1]))
+            apps_in.append(plural(favs, "favourite station"))
+        elif "iradio/country" in files:
+            apps_in.append("Internet radio country")
+        if "zello/channels.txt" in files:
+            chans = {" ".join(x.split()) for x in read_text(files["zello/channels.txt"]).splitlines()} - {""}
+            apps_in.append(plural(len(chans), "Zello channel"))
+        if apps_in:
+            out["apps"] = ", ".join(apps_in)
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
         pass   # a part that can't be read just has no summary
     return out
@@ -4177,6 +4199,12 @@ def check_member(name, path):
                 data = f.read()
             if b"\0" in data or (name.endswith(".nmconnection") and b"[connection]" not in data):
                 raise ValueError
+        elif backup_member(name)[0] == "apps":   # the apps' lists: lines of text
+            with open(path, "rb") as f:
+                data = f.read()
+            if b"\0" in data:
+                raise ValueError
+            data.decode("utf-8")
     except (OSError, ValueError, KeyError, TypeError):
         raise BackupError(f"{name} in the file is not valid")
 

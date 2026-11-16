@@ -11,6 +11,7 @@ MACRO_FILES = {"psk": "/mnt/psk_macros.txt", "olivia": "/mnt/olivia_macros.txt",
                "jtty": "/mnt/jtty_macros.txt"}   # src/psk_macro.c, olivia_macro.c, jtty_macro.c
 JS8_TEXTS_FILE = "/mnt/js8_texts.txt"   # INFO, STATUS and more, src/dialog_js8.c
 IRADIO_FAV_FILE = "/mnt/iradio/favorites.tsv"   # the Internet radio's favourites, src/dialog_iradio.c
+IRADIO_COUNTRY_FILE = "/mnt/iradio/country"     # the country its list of stations is of, src/dialog_iradio.c
 FFMPEG = "/usr/bin/ffmpeg"          # the Internet radio's decoder of every format but MP3, on an image that has it
 WIFI_DIR = "/etc/NetworkManager/system-connections"
 BACKUP_WORK = "/mnt/backup_work"    # uploaded backup, unpacked

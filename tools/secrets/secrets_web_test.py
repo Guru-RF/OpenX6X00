@@ -483,7 +483,11 @@ class Secrets(unittest.TestCase):
                 self.assertEqual(json.loads(data)["msg"], said)
 
     def test_backup_download(self):
-        st, data = self.get("/api/backup/download?parts=settings,memories,cluster,tci,qso,cw,voice,bootpic", 200)
+        st, data = self.get("/api/backup/download?parts=settings,memories,cluster,tci,qso,cw,voice,bootpic,apps", 200)
+        with tarfile.open(fileobj=io.BytesIO(data)) as tf:   # the Zello channels in it, its account and key not
+            names = tf.getnames()
+        self.assertIn("zello/channels.txt", names)
+        self.assertFalse([n for n in names if "account" in n or n.endswith(".pem")], names)
         st, data = self.req("GET", "/api/backup/download?parts=wifi")
         self.assertEqual(st, 200, data)
         found = [s for s in SECRETS if s.encode() in unpacked(data)]
