@@ -4,7 +4,8 @@
  *  Host test of GhostNet in the JS8 app (src/ghostnet.c): the regional group from a country and a department, the
  *  groups added, the @GSTFLASH test and the message box's text of a station's words, the schedule file the image
  *  ships, the next window of a net and the reminder's choice across midnight (UTC and local) and a week's end, the
- *  times shown in UTC with the local zone, the settings file, the translation helper's language code and its answers.
+ *  times shown in UTC with the local zone, the settings file, the translation helper's language code and its answers,
+ *  the messages' log.
  *  translate_test.py checks the helper itself (rootfs/usr/sbin/x6100-translate) without the network.
  */
 #define _GNU_SOURCE
@@ -364,6 +365,37 @@ static void test_conf(void) {
     CHECK(got->translate_rx && !got->translate_tx);
 }
 
+/* The messages' log the web page reads: one line a message, tabs and line ends of a station's text as spaces */
+static void test_log(void) {
+    char  line[512];
+    FILE *f;
+    int   n = 0;
+
+    ghostnet_log('R', 7, "LU1AAA", "@GHOSTNET", -5, 7107000, "BUENAS\tNOCHES\nA TODOS");
+    ghostnet_log('T', 7, "LU1AAA", "@GHOSTNET", -5, 7107000, "Good evening everyone");
+    ghostnet_log('X', 0, NULL, NULL, 0, 7107000, NULL);
+    f = fopen(GHOSTNET_LOG, "r");
+    CHECK(f != NULL);
+    if (!f) return;
+    while (fgets(line, sizeof(line), f)) {
+        char kind, from[16] = "", text[128] = "";
+        long long when;
+        unsigned  id;
+        int       snr, dial;
+        n++;
+        if (n == 1) {
+            CHECK(sscanf(line, "%c\t%lld\t%u\t%15[^\t]\t%*[^\t]\t%d\t%d\t%127[^\n]", &kind, &when, &id, from, &snr,
+                         &dial, text) == 7);
+            CHECK(kind == 'R' && id == 7 && snr == -5 && dial == 7107000 && when > 1700000000LL);
+            CHECK_STR(from, "LU1AAA");
+            CHECK_STR(text, "BUENAS NOCHES A TODOS");
+        }
+        if (n == 3) CHECK(!strncmp(line, "X\t", 2) && strstr(line, "\t0\t\t\t0\t7107000\t\n") != NULL);
+    }
+    fclose(f);
+    CHECK(n == 3);
+}
+
 static void test_translate_words(void) {
     char out[64], text[GHOSTNET_TR_TEXT + 1];
 
@@ -415,6 +447,7 @@ int main(void) {
     test_upcoming_and_remind();
     test_conf();
     test_translate_words();
+    test_log();
     printf("ghostnet_test: %d checks, %d failed\n", checks, fails);
     return fails != 0;
 }

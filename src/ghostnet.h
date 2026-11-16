@@ -37,6 +37,11 @@ extern "C" {
 #ifndef GHOSTNET_NETS
 #define GHOSTNET_NETS BOARD_SHARE "/ghostnet_nets.txt"
 #endif
+/* GhostNet's messages as the JS8 app heard and sent them, for the web page GhostNet; the one before in ".1" */
+#ifndef GHOSTNET_LOG
+#define GHOSTNET_LOG BOARD_DATA "/ghostnet_log.txt"
+#endif
+#define GHOSTNET_LOG_MAX (256 * 1024)   /* then it becomes ".1", and the one before that goes */
 
 #define GHOSTNET_OWN "OWN"      /* the id of the operator's own net in the nets list */
 
@@ -155,6 +160,9 @@ bool ghostnet_is_group(const char *to);
 bool ghostnet_is_flash(const char *to, const char *text);
 /* text for the message box, where "#rrggbb text#" colours a part: each '#' doubled, which the box shows as one */
 void ghostnet_box_text(const char *text, char *out, size_t size);
+/* A line of GHOSTNET_LOG: kind 'R' heard, 'X' sent, 'T' the translation of message id from `from`; tabs and line
+ * ends in the text as spaces. The web page reads it (ghostnet_web.py messages()). LVGL thread */
+void ghostnet_log(char kind, uint32_t id, const char *from, const char *to, int snr, int32_t dial_hz, const char *text);
 
 /* ---- The translation helper (rootfs/usr/sbin/x6100-translate) ---- */
 

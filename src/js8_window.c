@@ -874,6 +874,13 @@ static void update_slot(int slot, const js8_rx_msg_t *msg)
 
 static void trans_auto(const js8_rx_msg_t *m);
 
+/* For the web page GhostNet's messages: to GhostNet's groups, or anything on its frequencies (the GhostNet list in
+ * use, not a typed frequency); no heartbeats, SNR reports or doubtful decodes */
+static bool ghostnet_traffic(const js8_rx_msg_t *m) {
+    if (m->heartbeat || m->snr_report || m->low_confidence) return false;
+    return ghostnet_is_group(m->to) || (params.js8_ghostnet.x && !params.js8_custom_on.x);
+}
+
 static void add_message(const js8_rx_msg_t *in)
 {
     js8_rx_msg_t m = *in;
@@ -882,6 +889,9 @@ static void add_message(const js8_rx_msg_t *in)
     if (!m.tx) growing = find_partial(m.msg_id);
     if (!m.partial) process_message(&m);
     if (!m.partial) trans_auto(&m);
+    if (!m.partial && ghostnet_traffic(&m))
+        ghostnet_log(m.tx ? 'X' : 'R', m.msg_id, m.tx ? params.callsign.x : m.from, m.to, m.snr,
+                     cparam_i_get(cfg_fg_freq), m.text);
     if (growing >= 0) {
         update_slot(growing, &m);
         return;
@@ -935,6 +945,7 @@ static void trans_store(uint32_t id, int32_t utc, const char *text) {
         snprintf(trans[trans_head].lang, sizeof(trans[0].lang), "%.2s", lang);
         snprintf(trans[trans_head].text, sizeof(trans[0].text), "%s", text);
         trans_head = (trans_head + 1) % TRANS_N;
+        if (ghostnet_traffic(h)) ghostnet_log('T', id, h->from, h->to, h->snr, cparam_i_get(cfg_fg_freq), text);
         js8_rx_msg_t copy = *h;
         update_slot(idx, &copy); /* its row again, with the translation */
         return;

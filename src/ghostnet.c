@@ -484,6 +484,25 @@ void ghostnet_box_text(const char *text, char *out, size_t size) {
     out[k] = 0;
 }
 
+/* ---- The messages' log ---- */
+
+void ghostnet_log(char kind, uint32_t id, const char *from, const char *to, int snr, int32_t dial_hz, const char *text) {
+    struct stat st;
+    char        clean[1024];
+    FILE       *f;
+
+    if (stat(GHOSTNET_LOG, &st) == 0 && st.st_size > GHOSTNET_LOG_MAX) rename(GHOSTNET_LOG, GHOSTNET_LOG ".1");
+    f = fopen(GHOSTNET_LOG, "a");
+    if (!f) return;
+    snprintf(clean, sizeof(clean), "%s", text ? text : "");
+    for (char *p = clean; *p; p++) {
+        if (*p == '\t' || *p == '\n' || *p == '\r') *p = ' ';
+    }
+    fprintf(f, "%c\t%lld\t%u\t%s\t%s\t%d\t%d\t%s\n", kind, (long long)time(NULL), (unsigned)id, from ? from : "",
+            to ? to : "", snr, (int)dial_hz, clean);
+    fclose(f);
+}
+
 /* ---- The translation helper's words ---- */
 
 void ghostnet_tr_lang(const char *gui_code, char *out, size_t size) {

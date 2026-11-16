@@ -3669,6 +3669,32 @@ nets are held in English, and some in Spanish:
   then. No answer from MyMemory: "No answer from MyMemory".
 - A translation is a machine's: read it as a help, and check what you send.
 
+The web page GhostNet (Operating > GhostNet in the web configurator) has
+the same settings, and more:
+
+- The nets of the next 7 days in UTC and, in brackets, the radio's own time
+  (its time zone in Settings > General > DATE / TIME), the window now on
+  marked, a star where the reminder comes. VARA, ALE and voice windows are
+  there too.
+- Reminder: on or off, the minutes before, the nets it is for (the own net
+  among them).
+- Own net: on or off, its name, weekday and time in the radio's time zone,
+  length, frequency (kHz, or MHz under 100) and mode (JS8, RTTY, LSB, USB).
+- Groups and translation: the regional group typed by hand (@GN and up to
+  12 letters or digits), or the department (up to 3 letters or digits) for
+  a group made from the radio's country once it knows one; the two
+  translation switches.
+- Messages: what JS8 heard to GhostNet's groups, or on GhostNet's
+  frequencies (the GhostNet list in use), and what you sent there, the
+  newest first, with their translations; messages to @GSTFLASH again in a
+  red card at the top. The JS8 app writes them to `/mnt/ghostnet_log.txt`;
+  past 256 KB it becomes `ghostnet_log.txt.1` (the one before that goes)
+  and a new one starts. No heartbeats or SNR reports.
+- Stations heard, with their groups, and a short guide to taking part.
+
+A change saved on the page is used on the radio within seconds, also with
+JS8 open; the GhostNet popup and the page write the same file.
+
 The settings are in `ghostnet.conf` on the DATA partition (`/mnt`). The
 times are GhostNet version 1.5's (github.com/s2underground/GhostNet), in
 `/usr/share/x6100/ghostnet_nets.txt`. A file `/mnt/ghostnet_nets.txt` in the
@@ -5726,6 +5752,7 @@ The menu has General and five groups:
 | | Field Ops | QRZ Logbook profiles (three callsigns with their API keys, the active one), HOTA key, WWFF key, update the reference lists, download the activation logs |
 | | Wavelog | every logged QSO to your Wavelog: URL, API key, station profile (one, or Automatic by the radio's callsign), connection test, Send now; the live link: Show the radio in Wavelog, Radio name, Tune from Wavelog, the radio's address for Wavelog, Wavelog in the browser (writes `/mnt/field/wavelog.conf`, see [Wavelog](#wavelog) and [live link](#live-link)) |
 | | Winlink | Winlink email over HF with Pat and ARDOP, or Mercury or XARA (both experimental): Enabled, callsign, locator, the Winlink password (write only, and where Pat's is set), the modem, ARDOP's, Mercury's or XARA's bandwidth, the VARA HF licence tick box (XARA's full speed; the radio does not check it), the status and Open the mailbox (Pat's page on port 8080), the radio before a connection, the last connection with what to do next, and the logs as a download (writes `/mnt/winlink.conf`, see [Winlink](#winlink)) |
+| | GhostNet | GhostNet's nets of the next 7 days in UTC and the radio's own time, the reminder and the nets it is for, the own net, the regional group, the two translation switches, the messages JS8 heard and sent there with their translations, the stations heard, a short guide (writes `/mnt/ghostnet.conf`, see [GhostNet](#ghostnet)) |
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV; the text of the keyboard modes, a file a day: read, download, delete (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
