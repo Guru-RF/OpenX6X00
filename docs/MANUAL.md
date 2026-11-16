@@ -4804,6 +4804,40 @@ SOTA / POTA, before the activation:
   connection that never answers) ends after 45 minutes with "timed out".
 - Start begins the activation and its ADIF log.
 
+A map on the reference screen, when the card has map tiles: they are not
+downloaded (the radio has no network in the field), you make them on a PC
+and copy them to `/mnt/field/tiles` (SFTP). Without that folder the
+reference screen is as above, on two pages of buttons.
+
+- The tiles are the web map's (web mercator): 256 x 256 pixel JPEGs as
+  `tiles/<zoom>/<x>/<y>.jpg`, at zooms 13 (about 3 km a tile), 15 (800 m)
+  and 17 (200 m), from aerial photographs or a map whose licence lets you
+  keep a copy. Zoom 13 for the whole area, 15 and 17 around the references
+  you go to are enough. `tiles/credit.txt`, one line, is the credit the
+  source asks for, shown in the map's corner.
+- The map shows the reference the MFK is on (a crosshair and its name), the
+  references nearby by their kind (WWBOTA's bunkers square, the other
+  programmes' places a dot), the activated ones grey and ticked (those with
+  an activation log on the card), and where you are when the position is a
+  GPS's or the phone's (a dot, the phone's accuracy as a ring; the QTH
+  locator is no place on a map). An XOTA place's kind comes from the word
+  its name starts with: `Bunker:` a square, `Memorial:` a triangle,
+  `Remains:` a diamond, `Abandoned:` a ring, `Ruin:` and anything else a
+  dot (`Memoire:`, `Vestige:`, `Abandonne:` and `Ruine:` too); the map shows
+  the name without it.
+- The zoom by itself is the closest where the reference and you both fit
+  and the card has the tiles; further away, the map stays on the reference
+  and an arrow on its edge points to you, with the distance. Under the map
+  the distance and the heading to the reference (`1.24 km  NE 47`); within
+  50 m the status line says "You are there: Start to activate it". A view
+  with no tile at all says "No map here, outside the area of the tiles on
+  the card".
+- Page 3: View steps map and list (the map above the reference, the list
+  beside it), map and info (the map over the width, the reference in a band
+  under it; the MFK still chooses in the hidden list) and map only (the
+  whole window, the reference and its distance in its corner). Zoom - and
+  Zoom + zoom by hand; after 10 s the zoom is automatic again.
+
 SOTA / POTA, during the activation: the band, the frequency and the mode,
 the S-meter, the CQ text with the reference, the QSO count, the time since
 the start and the last call.
