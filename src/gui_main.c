@@ -71,6 +71,7 @@
 #ifdef BOARD_X6200
 #include "dialog_base_update.h"
 #endif
+#include "meteo_alerts.h"
 #include "start_trace.h"
 #include "dialog_cluster.h"
 #include "app_sstv.h"
@@ -350,6 +351,7 @@ static void services_start(void) {
     start_trace("services: QSO log read");
     dialog_cluster_start_client();
     image_level_notice_init();   /* a newer card image wanted: said once per version */
+    meteo_alerts_init();         /* APP > Weather > Notices: off by default */
 #ifdef BOARD_X6200
     base_update_watch_init();    /* a newer base firmware on xiegu.eu (the daily check): said once per version */
 #endif

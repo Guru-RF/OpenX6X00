@@ -600,6 +600,10 @@ class SettingsManager {
     // locator do not tell (band_plan.c); the list and the C getters are in countries.h
     Parameter<std::string> p_country{"country", "", country_validate,
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
+    // APP > Weather > Notices (meteo_alerts.c): every 30 minutes the warnings where the radio is, a new one of its
+    // own as a notice on any screen. Off by default: it asks the services in the background
+    Parameter<int32_t> p_meteo_alerts{"meteo_alerts", 0, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // Waterfall Mode Fixed (Settings > Display > WATERFALL, live, #10): the view moves on when 0 the line (or what is
     // received) is 40% of the span from the centre, 1 the passband's edge 100 Hz from the screen's edge, 2 the line

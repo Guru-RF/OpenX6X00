@@ -157,3 +157,12 @@ void meteo_warning_when(char *out, size_t size, const cJSON *a, const char *tz) 
 
     while (l && out[l - 1] == ' ') out[--l] = 0;
 }
+
+bool meteo_alert_worth(const cJSON *a, time_t now, time_t *until) {
+    const cJSON *end = cJSON_GetObjectItemCaseSensitive(a, "end");
+
+    if (!cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(a, "mine")) || !jstr(a, "id")[0]) return false;
+    if (jint(a, "level", 0) < (!strcmp(jstr(a, "kind"), "computed") ? 3 : 2)) return false;
+    *until = cJSON_IsNumber(end) && end->valuedouble > 0 ? (time_t)end->valuedouble : now + 3 * 86400;
+    return *until > now;
+}

@@ -18,11 +18,14 @@
 #include "app_frame.h"
 #include "buttons.h"
 #include "cJSON.h"
+#include "cfg/cfg_api.h"
 #include "countries.h"
 #include "events.h"
 #include "i18n.h"
 #include "keyboard.h"
 #include "meteo.h"
+#include "meteo_alerts.h"
+#include "msg_box.h"
 #include "params/params.h"
 #include "radio.h"
 #include "scheduler.h"
@@ -66,13 +69,16 @@ static void now_cb(button_data_t *b);
 static void days_cb(button_data_t *b);
 static void warn_cb(button_data_t *b);
 static void update_cb(button_data_t *b);
+static void notices_cb(button_data_t *b);
+static const char *notices_label(void);
 
 static button_data_t btn_now    = {.type = BTN_TEXT, .label = "Now", .press = now_cb};
 static button_data_t btn_days   = {.type = BTN_TEXT, .label = "5 days", .press = days_cb};
 static button_data_t btn_warn   = {.type = BTN_TEXT, .label = "Warnings", .press = warn_cb};
 static button_data_t btn_update = {.type = BTN_TEXT, .label = "Update", .press = update_cb};
+static button_data_t btn_notices = {.type = BTN_TEXT_FN, .label_fn = notices_label, .press = notices_cb};
 
-static buttons_page_t page = {{&btn_now, &btn_days, &btn_warn, &btn_update}};
+static buttons_page_t page = {{&btn_now, &btn_days, &btn_warn, &btn_update, &btn_notices}};
 
 static dialog_t dialog = {
     .run          = false,
@@ -478,6 +484,8 @@ static void show_status(void) {
     cJSON_ArrayForEach(c, item(data, "errors")) {
         if (cJSON_IsString(c)) add(st, sizeof(st), "   #%06x %s#", theme_hex(TC_warn), c->valuestring);
     }
+    if (param_i_get(cfg_meteo_alerts))
+        add(st, sizeof(st), "   %s", _("Notices on: the warnings asked every 30 minutes"));
     lv_label_set_text(frame.status, st);
 }
 
@@ -551,6 +559,7 @@ static void update_done(void *arg) {
         if (j) {
             cJSON_Delete(data);
             data = j;
+            meteo_alerts_seen(data);    /* shown here: no notice for them later */
         }
     }
     show();
@@ -641,6 +650,24 @@ static void update_cb(button_data_t *b) {
     start_update(true);
 }
 
+static const char *notices_label(void) {
+    return param_i_get(cfg_meteo_alerts) ? "Notices:\nOn" : "Notices:\nOff";
+}
+
+/* The warnings checked in the background, a new one as a notice on any screen (meteo_alerts.c) */
+static void notices_cb(button_data_t *b) {
+    bool on = !param_i_get(cfg_meteo_alerts);
+
+    (void)b;
+    param_i_set(cfg_meteo_alerts, on);
+    buttons_refresh(&btn_notices);
+    if (on)
+        msg_schedule_text_ms(6000, "Weather warning notices on\nthe warnings asked every 30 minutes");
+    else
+        msg_schedule_text_fmt("Weather warning notices off");
+    show_status();
+}
+
 /* The MFK: the warnings' text up and down, else the next or the one before of the three views */
 static void step(int d) {
     if (view == VIEW_WARN && body && lv_obj_get_scroll_bottom(body) + lv_obj_get_scroll_top(body) > 0) {
@@ -708,6 +735,7 @@ static void construct_cb(lv_obj_t *parent) {
         cJSON_Delete(data);
         data = NULL;
     }
+    if (data) meteo_alerts_seen(data);  /* shown here: no notice for them later */
     start_update(true);
     show();
     timer = lv_timer_create(timer_cb, 1000, NULL);

@@ -17,8 +17,9 @@
  *    {"cmd":"tune","hz":hz,"mode":"USB-D"}            -> {"t":"ok"} or {"t":"err","err":"..."}: a click on a spot in
  *                                                        Wavelog; frequency and mode only, refused while transmitting
  *    {"cmd":"meteo_pos"}                              -> {"t":"pos","lat":..,"lon":..,"src":"GPS"|"Phone"|"Locator"|
- *                                                        "Country","cc":"BE","country":..,"lang":"nl"}, "src":"" without
- *                                                        any: where the web Weather page asks for (meteo_position)
+ *                                                        "Country","cc":"BE","country":..,"lang":"nl","notices":0|1},
+ *                                                        "src":"" without any: where the web Weather page asks for
+ *                                                        (meteo_position), and APP > Weather > Notices
  *  The values are checked here and applied on the LVGL thread through the scheduler, as the
  *  Settings pages apply them.
  *
@@ -465,6 +466,7 @@ static const char *meteo_pos(char *out, size_t size, int *l) {
     cJSON_AddStringToObject(o, "cc", country_code(cc));
     cJSON_AddStringToObject(o, "country", country_name(country_now()));
     cJSON_AddStringToObject(o, "lang", i18n_code()[0] ? i18n_code() : "en");
+    cJSON_AddNumberToObject(o, "notices", cfg_sm.p_meteo_alerts.get());
     text = cJSON_PrintUnformatted(o);
     cJSON_Delete(o);
     if (!text)

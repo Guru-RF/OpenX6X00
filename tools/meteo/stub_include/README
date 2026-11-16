@@ -1,0 +1,2 @@
+Stand-ins for the GUI's headers that src/meteo_alerts.c includes, for meteo_alerts_test.c: it is compiled from a copy
+in build/, so these come before src/ (a quoted #include looks beside the including file first).

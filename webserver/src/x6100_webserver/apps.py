@@ -4381,14 +4381,15 @@ def meteo_grid_center(grid):
 
 
 def meteo_position(grid):
-    """{lat, lon, src, where, cc, lang} for the page: the locator typed on it, else what the radio asks for (its GPS,
-    the phone's, the QTH locator, else the country's capital: meteo_position on the GUI socket), else the QTH locator
-    of params.db while the GUI does not answer. None without any"""
+    """{lat, lon, src, where, cc, lang, notices} for the page: the locator typed on it, else what the radio asks for
+    (its GPS, the phone's, the QTH locator, else the country's capital: meteo_position on the GUI socket), else the QTH
+    locator of params.db while the GUI does not answer. None without any. notices: APP > Weather > Notices is on"""
     reply = display_call({"cmd": "meteo_pos"}) or {}
     ok = reply.get("t") == "pos"
     cc = str(reply.get("cc") or "") if ok else read_param("country")
     lang = str(reply.get("lang") or "") if ok else read_param("language")
-    pos = {"cc": cc if re.fullmatch(r"[A-Z]{2}", cc or "") else "-", "lang": lang or "en"}
+    pos = {"cc": cc if re.fullmatch(r"[A-Z]{2}", cc or "") else "-", "lang": lang or "en",
+           "notices": bool(reply.get("notices")) if ok else read_param("meteo_alerts") == "1"}
     if grid:
         c = meteo_grid_center(grid)
         return dict(pos, lat=c[0], lon=c[1], src="Locator", where=grid.strip().upper()) if c else None
@@ -4439,6 +4440,7 @@ def meteo_get():
     except (OSError, ValueError) as e:
         return api_error(502, f"Can't read the answer: {e}")
     doc["where"] = pos["where"]
+    doc["notices"] = pos["notices"]
     return doc
 
 

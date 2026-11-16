@@ -75,6 +75,7 @@ country and the QTH locator are set on the radio: Settings &gt; General &gt; STA
 </div>
 </section>
 
+<p class="mt-note" id="mt-notices"></p>
 <p class="mt-credit" id="mt-credit"></p>
 <p class="mt-errors" id="mt-errors"></p>
 
@@ -189,6 +190,9 @@ function renderCredits() {
 function render() {
   if (!mt.data) return;
   renderNow(); renderDays(); renderWarnings(); renderCredits();
+  $("#mt-notices").text(mt.data.notices
+    ? "Warning notices on the radio: on. It asks for the warnings where it is every 30 minutes, and shows a new one on any screen (APP > Weather > Notices)."
+    : "Warning notices on the radio: off (APP > Weather > Notices turns them on).");
 }
 
 function schedule(s) {

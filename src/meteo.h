@@ -14,6 +14,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <time.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,7 +26,9 @@ extern "C" {
 
 #define METEO_HELPER      X6100_SBIN "/x6100-meteo"
 #define METEO_FILE        "/tmp/x6100-meteo.json"          /* the app's answer, the web page's too */
+#ifndef METEO_ALERTS_FILE                                  /* tools/meteo: its own */
 #define METEO_ALERTS_FILE "/tmp/x6100-meteo-alerts.json"   /* the notices' check */
+#endif
 
 /* Where the weather is asked for: where the radio is (station_position: its GPS, the phone's, the QTH locator), else
  * the place of the country set in Settings > General > STATION (its capital or largest city, as the time zone
@@ -60,6 +63,10 @@ void meteo_warning_title(char *out, size_t size, const struct cJSON *a);
 /* Its time in the place's: "Mon 16 15:00 to Tue 17 09:00 CET" (tz: the zone's abbreviation), "today" or "tomorrow"
  * for one worked out from the forecast; "" without one */
 void meteo_warning_when(char *out, size_t size, const struct cJSON *a, const char *tz);
+
+/* A warning worth a notice (meteo_alerts.c): the place's own, not over at now, from the country's service yellow and
+ * up, worked out from the forecast orange and up. until: when it is over (its end, else now and 3 days) */
+bool meteo_alert_worth(const struct cJSON *a, time_t now, time_t *until);
 
 #ifdef __cplusplus
 }

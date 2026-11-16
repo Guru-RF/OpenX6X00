@@ -649,13 +649,14 @@ class Web(unittest.TestCase):
 
     def test_by_the_radios_position(self):
         asked = self.gui({"t": "pos", "lat": BRUSSELS[0], "lon": BRUSSELS[1], "src": "GPS", "cc": "BE",
-                          "country": "Belgium", "lang": "nl"})
+                          "country": "Belgium", "lang": "nl", "notices": 1})
         st, data = self.get("/api/meteo?asked=1")
         self.assertEqual(st, 200, data)
         d = json.loads(data)
         self.assertEqual(asked, [{"cmd": "meteo_pos"}])
         self.assertEqual((d["where"], d["place"], d["alerts_src"]), ("GPS", "Brussels, Brussels-Capital, Belgium",
                                                                      "MeteoAlarm"))
+        self.assertIs(d["notices"], True, "APP > Weather > Notices, as the GUI says")
         self.assertEqual(self.args(), [["update", "--asked", "50.84670", "4.35250", "BE", "GPS", "nl",
                                         WEB[1].METEO_FILE]], "the GUI's answer file, shared")
         self.get("/api/meteo?asked=0")
@@ -667,12 +668,15 @@ class Web(unittest.TestCase):
         st, data = self.get("/api/meteo")
         self.assertEqual(st, 200, data)
         self.assertEqual(json.loads(data)["where"], "Country Belgium")
+        self.assertIs(json.loads(data)["notices"], False, "no notices in the GUI's answer: off")
         self.assertEqual(self.args()[0][3:5], ["BE", "Country"])
 
     def test_without_the_gui(self):
+        self.param("meteo_alerts", 1)
         st, data = self.get("/api/meteo")
         self.assertEqual(st, 200, data)
         self.assertEqual(json.loads(data)["where"], "Locator JO20ft")
+        self.assertIs(json.loads(data)["notices"], True, "the notices' setting of params.db")
         self.assertEqual(self.args()[0][2:6], ["4.45833", "BE", "Locator", "en"],
                          "JO20ft's centre, the country of params.db")
 

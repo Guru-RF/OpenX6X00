@@ -5441,6 +5441,7 @@ nothing keys it; ESC closes.
 | 5 days | each day's high and low, the sky, the chance of rain and how much, the strongest wind and its gusts, a UV index of 3 or more |
 | Warnings | each warning in force: its level, what it is, from when to when, when it was issued, its areas, and the service's text and instructions as it gives them; the place's own first (*here*), then those nearby. The MFK scrolls |
 | Update | ask now (so does a press of the MFK) |
+| Notices | warning notices on any screen, Off (the default) or On: see below |
 
 - Where: the radio's GPS, else the phone's position from the Panel page's
   GPS button (when no coarser than 1 km), else the centre of your QTH
@@ -5456,8 +5457,9 @@ nothing keys it; ESC closes.
 - The MFK: in Now and 5 days, on to the next view; in Warnings, up and down
   the text.
 - How often: when the app opens, with Update, then every 15 minutes while
-  the app is open and the screen is lit; never in the background. The app
-  and the web page share an answer for 2 minutes.
+  the app is open and the screen is lit; not in the background, unless you
+  turn the notices on (below). The app and the web page share an answer for
+  2 minutes.
 - What is sent: your position rounded to 0.1 degree (about 11 km), the
   screen's language and the firmware's name and version
   (`OpenX6X00/0.3.12`); never your callsign. The warnings of a country or an
@@ -5514,6 +5516,34 @@ each source of what they show, as their terms ask:
 - The answers are kept in `/tmp`: `x6100-meteo.json` (the app's and the
   page's), `x6100-meteo-web.json` (a locator typed on the page).
 - After the CX8ANM edition of OpenX6X00 (condoruy), whose Meteo app this is.
+
+#### Warning notices
+
+APP > Weather > Notices (Off by default; the setting `meteo_alerts`) lets the
+radio check the warnings where it is in the background and tell you of a new
+one on any screen:
+
+- The check: 2 minutes after the start, then every 30 minutes, for the same
+  position as the app (GPS, phone, locator, else the country's capital). It
+  asks Open-Meteo (two days of forecast) and the country's warning service,
+  never Nominatim, so a place's name it has not looked up before is not
+  known to it: MeteoAlarm's warnings then count only once the app has been
+  opened there. No check while the app is open (it asks itself). With the
+  notices off, nothing is asked in the background.
+- A notice is a warning for the place itself: from the country's service
+  yellow and up (NWS: Moderate and up), worked out from the forecast orange
+  and up. It shows for 10 seconds in the message box ("Weather warning.
+  Yellow: ..." and under it "Mon 16 15:00 to Tue 17 09:00 CET"), one at a
+  time and each once: only while receiving (never in TX, while the tuner works or during
+  an SWR scan), with the screen lit, and not while APP > Weather is open.
+  One that must wait shows when it may.
+- Each warning is shown once: those shown, and those the app has shown you,
+  are kept in `/mnt/meteo/seen` until the warning is over (one without an
+  end for 3 days), so a restart does not show them again.
+- The bottom line of the app says when the notices are on; so does the web
+  page.
+- The message box, not a window: it never takes the keys or covers the
+  buttons, and goes by itself.
 
 ## Bluetooth
 
@@ -8312,7 +8342,7 @@ The DATA partition, readable on a PC.
 | `field/` | Field Ops state and activation logs (`field/logs/`) |
 | `digi_text/` | the [text log of the keyboard modes](#text-log-of-the-keyboard-modes): `YYYY-MM-DD.txt`, a file a UTC day |
 | `conditions.txt` | the Propagation app's last band conditions from hamqsl.com |
-| `meteo/` | the [Weather](#weather) app's place names (`places.json`) and, if you put it there, `nominatim.url` |
+| `meteo/` | the [Weather](#weather) app's place names (`places.json`), the warnings its notices have shown (`seen`) and, if you put it there, `nominatim.url` |
 | `screenrec/` | screen recordings (AVI) |
 | `themes/` | theme files and folders ([docs/THEMES.md](THEMES.md)) |
 | `sstv/` | received SSTV pictures; `tx_pics/` pictures and `tx_text/` text templates to send |
