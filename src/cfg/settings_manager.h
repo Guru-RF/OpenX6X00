@@ -426,6 +426,22 @@ class SettingsManager {
     // The Zello app (dialog_zello.c): talk on Zello from a Bluetooth headset's mic instead of the hand mic
     Parameter<int32_t> p_zello_talk_bt{"zello_talk_bt", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // The Zello app's Simplex repeater (zello_link.h), off by default: a channel's messages transmitted on the
+    // frequency the radio is on (it keys the radio), and what the receiver hears with the squelch open sent to it
+    Parameter<int32_t> p_zello_to_rf{"zello_to_rf", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_zello_to_zello{"zello_to_zello", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // A transmission's longest, and a message's to Zello, s; the pause between two relayed transmissions, s
+    Parameter<int32_t> p_zello_limit{"zello_limit", 120, 30, 300,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_zello_pause{"zello_pause", 3, 1, 30,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // The link's CW ID of the callsign, on by default, at least every zello_id_min minutes while it transmits
+    Parameter<int32_t> p_zello_id{"zello_id", true, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_zello_id_min{"zello_id_min", 60, 5, 120,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // Field Ops: start in Field Ops at power on
     Parameter<int32_t> p_field_boot{"field_boot", false, 0, 1,

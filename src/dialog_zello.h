@@ -24,10 +24,6 @@ extern dialog_t *dialog_zello;
  * radio's PTT never hears of them; a release goes where its press went (zello_ptt.h) */
 bool dialog_zello_ptt_key(int state);
 
-/* The audio thread (dsp.cpp): while a message is sent the capture is the hand mic's, and it goes to the channel */
-bool dialog_zello_mic(void);
-void dialog_zello_put_mic(size_t nsamples, const int16_t *samples);
-
 #ifdef __cplusplus
 }
 #endif

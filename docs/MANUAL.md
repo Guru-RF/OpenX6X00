@@ -5410,7 +5410,10 @@ APP > Zello puts the radio on a channel of Zello, the push-to-talk voice
 service on the internet (the free Zello, as in the app on a phone). It needs
 the network (WiFi, Ethernet or USB) and goes over the internet only: talking
 on Zello never keys the radio's transmitter and never changes a TX setting.
-The name is the service's; the app's icon is a plain cloud, not Zello's logo.
+The one thing in the app that transmits is the
+[Simplex repeater](#zello-simplex-repeater), which is off until you turn it
+on. The name is the service's; the app's icon is a plain cloud, not Zello's
+logo.
 
 **The account**, on the web configurator's Zello page (Operating > Zello):
 
@@ -5466,14 +5469,93 @@ The name is the service's; the app's icon is a plain cloud, not Zello's logo.
   TCI, the browser's PTT, an app, the tuner) the channel's audio pauses, so
   none of it goes out with the TX audio, and a message being sent to Zello
   ends. It comes back half a second after the radio receives again.
-- The radio is connected only while the app is open on a channel. Closing
-  the app (ESC) leaves the channel and closes the connection; nothing
-  connects at power on. A connection lost (the network gone, Zello's server)
-  is tried again by itself, at once and then after 1, 2, 4 ... up to 30 s;
-  an account or key that Zello refuses is said once and not tried again.
+- The radio is connected only while the app is open on a channel, or while
+  the Simplex repeater is on (below). Closing the app (ESC) leaves the
+  channel and closes the connection, unless the Simplex repeater is on;
+  nothing connects at power on. A connection lost (the network gone, Zello's
+  server) is tried again by itself, at once and then after 1, 2, 4 ... up to
+  30 s; an account or key that Zello refuses is said once and not tried
+  again.
 - A report for a problem: `/mnt/app_logs/zello.txt` (Files page), the
   connections, why they ended and the messages, never a password, key or
   token.
+
+#### Zello: Simplex repeater
+
+The Simplex repeater links the channel to the frequency the radio is on: the
+channel's messages are transmitted there, and what the radio receives goes
+to the channel. It is a link station (a gateway) that can run with nobody at
+the radio, so **you must hold a licence that allows an internet-linked or
+unattended station where you operate it**, on that band and frequency. Many
+countries ask for a special permit or a club or repeater licence for this,
+allow it on some bands or frequencies only, or not at all. Check before you
+turn it on. Both directions are off until you turn them on.
+
+Its switches are on pages 2 and 3 of the app and are kept:
+
+- **Zello>RF** (page 2): a message on the channel is transmitted on the
+  frequency, in the mode the radio is in (LSB, USB, AM or FM; never in CW or
+  the data modes), at the voice messages' level (the CQ level in Field Ops).
+  The radio unkeys when the message ends. While Zello>RF is on, the
+  channel's messages go on the air instead of the speaker. It needs your
+  callsign (Settings) while the CW ID is on, and the squelch (SQL above 0):
+  the link keys only while the squelch is closed.
+- **RF>Zello** (page 2): what the receiver hears while the squelch is open
+  goes to the channel as a message, which ends 1.5 s after the squelch
+  closes.
+- Both directions need the squelch: set SQL so that it stays closed on noise
+  and opens on a station (neither can be turned on with SQL at 0, and with
+  SQL turned to 0 later they pause: the main screen says "(no SQL)"). The
+  radio sees the squelch in its audio, which the baseband mutes while the
+  squelch is closed.
+- **CW ID** (page 2): your callsign in Morse, as a tone (800 Hz, 20 WPM)
+  sent the way the messages are. It goes at the end of the link's first
+  transmission, then at least once each interval while the link transmits:
+  at the end of a message, or on its own when the frequency is free. The
+  interval is 60 minutes unless you change it (5, 10, 15, 30, 60, 90 or 120
+  minutes); Off turns the ID off, for where your licence asks for none. When
+  you turn Zello>RF off after it has transmitted, the ID it owes goes at
+  once.
+- **TX limit** (page 3, 30 to 300 s, 120 s unless you change it): the
+  longest a transmission lasts. Then the radio unkeys (with the ID if it is
+  due) and the rest of that message is not sent. A message to Zello is held
+  to the same limit, and the next one waits until the squelch has closed.
+- **Pause** (page 3, 1 to 30 s, 3 s unless you change it): the time between
+  the end of one transmission and the next relayed message.
+
+It keeps every TX rule of the radio:
+
+- It transmits only where the radio may: the TX ranges, the
+  [amateur bands](#amateur-bands-only), TX outside them, the transverter's
+  limits and [data from the base](#no-tx-without-data-from-the-base). If the
+  radio refuses a transmission, or the SWR protection or a band stop ends
+  one, Zello>RF stops (its button says Stopped) until you turn it off and on
+  again.
+- The power is your TX power setting, at most 7 W (the cap the apps
+  transmit with) and at most what the radio allows there.
+- Never over anyone: it does not key while the squelch is open, while the
+  radio transmits for anything else (your PTT, an app, CAT, TCI, the
+  browser's PTT, the keyer or a beacon), while you talk on Zello, or in the
+  half second after a transmission.
+- You come first: the radio's PTT key (or any PTT through the radio: the
+  keyboard's, the browser's, CAT's or TCI's) unkeys the link at once, and the
+  rest of that message is not sent. Talk does the same. While the link
+  transmits the radio is already in TX, so it can't see the hand mic's own
+  PTT: use the PTT key, or wait for the end.
+- No loop: nothing goes to Zello while the radio transmits or in the half
+  second after.
+
+While the link is on, the main screen shows **ZELLO LINK** at the top left of
+the spectrum, with the directions that are on (Z>RF, RF>Z) and "..." while
+the radio is not on the channel. It turns red with [TX] while a message goes
+on the air and [ID] during the CW ID, and shows [RX>Z] while the receiver
+goes to the channel. Z>RF(off) means the radio stopped Zello>RF. In the app
+the top line says SIMPLEX REPEATER and what the link is doing.
+
+Connect to a channel with a direction on to start it. Closing the app then
+keeps the radio on the channel ("Zello link stays on"); open the app and
+press Disconnect to stop it. Nothing starts it at power on: after a restart
+it is off until you connect again.
 
 ## Bluetooth
 
