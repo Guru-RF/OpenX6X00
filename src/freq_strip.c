@@ -572,7 +572,7 @@ void freq_strip_set_label(const char *text, int32_t freq_hz) {
 }
 
 void freq_strip_set_app(const char *name) {
-    snprintf(app, sizeof(app), "%s", name ? name : "");
+    snprintf(app, sizeof(app), "%s", name ? i18n_tr(name) : "");
     if (strip) update_cb(NULL, NULL);
 }
 

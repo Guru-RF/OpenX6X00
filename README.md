@@ -563,6 +563,11 @@ and over SSH, Xiegu's UPGRADE steps with their tests (#259), which also writes
 the X6100's base, by the way in of Franco Venturi's (fventuri)
 x6100-base-experiments flasher.
 
+From their forks: condoruy (Cóndor Tecnológico, the CX8ANM edition) the GUI's
+languages, the hook that passes every text to LVGL through the language and
+the matching line by line, with the first Spanish, French, German and Italian
+lists.
+
 Patches, captures, logs and tests from the issues: BrunoKlu the capture and the
 driver patch of #29; KR8MER the diagnosis and the patch of #50; DL9RP the
 S-meter measurements of #125; 123tcpip (Bob G6CKK) the start-pulse captures of
@@ -590,7 +595,8 @@ the ARRL band plan. Fonts:
 Roboto, Roboto Condensed (Black Metal's, Total Black's, Amber Trey's and Ops Room's, OFL-1.1,
 src/fonts/LICENSE-RobotoCondensed-OFL-1.1.txt), DejaVu, Arial, Sony Sketch, Inter (the boot logo), Terminus (the 1bit theme's
 pixel font, OFL-1.1, src/fonts/LICENSE-Terminus-OFL-1.1.txt), Noto Sans CJK JP (a subset:
-the screensaver's characters, OFL-1.1, src/fonts/LICENSE-NotoSansCJK-OFL-1.1.txt), Share Tech Mono (the Codec
+the screensaver's characters, OFL-1.1, src/fonts/LICENSE-NotoSansCJK-OFL-1.1.txt), Noto Sans CJK SC (a GB2312
+subset: the Chinese language, OFL-1.1, rootfs/usr/share/x6100/fonts/OFL.txt), Share Tech Mono (the Codec
 theme's, OFL-1.1, src/fonts/LICENSE-ShareTechMono-OFL-1.1.txt). The skimmer spots
 come from the Reverse Beacon Network, the broadcast schedule from the EiBi
 list by Eike Bierwirth, and the Propagation app's solar data and band forecast from

@@ -77,6 +77,11 @@ uint32_t theme_hex(theme_color_t c) {
     return c == TC_text ? TEXT : 0x000000;
 }
 
+/* font_select.c's question to the GUI's languages (src/i18n.cpp): no language font, English */
+const char *i18n_font(void) {
+    return NULL;
+}
+
 /* LVGL's clock: still, the test draws with lv_refr_now(). With both defined here the library's lv_hal_tick.o is not
  * linked */
 uint32_t lv_tick_get(void) {

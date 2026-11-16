@@ -96,7 +96,7 @@ static void arrived_cb(lv_event_t *e) {
 static void post(bool queued, uint16_t ms, const char *fmt, va_list ap) {
     note_t *note = malloc(sizeof(note_t));
 
-    vsnprintf(note->text, sizeof(note->text), fmt, ap);
+    vsnprintf(note->text, sizeof(note->text), i18n_tr(fmt), ap);   /* the language's, its conversions checked as read */
     note->queued = queued;
     note->ms = ms;
 

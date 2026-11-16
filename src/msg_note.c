@@ -86,7 +86,7 @@ void msg_tiny_set_text_fmt(const char *fmt, ...) {
     va_list ap;
 
     va_start(ap, fmt);
-    vsnprintf(text, sizeof(text), fmt, ap);
+    vsnprintf(text, sizeof(text), i18n_tr(fmt), ap);
     va_end(ap);
     event_send(label, EVENT_MSG_UPDATE, NULL);
 }

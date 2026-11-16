@@ -1,0 +1,7 @@
+msgid ""
+msgstr ""
+"X-OpenX6X00-Name: Ypsilon\n"
+"X-OpenX6X00-Font: test.ttf\n"
+
+msgid "Settings"
+msgstr "Y-Settings"

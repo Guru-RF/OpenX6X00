@@ -88,6 +88,10 @@
 /* Screenshots and screen recording; message bus between modules */
 #define LV_USE_SNAPSHOT 1
 #define LV_USE_QRCODE 1     /* Settings > Wireless: the Tailscale login link */
+/* TrueType drawn as needed: the font a language names for its script (Chinese, src/i18n.h, src/fonts/font_select.c),
+ * from memory (the file mapped) */
+#define LV_USE_TINY_TTF 1
+#define LV_TINY_TTF_FILE_SUPPORT 0
 #define LV_USE_MSG 1
 
 #define LV_BUILD_EXAMPLES 0

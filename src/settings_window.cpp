@@ -220,8 +220,7 @@ static void rail_create() {
 
     for (int i = 0; i < RAIL_N; i++) {
         lv_obj_t *item = lv_obj_create(rail);
-        char      name[16];
-        int       k;
+        char      name[48];
 
         lv_obj_remove_style_all(item);
         lv_obj_set_size(item, RAIL_W - 4, h);
@@ -243,8 +242,7 @@ static void rail_create() {
             lv_obj_align(num, LV_ALIGN_LEFT_MID, 10, 0);
         }
 
-        for (k = 0; tabs[i].btn->label[k] && k < 15; k++) name[k] = toupper(tabs[i].btn->label[k]);
-        name[k] = 0;
+        i18n_upper(name, sizeof(name), i18n_tr(tabs[i].btn->label), true);   /* the language's, then capitals */
         lv_obj_t *lbl = lv_label_create(item);
         /* BLUETOOTH inside the rail: a size down, two in VISION */
         const lv_font_t *fonts[] = {SF(18), SF(16), SF(14)};
@@ -316,16 +314,17 @@ static void int_choice_cb(lv_event_t *e) {
  * built, so the main screen is built again (main_screen_set_theme()) */
 static lv_obj_t *theme_dd;
 static lv_obj_t *font_dd;
+static lv_obj_t *lang_dd;
 
 /* Settings goes with the rest of the screen, then opens again on Display, on the
  * dropdown that was changed (arg) */
 static void theme_apply(void *arg) {
-    bool font = arg != NULL;
+    lv_obj_t **dd = arg == (void *)2 ? &lang_dd : arg ? &font_dd : &theme_dd;
 
     main_screen_set_theme(params.theme_name.x);
     main_screen_start_app(ACTION_APP_SETTINGS);
     tab_press(&btn_display);
-    lv_group_focus_obj(font ? font_dd : theme_dd);
+    lv_group_focus_obj(*dd);
 }
 
 static void font_update_cb(lv_event_t * e) {
@@ -338,11 +337,15 @@ static void font_update_cb(lv_event_t * e) {
     lv_async_call(theme_apply, (void *)1);   /* not from inside the dropdown's own event */
 }
 
-static void theme_update_cb(lv_event_t * e) {
-    char name[32];
+static char theme_names[16][32];   /* the list as make_theme() made it: a name by its place, the shown one may be translated */
+static int  n_theme_names;
 
-    lv_dropdown_get_selected_str(lv_event_get_target(e), name, sizeof(name));
-    params_str_set(&params.theme_name, name);
+static void theme_update_cb(lv_event_t * e) {
+    uint16_t i = lv_dropdown_get_selected(lv_event_get_target(e));
+
+    if (i >= n_theme_names)
+        return;
+    params_str_set(&params.theme_name, theme_names[i]);
     params_flush();
     cfg_api_flush_all();
     lv_async_call(theme_apply, NULL);   /* not from inside the dropdown's own event */
@@ -1355,8 +1358,8 @@ static uint8_t make_screen_rec_split(uint8_t row) {
 
 /* The built-in themes and the files in /mnt/themes */
 static uint8_t make_theme(uint8_t row) {
-    char        names[16][32];
-    int         n = theme_list(names, 16);
+    char      (*names)[32] = theme_names;
+    int         n = n_theme_names = theme_list(theme_names, 16);
     std::string options;
     uint16_t    sel = 0;
 
@@ -1368,6 +1371,41 @@ static uint8_t make_theme(uint8_t row) {
     }
     wl_row_label(row, "Theme");
     theme_dd = row_choice(row, 1, 6, SMALL_6, options.c_str(), sel, theme_update_cb, NULL);
+    return row + 1;
+}
+
+/* The languages: English and each language file (i18n.h), by its own name, "(draft)" after one not done. A choice
+ * builds the screen again, as the theme's does: the texts are taken as each window is built, and a language may
+ * bring a font */
+static i18n_lang_t langs[24];
+static int         n_langs;
+
+static void lang_update_cb(lv_event_t *e) {
+    uint16_t i = lv_dropdown_get_selected(lv_event_get_target(e));
+
+    if (i >= n_langs)   /* the same one again: its file read again (a translator's copy changed) */
+        return;
+    params_str_set(&params.language, langs[i].code);
+    params_flush();
+    if (!i18n_load(langs[i].code)) {
+        msg_update_text_fmt("Language file not found: English");
+    }
+    lv_async_call(theme_apply, (void *)2);   /* not from inside the dropdown's own event */
+}
+
+static uint8_t make_language(uint8_t row) {
+    std::string options;
+    uint16_t    sel = 0;
+
+    n_langs = i18n_list(langs, sizeof(langs) / sizeof(langs[0]));
+    for (int i = 0; i < n_langs; i++) {
+        options += std::string(i ? "\n" : "") + langs[i].name + (strcmp(langs[i].status, "draft") ? "" : " (draft)");
+        if (!strcmp(langs[i].code, i18n_code())) {
+            sel = i;
+        }
+    }
+    wl_row_label(row, "Language");
+    lang_dd = row_choice(row, 1, 6, SMALL_6, options.c_str(), sel, lang_update_cb, NULL);
     return row + 1;
 }
 
@@ -4320,6 +4358,7 @@ static void make_display_page() {
     row = make_param_switch(row, "Keep knob lines", cfg_sm.p_knob_lines_stay);   /* not hidden with the buttons */
     row = make_theme(row);
     row = make_font(row);
+    row = make_language(row);
     /* CW / RTTY decoder text: Large or Compact (more lines), from SP2KMO's upstream c2fbe40c */
     row = make_param_choice(row, "Decoder text", " Large \n Compact ", cfg_sm.p_digi_text_compact);
     /* FT8/FT4 table: distance, country or both, from SP2KMO's upstream 3074180e.

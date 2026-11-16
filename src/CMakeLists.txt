@@ -77,7 +77,12 @@ target_sources(${PROJECT_NAME} PUBLIC
     remote_server.c
     control_owner.c
     winlink.c
+    i18n.cpp
 )
+
+# The languages (i18n.h): every GUI source gets i18n_hook.h first, so the texts it hands to LVGL are translated.
+# Only this target's sources: LVGL's own and the libraries below do not
+target_compile_options(${PROJECT_NAME} PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/i18n_hook.h)
 
 # The X6200's base firmware screen (tools/base_update): built for the X6200 only, never in another radio's GUI
 if(HW_BACKEND STREQUAL "x6200")

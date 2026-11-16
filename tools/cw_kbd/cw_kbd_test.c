@@ -188,6 +188,11 @@ const char *cw_encoder_expand(const char *text) {
     return text;
 }
 
+/* font_select.c's question to the GUI's languages (src/i18n.cpp): no language font, English */
+const char *i18n_font(void) {
+    return NULL;
+}
+
 /* LVGL's clock: moved on by the test, for the dialog's 100 ms timer. With both defined here the library's
  * lv_hal_tick.o is not linked */
 static uint32_t now = 1000;

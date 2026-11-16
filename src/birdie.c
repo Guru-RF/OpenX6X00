@@ -208,7 +208,7 @@ static void progress(bool done, const char *fmt, ...) {
     va_list    ap;
 
     va_start(ap, fmt);
-    vsnprintf(p.text, sizeof(p.text), fmt, ap);
+    vsnprintf(p.text, sizeof(p.text), i18n_tr(fmt), ap);
     va_end(ap);
     scheduler_put(progress_post_cb, &p, sizeof(p));
 }

@@ -21,6 +21,18 @@ project(x6100_gui)
 # Headers are included from the top: lv_conf.h, lvgl/, src/...
 include_directories(.)
 
+# The GUI's languages (src/i18n.h): the files po/LINGUAS names go to share/x6100/i18n; the others in po/ are
+# beginnings for a speaker of the language (po/README.md). A changed list or file configures again
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS po/LINGUAS)
+file(STRINGS po/LINGUAS OX_LINGUAS REGEX "^[^#]")
+string(REGEX REPLACE "[ \t]+" ";" OX_LINGUAS "${OX_LINGUAS}")
+set(OX_PO_FILES)
+foreach(lang ${OX_LINGUAS})
+        if(lang)
+                list(APPEND OX_PO_FILES ${CMAKE_SOURCE_DIR}/po/${lang}.po)
+        endif()
+endforeach()
+
 if(ENABLE_TESTING)
         # Tests run on the PC: Catch2 and the radio control library are
         # fetched. Everything from here on, the control library included,
@@ -52,6 +64,10 @@ elseif(HOST_BUILD)
         file(COPY rootfs/usr/share/x6100/ DESTINATION ${CMAKE_BINARY_DIR}/share)
         file(COPY images DESTINATION ${CMAKE_BINARY_DIR}/share)
         file(COPY third-party/cty/cty.dat DESTINATION ${CMAKE_BINARY_DIR}/share)
+        foreach(po ${OX_PO_FILES})   # copied again when one changes
+                get_filename_component(po_name ${po} NAME)
+                configure_file(${po} ${CMAKE_BINARY_DIR}/share/i18n/${po_name} COPYONLY)
+        endforeach()
 else()
         # Allwinner A33: Cortex-A7, hard float, NEON
         add_compile_options(-mtune=cortex-a7 -mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4)
@@ -110,6 +126,8 @@ else()
         install(DIRECTORY images DESTINATION share/x6100)
         # Callsign -> country for the FT8/FT4 table (AD1C, country-files.com)
         install(FILES third-party/cty/cty.dat DESTINATION share/x6100)
+        # The languages (above); their fonts are in the rootfs overlay (rootfs/usr/share/x6100/fonts)
+        install(FILES ${OX_PO_FILES} DESTINATION share/x6100/i18n)
         # No folder theme is installed: themes/ has them to copy to /mnt/themes (themes/README.md); themes/RS is
         # cut from a screenshot of another maker's remote-control program (themes/make_rs.py, personal use only)
         # Pat, the Winlink client: built outside, by tools/pat/build.sh (buildroot/local-build.sh

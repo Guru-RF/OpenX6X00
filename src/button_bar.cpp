@@ -121,7 +121,7 @@ static const char *text(const char *fmt, ...) {
     va_list     ap;
 
     va_start(ap, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, ap);
+    vsnprintf(buf, sizeof(buf), i18n_tr(fmt), ap);   /* "NR: %d" as a whole, before the number is in */
     va_end(ap);
     return buf;
 }
@@ -905,6 +905,7 @@ static void btn_upper(char *out, size_t size, const char *text) {
         out[n++] = !unit && *c >= 'a' && *c <= 'z' ? *c - 'a' + 'A' : *c;
     }
     out[n] = '\0';
+    i18n_upper(out, size, out, false);   /* a translation's letters beyond ASCII (é as É) */
 }
 
 /* "Name:\nvalue": the name (text_head) over the value, both in the button's size; deck: "Volume 30" on
@@ -949,6 +950,7 @@ static void set_btn_text(disp_btn_t *b, const char *text) {
     bool even = !theme_shape.vision && !btn_narrow(b);
     char upper[64];
 
+    text = i18n_tr(text);   /* the language's, before the capitals and the line split: its file has the code's text */
     if (even && theme_shape.btn_caps) {
         btn_upper(upper, sizeof(upper), text);
         text = upper;

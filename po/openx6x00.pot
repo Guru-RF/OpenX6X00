@@ -1,0 +1,11485 @@
+# The texts of the OpenX6X00 GUI. Made by tools/i18n/potool.py extract: not edited by hand.
+# A new language: python3 -I tools/i18n/potool.py new <code> <name>, then po/README.md.
+msgid ""
+msgstr ""
+"Project-Id-Version: OpenX6X00\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-OpenX6X00-Name: \n"
+"X-OpenX6X00-Status: draft\n"
+
+#: src/app_sstv.c
+msgid ""
+"Start\n"
+"Auto RX"
+msgstr ""
+
+#: src/app_sstv.c
+msgid ""
+"Start\n"
+"Manual RX"
+msgstr ""
+
+#: src/app_sstv.c
+msgid ""
+"RX Mode\n"
+"Auto"
+msgstr ""
+
+#: src/app_sstv.c src/dialog_freedv.c src/navtex_window.c src/wefax_window.c
+msgid "Freq."
+msgstr ""
+
+#: src/app_sstv.c src/app_sstv_gallery.c
+msgid ""
+"RX Pics\n"
+"Browser"
+msgstr ""
+
+#: src/app_sstv.c src/app_sstv_gallery.c
+msgid ""
+"Delete\n"
+"picture"
+msgstr ""
+
+#: src/app_sstv.c
+msgid ""
+"Auto RX\n"
+"Restart ON"
+msgstr ""
+
+#: src/app_sstv.c
+msgid ""
+"Denoise\n"
+"ON"
+msgstr ""
+
+#: src/app_sstv.c src/cw_messages.c src/dialog_base_update.c
+#: src/dialog_channels.c src/dialog_cluster.c src/dialog_cw_kbd.c
+#: src/dialog_cw_trainer.c src/dialog_freedv.c src/ft8_window.c
+#: src/js8_window.c src/navtex_window.c src/voice_messages.c src/wefax_window.c
+msgid "Close"
+msgstr ""
+
+#: src/app_sstv.c
+msgid "Europe"
+msgstr ""
+
+#: src/app_sstv.c
+msgid "Americas"
+msgstr ""
+
+#: src/app_sstv.c src/knob_info.cpp src/wifi_window.c
+msgid "Unknown"
+msgstr ""
+
+#: src/app_sstv.c src/band_plan.c src/button_bar.cpp src/dialog_scan.c
+#: src/ft8_window.c src/knob_info.cpp src/radio_controls.cpp
+msgid "Auto"
+msgstr ""
+
+#: src/app_sstv.c
+#, c-format
+msgid ""
+"%s Mode\n"
+"%s"
+msgstr ""
+
+#: src/app_sstv.c
+msgid ""
+"Stand by.\n"
+"\n"
+"- Press Start Auto RX to start Autodecoder.\n"
+"\n"
+"- Press Start Manual RX to start Manual decoder, press RX Mode button to cycle Auto (mode from the line syncs) and all available modes for the Manual decoder."
+msgstr ""
+
+#: src/app_sstv.c
+msgid ""
+"SSTV Autodecoder is running.\n"
+"\n"
+"Awaiting signal..."
+msgstr ""
+
+#: src/app_sstv.c
+msgid ""
+"Stop\n"
+"Auto RX"
+msgstr ""
+
+#: src/app_sstv.c
+#, c-format
+msgid "Decoding %s"
+msgstr ""
+
+#: src/app_sstv.c
+msgid ""
+"Halt\n"
+"Decoding"
+msgstr ""
+
+#: src/app_sstv.c
+#, c-format
+msgid "sstv-%Y%m%d-%H%M%S"
+msgstr ""
+
+#: src/app_sstv.c
+msgid "No SSTV picture found"
+msgstr ""
+
+#: src/app_sstv.c
+msgid "Decoding failed"
+msgstr ""
+
+#: src/app_sstv.c
+#, c-format
+msgid "SSTV mode not supported (VIS %d)"
+msgstr ""
+
+#: src/app_sstv.c
+#, c-format
+msgid ""
+"SSTV Manual decoder is running\n"
+"\n"
+"%s line syncs found\n"
+"\n"
+"Press Stop Manual RX to render received picture"
+msgstr ""
+
+#: src/app_sstv.c
+#, c-format
+msgid "SSTV picture %s saved"
+msgstr ""
+
+#: src/app_sstv.c
+#, c-format
+msgid "Decoding Cont %s"
+msgstr ""
+
+#: src/app_sstv.c
+msgid "SSTV - calling frequencies"
+msgstr ""
+
+#: src/app_sstv.c
+msgid ""
+"Auto RX\n"
+"Restart OFF"
+msgstr ""
+
+#: src/app_sstv.c
+msgid ""
+"Denoise\n"
+"OFF"
+msgstr ""
+
+#: src/app_sstv.c
+msgid ""
+"SSTV Manual decoder is running\n"
+"\n"
+"Searching the line syncs for the SSTV mode\n"
+"\n"
+"Press Stop Manual RX to render received picture"
+msgstr ""
+
+#: src/app_sstv.c
+#, c-format
+msgid ""
+"SSTV Manual decoder is running\n"
+"\n"
+"Decoding %s signal\n"
+"\n"
+"Press Stop Manual RX to render received picture"
+msgstr ""
+
+#: src/app_sstv.c
+msgid ""
+"Stop\n"
+"Manual RX"
+msgstr ""
+
+#: src/app_sstv.c src/ft8_window.c src/js8_window.c
+#, c-format
+msgid "Power is limited to %0.0fW"
+msgstr ""
+
+#: src/app_sstv.c
+msgid "tx_text/73.sstvtxt"
+msgstr ""
+
+#: src/app_sstv.c
+msgid "tx_text/CQ REPLY.sstvtxt"
+msgstr ""
+
+#: src/app_sstv.c
+msgid "tx_text/PSEQSL.sstvtxt"
+msgstr ""
+
+#: src/app_sstv.c
+msgid "tx_text/R454QRM.sstvtxt"
+msgstr ""
+
+#: src/app_sstv.c
+msgid "tx_text/R575QSB.sstvtxt"
+msgstr ""
+
+#: src/app_sstv.c
+msgid "tx_text/R595.sstvtxt"
+msgstr ""
+
+#: src/app_sstv_gallery.c
+msgid "No saved pictures"
+msgstr ""
+
+#: src/app_sstv_gallery.c src/birdie.c src/first_start.c src/wefax_window.c
+msgid "Done"
+msgstr ""
+
+#: src/app_sstv_gallery.c src/wefax_window.c
+msgid ""
+"Close\n"
+"Browser"
+msgstr ""
+
+#: src/app_sstv_int.h
+msgid "Freq.: calling frequencies   Pictures in /mnt/sstv"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "MFK: choose - press: confirm - Cancel TX: back"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "SSTV TX: no final image."
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "SSTV TX: cannot prepare image."
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "Halt TX"
+msgstr ""
+
+#: src/app_sstv_tx.c
+#, c-format
+msgid "Preparing %s TX..."
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "SSTV TX: thread creation failed."
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "A picture, then CQ CQ SSTV and your callsign on it"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "A picture and a text template, with the target callsign"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "As Reply, with a miniature of the last received picture"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "A picture, sent without any text"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "The last transmission again, same picture and mode"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "It goes in the text of Reply and Replay"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "Reply and Replay: in the last received picture's mode, or in TX Mode's"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "Set the target callsign first"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "No transmission to repeat yet"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "0123456789/ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "Target callsign"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "REPLY MODE: AS RECEIVED"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "REPLY MODE: TX MODE"
+msgstr ""
+
+#: src/app_sstv_tx.c
+#, c-format
+msgid "REPLY TO %s"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "REPLY TO..."
+msgstr ""
+
+#: src/app_sstv_tx.c
+#, c-format
+msgid "REPLAY TO %s"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "REPLAY TO..."
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "CALL CQ"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "TX IMAGE ONLY"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "REPEAT LAST TX"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "SET TARGET CALLSIGN"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "TX PICTURE"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "MFK: choose - press: confirm - TX Mode: mode - Cancel TX: back"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "No TX pictures found"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "Put PNG pictures in "
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "TX TEXT"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "No TX templates found"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "TEXT COLORS"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "MFK: choose - press: start the transmission - Cancel TX: back"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "Stopping SSTV TX..."
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "Cancel TX"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid ""
+"TX setup\n"
+"\n"
+"Choose TX action"
+msgstr ""
+
+#: src/app_sstv_tx.c
+#, c-format
+msgid "Transmitting %s..."
+msgstr ""
+
+#: src/app_sstv_tx.c
+#, c-format
+msgid "SSTV %s TX complete"
+msgstr ""
+
+#: src/app_sstv_tx.c
+msgid "SSTV TX halted"
+msgstr ""
+
+#: src/app_sstv_tx.c
+#, c-format
+msgid "SSTV TX failed (%d)"
+msgstr ""
+
+#: src/apps_menu.c src/button_bar.cpp src/settings_window.cpp
+msgid "Modes"
+msgstr ""
+
+#: src/apps_menu.c src/button_bar.cpp src/knob_info.cpp src/screen_main.c
+#: src/settings_window.cpp
+msgid "Cluster"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "DX spots"
+msgstr ""
+
+#: src/apps_menu.c src/screen_main.c
+msgid "Field Ops"
+msgstr ""
+
+#: src/apps_menu.c src/button_bar.cpp src/dialog_field.c src/screen_main.c
+msgid "Bands"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Band activity"
+msgstr ""
+
+#: src/apps_menu.c src/screen_main.c
+msgid "Propagation"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Conditions, beacons"
+msgstr ""
+
+#: src/apps_menu.c src/button_bar.cpp src/dialog_scan.c src/screen_main.c
+#: src/wefax_window.c
+msgid "Channels"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Memory channels"
+msgstr ""
+
+#: src/apps_menu.c src/button_bar.cpp src/screen_main.c
+msgid "Scanner"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Stops on activity"
+msgstr ""
+
+#: src/apps_menu.c src/screen_main.c
+msgid "SWR Scan"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Sweep, transmits"
+msgstr ""
+
+#: src/apps_menu.c src/screen_main.c
+msgid "Recorder"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "RX audio"
+msgstr ""
+
+#: src/apps_menu.c src/screen_main.c
+msgid "CW Trainer"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Learn CW"
+msgstr ""
+
+#: src/apps_menu.c src/screen_main.c
+msgid "CW Keyboard"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "CW as you type"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Position, time"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Screen Rec"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Screen and audio"
+msgstr ""
+
+#: src/apps_menu.c src/settings_window.cpp
+msgid "Walkie"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Portrait screen"
+msgstr ""
+
+#: src/apps_menu.c src/screen_main.c
+msgid "Birdie Cal"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Find birdies, antenna off"
+msgstr ""
+
+#: src/apps_menu.c src/button_bar.cpp src/js8_window.c src/screen_main.c
+msgid "Settings"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "All settings"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "APPS"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "MFK: choose - press: open - APP or ESC: close"
+msgstr ""
+
+#: src/audio.c
+msgid "X6100 GUI Play"
+msgstr ""
+
+#: src/audio.c
+msgid "X6100 GUI Capture"
+msgstr ""
+
+#: src/audio.c
+msgid "X6100 GUI Network voice"
+msgstr ""
+
+#: src/audio.c
+msgid "X6100 GUI Local"
+msgstr ""
+
+#: src/audio.c
+msgid "X6100 GUI Monitor"
+msgstr ""
+
+#: src/band_plan.c
+msgid "ALL MODES / SSB"
+msgstr ""
+
+#: src/band_plan.c
+msgid "NOT YOUR CLASS"
+msgstr ""
+
+#: src/band_plan.c
+msgid "Region 1"
+msgstr ""
+
+#: src/band_plan.c
+msgid "Region 2"
+msgstr ""
+
+#: src/band_plan.c
+msgid "Region 3"
+msgstr ""
+
+#: src/band_plan.c
+msgid "US Extra"
+msgstr ""
+
+#: src/band_plan.c
+msgid "US Advanced"
+msgstr ""
+
+#: src/band_plan.c
+msgid "US General"
+msgstr ""
+
+#: src/band_plan.c
+msgid "US Technician"
+msgstr ""
+
+#: src/birdie.c
+#, c-format
+msgid "Scanning %s at %.3f MHz, %d found so far"
+msgstr ""
+
+#: src/birdie.c
+#, c-format
+msgid "%s: %d new"
+msgstr ""
+
+#: src/birdie.c src/dialog_cluster.c
+msgid "Stopped"
+msgstr ""
+
+#: src/birdie.c
+#, c-format
+msgid "%s: %d found, %d known in all, saved. List full at %d: %d more not kept. Antenna off? Clear and scan again."
+msgstr ""
+
+#: src/birdie.c
+#, c-format
+msgid "%s: %d found, %d known in all, saved."
+msgstr ""
+
+#: src/broadcast_db.c
+msgid "AAAAAAACeEEEieIIDNnOOOO?OoUoUYTsaaaaaaaceeeeiiiidnooooo?ouuuuy?y"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "D-Bus: %s"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "btcat-ctl discoverable on failed"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "pairing open"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "Keyboard %s"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "Discoverable"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "Pairable"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "pairing closed: hidden, not pairable"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "Connect: ok"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "FAILED"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "found after %d s"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "discovery (LE) %s, waiting up to %d s"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "keyboard: old pairing %s forgotten: %s"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "keyboard: classic, paired where Scan found it"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "press the keyboard's pairing key"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "keyboard: waiting for \"%s\" to advertise again"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "result: keyboard not found"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "keyboard not found"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "result: not found"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "not found - is it in pairing mode?"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "Pair: ok"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "Pair: already paired"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "result: pair failed (%s)"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "no reply"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "pairing failed"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "Trusted: %s"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "Trusted"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "btaudio-ctl save failed"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "result: connect failed"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "paired, connect failed"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "result: connected%s"
+msgstr ""
+
+#: src/bt_dev.c
+msgid " (keyboard)"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "connect failed"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "RemoveDevice: %s"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "%s failed"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "scanning 16 s..."
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "agent: %s %s"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "agent: refused %s, pairing is closed"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "agent: PIN %s for the keyboard"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "agent: passkey %06u (%u typed)"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "agent: registered (%s)"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "tci: connection from %s not taken: %s"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "no socket"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "tci: connection from %s"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "tci: %s to be let go"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "tci: service registered, RFCOMM channel %d"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "tci: service not registered (%s)"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "agent: not started: %s"
+msgstr ""
+
+#: src/bt_dev.c
+msgid "no D-Bus"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
+msgid "tci: no Bluetooth service: %s"
+msgstr ""
+
+#: src/btaudio.cpp
+msgid "mute on"
+msgstr ""
+
+#: src/btaudio.cpp
+msgid "mute off"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Added to VOL encoder"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Moved to MFK encoder"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Removed from MFK encoder"
+msgstr ""
+
+#: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
+#: src/screen_main.c src/settings_window.cpp
+msgid "On"
+msgstr ""
+
+#: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
+#: src/screen_light.c src/screen_main.c src/settings_window.cpp
+#: src/wifi_window.c src/wspr/wspr_hop.c
+msgid "Off"
+msgstr ""
+
+#: src/button_bar.cpp src/dialog_scan.c src/knob_info.cpp
+#: src/radio_controls.cpp
+msgid "Slow"
+msgstr ""
+
+#: src/button_bar.cpp src/dialog_scan.c src/knob_info.cpp
+#: src/radio_controls.cpp
+msgid "Fast"
+msgstr ""
+
+#: src/button_bar.cpp src/dialog_field.c
+msgid ""
+"Stop\n"
+"rec"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"Screen\n"
+"rec"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"WF\n"
+"Fixed"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"WF\n"
+"Center"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Span %s\n"
+"%g kHz"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"Span +\n"
+"max"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"Span -\n"
+"min"
+msgstr ""
+
+#: src/button_bar.cpp src/dialog_freedv.c src/dialog_wspr.c
+#, c-format
+msgid ""
+"Power\n"
+"%g W"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"Ext tune:\n"
+"Stop"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Ext tune:\n"
+"%0.1f W"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Volume:\n"
+"%i"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Squelch:\n"
+"%i"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"RF gain:\n"
+"%i"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"TX power:\n"
+"%0.1f W"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Brightness:\n"
+"%s"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Filter low:\n"
+"%i Hz"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Filter high:\n"
+"%i Hz"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Filter BW:\n"
+"%i Hz"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"Spectrum\n"
+"Zoom"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"WF ref:\n"
+"%+i dB"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Step:\n"
+"%s"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Comp:\n"
+"%s"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"IF shift:\n"
+"%i"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"3D depth:\n"
+"%i"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"3D tilt:\n"
+"%i"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"3D floor:\n"
+"+%i"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Speed:\n"
+"%i wpm"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Train:\n"
+"%s"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Tone:\n"
+"%i Hz"
+msgstr ""
+
+#: src/button_bar.cpp src/ft8_window.c
+#, c-format
+msgid ""
+"Mode:\n"
+"%s"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Iambic:\n"
+"%s mode"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"QSK time:\n"
+"%i ms"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Ratio:\n"
+"%0.1f"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"CW peak:\n"
+"%s"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"CW peak Q:\n"
+"%i"
+msgstr ""
+
+#: src/button_bar.cpp src/dialog_field.c
+msgid ""
+"Log\n"
+"QSO"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Decoder:\n"
+"%s"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Tuner:\n"
+"%s"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"Dec SNR:\n"
+"%0.1f dB"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"Parse:\n"
+"On"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"Parse:\n"
+"Off"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"DNF freq:\n"
+"%i Hz"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"DNF width:\n"
+"%i Hz"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"DNF auto:\n"
+"%s"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"NB level:\n"
+"%i"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"NB width:\n"
+"%i Hz"
+msgstr ""
+
+#: src/button_bar.cpp
+#, c-format
+msgid ""
+"NR level:\n"
+"%i"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Set 1"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Set 2"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Set 3"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Set 4"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Set 5"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Set 6"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Set 7"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Set 8"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"SWR\n"
+"Scan"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"RX\n"
+"Recorder"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"CW\n"
+"Trainer"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"CW\n"
+"Keyboard"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"Field\n"
+"Ops"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid ""
+"Propa-\n"
+"gation"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Rate"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Shift"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Center"
+msgstr ""
+
+#: src/button_bar.cpp
+msgid "Reverse"
+msgstr ""
+
+#: src/cfg_socket.cpp
+msgid "Invalid option"
+msgstr ""
+
+#: src/cfg_socket.cpp
+msgid "Radio is transmitting"
+msgstr ""
+
+#: src/cfg_socket.cpp
+msgid "Not in walkie mode"
+msgstr ""
+
+#: src/cfg_socket.cpp
+msgid "Unknown theme"
+msgstr ""
+
+#: src/cfg_socket.cpp
+msgid "Unknown option"
+msgstr ""
+
+#: src/cfg_socket.cpp
+msgid "Invalid value"
+msgstr ""
+
+#: src/cfg_socket.cpp
+msgid "Invalid mode"
+msgstr ""
+
+#: src/cfg_socket.cpp
+msgid "Value too long"
+msgstr ""
+
+#: src/cfg_socket.cpp
+msgid "Invalid range"
+msgstr ""
+
+#: src/cfg_socket.cpp
+msgid "Invalid frequency"
+msgstr ""
+
+#: src/cfg_socket.cpp
+msgid "Busy, try again"
+msgstr ""
+
+#: src/cfg_socket.cpp
+msgid "Bad request"
+msgstr ""
+
+#: src/cfg_socket.cpp
+msgid "Unknown command"
+msgstr ""
+
+#: src/channel_list.c
+msgid "SHANNON VOLMET"
+msgstr ""
+
+#: src/channel_list.c src/info_bar.c
+msgid "AUTO"
+msgstr ""
+
+#: src/channel_list.c src/info_bar.c
+msgid "SLOW"
+msgstr ""
+
+#: src/channel_list.c src/info_bar.c
+msgid "FAST"
+msgstr ""
+
+#: src/clock.c
+msgid "Time is synchronized with NTP"
+msgstr ""
+
+#: src/clock.c
+msgid "CET-1CEST,M3.5.0,M10.5.0/3"
+msgstr ""
+
+#: src/clock.c
+msgid "EET-2EEST,M3.5.0/3,M10.5.0/4"
+msgstr ""
+
+#: src/clock.c
+msgid "SAST-2"
+msgstr ""
+
+#: src/clock.c
+msgid "AWST-8"
+msgstr ""
+
+#: src/clock.c
+msgid "AEST-10"
+msgstr ""
+
+#: src/clock.c
+msgid "AEST-10AEDT,M10.1.0,M4.1.0/3"
+msgstr ""
+
+#: src/clock.c
+msgid "NZST-12NZDT,M9.5.0,M4.1.0/3"
+msgstr ""
+
+#: src/cluster/client.c
+msgid "DXFUN"
+msgstr ""
+
+#: src/cluster/client.c src/dialog_field.c src/field/flog.c
+msgid "WWBOTA"
+msgstr ""
+
+#: src/cluster/client.c src/dialog_field.c src/field/flog.c
+msgid "HOTA"
+msgstr ""
+
+#: src/cluster/client.c
+msgid "AMFM"
+msgstr ""
+
+#: src/cluster/client.c
+msgid "no DNS (WiFi?)"
+msgstr ""
+
+#: src/cluster/client.c src/field/rbn.c src/wr12.c
+msgid "no answer"
+msgstr ""
+
+#: src/cluster/client.c
+#, c-format
+msgid "logged in as %s"
+msgstr ""
+
+#: src/cluster/client.c
+msgid "logging in"
+msgstr ""
+
+#: src/cluster/client.c
+msgid "refused: this call is on other nodes"
+msgstr ""
+
+#: src/cluster/client.c
+msgid "logged in elsewhere with this call"
+msgstr ""
+
+#: src/cluster/client.c src/field/rbn.c
+msgid "connection closed"
+msgstr ""
+
+#: src/cluster/client.c
+msgid "no thread"
+msgstr ""
+
+#: src/cluster/spots.c src/field/flog.c
+msgid "70cm"
+msgstr ""
+
+#: src/cluster/spots.c
+msgid "DIGI"
+msgstr ""
+
+#: src/cluster/spots.c src/dialog_field.c src/js8_window.c src/lcd_panel.c
+msgid "DATA"
+msgstr ""
+
+#: src/cluster_column.c
+#, c-format
+msgid "Cluster %s - %s"
+msgstr ""
+
+#: src/cluster_column.c src/dialog_cluster.c src/ft8_window.c src/knob_info.cpp
+#: src/radio_controls.cpp
+msgid "All"
+msgstr ""
+
+#: src/cluster_column.c src/knob_info.cpp src/settings_window.cpp
+msgid "Time"
+msgstr ""
+
+#: src/cluster_column.c src/knob_info.cpp
+msgid "Freq"
+msgstr ""
+
+#: src/cluster_column.c
+msgid "DX Cluster"
+msgstr ""
+
+#: src/conditions.c
+msgid "Fetching"
+msgstr ""
+
+#: src/conditions.c
+msgid "No answer"
+msgstr ""
+
+#: src/conditions.c
+msgid "Good"
+msgstr ""
+
+#: src/conditions.c
+msgid "Fair"
+msgstr ""
+
+#: src/conditions.c
+msgid "Poor"
+msgstr ""
+
+#: src/cw_encoder.c
+msgid "tuned away"
+msgstr ""
+
+#: src/cw_encoder.c
+msgid "mode changed"
+msgstr ""
+
+#: src/cw_encoder.c
+msgid "VFO changed"
+msgstr ""
+
+#: src/cw_encoder.c
+msgid "other TX"
+msgstr ""
+
+#: src/cw_encoder.c
+msgid "key held 10 s"
+msgstr ""
+
+#: src/cw_encoder.c
+#, c-format
+msgid "QRSS3 stopped: %s"
+msgstr ""
+
+#: src/cw_encoder.c
+#, c-format
+msgid "Beacon over: %i send%s"
+msgstr ""
+
+#: src/cw_encoder.c
+#, c-format
+msgid "Beacon over: %02i:%02i"
+msgstr ""
+
+#: src/cw_field.c
+msgid "Call [sent [rcvd]]: "
+msgstr ""
+
+#: src/cw_messages.c
+msgid "New"
+msgstr ""
+
+#: src/cw_messages.c src/dialog_channels.c
+msgid "Edit"
+msgstr ""
+
+#: src/cw_messages.c src/dialog_channels.c src/js8_window.c
+#: src/recorder_window.c src/settings_window.cpp src/voice_messages.c
+#: src/wifi_window.c
+msgid "Delete"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "No messages yet: press New"
+msgstr ""
+
+#: src/cw_messages.c src/voice_messages.c
+#, c-format
+msgid "%i message%s"
+msgstr ""
+
+#: src/cw_messages.c
+msgid " day after"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "Now, until %02i:%02i%s %s"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "From %02i:%02i to %02i:%02i%s %s"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "%i send%s"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "until stopped"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "Now, %s"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "From %02i:%02i %s, %s"
+msgstr ""
+
+#: src/cw_messages.c src/dialog_birdie.c src/dialog_cw_kbd.c
+#: src/dialog_freedv.c src/settings_window.cpp src/swrscan_window.c
+#: src/voice_messages.c
+msgid "Stop"
+msgstr ""
+
+#: src/cw_messages.c
+msgid ""
+"Beacon\n"
+"Off"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid ""
+"Beacon\n"
+"%i s"
+msgstr ""
+
+#: src/cw_messages.c
+msgid ""
+"QRSS3\n"
+"On"
+msgstr ""
+
+#: src/cw_messages.c
+msgid ""
+"QRSS3\n"
+"Off"
+msgstr ""
+
+#: src/cw_messages.c
+msgid ""
+"Start\n"
+"Now"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid ""
+"Start\n"
+"%02i:%02i"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid ""
+"Until\n"
+"%i send%s"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid ""
+"Until\n"
+"%02i:%02i"
+msgstr ""
+
+#: src/cw_messages.c
+msgid ""
+"Until\n"
+"Stopped"
+msgstr ""
+
+#: src/cw_messages.c
+msgid ""
+"Freq\n"
+"30/80 m"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid ""
+"Freq\n"
+"%s"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "CW KEYER - #%06x %i WPM#"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "CW KEYER - #%06x QRSS3 %s MHz#"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "CW KEYER - #%06x QRSS3: 30 m or 80 m#"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "TX or PTT: stop - %i:%02i to go"
+msgstr ""
+
+#: src/cw_messages.c src/voice_messages.c
+msgid "TX or PTT: stop"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "BEACON %i s"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "%i of %i sent - TX or PTT: stop"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "%i sent, until %02i:%02i%s - TX or PTT: stop"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "%i sent - TX or PTT: stop"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "Starts in %i:%02i:%02i, until %02i:%02i%s - TX or PTT: stop"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "Starts in %i:%02i:%02i - TX or PTT: stop"
+msgstr ""
+
+#: src/cw_messages.c src/dialog_cw_kbd.c src/dialog_freedv.c
+#: src/voice_messages.c
+msgid "READY"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "MFK or VOL: 10 Hz steps - press MFK: done"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "MFK or VOL: 5 min steps (%s clock) - press MFK: done"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "MFK or VOL: how many - Until: next kind - MFK: done"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "MFK: choose - press MFK: edit"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "New: write the first message"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "On 30 m or 80 m only"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "Window %s-%s"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid ""
+"About %.0f s in QRSS3\n"
+"Beacon: %s\n"
+"%s"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid ""
+"About %.0f min in QRSS3\n"
+"Beacon: %s\n"
+"%s"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "off (page 2)"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid ""
+"About %.0f s at %i WPM\n"
+"Beacon: %s%s%s"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "Empty message"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "QRSS3: in CW or CW-R only"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "QRSS3: on 30 m or 80 m only"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "QRSS3: split or TX shift on"
+msgstr ""
+
+#: src/cw_messages.c
+#, c-format
+msgid "QRSS3: XIT is set (%+i Hz)"
+msgstr ""
+
+#: src/cw_messages.c src/radio.c
+msgid "No TX"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "QRSS3: frequency locked"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "QRSS3: not started"
+msgstr ""
+
+#: src/cw_messages.c
+msgid "Press Delete again to delete the message"
+msgstr ""
+
+#: src/cw_messages.c src/js8_window.c
+msgid "Message deleted"
+msgstr ""
+
+#: src/cw_parse.c src/field/flog.c
+msgid "NAME"
+msgstr ""
+
+#: src/cw_parse.c src/field/flog.c src/js8/directed_msg.cpp
+msgid "CALL"
+msgstr ""
+
+#: src/cw_parse.c
+msgid "TEST"
+msgstr ""
+
+#: src/dialog_bands.c
+msgid "(BANDS 1:1)"
+msgstr ""
+
+#: src/dialog_bands.c src/dialog_field.c
+msgid ""
+"Test\n"
+"beacon"
+msgstr ""
+
+#: src/dialog_bands.c src/dialog_field.c
+msgid ""
+"Use\n"
+"band"
+msgstr ""
+
+#: src/dialog_bands.c
+msgid "Spots: cluster 30 min / RBN 15 min.   "
+msgstr ""
+
+#: src/dialog_bands.c
+msgid "Nobody heard you: Test beacon (CW)"
+msgstr ""
+
+#: src/dialog_bands.c
+msgid "Heard by"
+msgstr ""
+
+#: src/dialog_bands.c
+#, c-format
+msgid "BANDS   %.4f MHz"
+msgstr ""
+
+#: src/dialog_bands.c src/field/bands.c
+msgid "HIGH"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "(BASE FW)"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "Get"
+msgstr ""
+
+#: src/dialog_base_update.c src/settings_window.cpp
+msgid "Check"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "Flash"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "xiegu.eu: not checked yet (Check, or the daily check once online)"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "xiegu.eu: not checked yet (Check; the daily check is off: Settings > Info)"
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "xiegu.eu, %s: latest %s%s"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid " - NEWER than this base"
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "%s out"
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "Base firmware %s is out: Settings > Info > Base firmware"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "not read yet"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "in, charging"
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid ""
+"BASE FIRMWARE   this base: %s%s%s   power: %s\n"
+"%s"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid ", writing "
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "  (looking for the files)"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "  (no base files)"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "HERE        "
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "ON XIEGU.EU "
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "  (factory build)"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "  UNKNOWN"
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "  (%d of %d: the MFK goes through them)"
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "%s is not on this image: the base can't be written from here."
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "copied from Xiegu's system: %s"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "(the internal memory could not be unmounted)"
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "%s: not an .xgf base_flash would write (size, AES blocks, or a plain image)"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid " is not on this image."
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "(no thread for the look)"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "UNKNOWN: OK?"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "FLASH NOW"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "Recover"
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "no pipe: %s"
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "%s could not be started: %s"
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "ttyS1 %lu B/s (framing %lu, overrun %lu, buffer overrun %lu)"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "The base could not be lent: transmitting, or the radio thread did not let go of it. Nothing was sent."
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "--- base %s%s, from %s%s; the GUI keeps off the base meanwhile"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid " (UNKNOWN FILE)"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid " (--recover)"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "--- written. The base starts the new firmware (its stream on ttyS1), but the GUI's I2C to it stays locked, and about three minutes on the base switches the radio off. Then switch it on again. The base stays lent until then; this log goes on to the card."
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "--- refused: nothing was sent to the base. It is the GUI's again."
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "--- failed before the erase: nothing was erased. Switch the radio off and on."
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "--- failed at or after the erase: the base has no firmware now. Do not switch the radio off: Recover writes it again (its bootloader is not erased)."
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "--- the writer ended with %d. Switch the radio off and on."
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "--- fetched."
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "--- the fetch did not finish (%d)."
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "the base's firmware is running: its stream is back, %s"
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "the base stopped its stream (%s): it is switching the radio off. Switch it on again."
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "WRITING base %s: %.0f s   %s"
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "WRITTEN %d:%02d ago, %s   %s"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "firmware running, the power-off ahead"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "stream stopped: the power-off"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "waiting for the firmware's stream"
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "FAILED (%d), the base kept lent   %s"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "(disarmed)"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "Less than 4 MB free on /mnt: not fetched."
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "--- fetching base %s from xiegu.eu: Xiegu's update streamed, only the base file kept (about two thirds of its 370 MB come down: some minutes)"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "--- checking xiegu.eu's downloads page"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "Understood: an unknown file. FLASH NOW writes it."
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "Base %s -> %s, from %s."
+msgstr ""
+
+#: src/dialog_base_update.c
+#, c-format
+msgid "Xiegu asks for a 13.8 V supply of 3 A or more and the battery out, for the whole write; now: %s."
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "The GUI keeps off the base; base_flash does what Xiegu's UPGRADE screen does (about 30 s). The base then runs the new firmware and, about three minutes later, switches the radio off by itself: switch it on again. Do not switch it off while it writes."
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "THIS FILE IS NOT ONE OF XIEGU'S KNOWN HERE: it passes the checks an encrypted file allows, but what it holds can't be told. UNKNOWN: OK? and then FLASH NOW write it; Close or ESC leave it."
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "FLASH NOW to write it; Close or ESC to leave it."
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "The end of the last run ("
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "looking for the files"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "(the window closed: the fetch or check ended)"
+msgstr ""
+
+#: src/dialog_base_update.c
+msgid "(the window closed; the base stays lent until the radio is switched off)"
+msgstr ""
+
+#: src/dialog_birdie.c src/dialog_cw_kbd.c src/dialog_cw_trainer.c
+#: src/dialog_jtty.c src/dialog_scan.c src/dialog_wspr.c src/js8_window.c
+#: src/navtex_window.c src/wefax_window.c
+msgid "Clear"
+msgstr ""
+
+#: src/dialog_birdie.c
+msgid "Known birdies: none yet."
+msgstr ""
+
+#: src/dialog_birdie.c
+#, c-format
+msgid "Known birdies: %d, %d on this band."
+msgstr ""
+
+#: src/dialog_birdie.c src/dialog_cw_trainer.c src/dialog_field.c
+#: src/dialog_scan.c src/settings_window.cpp
+msgid "Start"
+msgstr ""
+
+#: src/dialog_birdie.c
+msgid ""
+"Marks:\n"
+"Off"
+msgstr ""
+
+#: src/dialog_birdie.c
+msgid ""
+"Marks:\n"
+"On"
+msgstr ""
+
+#: src/dialog_birdie.c
+msgid ""
+"Marks:\n"
+"+ notch"
+msgstr ""
+
+#: src/dialog_birdie.c
+msgid "Stopping..."
+msgstr ""
+
+#: src/dialog_birdie.c src/js8_window.c
+msgid "Not while transmitting"
+msgstr ""
+
+#: src/dialog_birdie.c
+msgid "Scanning. Keep the antenna disconnected."
+msgstr ""
+
+#: src/dialog_birdie.c
+msgid "Forgotten. Scan again when you like."
+msgstr ""
+
+#: src/dialog_birdie.c
+msgid "BIRDIE CALIBRATION"
+msgstr ""
+
+#: src/dialog_birdie.c
+msgid "Birdies are steady carriers the radio makes inside itself. This scan finds them on every active band and keeps their frequencies: the waterfall marks them, and with Marks + notch the notch filter takes one out of the passband when you tune across it."
+msgstr ""
+
+#: src/dialog_birdie.c
+msgid "Disconnect the antenna, then press Start. A few minutes: every active band the radio transmits on."
+msgstr ""
+
+#: src/dialog_channels.c
+msgid "Add"
+msgstr ""
+
+#: src/dialog_channels.c
+msgid "Drag"
+msgstr ""
+
+#: src/dialog_channels.c
+msgid "Drop"
+msgstr ""
+
+#: src/dialog_channels.c
+msgid "the app holds the frequency"
+msgstr ""
+
+#: src/dialog_channels.c
+msgid "the app holds the mode"
+msgstr ""
+
+#: src/dialog_channels.c
+#, c-format
+msgid "Channel not tuned: %s"
+msgstr ""
+
+#: src/dialog_channels.c
+msgid "Channel name"
+msgstr ""
+
+#: src/dialog_channels.c
+msgid "CHANNELS"
+msgstr ""
+
+#: src/dialog_channels.c
+#, c-format
+msgid "CHANNEL %d"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid ""
+"(CLUSTER\n"
+"1:2)"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid ""
+"(CLUSTER\n"
+"2:2)"
+msgstr ""
+
+#: src/dialog_cluster.c src/settings_window.cpp
+msgid "Server"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "Tune"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "CLUSTER ALERT"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "MFK: tune"
+msgstr ""
+
+#: src/dialog_cluster.c
+#, c-format
+msgid "CLUSTER #%06x %s# - %s"
+msgstr ""
+
+#: src/dialog_cluster.c src/dialog_field.c
+msgid "no callsign"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "Filtered"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "CW only"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "SSB only"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "DIG only"
+msgstr ""
+
+#: src/dialog_cluster.c
+#, c-format
+msgid "%d spots - %02d:%02dZ"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "Set your callsign: Settings > General"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "Cluster link off"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "No network: WiFi or Ethernet"
+msgstr ""
+
+#: src/dialog_cluster.c
+#, c-format
+msgid "Logged in as %s"
+msgstr ""
+
+#: src/dialog_cluster.c
+#, c-format
+msgid "%s - logging in..."
+msgstr ""
+
+#: src/dialog_cluster.c src/wifi.cpp
+msgid "Ethernet"
+msgstr ""
+
+#: src/dialog_cluster.c src/first_start.c src/wifi_window.c
+msgid "Connecting..."
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "Cluster error"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "retry in 30 min"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "ALERT"
+msgstr ""
+
+#: src/dialog_cluster.c
+#, c-format
+msgid "No transverter/WR12: %d.%03d"
+msgstr ""
+
+#: src/dialog_cluster.c
+#, c-format
+msgid "No transverter: %d.%03d MHz"
+msgstr ""
+
+#: src/dialog_cluster.c src/wavelog_cat.c
+msgid " - RX only"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "MFK: browse - press: tune - VFO: follow"
+msgstr ""
+
+#: src/dialog_cluster.c src/radio_controls.cpp
+#, c-format
+msgid "Cluster: %s"
+msgstr ""
+
+#: src/dialog_cluster.c src/radio_controls.cpp
+msgid "all bands"
+msgstr ""
+
+#: src/dialog_cluster.c src/radio_controls.cpp
+msgid "current band"
+msgstr ""
+
+#: src/dialog_cluster.c
+#, c-format
+msgid ""
+"Band /\n"
+"%s"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid ""
+"Order /\n"
+"Time"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid ""
+"Order /\n"
+"Freq"
+msgstr ""
+
+#: src/dialog_cluster.c src/radio_controls.cpp
+msgid "newest first"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "by frequency"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid ""
+"Link /\n"
+"On"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid ""
+"Link /\n"
+"Off"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "Cluster: can't save"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "link on"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "link off"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid ""
+"Mode /\n"
+"All"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid ""
+"Mode /\n"
+"CW"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid ""
+"Mode /\n"
+"SSB"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid ""
+"Mode /\n"
+"DIG"
+msgstr ""
+
+#: src/dialog_cluster.c
+#, c-format
+msgid "Cannot save %s"
+msgstr ""
+
+#: src/dialog_cluster.c
+#, c-format
+msgid "Cluster: %s:%d"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "CLUSTER SERVERS"
+msgstr ""
+
+#: src/dialog_cluster.c
+msgid "MFK: choose - press: use - Server: close - add servers from the web page"
+msgstr ""
+
+#: src/dialog_cw_kbd.c src/dialog_freedv.c
+msgid "Send"
+msgstr ""
+
+#: src/dialog_cw_kbd.c
+msgid ""
+"Live:\n"
+"On"
+msgstr ""
+
+#: src/dialog_cw_kbd.c
+msgid ""
+"Live:\n"
+"Off"
+msgstr ""
+
+#: src/dialog_cw_kbd.c
+#, c-format
+msgid "CW KEYBOARD - #%06x %i WPM#"
+msgstr ""
+
+#: src/dialog_cw_kbd.c
+msgid "keyboard ready"
+msgstr ""
+
+#: src/dialog_cw_kbd.c
+msgid "no keyboard: MFK press"
+msgstr ""
+
+#: src/dialog_cw_kbd.c
+msgid "Set CW mode to transmit"
+msgstr ""
+
+#: src/dialog_cw_kbd.c
+msgid "Live: "
+msgstr ""
+
+#: src/dialog_cw_kbd.c
+msgid "Live: keyed as typed"
+msgstr ""
+
+#: src/dialog_cw_kbd.c
+msgid "type, Enter sends"
+msgstr ""
+
+#: src/dialog_cw_kbd.c
+msgid "Enter: send - Esc: stop - arrows or MFK: speed - MFK press: send or type"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Key train is off: not playing"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "Level %i: new character %c"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Stats reset"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Replay"
+msgstr ""
+
+#: src/dialog_cw_trainer.c src/dialog_scan.c src/dialog_snake.c
+msgid "Pause"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid ""
+"Mode:\n"
+"Learn"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid ""
+"Mode:\n"
+"Practice"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid ""
+"Mode:\n"
+"Calls"
+msgstr ""
+
+#: src/dialog_cw_trainer.c src/dialog_scan.c src/first_start.c
+msgid "Skip"
+msgstr ""
+
+#: src/dialog_cw_trainer.c src/dialog_field.c src/first_start.c
+#: src/js8_window.c
+msgid "Back"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Stats"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Sure?"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid ""
+"Reset\n"
+"stats"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid ""
+"Level +\n"
+"%i"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid ""
+"Level -\n"
+"%i"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid ""
+"TX speed:\n"
+"Fixed"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid ""
+"TX speed:\n"
+"Follows"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid ""
+"Group\n"
+"%i"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "CW TRAINER - #%06x Calls#"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "Call %i/%i - %i WPM"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Listen..."
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Your turn"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Press Start"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "%s - speed %i -> %i WPM"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Right"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Wrong"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid ""
+"\n"
+"#%06x Run complete - final score %s#"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Start: a new run of 50 callsigns"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "Key back the callsign at your %i WPM. Right: +1 WPM, wrong: -1 WPM."
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Key back the callsign with the paddle. Right: +1 WPM, wrong: -1 WPM."
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid ""
+"Right %i / %i\n"
+"Best speed %i WPM\n"
+"Best score %s"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "CW TRAINER - #%06x Stats#"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "Level %i - %i WPM"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "Today: %u tries, %u%% right, %u min"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Last 20 tries per character. Weak ones (red, yellow) come up more often in Learn."
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "CW TRAINER - #%06x Practice#"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "%i WPM (keyer %i)"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Key with the paddle: the text appears here"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "No transmission: key train is on. Clear: page 3"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "CW TRAINER - #%06x Learn (Koch)#"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "%i WPM - group %i"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Start: groups follow each other, key each one back with the paddle"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "The radio keys the group (sidetone only)"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Sent:   "
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Key the group with the paddle. Replay: hear it again"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Heard: "
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "WRONG"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Next group follows. Pause: stop after this one"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Start: resume. Skip: another group"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid ""
+"Score  %i / %i\n"
+"Last %i: %i / %i\n"
+"Next level at %i%%"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid ""
+"Level %i\n"
+"%s"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Next new character:"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "(at %i%% on the current set)"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "SENT"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "YOU KEYED"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "SCORE"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "x6100-wavelog sync 2>/dev/null"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Summits\n"
+"On The Air"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "SUMMIT"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Parks\n"
+"On The Air"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "PARK"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Bunkers\n"
+"On The Air"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "BUNKER"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"History\n"
+"On The Air"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "SITE"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Nature\n"
+"On The Air"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "AREA"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Towers\n"
+"On The Air"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "TOWER"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"World Castle\n"
+"Award"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "CASTLE"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Mills\n"
+"On The Air"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "MILL"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Lighthouses\n"
+"On The Air"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "LIGHT"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "LH ARLHS"
+msgstr ""
+
+#: src/dialog_field.c src/field/flog.c
+msgid "TILES"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Tiles\n"
+"On The Air"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "TILE"
+msgstr ""
+
+#: src/dialog_field.c src/field/flog.c
+msgid "LLOTA"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Lakes and\n"
+"Lagoons"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "LAKE"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "SPBHFTCMLGK"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Activation\n"
+"log"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "BANDS"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Activity\n"
+"RBN, beacon"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "error no answer"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Field: wait, still busy"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "error Wavelog: no answer"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "here (%s)"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "FIELD OPS"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Select"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Radio"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Ref..."
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Update\n"
+"list"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Log\n"
+"book"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "LOGBOOK"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Upload\n"
+"QRZ"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Start here\n"
+"On"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Start here\n"
+"Off"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Rec\n"
+"CQ"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid ""
+"CQ level\n"
+"%+d dB"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "CQ level %+d dB: MFK or VOL to change, press to finish"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "CQ level %+d dB"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "End?"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "End"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Spot?"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Spot"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Re-spot\n"
+"On"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"Re-spot\n"
+"Off"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "FIELD OPERATIONS"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "MFK: choose, press to open.   GEN: back to the radio"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "No reference list"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "No position"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Ref...: type your tile"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "None in the list: Update list"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Looking..."
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid ""
+"%s%s\n"
+"%s\n"
+"#%06x Position from %s%s#"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "GPS, phone or locator needed"
+msgstr ""
+
+#: src/dialog_field.c
+msgid " (old)"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "NOT ACTIVE"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s MODE"
+msgstr ""
+
+#: src/dialog_field.c src/js8/directed_msg.cpp src/js8/frame_joiner.cpp
+#: src/js8_window.c
+msgid "STATUS"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s\tKM\tNAME"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Downloading the reference lists..."
+msgstr ""
+
+#: src/dialog_field.c
+msgid "4-character locator: Ref... your tile, or GPS"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "MFK: a tile (km: to its edge).  Ref...: any tile"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "No reference list yet: Update list (page 2), with WiFi"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "MFK: choose the castle.  Ref...: any castle by its number (most have no position)"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "MFK: choose the reference, press to use it.  Start: begin the activation"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s - ACTIVATION (%s)"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "TIME"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "LAST"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "CALLS"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "QSOs"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "CQ calls in CW.  Log QSO: call [rst sent [rst rcvd]]"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "CQ sends your voice CQ (Rec CQ: page 2).  Log QSO: call [rst...]"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "BEST"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Nobody heard you in the last 10 min: Test beacon (CW)"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Heard by "
+msgstr ""
+
+#: src/dialog_field.c
+msgid "BAND OVERVIEW"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Skimmer data: Reverse Beacon Network (reversebeacon.net)"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "BAND\tACTIVITY\t\tSPOTS\tRBN\tHEARD YOU\t"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s LOGBOOK  %s  #FF2020 TEST#"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "N\tTIME\tCALL\tBAND\tMODE\tRST S / R"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "No activation yet"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid " wwbota-spot --call %s --freq-khz %.1f --ref %s --mode %s --id '%s'%s"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid " %s --call %s --freq-khz %.1f --ref %s --mode %s%s"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Choose the %s reference first"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Set your callsign in Settings"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Activation started: %s"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Activation complete: %s, %d QSO%s, %d min"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Press End again to end the activation"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s spot: %s"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s spot on the DX clusters: %s %.1f %s"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "DX cluster not running: no %s spot"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s spot on the DX clusters only: no %s key (web page, Field Ops)"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "No %s spot: no %s key (web page, Field Ops)"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s spot: %s %.1f %s..."
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Press Spot again to post %s %.1f %s"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "CQ: sending \"%s\" (CQ again: stop, hold CQ: level)"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "No voice CQ yet: Rec CQ on page 2, speak, Stop rec"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "QSO not saved: %s"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Log from the phone: \"%s\" not logged"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "QSO logged: %s %s %s %s%s%s"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "QSO logged: %s %s %s%s%s, without a mode (no app open): set it on the Logs page"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "QSO %d: %s %s %s%s%s, logged without a mode: set it on the Logs page"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Log: \"%s\" is not a callsign"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Start the activation first"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Call [sent [rcvd]] [their ref]: "
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s: not a tile (a 6-character locator, JO20ab)"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Typed in"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s: not in the reference list"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s: not in the castle list, taken as it is"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "End the activation to change the reference"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Reference: "
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Updating %s (%d/%d)"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid ": %.1f MB, reading it..."
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid ", retry %d of 5"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Lists: %d POTA, %d SOTA, %d WWBOTA, %d HOTA, %d WWFF, %d TOTA, %d WCA, %d MOTA, %d LH, %d LLOTA"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Not updated, kept as it was: %s"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Reference list: %s"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid " update --call %s"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Downloading the reference lists: up to half an hour on a slow WiFi"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "it sends on %.3f MHz (split or TX shift)"
+msgstr ""
+
+#: src/dialog_field.c src/ext_tune.c
+#, c-format
+msgid "no TX on %s"
+msgstr ""
+
+#: src/dialog_field.c src/ext_tune.c src/winlink.c
+msgid "no data from the base"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid ""
+"Test beacon not sent%s%s\n"
+"The radio stays on %.4f MHz"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Test beacon stopped: %s"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Test beacon %s, back on %.3f MHz"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Test beacon %s"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "sent: watch who hears you"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid ""
+"Listen first: %s, %.3f MHz\n"
+"Press again to send: %i s"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid ""
+"Listen: %s %.3f, TX %.3f\n"
+"Press again to send: %i s"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "the radio was tuned"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "new mode"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "the mode changed"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "the radio is busy"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "TEST DE %s %s %s"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Test beacon on %s, %.3f MHz"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Test beacon: switch to CW first"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Test beacon: a CW message or beacon is on (MSG > CW)"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Test beacon: the radio is transmitting"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Test beacon on %s: no data from the base"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Test beacon on %s: the frequency is locked"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "the mode is locked"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "Test beacon on %s: %s"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "The frequency is locked"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Use band"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "QRZ: %d sent, %d already there%s"
+msgstr ""
+
+#: src/dialog_field.c
+msgid ", some refused"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "QRZ refused %d: %s"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "No QRZ profile: add it on the web page, Field Ops"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Uploading needs a QRZ.com Logbook API key, which QRZ.com only gives with a paid QRZ.com subscription (XML level or higher)."
+msgstr ""
+
+#: src/dialog_field.c
+msgid "No log to upload"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid " qrz-upload '%s'"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Uploading the log to QRZ..."
+msgstr ""
+
+#: src/dialog_field.c
+msgid ""
+"QRZ:\n"
+"none"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid ""
+"QRZ:\n"
+"profile %d"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "Only one QRZ profile"
+msgstr ""
+
+#: src/dialog_field.c
+msgid "QRZ profile not saved"
+msgstr ""
+
+#: src/dialog_field.c
+#, c-format
+msgid "QRZ profile: %s"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "Discard"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "20 m and up"
+msgstr ""
+
+#: src/dialog_freedv.c src/recorder_window.c src/voice_messages.c
+msgid "Rec"
+msgstr ""
+
+#: src/dialog_freedv.c
+#, c-format
+msgid "REC  %.1f s of %d"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "TRANSMITTING"
+msgstr ""
+
+#: src/dialog_freedv.c
+#, c-format
+msgid "over ready  %.1f s"
+msgstr ""
+
+#: src/dialog_freedv.c
+#, c-format
+msgid "encoding  %d %%"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "   too loud"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "the transmitter"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "hand mic only"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "do not press the mic's PTT"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "RADE: the radio keyed, recording dropped"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "RADE: not sent"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "decoder did not start"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "not built into this image"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "SYNC"
+msgstr ""
+
+#: src/dialog_freedv.c
+#, c-format
+msgid "Bluetooth headphones, TCI / browser (%d)"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "Bluetooth headphones"
+msgstr ""
+
+#: src/dialog_freedv.c
+#, c-format
+msgid "TCI / browser (%d)"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "none - headphones, TCI or the browser"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "   last over: "
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "Sync"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "SNR, offset"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "Input level"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "Speech to"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "Lost"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "RADE V1   Rec: hand mic only, then Send   Filter wide, AGC and NR off"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "RADE: not built into this image"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "RADE: the radio is transmitting"
+msgstr ""
+
+#: src/dialog_freedv.c
+#, c-format
+msgid "RADE: callsign sent as the first %d characters"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "RADE: cannot start the encoder"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "RADE: Rec first"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "RADE: still encoding"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "RADE: set your callsign first (APP > Callsign)"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "RADE: cannot start the send"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "RADE - FreeDV frequencies"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid ""
+"Reporter\n"
+"On"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid ""
+"Reporter\n"
+"Off"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "FreeDV Reporter: set your callsign in Settings first"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "FreeDV Reporter: set the QTH locator in Settings first"
+msgstr ""
+
+#: src/dialog_freedv.c src/pskreporter.c
+#, c-format
+msgid "OpenX6X00 %s"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "FreeDV Reporter: could not start"
+msgstr ""
+
+#: src/dialog_freedv.c
+#, c-format
+msgid "FreeDV Reporter: %s is on qso.freedv.org"
+msgstr ""
+
+#: src/dialog_freedv.c
+#, c-format
+msgid "FreeDV Reporter: not connected (%s), trying again"
+msgstr ""
+
+#: src/dialog_freedv.c
+#, c-format
+msgid "FreeDV Reporter: %s asks for a QSY to %.1f kHz%s%s"
+msgstr ""
+
+#: src/dialog_freedv.c
+#, c-format
+msgid "FreeDV Reporter: stopped%s%s"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "FreeDV Reporter on: while RADE is open, your callsign, locator and frequency are published on qso.freedv.org, a public site"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "FreeDV Reporter off"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "FreeDV Reporter: the message was not saved"
+msgstr ""
+
+#: src/dialog_freedv.c
+msgid "Reporter message:"
+msgstr ""
+
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+msgid ""
+"Free\n"
+"Text"
+msgstr ""
+
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+msgid ""
+"Stop\n"
+"TX"
+msgstr ""
+
+#: src/dialog_jtty.c
+#, c-format
+msgid "#%06x JTTY: stop TX first#"
+msgstr ""
+
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+msgid "Knob: fine tuning"
+msgstr ""
+
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+msgid ""
+"Dial\n"
+"standard"
+msgstr ""
+
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#, c-format
+msgid ""
+"Dial\n"
+"%+d kHz"
+msgstr ""
+
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+msgid "Knob: dial, 1 kHz steps"
+msgstr ""
+
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#, c-format
+msgid ""
+"DX call\n"
+"%s"
+msgstr ""
+
+#: src/dialog_jtty.c
+#, c-format
+msgid ""
+"Serial\n"
+"%03d"
+msgstr ""
+
+#: src/dialog_jtty.c
+#, c-format
+msgid ""
+"Rx tol\n"
+"%u Hz"
+msgstr ""
+
+#: src/dialog_jtty.c
+#, c-format
+msgid "#%06x JTTY: TX queue full#"
+msgstr ""
+
+#: src/dialog_jtty.c
+msgid "Call 599"
+msgstr ""
+
+#: src/dialog_jtty.c
+msgid "My call"
+msgstr ""
+
+#: src/dialog_jtty.c
+msgid "His call"
+msgstr ""
+
+#: src/dialog_jtty.c
+msgid "599 Nr"
+msgstr ""
+
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+msgid "Macro deleted"
+msgstr ""
+
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+msgid "Macro saved"
+msgstr ""
+
+#: src/dialog_jtty.c src/dialog_psk.c
+#, c-format
+msgid "#%06x Could not write %s#"
+msgstr ""
+
+#: src/dialog_jtty.c
+#, c-format
+msgid "Text (%M %H %E):"
+msgstr ""
+
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+msgid "Macro name:"
+msgstr ""
+
+#: src/dialog_jtty.c
+#, c-format
+msgid "F%d is empty - hold to set it"
+msgstr ""
+
+#: src/dialog_jtty.c
+#, c-format
+msgid "#%06x No DX call - set it on page 1#"
+msgstr ""
+
+#: src/dialog_jtty.c
+#, c-format
+msgid "#%06x No callsign - set it in Settings#"
+msgstr ""
+
+#: src/dialog_jtty.c
+msgid "JTTY msg:"
+msgstr ""
+
+#: src/dialog_jtty.c
+msgid "JTTY RX restart"
+msgstr ""
+
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+msgid "DX call:"
+msgstr ""
+
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+msgid "QSO cleared"
+msgstr ""
+
+#: src/dialog_modes.c src/field/flog.c src/olivia_tx.c src/screen_main.c
+msgid "Olivia"
+msgstr ""
+
+#: src/dialog_modes.c
+msgid "DIGITAL MODES"
+msgstr ""
+
+#: src/dialog_modes.c
+msgid "last used"
+msgstr ""
+
+#: src/dialog_modes.c
+msgid "MFK: choose - press: open - Modes: close"
+msgstr ""
+
+#: src/dialog_olivia.c
+msgid ""
+"Band up\n"
+"hold: down"
+msgstr ""
+
+#: src/dialog_olivia.c
+#, c-format
+msgid "#%06x %s: stop TX first#"
+msgstr ""
+
+#: src/dialog_olivia.c
+msgid "RX off"
+msgstr ""
+
+#: src/dialog_olivia.c
+#, c-format
+msgid ""
+"LOCK %u%%\n"
+"%+.0f Hz"
+msgstr ""
+
+#: src/dialog_olivia.c
+#, c-format
+msgid ""
+"Search\n"
+"best %.1f"
+msgstr ""
+
+#: src/dialog_olivia.c
+#, c-format
+msgid ""
+"Mode\n"
+"%s%s"
+msgstr ""
+
+#: src/dialog_olivia.c src/dialog_psk.c
+#, c-format
+msgid ""
+"RST snt\n"
+"%s"
+msgstr ""
+
+#: src/dialog_olivia.c
+#, c-format
+msgid "#%06x %s TX busy#"
+msgstr ""
+
+#: src/dialog_olivia.c
+#, c-format
+msgid "%s msg:"
+msgstr ""
+
+#: src/dialog_olivia.c
+#, c-format
+msgid "%s: stopping after this block"
+msgstr ""
+
+#: src/dialog_olivia.c src/dialog_psk.c
+#, c-format
+msgid "%s RX resync"
+msgstr ""
+
+#: src/dialog_olivia.c src/dialog_psk.c
+msgid "Empty slot - hold to create a macro"
+msgstr ""
+
+#: src/dialog_olivia.c src/dialog_psk.c
+#, c-format
+msgid "#%06x No DX call - set it on page 2#"
+msgstr ""
+
+#: src/dialog_olivia.c src/dialog_psk.c
+#, c-format
+msgid "#%06x %s is empty#"
+msgstr ""
+
+#: src/dialog_olivia.c src/dialog_psk.c
+#, c-format
+msgid "#%06x All %d macro slots are used#"
+msgstr ""
+
+#: src/dialog_olivia.c
+#, c-format
+msgid "#%06x Could not write /mnt/olivia_macros.txt#"
+msgstr ""
+
+#: src/dialog_olivia.c src/dialog_psk.c
+msgid "Macro text:"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "Sweep"
+msgstr ""
+
+#: src/dialog_propagation.c src/dialog_wspr.c src/knob_info.cpp
+msgid "Band"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "Follow"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "(PROP 1:1)"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "Beacons"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "Refresh"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "(BEACONS)"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "Conditions"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid ""
+"Band\n"
+"20m"
+msgstr ""
+
+#: src/dialog_propagation.c
+#, c-format
+msgid "%s here. "
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "Day"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "Night"
+msgstr ""
+
+#: src/dialog_propagation.c
+#, c-format
+msgid "Try %s: %s."
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "No forecast yet: WiFi, then Refresh."
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid ": high bands poor, polar paths out"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid ": noisier, polar paths weak"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "  Your QTH (Settings) for day and night here."
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "  You are in the grey line: 80 and 40 m reach far now."
+msgstr ""
+
+#: src/dialog_propagation.c
+#, c-format
+msgid "SFI %d   Sunspots %d   A %d"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "Solar data: none yet"
+msgstr ""
+
+#: src/dialog_propagation.c
+#, c-format
+msgid "K %d %s   X-ray %s"
+msgstr ""
+
+#: src/dialog_propagation.c
+#, c-format
+msgid "Noise %s   6m Es: %s"
+msgstr ""
+
+#: src/dialog_propagation.c
+#, c-format
+msgid "N0NBH/hamqsl.com  %s"
+msgstr ""
+
+#: src/dialog_propagation.c
+#, c-format
+msgid "N0NBH/hamqsl.com  %d h old"
+msgstr ""
+
+#: src/dialog_propagation.c
+#, c-format
+msgid "BEACONS  %.3f   #%06x %s# %s"
+msgstr ""
+
+#: src/dialog_propagation.c
+#, c-format
+msgid "#%06x clock?#  "
+msgstr ""
+
+#: src/dialog_propagation.c
+#, c-format
+msgid "%sSweep %s  %d:%02d"
+msgstr ""
+
+#: src/dialog_propagation.c
+#, c-format
+msgid "%s %s %+d dB (heard down to %s), %d min"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid ": not heard here yet (or off the air)"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid ": not listened to yet"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "PROPAGATION"
+msgstr ""
+
+#: src/dialog_propagation.c
+msgid "PROPAGATION   no QTH set"
+msgstr ""
+
+#: src/dialog_propagation.c
+#, c-format
+msgid ""
+"Band\n"
+"%s"
+msgstr ""
+
+#: src/dialog_psk.c
+#, c-format
+msgid ""
+"SQL off\n"
+"Q %u"
+msgstr ""
+
+#: src/dialog_psk.c
+msgid "Knob: squelch on the quality - noise reads about 50, default 68"
+msgstr ""
+
+#: src/dialog_psk.c
+#, c-format
+msgid "%s squelch %s"
+msgstr ""
+
+#: src/dialog_psk.c
+#, c-format
+msgid "#%06x PSK: stop TX first#"
+msgstr ""
+
+#: src/dialog_psk.c
+#, c-format
+msgid ""
+"Mode\n"
+"%s"
+msgstr ""
+
+#: src/dialog_psk.c
+#, c-format
+msgid "#%06x PSK: TX busy#"
+msgstr ""
+
+#: src/dialog_psk.c
+msgid "PSK msg:"
+msgstr ""
+
+#: src/dialog_psk.c
+#, c-format
+msgid "#%06x Could not write /mnt/psk_macros.txt#"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "Airband"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "Segment"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "Normal"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "(SCAN 1:2)"
+msgstr ""
+
+#: src/dialog_scan.c src/settings_window.cpp
+msgid "Source"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid ""
+"Lock\n"
+"out"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "(SCAN 2:2)"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid ""
+"Stop at\n"
+"Auto"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid ""
+"Speed\n"
+"Normal"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid ""
+"Hang\n"
+"2 s"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "STOPPED"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "SCANNING"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "BUSY"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "PAUSED"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "NOTHING TO SCAN"
+msgstr ""
+
+#: src/dialog_scan.c
+#, c-format
+msgid "%d to scan, pass %d.  Stops at %s%s"
+msgstr ""
+
+#: src/dialog_scan.c src/js8_window.c
+msgid "Auto: "
+msgstr ""
+
+#: src/dialog_scan.c
+#, c-format
+msgid ".  %d locked out"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "Heard  (latest first)"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "Heard: nothing yet"
+msgstr ""
+
+#: src/dialog_scan.c
+#, c-format
+msgid "SCANNER   %s"
+msgstr ""
+
+#: src/dialog_scan.c
+#, c-format
+msgid "%s  %s  hang %d s"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "Resume"
+msgstr ""
+
+#: src/dialog_scan.c
+#, c-format
+msgid ""
+"Stop at\n"
+"%s"
+msgstr ""
+
+#: src/dialog_scan.c
+#, c-format
+msgid ""
+"Speed\n"
+"%s"
+msgstr ""
+
+#: src/dialog_scan.c
+#, c-format
+msgid ""
+"Hang\n"
+"%d s"
+msgstr ""
+
+#: src/dialog_scan.c
+msgid "Scanner: not while transmitting"
+msgstr ""
+
+#: src/dialog_snake.c
+msgid "Restart"
+msgstr ""
+
+#: src/dialog_snake.c
+msgid "Exit"
+msgstr ""
+
+#: src/dialog_snake.c
+#, c-format
+msgid "SCORE %04d   BEST %04d"
+msgstr ""
+
+#: src/dialog_snake.c
+#, c-format
+msgid ""
+"73, GAME OVER\n"
+"#%06x Score %d - MFK to call CQ again#"
+msgstr ""
+
+#: src/dialog_snake.c
+#, c-format
+msgid ""
+"WATERFALL SNAKE\n"
+"#%06x Turn the knob to steer - MFK to start#"
+msgstr ""
+
+#: src/dialog_snake.c src/recorder_window.c
+msgid "Play"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "WSPR: no band of the hop here, beacon stopped"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid "WSPR: %dm: no ATU match stored, beacon stopped"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid "WSPR: %dm is %s with Hop on, beacon stopped"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid "%dm: no ATU match stored, RX only"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "WSPR TX: set the QTH locator in Settings"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid "WSPR TX: \"%s %.4s\" can't be sent (plain call and locator only)"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid "WSPR: %d spot%s"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "Use"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "Slots"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "ATU match"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "Off slots"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "Stored"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "None: RX only"
+msgstr ""
+
+#: src/dialog_wspr.c src/gps_window.c
+msgid "None"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "   Hop"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "   Hop, RX only"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "Decoding"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "Wait"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "Upload off"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "Upload: no callsign"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid "Uploaded %d, #%06x %d failed#"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid "Uploaded %d"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid "Last: %d spot%s (%.1f s)   "
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "ATU on: an RX+TX band without a stored match receives only"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "ATU off: every RX+TX band transmits on the antenna as it is"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid "%sTX %d%% at %d Hz, %.1f W = %d dBm   %s"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "WSPR TX: set the callsign in Settings"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "WSPR Hop: no band is set to RX+TX (page 3), no beacon"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "Stop TX"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid ""
+"TX next\n"
+"(armed)"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "TX next"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "WSPR: TX stopped, TX %% off"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "WSPR Hop: receive only here, TX next waits for an RX+TX band"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid ""
+"Hop\n"
+"On"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid ""
+"Hop\n"
+"Off"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid "WSPR Hop off: %s stays"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "WSPR Hop: every band is Off (page 3), it stays here"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "WSPR Hop on: the band follows the 2-minute slots from the next cycle"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid ""
+"Band\n"
+"%dm"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid ""
+"Use\n"
+"%s"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid "%dm: no WSPR frequency in the list, the hop skips it"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid ""
+"Go to\n"
+"%dm"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "WSPR: wait for the end of the beacon"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid "%dm: no WSPR frequency in the list"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid ", until the next hop"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid ""
+"Upload\n"
+"On"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid ""
+"Upload\n"
+"Off"
+msgstr ""
+
+#: src/dialog_wspr.c
+#, c-format
+msgid "WSPR TX at %d Hz"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "Dr"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "Call"
+msgstr ""
+
+#: src/dialog_wspr.c
+msgid "Grid"
+msgstr ""
+
+#: src/digi_freqs.c
+msgid "20m wide"
+msgstr ""
+
+#: src/ext_tune.c
+msgid ": tuned away"
+msgstr ""
+
+#: src/ext_tune.c
+msgid ": mode changed"
+msgstr ""
+
+#: src/ext_tune.c
+msgid ": VFO changed"
+msgstr ""
+
+#: src/ext_tune.c
+msgid ": browser gone"
+msgstr ""
+
+#: src/ext_tune.c
+msgid ": ATU on"
+msgstr ""
+
+#: src/ext_tune.c
+#, c-format
+msgid "TUNE over: %d s limit"
+msgstr ""
+
+#: src/ext_tune.c
+#, c-format
+msgid "TUNE stopped%s"
+msgstr ""
+
+#: src/ext_tune.c
+msgid "TUNE stopped by the radio"
+msgstr ""
+
+#: src/ext_tune.c
+#, c-format
+msgid "No tune: %s"
+msgstr ""
+
+#: src/ext_tune.c
+msgid "on the air"
+msgstr ""
+
+#: src/ext_tune.c
+msgid "Winlink in session"
+msgstr ""
+
+#: src/ext_tune.c
+msgid "No tune"
+msgstr ""
+
+#: src/ext_tune.c
+msgid "No tune: no thread for it"
+msgstr ""
+
+#: src/ext_tune.c
+msgid "no thread for it"
+msgstr ""
+
+#: src/ext_tune.c
+#, c-format
+msgid "TUNE %.1f W, %d s, ATU off"
+msgstr ""
+
+#: src/ext_tune.c
+#, c-format
+msgid "TUNE %.1f W, %d s at most"
+msgstr ""
+
+#: src/field/bands.c
+msgid "GOOD"
+msgstr ""
+
+#: src/field/bands.c
+msgid "FAIR"
+msgstr ""
+
+#: src/field/bands.c
+msgid "POOR"
+msgstr ""
+
+#: src/field/flog.c src/olivia_tx.c src/screen_main.c
+msgid "Contestia"
+msgstr ""
+
+#: src/field/flog.c
+msgid "CONTESTI"
+msgstr ""
+
+#: src/field/flog.c
+msgid "BAND"
+msgstr ""
+
+#: src/field/flog.c
+msgid "FREQ"
+msgstr ""
+
+#: src/field/flog.c src/mic_keys.c
+msgid "MODE"
+msgstr ""
+
+#: src/field/flog.c
+msgid "SUBMODE"
+msgstr ""
+
+#: src/field/flog.c
+msgid "GRIDSQUARE"
+msgstr ""
+
+#: src/field/flog.c
+msgid "COUNTRY"
+msgstr ""
+
+#: src/field/flog.c
+msgid "COMMENT"
+msgstr ""
+
+#: src/field/flog.c
+msgid "OPERATOR"
+msgstr ""
+
+#: src/field/flog.c
+msgid " Field Ops log"
+msgstr ""
+
+#: src/field/flog.c
+msgid "the microSD has an error and is read-only. Restart the radio; if it happens again, back up and rewrite the microSD"
+msgstr ""
+
+#: src/field/flog.c
+msgid "the microSD is full"
+msgstr ""
+
+#: src/field/flog.c
+msgid "the microSD gave a write error. Restart the radio; if it happens again, back up and rewrite the microSD"
+msgstr ""
+
+#: src/field/flog.c
+msgid "the microSD could not be written. Restart the radio; if it happens again, send the diagnostics (Settings > Info)"
+msgstr ""
+
+#: src/field/flog.c
+msgid "ARLHS"
+msgstr ""
+
+#: src/field/refs.c
+msgid "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYTsaaaaaaaceeeeiiiidnooooo/ouuuuytyAaAaAaCcCcCcCcDdDdEeEeEeEeEeGgGgGgGgHhHhIiIiIiIiIiIiJjKkkLlLlLlLlLlNnNnNnnNnOoOoOoOoRrRrRrSsSsSsSsTtTtTtUuUuUuUuUuUuWwYyYZzZzZzs"
+msgstr ""
+
+#: src/first_start.c
+msgid "the GPS"
+msgstr ""
+
+#: src/first_start.c
+#, c-format
+msgid "Ethernet connected, %s: WiFi is not needed"
+msgstr ""
+
+#: src/first_start.c
+msgid "WiFi is off: Networks turns it on"
+msgstr ""
+
+#: src/first_start.c
+msgid "WiFi starting..."
+msgstr ""
+
+#: src/first_start.c
+msgid "the network"
+msgstr ""
+
+#: src/first_start.c
+#, c-format
+msgid "Connected to %s, %s"
+msgstr ""
+
+#: src/first_start.c
+#, c-format
+msgid "Connected to %s"
+msgstr ""
+
+#: src/first_start.c
+msgid "Not connected: Networks lists the networks in reach"
+msgstr ""
+
+#: src/first_start.c
+msgid "WiFi sets the clock, and the DX Cluster, the uploads and the web configurator need it. Networks opens the WiFi window: choose a network there, then ESC or GEN comes back here."
+msgstr ""
+
+#: src/first_start.c src/settings_window.cpp
+msgid "Networks"
+msgstr ""
+
+#: src/first_start.c
+#, c-format
+msgid "Locator %s from the GPS"
+msgstr ""
+
+#: src/first_start.c
+msgid "FT8, JS8, WSPR, the CW messages and the DX Cluster need your callsign. The locator is where you are: the maps, the distances and the band plan go by it."
+msgstr ""
+
+#: src/first_start.c src/settings_window.cpp src/station.c
+msgid "Callsign"
+msgstr ""
+
+#: src/first_start.c
+msgid "Locator"
+msgstr ""
+
+#: src/first_start.c
+#, c-format
+msgid "Use %s"
+msgstr ""
+
+#: src/first_start.c
+msgid "GPS fix"
+msgstr ""
+
+#: src/first_start.c
+msgid "With a GPS that has a fix, its locator is offered here."
+msgstr ""
+
+#: src/first_start.c
+#, c-format
+msgid "Set by %s: right to the second, nothing to do here"
+msgstr ""
+
+#: src/first_start.c
+msgid "Not set by NTP or a GPS: set it below, or join WiFi (step 1)"
+msgstr ""
+
+#: src/first_start.c
+msgid "Time zone"
+msgstr ""
+
+#: src/first_start.c
+msgid "Date, time"
+msgstr ""
+
+#: src/first_start.c
+msgid "FT8, JS8 and WSPR need the clock right to a second or two. The logs and the digital modes keep UTC; the screen's clock shows this time zone."
+msgstr ""
+
+#: src/first_start.c
+msgid "Network"
+msgstr ""
+
+#: src/first_start.c
+msgid "Ethernet connected"
+msgstr ""
+
+#: src/first_start.c
+msgid "a network"
+msgstr ""
+
+#: src/first_start.c
+msgid "Skipped: Settings > Wireless joins a network later"
+msgstr ""
+
+#: src/first_start.c
+msgid "Not connected: Settings > Wireless joins a network later"
+msgstr ""
+
+#: src/first_start.c
+#, c-format
+msgid "%s, locator %s"
+msgstr ""
+
+#: src/first_start.c
+#, c-format
+msgid "%s, no locator"
+msgstr ""
+
+#: src/first_start.c
+msgid "Station"
+msgstr ""
+
+#: src/first_start.c
+msgid "Skipped: Settings > General > STATION has the callsign"
+msgstr ""
+
+#: src/first_start.c
+msgid "No callsign: Settings > General > STATION has it"
+msgstr ""
+
+#: src/first_start.c
+msgid "Kept by the GPS"
+msgstr ""
+
+#: src/first_start.c
+msgid "Set by NTP"
+msgstr ""
+
+#: src/first_start.c
+msgid "Not set by NTP or a GPS"
+msgstr ""
+
+#: src/first_start.c
+msgid "Clock"
+msgstr ""
+
+#: src/first_start.c
+msgid "Web configurator"
+msgstr ""
+
+#: src/first_start.c src/knob_info.cpp
+msgid "Manual"
+msgstr ""
+
+#: src/first_start.c
+msgid "github.com/Guru-RF/OpenX6X00, and a PDF with each release"
+msgstr ""
+
+#: src/first_start.c
+msgid "This guide"
+msgstr ""
+
+#: src/first_start.c
+msgid "Settings > General > STATION runs it again"
+msgstr ""
+
+#: src/first_start.c
+msgid "Callsign and locator"
+msgstr ""
+
+#: src/first_start.c
+msgid "Clock and time zone"
+msgstr ""
+
+#: src/first_start.c
+msgid "FIRST START"
+msgstr ""
+
+#: src/first_start.c
+msgid ""
+"Skip the guide?\n"
+"Press ESC again to skip it"
+msgstr ""
+
+#: src/first_start.c
+msgid ""
+"Settings > General > STATION\n"
+"runs the guide again"
+msgstr ""
+
+#: src/first_start.c
+msgid "Next"
+msgstr ""
+
+#: src/freq_entry.c
+msgid "Incorrect freq"
+msgstr ""
+
+#: src/freq_entry.c
+msgid "Freq in MHz"
+msgstr ""
+
+#: src/freq_list.c
+msgid "MFK: choose - press: tune"
+msgstr ""
+
+#: src/freq_strip.c src/remote_server.c
+msgid "LOCK"
+msgstr ""
+
+#: src/ft8/decode_list.c
+msgid "Wait sync"
+msgstr ""
+
+#: src/ft8_udp.c
+msgid "239.255.0.0,gateway"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Saved QSO de %s %d %d (%.0f %s)"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Saved QSO de %s %d %d"
+msgstr ""
+
+#: src/ft8_window.c src/js8_window.c
+msgid "Not enough memory for the map"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "%s Custom %s"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "CQ off: press TX CQ to call on this frequency"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Enabled"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Disabled"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid ""
+"Show:\n"
+"%s"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "TX Call"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Hold Freq"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "For you"
+msgstr ""
+
+#: src/ft8_window.c
+msgid ""
+"Freq:\n"
+"Preset"
+msgstr ""
+
+#: src/ft8_window.c src/js8_window.c
+#, c-format
+msgid ""
+"Freq:\n"
+"%s"
+msgstr ""
+
+#: src/ft8_window.c
+msgid ""
+"Hound:\n"
+"On"
+msgstr ""
+
+#: src/ft8_window.c
+msgid ""
+"Hound:\n"
+"Off"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid ""
+"Retries:\n"
+"%i"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "No CQ in Hound mode"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Call sign required"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "No CQ: callsign %s does not fit %s"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Next TX: %s%s%s"
+msgstr ""
+
+#: src/ft8_window.c
+msgid " (no QTH or modifier with this call)"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "TX off: receive only until TX Call, CQ or a call is pressed"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Can't save incomplete QSO"
+msgstr ""
+
+#: src/ft8_window.c src/jtty.c
+msgid "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+msgstr ""
+
+#: src/ft8_window.c
+msgid " CQ modifier"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "hwclock -w -u -f /dev/rtc1"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Clock in sync (NTP, within %d ms): no Time Sync needed"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "The GPS keeps the clock: no Time Sync needed"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Clock on the slot already (%+.2f s)"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Time Sync: the clock can't be set (%s)"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Clock moved %+.2f s to the slot start"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Auto Sync"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Auto Sync off: the clock moves only with Time Sync"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Auto Sync on: it works in FT8 and FT4, not in %s"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Auto Sync on: NTP keeps the clock, nothing to do while it does"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Auto Sync on: the GPS keeps the clock, nothing to do while it does"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Auto Sync on: the clock follows the decodes, after a minute or more"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Auto Sync: the clock can't be set (%s)"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Auto Sync: the clock is on time by the decodes of %d stations"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Auto Sync: by the decodes the clock is %.1f s %s, too far: press Time Sync as a slot starts"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Auto Sync: clock moved %+.2f s by the decodes of %d stations"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Not while sending"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "%s frequencies - hold Freq to type"
+msgstr ""
+
+#: src/ft8_window.c
+msgid " 14091 or 14.091, empty: presets"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Dial frequency (14091 or 14.091), empty for the presets"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Hound mode is for FT8 only"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Hound on: select the Fox's CQ and press, calls go above %d Hz"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Hound on: select the Fox's CQ and press"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Hound off"
+msgstr ""
+
+#: src/ft8_window.c
+msgid ""
+"Force QSO\n"
+"save"
+msgstr ""
+
+#: src/ft8_window.c
+msgid ""
+"CQ\n"
+"Modifier"
+msgstr ""
+
+#: src/ft8_window.c src/js8_window.c
+msgid ""
+"Time\n"
+"Sync"
+msgstr ""
+
+#: src/ft8_window.c
+msgid ""
+"Log\n"
+"Map"
+msgstr ""
+
+#: src/ft8_window.c
+msgid ""
+"Live\n"
+"Map"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Type 1800 - 54000 kHz, e.g. 14091"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Unsupported CQ modifier"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "What should I do about it?"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Select the Fox's CQ"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Hound: calling %s above %d Hz"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Next TX: %s"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "No call to answer in that message"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Invalid message"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Start QSO with %s"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Hound: %s sent %+03d, answering R%+03d at %d Hz"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Hound: QSO with %s logged"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Hound: %s sent RR73 but its report was missed, not logged"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "R%+03d to %s"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "select the Fox"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "Hound: no answer from %s, TX stopped"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "TX not sent: too late into the slot"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "RX %s %s  Hound: %s"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Stopped: nothing transmits until TX Call, CQ or a call is pressed"
+msgstr ""
+
+#: src/gps_window.c
+msgid "Sat in view/in use:"
+msgstr ""
+
+#: src/gps_window.c
+msgid "Fix:"
+msgstr ""
+
+#: src/gps_window.c
+msgid "Date, time:"
+msgstr ""
+
+#: src/gps_window.c
+msgid "Latitude:"
+msgstr ""
+
+#: src/gps_window.c
+msgid "Longitude:"
+msgstr ""
+
+#: src/gps_window.c
+msgid "QTH Grid:"
+msgstr ""
+
+#: src/gps_window.c
+msgid "GPS status"
+msgstr ""
+
+#: src/gui_main.c
+msgid ""
+"TEST ONLY base, not validated on a radio\n"
+"Compressor and CESSB start off"
+msgstr ""
+
+#: src/gui_main.c
+msgid "services: WiFi set up"
+msgstr ""
+
+#: src/gui_main.c
+msgid "services: Bluetooth set up"
+msgstr ""
+
+#: src/gui_main.c
+msgid "services: CAT, TCI and the browser's servers up"
+msgstr ""
+
+#: src/gui_main.c
+msgid "services: QSO log read"
+msgstr ""
+
+#: src/gui_main.c
+msgid "first frame"
+msgstr ""
+
+#: src/gui_main.c
+#, c-format
+msgid "GUI start, %s"
+msgstr ""
+
+#: src/gui_main.c
+msgid "settings read"
+msgstr ""
+
+#: src/gui_main.c
+msgid "screen built"
+msgstr ""
+
+#: src/gui_main.c
+msgid "services started"
+msgstr ""
+
+#: src/gui_main.c
+msgid " fault settings"
+msgstr ""
+
+#: src/host/host_panel.c
+#, c-format
+msgid "%s/run"
+msgstr ""
+
+#: src/image_level.c
+msgid "New card image out: Settings > Info"
+msgstr ""
+
+#: src/info_bar.c
+#, c-format
+msgid "BW %s   IF %+d   STEP %s"
+msgstr ""
+
+#: src/info_bar.c
+#, c-format
+msgid "SCOPE ±%d.%dk"
+msgstr ""
+
+#: src/info_bar.c
+#, c-format
+msgid "SCOPE ±%dk"
+msgstr ""
+
+#: src/input_caps.c
+#, c-format
+msgid "capabilities/%s"
+msgstr ""
+
+#: src/input_caps.c
+msgid "id/bustype"
+msgstr ""
+
+#: src/input_caps.c
+msgid "id/vendor"
+msgstr ""
+
+#: src/input_caps.c
+msgid "id/product"
+msgstr ""
+
+#: src/input_caps.c
+msgid "id/version"
+msgstr ""
+
+#: src/js8/auto_answer.cpp
+msgid "@APRSIS"
+msgstr ""
+
+#: src/js8/auto_answer.cpp src/js8/directed_msg.cpp src/js8/msg_kind.cpp
+msgid " QUERY"
+msgstr ""
+
+#: src/js8/auto_answer.cpp src/js8/command_words.cpp
+msgid " INFO?"
+msgstr ""
+
+#: src/js8/auto_answer.cpp src/js8/command_words.cpp
+msgid " STATUS?"
+msgstr ""
+
+#: src/js8/auto_answer.cpp src/js8/command_words.cpp
+msgid " GRID?"
+msgstr ""
+
+#: src/js8/auto_answer.cpp src/js8/command_words.cpp
+msgid " HEARING?"
+msgstr ""
+
+#: src/js8/auto_answer.cpp src/js8/directed_msg.cpp src/js8/msg_kind.cpp
+msgid " QUERY MSGS"
+msgstr ""
+
+#: src/js8/auto_answer.cpp src/js8/directed_msg.cpp src/js8/msg_kind.cpp
+msgid " QUERY CALL"
+msgstr ""
+
+#: src/js8/auto_answer.cpp
+msgid " HEARING"
+msgstr ""
+
+#: src/js8/auto_answer.cpp
+msgid "APRS"
+msgstr ""
+
+#: src/js8/auto_answer.cpp
+msgid " FROM "
+msgstr ""
+
+#: src/js8/auto_answer.cpp
+msgid " NEXT "
+msgstr ""
+
+#: src/js8/auto_answer.cpp
+msgid " HEARTBEAT SNR "
+msgstr ""
+
+#: src/js8/auto_answer.cpp
+msgid " HEARTBEAT SNR"
+msgstr ""
+
+#: src/js8/auto_answer.cpp src/js8/frame_text.cpp
+msgid "@HB HEARTBEAT"
+msgstr ""
+
+#: src/js8/command_words.cpp
+msgid " GRID "
+msgstr ""
+
+#: src/js8/command_words.cpp
+msgid ": HEARTBEAT"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp src/js8/js8_logic.cpp
+msgid "INFO?"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp src/js8/js8_logic.cpp
+#: src/jtty.c
+msgid "GRID?"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp src/js8/js8_logic.cpp
+msgid "STATUS?"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp
+msgid "QUERY MSGS?"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp src/js8/js8_logic.cpp
+msgid "HEARING?"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp
+msgid "HEARING"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp
+msgid "QUERY CALL"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp
+msgid "QUERY MSGS"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp src/js8/msg_store.cpp
+msgid "QUERY"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp
+msgid "NACK"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp
+msgid "HEARTBEAT SNR"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp src/js8_window.c
+msgid "INFO"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp src/js8/msg_kind.cpp
+msgid "GRID"
+msgstr ""
+
+#: src/js8/directed_msg.cpp
+msgid "MSGS"
+msgstr ""
+
+#: src/js8/directed_msg.cpp
+msgid "MSGS?"
+msgstr ""
+
+#: src/js8/directed_msg.cpp src/js8/msg_kind.cpp
+msgid "@ALLCALL"
+msgstr ""
+
+#: src/js8/frame_text.cpp
+msgid "CQ CONTEST"
+msgstr ""
+
+#: src/js8/frame_text.cpp
+msgid "CQ FIELD"
+msgstr ""
+
+#: src/js8/frame_text.cpp
+msgid "@ALLCALL "
+msgstr ""
+
+#: src/js8/js8_logic.cpp
+msgid "Send SNR"
+msgstr ""
+
+#: src/js8/js8_logic.cpp
+msgid "My grid"
+msgstr ""
+
+#: src/js8/js8_receive.cpp
+msgid "no receiver"
+msgstr ""
+
+#: src/js8/js8_receive.cpp
+msgid "empty WAV"
+msgstr ""
+
+#: src/js8/js8_receive.cpp
+msgid "unsupported sample rate "
+msgstr ""
+
+#: src/js8/msg_kind.cpp src/js8/qso_book.cpp
+msgid "HEARTBEAT"
+msgstr ""
+
+#: src/js8/msg_kind.cpp
+msgid " QUERY MSGS?"
+msgstr ""
+
+#: src/js8/msg_kind.cpp
+msgid " GRID"
+msgstr ""
+
+#: src/js8/msg_store.cpp
+msgid "# X6100 JS8 inbox v2: id, UTC ms, U(nread)/R(ead), from, to, path, message\n"
+msgstr ""
+
+#: src/js8/msg_store.cpp
+msgid "# X6100 JS8 held messages v2: id, UTC ms, H(eld)/D(elivered), from, for, path, RETRIEVE MSG sent (ms), fetched by (group), message\n"
+msgstr ""
+
+#: src/js8/msg_store.cpp
+msgid " RETRIEVE MSG "
+msgstr ""
+
+#: src/js8/msg_store.cpp
+msgid "RETRIEVE"
+msgstr ""
+
+#: src/js8/msg_store.cpp
+msgid "(?:^| )FROM (\\S+)(?: NEXT MSG ID (\\d+)(?: \\+\\d+)?)?$"
+msgstr ""
+
+#: src/js8/qso_book.cpp
+msgid ""
+"X6100 JS8 log, desktop JS8Call format\n"
+"<adif_ver:5>3.1.4 <programid:9>X6100_JS8 <eoh>\n"
+msgstr ""
+
+#: src/js8/qso_book.cpp
+msgid "can't open "
+msgstr ""
+
+#: src/js8/qso_book.cpp
+msgid "can't write "
+msgstr ""
+
+#: src/js8/tx_engine.cpp
+msgid "JS8 can't encode this message"
+msgstr ""
+
+#: src/js8/tx_engine.cpp
+msgid "set your callsign first"
+msgstr ""
+
+#: src/js8/tx_engine.cpp
+msgid "nothing to send"
+msgstr ""
+
+#: src/js8/tx_engine.cpp
+msgid "JS8 can't send '"
+msgstr ""
+
+#: src/js8/tx_engine.cpp
+msgid "too long: "
+msgstr ""
+
+#: src/js8/tx_engine.cpp
+msgid " frames (max "
+msgstr ""
+
+#: src/js8/tx_engine.cpp
+msgid "offset must be "
+msgstr ""
+
+#: src/js8/tx_engine.cpp
+msgid " Hz in "
+msgstr ""
+
+#: src/js8/tx_engine.cpp
+msgid "already sending"
+msgstr ""
+
+#: src/js8/wav_file.cpp
+msgid "cannot open "
+msgstr ""
+
+#: src/js8/wav_file.cpp
+msgid "not a RIFF/WAVE file"
+msgstr ""
+
+#: src/js8/wav_file.cpp
+msgid "data chunk before fmt chunk"
+msgstr ""
+
+#: src/js8/wav_file.cpp
+msgid "longer than an hour"
+msgstr ""
+
+#: src/js8/wav_file.cpp
+msgid "not enough memory for the file"
+msgstr ""
+
+#: src/js8/wav_file.cpp
+msgid "bad fmt chunk"
+msgstr ""
+
+#: src/js8/wav_file.cpp
+msgid "only PCM WAV is supported"
+msgstr ""
+
+#: src/js8/wav_file.cpp
+msgid "need 16-bit PCM"
+msgstr ""
+
+#: src/js8/wav_file.cpp
+msgid "no data chunk"
+msgstr ""
+
+#: src/js8/wav_file.cpp
+msgid "RIFF"
+msgstr ""
+
+#: src/js8/wav_file.cpp
+msgid "WAVE"
+msgstr ""
+
+#: src/js8_map.c
+#, c-format
+msgid "  %s%.0f km  az %.0f"
+msgstr ""
+
+#: src/js8_map.c
+msgid "hears me"
+msgstr ""
+
+#: src/js8_map.c
+msgid "by prefix"
+msgstr ""
+
+#: src/js8_map.c
+msgid "Main knob: zoom  MFK: select, press: QSO  ESC: close"
+msgstr ""
+
+#: src/js8_map.c
+msgid "Main knob: zoom  MFK: select  ESC: close"
+msgstr ""
+
+#: src/js8_map.c
+msgid "ESC: close"
+msgstr ""
+
+#: src/js8_map.c
+#, c-format
+msgid "%d heard  %d hear me"
+msgstr ""
+
+#: src/js8_map.c
+#, c-format
+msgid "QSO map - %d station%s"
+msgstr ""
+
+#: src/js8_map.c
+msgid "World"
+msgstr ""
+
+#: src/js8_map.c
+msgid "Auto: world"
+msgstr ""
+
+#: src/js8_map.c
+#, c-format
+msgid "Auto: x%d"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Heart-\n"
+"beat"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Query >"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Reply"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Send..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "Settings..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "APRS >"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Log QSO"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Alerts >"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Map"
+msgstr ""
+
+#: src/js8_window.c
+msgid "  (bad checksum)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Listening for JS8..."
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "heard you (%s)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "heard you %+03d (%s)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "No stations heard yet"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s at %.0f Hz, %+d dB"
+msgstr ""
+
+#: src/js8_window.c
+msgid "HB paused (Turbo)  "
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "HB %um next %02d:%02d  "
+msgstr ""
+
+#: src/js8_window.c
+msgid "AUTO/HB PAUSED (idle)  "
+msgstr ""
+
+#: src/js8_window.c
+msgid "AUTO  "
+msgstr ""
+
+#: src/js8_window.c
+msgid "TEST WAV  "
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s%s%s  %02d:%02d:%02dZ%s  total %u"
+msgstr ""
+
+#: src/js8_window.c
+msgid "JS8: cannot start decoder"
+msgstr ""
+
+#: src/js8_window.c src/radio.c
+msgid "TX stopped"
+msgstr ""
+
+#: src/js8_window.c
+msgid "JS8: cannot start transmitter"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Auto CQ %u min after each CQ: turn the knob (%d-%d), press CQ when done"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "HB every %u min: turn the knob (5-30), press HB when done"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "TX %4.0f Hz %s  sending %d/%d   %s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "starts in"
+msgstr ""
+
+#: src/js8_window.c
+msgid "next in"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "TX %4u Hz %s   ready%s%s%s%s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "  (set your callsign: Settings > General)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "      selected: "
+msgstr ""
+
+#: src/js8_window.c
+msgid "      auto CQ"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Already sending - Stop TX first"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%sQueued: %d frame%s, %.0f s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%d frame%s, %.0f s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s saved"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Groups: %s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "No groups"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Saved message %d saved"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Saved message %d cleared"
+msgstr ""
+
+#: src/js8_window.c
+msgid " INFO, e.g. X6100 5W EFHW"
+msgstr ""
+
+#: src/js8_window.c
+msgid " STATUS, e.g. PORTABLE QRV"
+msgstr ""
+
+#: src/js8_window.c
+msgid " Your groups, e.g. @NET @CANADA"
+msgstr ""
+
+#: src/js8_window.c
+msgid " Message, e.g. <CALL> TNX FER QSO 73 GL"
+msgstr ""
+
+#: src/js8_window.c
+msgid " Their grid, e.g. DN17"
+msgstr ""
+
+#: src/js8_window.c
+msgid " Their name"
+msgstr ""
+
+#: src/js8_window.c
+msgid " Comment for the log"
+msgstr ""
+
+#: src/js8_window.c
+msgid " Your park, e.g. CA-1234"
+msgstr ""
+
+#: src/js8_window.c
+msgid " Your summit, e.g. VE7/LM-001"
+msgstr ""
+
+#: src/js8_window.c
+msgid " Calls or words, e.g. VE7ABC @POTA SOTA"
+msgstr ""
+
+#: src/js8_window.c
+msgid " Dial frequency in kHz, e.g. 7107"
+msgstr ""
+
+#: src/js8_window.c
+msgid " Park CA-1234 / summit VE7/LM-001"
+msgstr ""
+
+#: src/js8_window.c
+msgid " kHz, e.g. 7185 - empty: the JS8 dial"
+msgstr ""
+
+#: src/js8_window.c
+msgid " Comment, e.g. QRT or CQ"
+msgstr ""
+
+#: src/js8_window.c
+msgid " Message (optional) - Enter sends"
+msgstr ""
+
+#: src/js8_window.c
+msgid " CALL MESSAGE / @ALLCALL ..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "Set your callsign first: Settings > General"
+msgstr ""
+
+#: src/js8_window.c
+msgid "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .-+?!\"/@:<>{}_#&'(),=;*"
+msgstr ""
+
+#: src/js8_window.c
+msgid "band changed"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "End of the %s list"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Show:\n"
+"No HB"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Show:\n"
+"Directed"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Show:\n"
+"All"
+msgstr ""
+
+#: src/js8_window.c
+msgid "no HB"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Messages (%s)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Not while sending - Stop TX first"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Time Sync: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Time Sync needs %d decodes in the last 2 min (have %u). Clock far off? Set it in SETTINGS first"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "JS8 time is on (within 0.05 s of %u %s)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "JS8 time moved %+.2f s (median of %u %s); drift now %+.2f s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "JS8 time %+.2f s, drift %+.2f s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Drift reset: JS8 back on the radio's clock"
+msgstr ""
+
+#: src/js8_window.c
+msgid "No drift: JS8 is on the radio's clock"
+msgstr ""
+
+#: src/js8_window.c
+msgid "drift reset"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Select a station first (MFK)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Stopping TX"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Not sending"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid ""
+"CQ: knob\n"
+"< %u min >"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"CQ auto:\n"
+"sending"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"CQ auto:\n"
+"now"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid ""
+"CQ auto:\n"
+"%d:%02d"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid ""
+"CQ auto:\n"
+"%d s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Auto CQ %u min after each CQ (press CQ to stop)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Auto CQ on"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Auto CQ on: turn the knob to set the minutes, press CQ when done"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Auto CQ off: %s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "idle for an hour"
+msgstr ""
+
+#: src/js8_window.c
+msgid "could not send"
+msgstr ""
+
+#: src/js8_window.c
+msgid "No heartbeats in Turbo, as in desktop JS8Call"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "HB timer restarted: next in %u min"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Hold:\n"
+"On"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Hold:\n"
+"Off"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Replies stay on your offset"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Replies move to their offset"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Show\n"
+"Messages"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Show\n"
+"Stations"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Set your grid first: Settings > General"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Nothing to send"
+msgstr ""
+
+#: src/js8_window.c
+msgid "List closed"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Message..."
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Message for %s's inbox: type it and press Enter"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Message via them..."
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Left at %s for someone: type their call, a space, the message"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Any messages?"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s QUERY MSGS"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Fetch message #..."
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s QUERY MSG "
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Type the number of the message %s holds for you"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Relay via them..."
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Passed on by %s: type the call it's for, a space, the message"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Can they reach...?"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s QUERY CALL "
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Ask %s if they hear a station: type its call and ?"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "To %s (%+d dB)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "No station selected"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Saved messages >"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Can't write %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Message %d: Enter saves, empty clears. Macros: <CALL> <SNR> <TDELTA> <MYCALL> <MYGRID4> <MYGRID12> <MYINFO> <MYSTATUS> <MYIDLE> <MYVERSION>"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Select a station first: message %d has <CALL>, <SNR> or <TDELTA>"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Nothing to send: message %d has only macros that are empty now"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Message %d is empty: press or hold to write one"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%d: %s (select a station first)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Saved: press sends, hold edits"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%d  (empty)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Relaying %s's message"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Auto: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Heartbeats off: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "HB and HB ACK off: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "QSO with %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s asks you to relay to %s - select it and press Reply to pass it on"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s: Reply passes on \"%s\" (AUTO does it by itself)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Message from %s - select it and press Reply to send ACK"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Relayed message via %s - select it and press Reply to send ACK"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s: Reply sends \"%s\" (AUTO sends it by itself)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s asks for the message held for them - select it and press Reply to send it"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s asks for held message %d: Reply sends it"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s asks how you copy - select it and press Reply"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s asked HW CPY?: Reply has \"%s\""
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s holds a message for you - select it and press Reply to fetch it"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s holds a message for you: Reply sends \"%s\""
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s asked %s - select it and press Reply to answer"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s asked %s: Reply sends \"%s\""
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s answered"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"AUTO:\n"
+"On"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"AUTO:\n"
+"Off"
+msgstr ""
+
+#: src/js8_window.c
+msgid "AUTO on: answers SNR? GRID? INFO? STATUS? HEARING? AGN?"
+msgstr ""
+
+#: src/js8_window.c
+msgid "AUTO off: answers are offered on Reply"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid ""
+"HB: knob\n"
+"< %u min >"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"HB:\n"
+"Off"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "HB every %u min"
+msgstr ""
+
+#: src/js8_window.c
+msgid "HB off"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"HB ACK:\n"
+"On"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"HB ACK:\n"
+"On (idle)"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"HB ACK:\n"
+"Off"
+msgstr ""
+
+#: src/js8_window.c
+msgid "HB ACK acts only while AUTO and HB are on"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Relay: On"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Relay: Off"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Relay on: relays (>) are passed on and MSG TO: messages held, as desktop JS8Call"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Relay off: relays (>) and MSG TO: messages for others are ignored"
+msgstr ""
+
+#: src/js8_window.c
+msgid "(not set)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Groups"
+msgstr ""
+
+#: src/js8_window.c
+msgid "(none)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "@APRSIS CMD :"
+msgstr ""
+
+#: src/js8_window.c
+msgid "@APRSIS CMD "
+msgstr ""
+
+#: src/js8_window.c
+msgid "Spot my grid"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Spot GPS position"
+msgstr ""
+
+#: src/js8_window.c
+msgid "POTA spot"
+msgstr ""
+
+#: src/js8_window.c
+msgid "SOTA spot"
+msgstr ""
+
+#: src/js8_window.c
+msgid "SMS text"
+msgstr ""
+
+#: src/js8_window.c
+msgid "SMS (NA7Q gateway): 10-digit number, space, message"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Email"
+msgstr ""
+
+#: src/js8_window.c
+msgid "EMAIL-2  :"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Email: address, space, message"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Winlink: start"
+msgstr ""
+
+#: src/js8_window.c
+msgid "WLNK-1   :SP "
+msgstr ""
+
+#: src/js8_window.c
+msgid "Winlink 1/3: address (or call), space, subject. Spot your grid first"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Winlink: text"
+msgstr ""
+
+#: src/js8_window.c
+msgid "WLNK-1   :"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Winlink 2/3: one line of the message; repeat for more lines"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Winlink: send"
+msgstr ""
+
+#: src/js8_window.c
+msgid "APRS: the addressee is 9 characters, then ':'"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "APRS: nothing to send to %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "APRS allows %d characters after the addressee, this is %u: shorten it"
+msgstr ""
+
+#: src/js8_window.c
+msgid "No GPS fix: plug in a GPS and wait for a fix (APP > GPS shows it)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "No current GPS fix (last one %d min ago)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "GPS position out of range"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "@APRSIS GRID %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "APRS: spotting %s at %s%s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "APRS: position %s (%s%s) with \"%s\""
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Position + message: %d frames, %.0f s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Plain position: %d frames, %.0f s - type a message, or Enter"
+msgstr ""
+
+#: src/js8_window.c
+msgid "WLNK-1   :/EX"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Winlink 3/3: sending /EX"
+msgstr ""
+
+#: src/js8_window.c
+msgid "APRS via @APRSIS"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Type the frequency in kHz, e.g. 7185"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Out of range: 1800 kHz - 1300 MHz"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Send spot"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Summit"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Park"
+msgstr ""
+
+#: src/js8_window.c
+msgid "(type it)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Frequency: %s MHz (%s)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "JS8 dial"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Mode: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Comment: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Comment: %s (auto)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Comment: (none)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "APSPOT"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Type the %s first"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s spot: %s. A JS8Call APRS gateway must hear it; the reply goes to APRS, not here"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Summit, e.g. VE7/LM-001"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Park, e.g. CA-1234 (POTA uses US- and CA- now, not K- or VE-)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Frequency in kHz (7185) or MHz for VHF (144.2); clear it and Enter for the JS8 dial"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Comment (optional; with none, a JS8 dial spot says JS8)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "SOTA spot via APRS2SOTA (registration needed)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "POTA spot via APSPOT (your pota.app account)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "POTA park numbers are US-/CA- now (was K-/VE-): check yours"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Nothing to log"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Not logged: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Logged %s%s%s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Logged %s %s %s/%s%s%s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Sent %s  Rcvd %s  %.3f MHz  %.0f W"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Grid: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Log %s  %s  %s-%s UTC"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Name: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Activating POTA %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Activating SOTA %s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Position not sent"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "QSO with %s ended - Save to log?"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "QSO with %s ended: Log QSO (page 5) to log it"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Log\n"
+"prompt: On"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Log\n"
+"prompt: Off"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Offer to log when a QSO ends with 73 or SK"
+msgstr ""
+
+#: src/js8_window.c
+msgid "No log prompt: use Log QSO"
+msgstr ""
+
+#: src/js8_window.c
+msgid "(hold: set)"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Activ.:\n"
+"Off"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Not activating: no park or summit in the log"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Logging as %s %s (hold to change)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Hold this button to set your %s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Press to choose POTA or SOTA first"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Inbox"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid ""
+"Inbox\n"
+"%d new"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Can't save %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Holding a message from %s for %s (Inbox)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Holding message %d from %s for %s: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Message from %s - can't save %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "New message to %s from %s - Inbox on page 3"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "New message from %s - Inbox on page 3"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Message from %s in the Inbox: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Held message %d stopped before the end: still held"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Held message %d delivered"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s QUERY MSG %d"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Left at %s for %s: type the message and press Enter"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "APRS message to %s: type it and press Enter"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Type their call, then MSG and the message"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "For %s from %s  %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "For any %s member to fetch for 2 days; fetched by %d"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Delivered to %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Waiting for %s to ask (QUERY MSGS)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "From %s to %s  %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "From %s  %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Reply by APRS to %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Reply: MSG to %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Reply to %s via %s (MSG TO:)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Reply to %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Fetch the next: QUERY MSG %d"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Inbox: %d message%s, %d new"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "New message to %s..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "New message..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "No messages yet"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Held for others: %d waiting"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid " (%d got it)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%sfor %s%s from %s  %s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "(sent) "
+msgstr ""
+
+#: src/js8_window.c
+msgid "high SWR"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "High SWR %.1f:1: AUTO, HB, HB ACK and auto CQ off"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "High SWR %.1f:1: AUTO, HB, HB ACK and auto CQ off. Check the antenna"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Alert %s: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "New station: %s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Beep"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Message to me"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Inbox message"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Someone calls CQ"
+msgstr ""
+
+#: src/js8_window.c
+msgid "New station (not in log)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Beep is off"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Calls or words to watch for, separated by spaces"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Alerts: beep, and alert words in purple"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Alert words: %s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Test beep"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s was heard on %s, you send %s - hold Speed (page 6) to match"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Sending %s: %d s slots, %d Hz wide%s"
+msgstr ""
+
+#: src/js8_window.c
+msgid ", no heartbeats (as desktop)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Sending at %s speed"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid ""
+"Speed:\n"
+"%s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Already sending %s"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Decode:\n"
+"All speeds"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Decode:\n"
+"My speed"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Decoding every speed (Normal, Fast, Turbo, Slow)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Decoding %s only"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Freq:\n"
+"GhostNet"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Freq:\n"
+"JS8"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Type the dial frequency in kHz, e.g. 7107"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Out of range: 1800 - 54000 kHz"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Dial frequency in kHz, then Enter"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Now: %s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "JS8Call frequencies (7.078, 14.078...)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "GhostNet (3.575, 7.107, 14.107)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Custom kHz..."
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Custom kHz... (last %s)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%s: not heard on this band"
+msgstr ""
+
+#: src/jtty.c
+msgid "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ +-./?!\"#$%,&*()_'=[]{}<>|:;"
+msgstr ""
+
+#: src/jtty.c
+msgid "CALL?"
+msgstr ""
+
+#: src/jtty.c
+msgid "AGN CALL"
+msgstr ""
+
+#: src/jtty.c
+msgid "EXCH?"
+msgstr ""
+
+#: src/jtty.c
+msgid "STATE?"
+msgstr ""
+
+#: src/jtty.c
+msgid "SECTION?"
+msgstr ""
+
+#: src/jtty.c
+msgid "ZONE?"
+msgstr ""
+
+#: src/jtty.c
+msgid "RPRT?"
+msgstr ""
+
+#: src/jtty.c
+msgid "WAIT"
+msgstr ""
+
+#: src/jtty.c
+msgid " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+msgstr ""
+
+#: src/jtty.c
+msgid " ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+msgstr ""
+
+#: src/jtty.c
+msgid "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+msgstr ""
+
+#: src/kbd_layout.c
+msgid "German (QWERTZ)"
+msgstr ""
+
+#: src/kbd_layout.c
+msgid "Swiss German"
+msgstr ""
+
+#: src/kbd_layout.c
+msgid "French (AZERTY)"
+msgstr ""
+
+#: src/kbd_layout.c
+msgid "Belgian (AZERTY)"
+msgstr ""
+
+#: src/kbd_layout.c
+msgid "Spanish"
+msgstr ""
+
+#: src/kbd_layout.c
+msgid "Italian"
+msgstr ""
+
+#: src/kbd_layout.c
+msgid "Portuguese"
+msgstr ""
+
+#: src/kbd_layout.c
+msgid "Swedish"
+msgstr ""
+
+#: src/kbd_layout.c
+msgid "Finnish"
+msgstr ""
+
+#: src/kbd_layout.c
+msgid "Danish"
+msgstr ""
+
+#: src/kbd_layout.c
+msgid "Norwegian"
+msgstr ""
+
+#: src/kbd_layout.c
+msgid "Polish"
+msgstr ""
+
+#: src/kbd_layout.c
+msgid "Czech (QWERTZ)"
+msgstr ""
+
+#: src/knob_info.cpp src/settings_window.cpp
+msgid "Volume"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Voice SQL"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "RF gain"
+msgstr ""
+
+#: src/knob_info.cpp src/settings_window.cpp
+msgid "Filter low"
+msgstr ""
+
+#: src/knob_info.cpp src/settings_window.cpp
+msgid "Filter high"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Filter bw"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Power"
+msgstr ""
+
+#: src/knob_info.cpp src/settings_window.cpp
+msgid "Moni level"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Brightness"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Zoom"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Compressor"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "IF shift"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "WF ref"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "WF mode"
+msgstr ""
+
+#: src/knob_info.cpp src/radio_controls.cpp src/screen_main.c
+msgid "Centered"
+msgstr ""
+
+#: src/knob_info.cpp src/radio_controls.cpp src/screen_main.c
+msgid "Fixed"
+msgstr ""
+
+#: src/knob_info.cpp src/settings_window.cpp
+msgid "3D depth"
+msgstr ""
+
+#: src/knob_info.cpp src/settings_window.cpp
+msgid "3D tilt"
+msgstr ""
+
+#: src/knob_info.cpp src/settings_window.cpp
+msgid "3D floor"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Cluster order"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Cluster bands"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Cluster modes"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Some"
+msgstr ""
+
+#: src/knob_info.cpp src/walkie.c
+msgid "Step"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Notch filter"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "DNF center"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "DNF width"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "DNF auto"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Noise blanker"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "NB level"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "NB width"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Noise reduction"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "NR level"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Key speed"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Key train"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Key mode"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Auto-L"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Auto-R"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Iambic mode"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Key tone"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Key vol"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "QSK time"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "Key ratio"
+msgstr ""
+
+#: src/knob_info.cpp src/screen_main.c
+msgid "CW decoder"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "CW tuner"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "CW decoded snr"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "CW peak"
+msgstr ""
+
+#: src/knob_info.cpp
+msgid "CW peak Q"
+msgstr ""
+
+#: src/lcd_panel.c
+msgid "NTCH"
+msgstr ""
+
+#: src/lcd_panel.c
+msgid "SPLT"
+msgstr ""
+
+#: src/lcd_panel.c
+msgid "XFIL"
+msgstr ""
+
+#: src/lcd_panel.c
+msgid "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYPSaaaaaaaceeeeiiiidnooooo/ouuuuypy"
+msgstr ""
+
+#: src/main.h
+msgid "OpenX6X00 - v0.3.12"
+msgstr ""
+
+#: src/mic_keys.c
+msgid "SPCH"
+msgstr ""
+
+#: src/mic_keys.c
+msgid "TUNER"
+msgstr ""
+
+#: src/mic_keys.c
+msgid "DOWN"
+msgstr ""
+
+#: src/mic_keys.c
+msgid "GENE"
+msgstr ""
+
+#: src/mic_keys.c
+msgid "BAND UP"
+msgstr ""
+
+#: src/mic_keys.c
+msgid "BAND DOWN"
+msgstr ""
+
+#: src/navtex_window.c src/wefax_window.c
+msgid "Save"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "International, English"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "National, local language"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "Tropical areas"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "HF MSI (NBDP)"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "DSC distress / safety"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "MF distress / safety"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "HF distress / safety"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "all ships"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "DISTRESS ALERT"
+msgstr ""
+
+#: src/navtex_window.c
+#, c-format
+msgid "%s%s %s  distress ack"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "ALL SHIPS"
+msgstr ""
+
+#: src/navtex_window.c
+#, c-format
+msgid "AREA %s"
+msgstr ""
+
+#: src/navtex_window.c
+#, c-format
+msgid "%s group %s"
+msgstr ""
+
+#: src/navtex_window.c
+#, c-format
+msgid "%s%s  RELAY %s %s"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "position unknown"
+msgstr ""
+
+#: src/navtex_window.c
+#, c-format
+msgid "Coast, %s"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "DISTRESS"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "URGENCY"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "SAFETY"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "ROUTINE"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "DSC 100 Bd / 170 Hz   MFK: scroll   Freq.: channels"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "SITOR-B 100 Bd / 170 Hz   MFK: scroll   Freq.: stations"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "NAVTEX ready - 100 baud / 170 Hz shift\n"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "Nothing to save"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "NAVTEX: save failed"
+msgstr ""
+
+#: src/navtex_window.c src/screen_rec.c src/screen_shot.c
+#, c-format
+msgid "Saved %s"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "DSC - channels"
+msgstr ""
+
+#: src/navtex_window.c
+msgid "NAVTEX - frequencies"
+msgstr ""
+
+#: src/navtex_window.c
+msgid ""
+"Mode:\n"
+"DSC"
+msgstr ""
+
+#: src/navtex_window.c
+msgid ""
+"Mode:\n"
+"NAVTEX"
+msgstr ""
+
+#: src/olivia_macro.c src/psk_macro.c
+msgid "CQ CQ CQ de <MYCALL> <MYCALL> <MYCALL> pse k"
+msgstr ""
+
+#: src/olivia_macro.c src/psk_macro.c
+msgid "Answer"
+msgstr ""
+
+#: src/olivia_macro.c src/psk_macro.c
+msgid "Report"
+msgstr ""
+
+#: src/ops_room.c
+msgid "EXTERNAL"
+msgstr ""
+
+#: src/ops_room.c
+msgid "INTERNAL"
+msgstr ""
+
+#: src/ops_room.c
+msgid "NO BATT"
+msgstr ""
+
+#: src/ops_room.c
+msgid "SUPPLY"
+msgstr ""
+
+#: src/ops_room.c
+msgid "TO FULL"
+msgstr ""
+
+#: src/ops_room.c
+msgid "LIMIT"
+msgstr ""
+
+#: src/ops_room.c
+msgid "FULL"
+msgstr ""
+
+#: src/ops_room.c src/smeter.c
+msgid "SIGNAL"
+msgstr ""
+
+#: src/ops_room.c
+msgid "TRANSMIT"
+msgstr ""
+
+#: src/pa_bias.c
+#, c-format
+msgid "bias: the base's calibration block could not be read: the fixed %u/%u instead"
+msgstr ""
+
+#: src/pa_bias.c
+#, c-format
+msgid "%u / %u, the radio's own"
+msgstr ""
+
+#: src/pa_bias.c
+#, c-format
+msgid "%u / %u, own or an old version's"
+msgstr ""
+
+#: src/pa_bias.c
+#, c-format
+msgid "%u / %u, fixed (base: %u / %u)"
+msgstr ""
+
+#: src/pa_bias.c
+#, c-format
+msgid "%u / %u, fixed (not read)"
+msgstr ""
+
+#: src/perf_hud.c
+#, c-format
+msgid "%.0f fps  draw %.1f/%u ms  loop %u ms  knob %s"
+msgstr ""
+
+#: src/qso_log.c
+#, c-format
+msgid "Import: %s could not be read"
+msgstr ""
+
+#: src/qso_log.c
+#, c-format
+msgid "Importing QSO: %d/%d"
+msgstr ""
+
+#: src/qso_log.c
+#, c-format
+msgid "No QSO readable in the ADIF file (%d broken): kept as %s"
+msgstr ""
+
+#: src/qso_log.c
+#, c-format
+msgid "No QSOs found in the ADIF file: kept as %s"
+msgstr ""
+
+#: src/qso_log.c
+#, c-format
+msgid "Imported %u QSOs, %u not saved: the file is kept for the next start"
+msgstr ""
+
+#: src/qso_log.c
+#, c-format
+msgid "Imported %u QSOs (%u already in the log, %u without a callsign, %d broken)"
+msgstr ""
+
+#: src/qso_log.c
+#, c-format
+msgid "Imported %u QSOs"
+msgstr ""
+
+#: src/radio.c
+msgid "BATTERY HIGH TEMP!"
+msgstr ""
+
+#: src/radio.c
+msgid "PA HIGH TEMP!"
+msgstr ""
+
+#: src/radio.c
+msgid "DCIN TOO LOW!"
+msgstr ""
+
+#: src/radio.c
+msgid "BATTERY LOW TEMP!"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "TX power %0.0f W on battery"
+msgstr ""
+
+#: src/radio.c
+msgid "base: its pins or its line could not be opened"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "base: no answer (try %u)"
+msgstr ""
+
+#: src/radio.c
+msgid "base: reset"
+msgstr ""
+
+#: src/radio.c
+msgid "base answered"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "base: version %s"
+msgstr ""
+
+#: src/radio.c
+msgid "base: TEST ONLY base, compressor and CESSB off, TX filter 300-3000 Hz"
+msgstr ""
+
+#: src/radio.c
+msgid "Speaker always off: Settings > Audio"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "No tuner: %.1f W transverter"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "%s on %s"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "%s: no TX"
+msgstr ""
+
+#: src/radio.c
+msgid "TX ranges: Settings > TX Cal"
+msgstr ""
+
+#: src/radio.c
+msgid "No TX ranges: Settings > TX Cal"
+msgstr ""
+
+#: src/radio.c
+msgid "Out of band: Settings > TX Cal"
+msgstr ""
+
+#: src/radio.c
+msgid "Receive only there"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "%s: no data from the base"
+msgstr ""
+
+#: src/radio.c
+msgid "Baseband: Settings > Info"
+msgstr ""
+
+#: src/radio.c
+msgid "KEY Train: sidetone only, 0 W"
+msgstr ""
+
+#: src/radio.c
+msgid "0 W during Birdie Cal"
+msgstr ""
+
+#: src/radio.c
+msgid "Base still keys only inside its own band table"
+msgstr ""
+
+#: src/radio.c
+msgid "Base's band table not set: TX held at 0 W only"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "TX power %.1f W: transverter %s"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "TX power back to %.1f W"
+msgstr ""
+
+#: src/radio.c
+msgid "time,vbat,batcap,vext,charging,tx,backlight,cpu_mhz,tx_s,tx_w,wifi,bt,hp\n"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "Battery %d%%: connect power"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "Battery %d%%: about %d min left"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "Battery %d%%"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "battery: readings count from %llu ms: %.1f V %u%%, external %.1f V"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "TX stopped: SWR %.1f"
+msgstr ""
+
+#: src/radio.c
+msgid "No data from the base"
+msgstr ""
+
+#: src/radio.c
+msgid "No spectrum, no SWR protection"
+msgstr ""
+
+#: src/radio.c
+msgid "Base versions: see the README"
+msgstr ""
+
+#: src/radio.c
+#, c-format
+msgid "base: no data in %u s"
+msgstr ""
+
+#: src/radio.c
+msgid "SWR scan: no data from the base"
+msgstr ""
+
+#: src/radio.c
+msgid "Tuner stopped"
+msgstr ""
+
+#: src/radio.c
+msgid "Tuner did not start"
+msgstr ""
+
+#: src/radio.c
+msgid "Tuner: no match"
+msgstr ""
+
+#: src/radio.c
+msgid "Tuner: no data from the base"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "RF gain: %i"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "WEFAX Align: %i"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "WEFAX Tilt: %i"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Voice SQL: %i"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Moni level: %i"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Key speed: %i wpm"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Key tone: %i Hz"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Key volume: %i"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "QSK time: %i ms"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "CW peak Q: %i"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "DNF center: %i Hz"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "DNF width: %i Hz"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "NB level: %i"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "NB width: %i"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "NR level: %i"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Waterfall ref: %+i dB"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "3D depth: %i traces"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "3D tilt: %i"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "3D floor: +%i"
+msgstr ""
+
+#: src/radio_controls.cpp
+msgid "Power: "
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Key ratio: %0.1f"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "CW decoder SNR: %0.1f dB"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Filter low: %i Hz"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Filter high: %i Hz"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Filter bw: %i Hz"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Key train: %s"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "CW peak: %s"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "DNF auto: %s"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "CW decoder: %s"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "CW tune: %s"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Waterfall: %s"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Waterfall 3D: %s"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Cluster order: %s"
+msgstr ""
+
+#: src/radio_controls.cpp src/screen_main.c
+#, c-format
+msgid "Volume: %i"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Zoom: x%i"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Compressor ratio: %s"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Key mode: %s"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Iambic mode: %s"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "RTTY rate: %0.2f"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "RTTY shift: %i Hz"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "RTTY center: %i Hz"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "RTTY reverse: %s"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Cluster modes: %s"
+msgstr ""
+
+#: src/radio_controls.cpp src/screen_main.c
+#, c-format
+msgid "Freq step: %s"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "Brightness: %s"
+msgstr ""
+
+#: src/radio_controls.cpp
+#, c-format
+msgid "IF shift: %i Hz"
+msgstr ""
+
+#: src/radio_controls.cpp
+msgid "IF shift is not supported"
+msgstr ""
+
+#: src/recorder.c
+msgid "RX recorder: the microSD could not be written"
+msgstr ""
+
+#: src/recorder.c
+msgid "Problem with create file"
+msgstr ""
+
+#: src/recorder.c
+msgid "RX recorder is on"
+msgstr ""
+
+#: src/recorder.c
+msgid "RX recorder is off"
+msgstr ""
+
+#: src/recorder_window.c
+msgid ""
+"Rec\n"
+"Stop"
+msgstr ""
+
+#: src/recorder_window.c src/voice_messages.c
+msgid "Rename"
+msgstr ""
+
+#: src/recorder_window.c
+msgid ""
+"Play\n"
+"Stop"
+msgstr ""
+
+#: src/recorder_window.c
+msgid "No recordings yet: Rec starts one"
+msgstr ""
+
+#: src/remote_server.c src/settings_window.cpp
+msgid "POWER"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "Tailscale Funnel paused %d min: wrong keys from the internet"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "%.24s (away)"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "Pair code: #ffb020 %s#  (2 min)"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "Pairing paused %d min: three wrong codes. Settings > General > BROWSER REMOTE > Pair code gives one now"
+msgstr ""
+
+#: src/remote_server.c
+msgid "mode: not on this radio"
+msgstr ""
+
+#: src/remote_server.c
+msgid "freq: locked (LOCK, or an app holds the frequency)"
+msgstr ""
+
+#: src/remote_server.c
+msgid "freq: not a frequency this radio tunes"
+msgstr ""
+
+#: src/remote_server.c
+#, c-format
+msgid "%s: the radio is busy, try again"
+msgstr ""
+
+#: src/remote_server.c
+msgid "the radio's operator"
+msgstr ""
+
+#: src/remote_server.c
+msgid "a TCI client"
+msgstr ""
+
+#: src/remote_server.c
+msgid "pairing code shown on the radio for 2 min"
+msgstr ""
+
+#: src/remote_server.c src/tci_server.c
+msgid " via Funnel"
+msgstr ""
+
+#: src/remote_server.c
+msgid " (admin)"
+msgstr ""
+
+#: src/rtty.c
+msgid "RTTY TX busy"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Dial locked"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Dial unlocked"
+msgstr ""
+
+#: src/screen_main.c
+#, c-format
+msgid "Keep holding LOCK to restart: %i s"
+msgstr ""
+
+#: src/screen_main.c
+msgid "LOCK let go: no restart"
+msgstr ""
+
+#: src/screen_main.c
+msgid "CHANNEL"
+msgstr ""
+
+#: src/screen_main.c
+msgid "NO STATION SCHEDULED"
+msgstr ""
+
+#: src/screen_main.c
+#, c-format
+msgid ""
+"%.3f kHz     %02d:%02d-%02d:%02d UTC\n"
+"Language: %s     Target: %s\n"
+"ITU: %s     Days: %s"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Daily"
+msgstr ""
+
+#: src/screen_main.c
+msgid "SAVE ERROR"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Channel save error"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Unable to load channels"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Unable to add channel"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Unable to set channel name"
+msgstr ""
+
+#: src/screen_main.c
+msgid "CHANNEL SAVED"
+msgstr ""
+
+#: src/screen_main.c
+#, c-format
+msgid "Saved channel %s"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Saved channel"
+msgstr ""
+
+#: src/screen_main.c
+#, c-format
+msgid "Nothing to load for memory %i"
+msgstr ""
+
+#: src/screen_main.c
+#, c-format
+msgid "Loaded from memory %i"
+msgstr ""
+
+#: src/screen_main.c
+#, c-format
+msgid "Saved in memory %i"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Snake"
+msgstr ""
+
+#: src/screen_main.c
+msgid "First start"
+msgstr ""
+
+#: src/screen_main.c
+msgid "RADE needs headphones, TCI or the browser"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Waterfall"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Waterfall 3D"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Not used in this mode"
+msgstr ""
+
+#: src/screen_main.c
+#, c-format
+msgid "Clone VFO %s"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Pre"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Att"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Power off"
+msgstr ""
+
+#: src/screen_main.c
+msgid "PTT off: CapsLock+Space for on"
+msgstr ""
+
+#: src/screen_main.c
+msgid "PTT off: not on the air"
+msgstr ""
+
+#: src/screen_main.c
+msgid "PTT off: no data from the base"
+msgstr ""
+
+#: src/screen_main.c
+msgid "PTT off: three minutes on the air"
+msgstr ""
+
+#: src/screen_main.c
+msgid "PTT off"
+msgstr ""
+
+#: src/screen_main.c
+msgid "PTT on: CapsLock+Space for off"
+msgstr ""
+
+#: src/screen_main.c
+msgid "PTT off: keyboard gone"
+msgstr ""
+
+#: src/screen_main.c
+#, c-format
+msgid "Low battery, DC IN under %d V! Turning off in 30s."
+msgstr ""
+
+#: src/screen_main.c
+msgid "Low battery! Turning off in 30s."
+msgstr ""
+
+#: src/screen_rec.c
+#, c-format
+msgid "screen-%Y%m%d-%H%M%S.avi"
+msgstr ""
+
+#: src/screen_rec.c
+#, c-format
+msgid "SD card: about %d min left"
+msgstr ""
+
+#: src/screen_rec.c
+msgid "SD card full, recording saved"
+msgstr ""
+
+#: src/screen_rec.c
+msgid "SD card write error: the last file may be damaged"
+msgstr ""
+
+#: src/screen_rec.c
+msgid "Cannot create the file on the SD card"
+msgstr ""
+
+#: src/screen_rec.c
+msgid "Screen rec error"
+msgstr ""
+
+#: src/screen_rec.c
+#, c-format
+msgid "Saved %d files"
+msgstr ""
+
+#: src/screen_rec.c
+msgid "Saving previous recording"
+msgstr ""
+
+#: src/screen_rec.c
+msgid "Screen rec: no SD card"
+msgstr ""
+
+#: src/screen_rec.c
+msgid "SD card full"
+msgstr ""
+
+#: src/screen_rec.c
+msgid "Out of memory"
+msgstr ""
+
+#: src/screen_rec.c
+msgid "Screen rec on"
+msgstr ""
+
+#: src/screen_shot.c
+msgid "Error write file"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "TEST ONLY, not validated on a radio"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+"(SETTINGS\n"
+"1:3)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+"(SETTINGS\n"
+"2:3)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+"(SETTINGS\n"
+"3:3)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "General"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Display"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Audio"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Wireless"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Bluetooth"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Keys"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "TX Cal"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Info"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Font: this theme has its own"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Timeout (0 off), Brightness"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Buttons brightness"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Always Off \n"
+" Always On \n"
+" Temporarily On "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Screensaver"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" None \n"
+" Matrix rain "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Screensaver (min)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Rain speed"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Normal \n"
+" Slow \n"
+" Very slow "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Screen off (min)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Screen always off"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Line-in, Line-out"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Play, Rec gain"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Popups Freq/Info/TX"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " None "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " Screenshot "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " RX recorder on/off "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " Screen rec on/off "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " Mute "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " Frequency lock on/off "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " Step up "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " Step down "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " WF mode "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " WF 3D on/off "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " CW decoder on/off "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " SWL panel "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " SWL: save channel "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " ATT on/off "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " PRE on/off "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " Tuner on/off "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " Tuner: tune "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " TUNE ext. tuner on/off "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP WeFax "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP NavTex "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP Cluster "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP CW Trainer "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP CW Keyboard "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP Field Ops "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP Bands "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP Propagation "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP Channels "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP Scanner "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP RX recorder "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP SWR Scan "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP QTH grid "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " APP Settings "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " NR toggle "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " NB toggle "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "F1 long"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "F2 long"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "F3 long"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "%i: from, to, shift (0 off)"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "%i: TX power limit, W"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "TX shift %s, kHz"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Spectrum"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Mode"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Centered \n"
+" Fixed "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Jump at"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" 40% \n"
+" Passband \n"
+" Line "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Jump to"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Center \n"
+" Other edge \n"
+" Scroll "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Fill, peaks"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Auto level, offset"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Manual min, max"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Line, zoom"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Speaker mode"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Compressor, makeup"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "IQ offsets"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Band output gain"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Codec gain"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "CESSB on, level"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " >/dev/null 2>&1"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Pairing %i:%02i"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Pairing (3 min)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Charger"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Off \n"
+" On \n"
+" Shadow"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Freq acceleration"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" None \n"
+" Lite \n"
+" Strong"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "File length"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" 1 hour \n"
+" 45 min \n"
+" 30 min \n"
+" 15 min \n"
+" 5 min "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Theme"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Language file not found: English"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " (draft)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Language"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Font"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Sony Sketch \n"
+" Roboto \n"
+" DejaVu"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "MFK: choose - press: confirm - %s: close"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Ethernet in use"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "last scan %i s ago"
+msgstr ""
+
+#: src/settings_window.cpp src/wifi_window.c
+msgid "Turning on"
+msgstr ""
+
+#: src/settings_window.cpp src/wifi_window.c
+msgid "A WPA password has 8 to 63 characters"
+msgstr ""
+
+#: src/settings_window.cpp src/wifi_window.c
+msgid " Password"
+msgstr ""
+
+#: src/settings_window.cpp src/wifi_window.c
+msgid "Disconnect"
+msgstr ""
+
+#: src/settings_window.cpp src/wifi_window.c
+msgid "Connect"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Change password"
+msgstr ""
+
+#: src/settings_window.cpp src/wifi_window.c
+msgid "Connection deleted"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "WiFi/BT power"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Status"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "IP / Gateway"
+msgstr ""
+
+#: src/settings_window.cpp src/wifi_window.c
+msgid "Scan"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "press to pair"
+msgstr ""
+
+#: src/settings_window.cpp src/wifi.cpp
+msgid "not connected"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "no headphones or keyboards found"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Connect at startup"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Forget"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Forget "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Cancel"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "pair again to use it"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "rx on"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "rx off"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Headphones, keyboards"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Activity"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "RX to headphones"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Mute speaker"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "AF 0 while connected"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "1 viewer"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "%s, port %d"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "%s.local/remote, port %d"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "%d paired: %s"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "no browser paired yet"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "every browser forgotten"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Browser remote"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Address / Viewer"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Pairing"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Pair code"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "a browser types the code to operate"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Sessions"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Forget all"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "no client"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "%d allowed: %s"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "none allowed always"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Port / Status"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Clients"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+"Operate\n"
+"Listen only"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "listen only: tune and key refused"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Ask before TX"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "not for programs on the radio"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Allowed"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Too long"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "IP address"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Netmask, 255.255.255.0 or /24"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Gateway (optional)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "DNS (optional)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Ethernet settings saved"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Netmask"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Gateway"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Gateway in use"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Address in use"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" DHCP \n"
+" Static "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Apply"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Auto ("
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Band plan"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "First-start guide"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "QTH locator"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Independent VFOs"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Mode from band plan"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "S-METER CALIBRATION"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "this band"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "For %s only. Feed -73 dBm and set the reading to S9 on each band you use."
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "%i traces"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "3D colours"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Strength \n"
+" Waterfall \n"
+" Blue "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "3D range"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "3D peaks"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "3D glide"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Off \n"
+" 30/s \n"
+" 20/s \n"
+" 15/s "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Built-in \n"
+" Hand \n"
+" Auto "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Zone"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "STATION"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "DATE / TIME"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Date"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "12-hour clock"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "CONTROLS"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Accel. onset"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Per band S-meter cal"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Walkie Talkie"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "TRANSVERTERS"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "WR12 RECEIVER"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "WR12 on HOST"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "54 MHz-1 GHz, receive only"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "TCI SERVER"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "BROWSER REMOTE"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "TEXT LOG"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Keyboard modes"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "PSK, Olivia, JTTY, RTTY: web Logs page"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Size limit"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "WALKIE TALKIE"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Main knob steps channels"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Microphone"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "zxcvbnm,./"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Left Ctrl"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Right Ctrl"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Left Shift"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Right Shift"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Left Alt"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Right Alt"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Space"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "mouse buttons"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "SmartCW (MIDI)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Press DAH"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Not a second contact: Learn again"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Saved"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Nothing came in"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Press DIT"
+msgstr ""
+
+#: src/settings_window.cpp src/wifi_window.c
+msgid "Connected"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Keys ([ ] too)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Mouse buttons"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "MIDI notes"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Serial lines"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Learn dit and dah"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Swap dit and dah"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Serial port (ttyUSB, ttyACM)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Mode, speed, ratio"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "KEY buttons in CW"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "FRONT KEYS, LONG PRESS"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "HAND MIC KEYS"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "PADDLE"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "KEYBOARD"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Layout"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "CLUSTER FILTERS"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Bands (m)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+"For the app, the column and the waterfall. Alerts always show.\n"
+"Activity: none lit = all spots. Max age, spotters, alerts: web Cluster page."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "CLUSTER VIEW"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Newest first"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "All bands"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Spot snap hold"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Spot snap speed"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "PSK REPORTER"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Report decodes"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "SWR protection"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "TUNE power, W"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "TUNE time limit, s"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Measure"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "everything off"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "PRE on"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "ATT on"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "RF gain 40"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Stopped: the radio transmitted. Nothing changed."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Stopped: band changed. Check PRE and ATT on the band you left."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Stopped: the supply came or went. Nothing changed."
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Measuring %d of %d, %s. Keep the signal steady."
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Not steady: %.0f to %.0f dB with %s. Nothing changed."
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "The signal reads %.0f dB: feed one between "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " and S9+20. Nothing changed."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "With ATT it read S1: raise Attenuator first. Nothing changed."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "outside the bands"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "on battery"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "on the supply"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Done %s%s, %s: ATT %i, the top, so %i or more."
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Done %s%s, %s: PRE %i dB, ATT %i dB."
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Done: preamp %i dB, attenuator %i, the top, so %i or more."
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Done: preamp %i dB, attenuator %i dB, RF gain %i.%02i dB a step."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Stopped. Nothing changed."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Not while transmitting."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Keep the signal steady: about 12 s."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Stopped: power off. Nothing changed."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Preamp"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Attenuator on supply"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Attenuator on battery"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Attenuator"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "RF gain, a step"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "On a steady signal"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Steady carrier in, "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " to S9+20. PRE, ATT and RF gain are tried, then put back."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "South Korea's ranges only, 160 to 6 m: the switch below goes no further"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Every region's amateur bands; past them only with the switch below"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "No TX anywhere: line %d not read%s,"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " (and more)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "No TX anywhere:"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "range in "
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Line %d not read%s. "
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "%d range%s, MHz:"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "TX ranges"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+"Ham bands\n"
+"South Korea\n"
+"Own list"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Own list file"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Read again"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "TX outside ham bands"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Only if licensed outside the amateur bands: MARS, CAP"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "TX CALIBRATION"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "CESSB"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Test base"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "TX PROTECTION"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "EXTERNAL TUNER"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "S-METER"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "BACKLIGHT"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "SPECTRUM"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Fill gradient"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Filter colour"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Theme \n"
+" Blue \n"
+" Cyan \n"
+" Green \n"
+" Yellow \n"
+" Orange \n"
+" Red \n"
+" Violet \n"
+" White "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Filter shade"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Edges \n"
+" 25 % \n"
+" 50 % \n"
+" 75 % \n"
+" Full "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Shaded part"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Passband \n"
+" Outside "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Height"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "WATERFALL"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Smooth scroll"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Speed"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "MAIN SCREEN"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Cluster spots"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Cluster column"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Broadcast names"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "S-meter type"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Bars \n"
+" Needle "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "S-meter colours"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Theme \n"
+" Scale \n"
+" Level "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Needle lamp"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Birdies"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Off \n"
+" Marks \n"
+" Marks + notch "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Zoom and step per mode"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Step per zoom"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Power display"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid ""
+" % + time \n"
+" Volts \n"
+" Alternate \n"
+" % + V "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "INTERFACE"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Icon menus"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Knob info"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Hide buttons"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Off \n"
+" After 3 s \n"
+" After 5 s \n"
+" After 10 s "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Keep knob lines"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Decoder text"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Large \n"
+" Compact "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "FT8/FT4 info"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" km \n"
+" mi \n"
+" Country \n"
+" Country + km \n"
+" Country + mi "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "RX AUDIO"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Boot sound"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Speaker always off"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "SCREEN REC"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "TX AUDIO"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "FM pre/de-emphasis"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "MICROPHONE"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Input"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Hand mic"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Built-in"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Gain"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Anti-VOX"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Delay"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Hang"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Knee"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Slope"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Network name not set"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Reachable as %s.local"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Letters, digits and '-', up to 32"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Network name"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Name"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Reachable as"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "BROWSER REMOTE is off (General): turn it on"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "the Panel alone; pair browsers at home"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "needs Tailscale connected"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Waiting for Tailscale..."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Scan with a phone and log in to Tailscale, or open the link on the web page: Remote > Tailscale"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Scan with a phone and allow Funnel for your tailnet in Tailscale's admin console, or open the link on the web page: Remote > Tailscale"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "asks for a new login"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Tailscale: %s"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "the helper failed"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Starting Tailscale..."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Stopping Tailscale..."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Turning Funnel on..."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Turning Funnel off..."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " funnel on"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid " funnel off"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "press again to log out"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Logging out..."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Tailscale"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Address"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Funnel"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Public"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Login"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Log out"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "NETWORK NAME"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "TAILSCALE"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "ETHERNET"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Bluetooth service not running"
+msgstr ""
+
+#: src/settings_window.cpp src/wifi.cpp
+msgid "no adapter"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "WiFi/BT chip off (Wireless)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "visible and pairable"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "bridge not running"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "none connected"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "%i connected"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "ADAPTER"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "DEVICES"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "HEADPHONES"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "BLUETOOTH CAT"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Port"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "SPP, channel 1"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Downloading %.1f of %.1f MB"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Downloading %.1f MB"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Broadcast list updated: %s stations, season %s."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "No internet connection. Connect the radio to WiFi or Ethernet."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "An update of the broadcast list is already running."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "The download failed, the old list is still in use."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Connecting to eibispace.de..."
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Checking the files: %ld of %ld"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Installing: %ld of %ld files"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Finishing..."
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Check failed: %.70s"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "v%s is out; its card image brings %s"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "v%s is available. Install downloads it and restarts the radio software."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Install"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Up to date: v%s is the latest release."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "No release on GitHub yet."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Installed. The radio software restarts now."
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Update failed: %.70s. Nothing changed."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Downloading..."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Asking GitHub for the latest release..."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Update"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "A new version was just installed: it is confirmed once the radio has run a minute."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Updating..."
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "New card image for this version: %s"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Check looks for a newer release on GitHub; installing takes a minute."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Broadcast list"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "In use: season %s, updated %s, %s stations."
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "In use: the list that came with the firmware, from %s."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "In use: the list that came with the firmware."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Released: reset cancelled"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Keep holding: %u s"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Resetting..."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "WiFi networks: deleted too. Turn MFK left: keep them"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "WiFi networks: kept. Turn MFK right: delete them too"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Factory reset"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Hold MFK down 3 s to reset - ESC: cancel"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Back to defaults: all settings with the band memory and CW messages, app frequencies, DX cluster, FT8 UDP, PSK squelch, TCI server and allowed clients, browser remote, time zone, headphone volume, Bluetooth CAT."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Kept: logs, memory channels, macros and texts, voice messages, pictures, recordings, themes, CW trainer progress, pairings, SSH keys, network name, accounts. Then the radio software restarts."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Reset..."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Base firmware"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Open..."
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Daily base check"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "FIRMWARE"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Version"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Project"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "OpenX6X00 by RF.Guru"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Baseband"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "PA bias"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "not fitted"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Battery"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "%.1f V  charging"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "External"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "learned from %i h on battery, %i charges"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "starting values, learning"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Time left"
+msgstr ""
+
+#: src/sstv/sstv_mode.c
+msgid "Robot 8 BW"
+msgstr ""
+
+#: src/sstv/sstv_mode.c
+msgid "Robot 8"
+msgstr ""
+
+#: src/sstv/sstv_mode.c
+msgid "Robot 36"
+msgstr ""
+
+#: src/sstv/sstv_mode.c
+msgid "Robot 72"
+msgstr ""
+
+#: src/sstv/sstv_mode.c
+msgid "Martin M1"
+msgstr ""
+
+#: src/sstv/sstv_mode.c
+msgid "Martin M2"
+msgstr ""
+
+#: src/sstv/sstv_mode.c
+msgid "Scottie S1"
+msgstr ""
+
+#: src/sstv/sstv_mode.c
+msgid "Scottie S2"
+msgstr ""
+
+#: src/sstv/sstv_mode.c
+msgid "Scottie DX"
+msgstr ""
+
+#: src/station.c
+msgid "0123456789/ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+msgstr ""
+
+#: src/station.c
+msgid "Callsign cleared"
+msgstr ""
+
+#: src/station.c
+msgid "Unsupported callsign (too long)"
+msgstr ""
+
+#: src/station.c
+msgid "Callsign is long, QTH will be omitted"
+msgstr ""
+
+#: src/station.c
+msgid "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+msgstr ""
+
+#: src/station.c
+msgid "QTH Grid"
+msgstr ""
+
+#: src/station.c
+msgid "Incorrect QTH Grid"
+msgstr ""
+
+#: src/swrscan_window.c
+msgid "SWR scan: not while transmitting or tuning"
+msgstr ""
+
+#: src/swrscan_window.c
+msgid ""
+"Sweep:\n"
+"Quick"
+msgstr ""
+
+#: src/swrscan_window.c
+msgid ""
+"Sweep:\n"
+"Carrier"
+msgstr ""
+
+#: src/swrscan_window.c
+msgid "Run"
+msgstr ""
+
+#: src/swrscan_window.c
+msgid ""
+"Scale:\n"
+"Linear"
+msgstr ""
+
+#: src/swrscan_window.c
+msgid ""
+"Scale:\n"
+"Log"
+msgstr ""
+
+#: src/swrscan_window.c
+#, c-format
+msgid ""
+"Span:\n"
+"%u kHz"
+msgstr ""
+
+#: src/swrscan_window.c
+msgid "Scan stopped"
+msgstr ""
+
+#: src/tci_ask.c
+msgid "Allow once"
+msgstr ""
+
+#: src/tci_ask.c
+msgid "Always"
+msgstr ""
+
+#: src/tci_ask.c
+msgid "No"
+msgstr ""
+
+#: src/tci_ask.c
+#, c-format
+msgid "MFK: choose, press: confirm   No in %d s"
+msgstr ""
+
+#: src/tci_ask.c
+#, c-format
+msgid "%s wants to transmit"
+msgstr ""
+
+#: src/tci_ask.c
+#, c-format
+msgid ""
+"%s: no answer\n"
+"not allowed to transmit"
+msgstr ""
+
+#: src/tci_ask.c
+#, c-format
+msgid ""
+"%s may transmit from now on\n"
+"Settings > General > TCI SERVER"
+msgstr ""
+
+#: src/tci_ask.c
+#, c-format
+msgid ""
+"%s may transmit until it disconnects\n"
+"no room to keep it: forget one in Settings > General > TCI SERVER"
+msgstr ""
+
+#: src/tci_server.c
+msgid "TCI CW: set CW or CW-R mode"
+msgstr ""
+
+#: src/tci_server.c
+msgid "it was cancelled before it ran"
+msgstr ""
+
+#: src/tci_server.c
+msgid "the radio is not on receive"
+msgstr ""
+
+#: src/tci_server.c
+msgid "the modem bit is still set"
+msgstr ""
+
+#: src/tci_server.c
+msgid "the last TCI transmission has not ended"
+msgstr ""
+
+#: src/tci_server.c
+msgid ",sam,wfm"
+msgstr ""
+
+#: src/tci_server.c
+msgid "TCI CW stopped: not CW"
+msgstr ""
+
+#: src/tci_server.c
+msgid "Bluetooth "
+msgstr ""
+
+#: src/tci_server.c
+msgid "allowed while it stays connected"
+msgstr ""
+
+#: src/tci_server.c
+msgid "allowed always"
+msgstr ""
+
+#: src/tci_server.c
+msgid "allowed while it stays connected, no room to keep it"
+msgstr ""
+
+#: src/tci_server.c
+msgid "no answer, it left (or asking was turned off) first"
+msgstr ""
+
+#: src/tci_server.c
+msgid "no answer, refused while it stays connected"
+msgstr ""
+
+#: src/tci_server.c
+msgid "refused while it stays connected"
+msgstr ""
+
+#: src/tci_server.c src/tci_server.h
+msgid "OpenX6X00 TCI"
+msgstr ""
+
+#: src/tci_server.c
+msgid " via Bluetooth"
+msgstr ""
+
+#: src/tx_meters.c
+msgid "EXTERNAL TUNE"
+msgstr ""
+
+#: src/tx_meters.c
+msgid "TUNE"
+msgstr ""
+
+#: src/tx_player.c
+#, c-format
+msgid "TX stopped: no audio for %d s"
+msgstr ""
+
+#: src/tx_player.c
+#, c-format
+msgid "TX 0 W: level %.0f dB, Line-in %u"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "No messages yet: press Rec"
+msgstr ""
+
+#: src/voice_messages.c
+#, c-format
+msgid "Message %i"
+msgstr ""
+
+#: src/voice_messages.c
+#, c-format
+msgid "Cannot create %s"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "No audio: recording uses the hand mic"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "Listen"
+msgstr ""
+
+#: src/voice_messages.c
+msgid ""
+"Auto\n"
+"Stop"
+msgstr ""
+
+#: src/voice_messages.c
+msgid ""
+"Auto\n"
+"call"
+msgstr ""
+
+#: src/voice_messages.c
+#, c-format
+msgid ""
+"Interval\n"
+"< %i s >"
+msgstr ""
+
+#: src/voice_messages.c
+#, c-format
+msgid ""
+"Interval\n"
+"%i s"
+msgstr ""
+
+#: src/voice_messages.c
+#, c-format
+msgid ""
+"Mic level: keep out of the red\n"
+"Max %i s"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "Stop: save the message"
+msgstr ""
+
+#: src/voice_messages.c
+#, c-format
+msgid "AUTO %i s"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "Single transmission"
+msgstr ""
+
+#: src/voice_messages.c
+#, c-format
+msgid ""
+"Next call in %i s\n"
+"Interval %i s"
+msgstr ""
+
+#: src/voice_messages.c
+#, c-format
+msgid "Auto call: repeats every %i s"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "Auto call, TX or PTT: stop"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "LISTEN"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "Playing on the speaker only"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "Listen: stop"
+msgstr ""
+
+#: src/voice_messages.c
+#, c-format
+msgid ""
+"Auto call every %i s\n"
+"Interval: page 2"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "MFK or VOL: interval - press MFK: done"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "MFK: choose - press MFK: listen"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "Rec: record the first message"
+msgstr ""
+
+#: src/voice_messages.c
+#, c-format
+msgid "Press Delete again to delete \"%s\""
+msgstr ""
+
+#: src/voice_messages.c
+#, c-format
+msgid "Deleted \"%s\""
+msgstr ""
+
+#: src/voice_messages.c
+msgid "Empty name"
+msgstr ""
+
+#: src/voice_messages.c
+#, c-format
+msgid "\"%s\" already exists"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "Cannot rename"
+msgstr ""
+
+#: src/voice_messages.c
+msgid "Name: "
+msgstr ""
+
+#: src/voice_messages.c
+msgid "0123456789 -_?!.'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+msgstr ""
+
+#: src/voice_messages.c
+#, c-format
+msgid "VOICE KEYER (TX) - #%06x %s#"
+msgstr ""
+
+#: src/walkie.c
+msgid "Band +"
+msgstr ""
+
+#: src/walkie.c
+msgid "Band -"
+msgstr ""
+
+#: src/walkie.c
+msgid "Lock"
+msgstr ""
+
+#: src/walkie.c
+msgid ""
+"Exit\n"
+"hold"
+msgstr ""
+
+#: src/walkie.c
+msgid ""
+"Vol Sql\n"
+"RF Pwr"
+msgstr ""
+
+#: src/walkie.c
+msgid "Store"
+msgstr ""
+
+#: src/walkie.c
+msgid ""
+"Clear\n"
+"hold"
+msgstr ""
+
+#: src/walkie.c
+#, c-format
+msgid "CH %02i - empty"
+msgstr ""
+
+#: src/walkie.c
+msgid " - LOCK"
+msgstr ""
+
+#: src/walkie.c
+#, c-format
+msgid "SWR %.1f HIGH"
+msgstr ""
+
+#: src/walkie.c
+msgid "No digital modes in walkie mode"
+msgstr ""
+
+#: src/wavelog_cat.c
+msgid "No such mode"
+msgstr ""
+
+#: src/wavelog_cat.c
+msgid "The radio is transmitting"
+msgstr ""
+
+#: src/wavelog_cat.c
+msgid "The radio does not receive there now"
+msgstr ""
+
+#: src/wavelog_cat.c
+msgid "The frequency is locked (an app, or the lock)"
+msgstr ""
+
+#: src/wavelog_cat.c
+#, c-format
+msgid "Wavelog: %d.%03d.%d %s%s"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"View\n"
+"Big"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Fax\n"
+"Browser"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Fix\n"
+"Align"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Fix\n"
+"Tilt"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "day and night"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Northwood (UK)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Athens (GR)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Boston (US)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "New Orleans (US)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Pt. Reyes (US)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Kodiak (US)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Honolulu (US)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Saving fax..."
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Fax saved"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Fax save failed"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "WeFax TX: bad file name"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "WeFax TX busy"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "WeFax TX done"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "WeFax TX stopped"
+msgstr ""
+
+#: src/wefax_window.c
+#, c-format
+msgid "WeFax TX failed (%i)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "RX Cont"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "RX Auto"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Fax Started"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "MFK: align   Freq.: stations   View: Small shows the waterfall"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Save\n"
+"Fax"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Delete\n"
+"Fax"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "No saved faxes"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Editing saved fax"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "WEFAX - stations"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Receiving Fax"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Waiting for Fax"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"RX\n"
+"Cont"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"RX\n"
+"Auto"
+msgstr ""
+
+#: src/wefax_window.c
+#, c-format
+msgid ""
+"Align\n"
+"%+i"
+msgstr ""
+
+#: src/wefax_window.c
+#, c-format
+msgid ""
+"Tilt\n"
+"%+i"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"View\n"
+"Small"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"View\n"
+"Full Size"
+msgstr ""
+
+#: src/wifi.cpp
+#, c-format
+msgid "%s uses %s: the radio joins open and WPA2 networks"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "WPA3-only network: set the router to WPA2 or WPA2/WPA3"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "A hidden network: not supported"
+msgstr ""
+
+#: src/wifi.cpp
+#, c-format
+msgid "WiFi: %s"
+msgstr ""
+
+#: src/wifi.cpp
+#, c-format
+msgid "Connecting to %s..."
+msgstr ""
+
+#: src/wifi.cpp
+#, c-format
+msgid "WiFi %s: no longer in range, scan again"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "WPA Enterprise (802.1X)"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "Enhanced Open (OWE)"
+msgstr ""
+
+#: src/wifi.cpp
+#, c-format
+msgid "Error: Failed to modify connection '%s': %s"
+msgstr ""
+
+#: src/wifi.cpp
+#, c-format
+msgid "Connection '%s' (%s) successfully modified.\n"
+msgstr ""
+
+#: src/wifi.cpp
+#, c-format
+msgid "Error: Failed to delete connection '%s': %s"
+msgstr ""
+
+#: src/wifi.cpp
+#, c-format
+msgid "Connection '%s' (%s) successfully deleted.\n"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "handshake failed: password, signal or router security"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "no answer: signal, channel or router security"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "dropped while joining: signal or router security"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "the WiFi service refused the profile"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "not in range"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "joined, but no address from DHCP"
+msgstr ""
+
+#: src/wifi.cpp
+#, c-format
+msgid "Connecting to %s... (try %d/%d)"
+msgstr ""
+
+#: src/wifi.cpp
+#, c-format
+msgid "WiFi %s: %s"
+msgstr ""
+
+#: src/wifi.cpp
+#, c-format
+msgid "WiFi %s: join failed (reason %u)"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "no cable"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "IP address is not valid"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "Netmask is not valid (255.255.255.0 or /24)"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "Gateway is not valid"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "DNS is not valid"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "Static needs an IP address and a netmask"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "The IP address is the network or broadcast address of its subnet"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "The gateway is not in the subnet of the IP address"
+msgstr ""
+
+#: src/wifi.cpp
+#, c-format
+msgid "Ethernet: %s"
+msgstr ""
+
+#: src/wifi.cpp
+msgid "NetworkManager is not running"
+msgstr ""
+
+#: src/wifi_window.c
+msgid "Password is required"
+msgstr ""
+
+#: src/wifi_window.c
+msgid "Already scanning"
+msgstr ""
+
+#: src/wifi_window.c
+msgid "Start scan"
+msgstr ""
+
+#: src/wifi_window.c
+msgid "Can't update new connection"
+msgstr ""
+
+#: src/wifi_window.c
+msgid "Password is not used"
+msgstr ""
+
+#: src/wifi_window.c
+msgid "Scanning..."
+msgstr ""
+
+#: src/wifi_window.c
+msgid ""
+"Change\n"
+"password"
+msgstr ""
+
+#: src/wifi_window.c
+msgid "Starting..."
+msgstr ""
+
+#: src/wifi_window.c
+msgid "Off: Ethernet connected"
+msgstr ""
+
+#: src/wifi_window.c
+msgid "Disconnected"
+msgstr ""
+
+#: src/wifi_window.c
+msgid "Status:"
+msgstr ""
+
+#: src/wifi_window.c
+msgid "IP address:"
+msgstr ""
+
+#: src/wifi_window.c
+msgid "Gateway:"
+msgstr ""
+
+#: src/winlink.c
+msgid "OpenX6X00 Winlink"
+msgstr ""
+
+#: src/winlink.c
+msgid "Winlink RX"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "Winlink: TX stopped after %d s"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "Winlink: TX stopped, %s is open"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "Winlink: TX stopped, it left %s MHz"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "%s is open, close it"
+msgstr ""
+
+#: src/winlink.c
+msgid "the radio is on the air"
+msgstr ""
+
+#: src/winlink.c
+msgid "the frequency is locked (LOCK)"
+msgstr ""
+
+#: src/winlink.c
+msgid "not a frequency the radio can tune"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "Winlink: no QSY to %s MHz, %s"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "the radio could not go to Pat's %s MHz"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "the radio left %s MHz"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "XIT is set (%+d Hz)"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "RIT is set (%+d Hz)"
+msgstr ""
+
+#: src/winlink.c
+msgid "a TX shift is set on this band"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "split would send on %s, not %s"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "Winlink: no TX, %s"
+msgstr ""
+
+#: src/winlink.c
+msgid "the radio was busy, try again"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "RPRT %d\n"
+msgstr ""
+
+#: src/winlink.c
+msgid "RPRT 0\n"
+msgstr ""
+
+#: src/winlink.c
+msgid "RPRT -1\n"
+msgstr ""
+
+#: src/winlink.c
+msgid "RPRT -11\n"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "Winlink: no TX %s for %d minutes, check the antenna"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "high SWR %s, the hold ends in %d min"
+msgstr ""
+
+#: src/wr12.c
+msgid "ERROR"
+msgstr ""
+
+#: src/wr12.c
+msgid "the port went"
+msgstr ""
+
+#: src/wr12.c
+#, c-format
+msgid "WR12: ERROR to %s"
+msgstr ""
+
+#: src/wr12.c
+msgid "gpsd, let go"
+msgstr ""
+
+#: src/wr12.c
+msgid "WR12 unplugged"
+msgstr ""
+
+#: src/wr12.c
+msgid "WR12 not answering"
+msgstr ""
+
+#: src/wr12.c
+msgid "WR12 found on HOST"
+msgstr ""
+
+#: src/wr12.c
+msgid "WR12 receiving"
+msgstr ""
+
+#: src/wr12.c
+msgid "WR12 not in bypass"
+msgstr ""
+
+#: src/wspr/wsprnet.c
+#, c-format
+msgid ""
+"GET %s HTTP/1.0\r\n"
+"Host: "
+msgstr ""
+
+#: src/wspr/wsprnet.c
+msgid ""
+"\r\n"
+"User-Agent: "
+msgstr ""
+

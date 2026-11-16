@@ -1,0 +1,5 @@
+© 2014-2021 Adobe (http://www.adobe.com/).
+Version 2.004;hotconv 1.0.118;makeotfexe 2.5.65603
+
+NotoSansCJKsc-GB2312.otf is Noto Sans CJK SC Regular cut down to the characters OpenX6X00's Chinese uses
+(tools/fonts/mkcjk.sh). It is licensed under the SIL Open Font License, Version 1.1: OFL.txt here.

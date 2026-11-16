@@ -260,6 +260,7 @@ static void settings_load(void) {
      * theme that was copied here is cut from a screenshot of another maker's remote software (themes/make_rs.py) */
     if (system("mkdir -p " BOARD_DATA "/themes") != 0)
         LV_LOG_WARN("No " BOARD_DATA "/themes folder");
+    i18n_load(params.language.x);     /* before the fonts: a language may put its own behind them */
     styles_load(params.theme_name.x);
 }
 

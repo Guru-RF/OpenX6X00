@@ -5,7 +5,9 @@
 //
 // Copyright (c) 2026 Giovanni Ricciardi IU1WXY, own code of the IU1WXY firmware
 
+#ifndef _DEFAULT_SOURCE   /* i18n_hook.h asks for GNU's, which has it */
 #define _DEFAULT_SOURCE
+#endif
 #include "broadcast_db.h"     /* broadcast_match_t */
 
 #include <ctype.h>      /* isdigit */

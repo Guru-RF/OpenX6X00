@@ -1,0 +1,7 @@
+msgid ""
+msgstr ""
+"Language: xx\n"
+"X-OpenX6X00-Name: Testisch (mine)\n"
+
+msgid "Settings"
+msgstr "Mijn instellingen"

@@ -228,6 +228,7 @@ typedef struct {
 
     params_uint8_t       theme;         /* old setting, replaced by theme_name */
     params_str_t         theme_name;    /* built-in theme or /mnt/themes/<name>.json */
+    params_str_t         language;      /* the GUI's language: a language file's name (es, zh_CN), "" English (i18n.h) */
     params_uint8_t       font;
 
     /* durty flags */

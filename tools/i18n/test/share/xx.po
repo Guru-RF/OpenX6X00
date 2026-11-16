@@ -1,0 +1,57 @@
+# A test language for tools/i18n (i18n_test.c)
+msgid ""
+msgstr ""
+"Language: xx\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"X-OpenX6X00-Name: Testisch\n"
+"X-OpenX6X00-Status: draft\n"
+"X-OpenX6X00-Font: test.ttf\n"
+
+#: src/settings_window.cpp
+msgid "Settings"
+msgstr "Instellingen"
+
+msgid "Filter low"
+msgstr "Filter laag"
+
+msgid "Volume"
+msgstr "Volume X"
+
+msgid "Off"
+msgstr "Uit"
+
+msgid "TX power %0.0f W on battery"
+msgstr "Zendvermogen %0.0f W op de batterij"
+
+msgid "%d of %s"
+msgstr "%s van %d"
+
+#, fuzzy
+msgid "Fuzzy one"
+msgstr "Vaag"
+
+msgctxt "button"
+msgid "Mode"
+msgstr "Modus (knop)"
+
+msgid ""
+"Two lines\n"
+"at once"
+msgstr ""
+"Twee regels\n"
+"tegelijk"
+
+msgid "Say \"hi\""
+msgstr "Zeg \"hoi\"\tnu"
+
+msgid "Empty"
+msgstr ""
+
+#~ msgid "Old one"
+#~ msgstr "Oud"
+
+msgid "After the old"
+msgstr "Na het oude"
+
+msgid "Sprechen"
+msgstr "说话"

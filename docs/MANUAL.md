@@ -1703,7 +1703,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Filter shade, Shaded part, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
 | MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
-| INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Keep knob lines, Theme, Font, Decoder text, FT8/FT4 info |
+| INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Keep knob lines, Theme, Font, Language, Decoder text, FT8/FT4 info |
 
 - Timeout (0 off), Brightness: the seconds without a key or a knob before
   the screen dims, 5 to 120 (30 by default), and the slider of the
@@ -1745,12 +1745,37 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 - Font: Sony Sketch, Roboto or DejaVu (default). A new font applies at once.
   Themes with their own font (Classic, Black Metal, Total Black, 1bit,
   Amber Trey, a theme file that sets one) keep it.
+- Language: English (default), Español, Français, Nederlands, 简体中文; see
+  [Languages](#languages). A new language applies at once, without a restart.
 - Broadcast names (from v0.127): tuned to a broadcast station on the air,
   the frequency strip shows "BC <station name>" in a light blue box instead
   of the band name. The names come from the broadcast list (see the
   [Info tab](#info-tab)).
 
 All these options are also on the web configurator's Display page.
+
+#### Languages
+
+Where: Settings > Display > INTERFACE > Language (from v0.3.13).
+
+The screen's texts in another language than English: Español, Français,
+Nederlands and 简体中文 (Simplified Chinese). A language marked "(draft)" is
+not done: what it lacks shows in English. Names stay as they are: the keys
+(MFK, VOL, APP), the modes (USB, CW, FT8), the themes, Winlink, POTA. The
+browser pages and this manual stay in English for now.
+
+Chinese is drawn from its own font (Noto Sans CJK SC, the 7445 characters of
+GB2312), behind the GUI's: it works with every theme and font choice.
+
+Translating: each language is one file, `po/<code>.po` in the repository,
+which any gettext editor (Poedit, Lokalize) or a text editor opens. A file
+copied to the DATA partition as `/mnt/i18n/<code>.po` is used before the
+image's, so a translator sees the work on the radio without building
+anything: choose the language again in Settings to read the file again. A
+new language, or a language whose letters our fonts lack (they have
+Latin-1): see `po/README.md`, and open an issue "Translation: <language>".
+The Spanish, French, German and Italian started from the CX8ANM edition's
+lists (condoruy).
 
 #### Screensaver
 
