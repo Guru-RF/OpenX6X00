@@ -6000,7 +6000,7 @@ SVXConnect):
   partition is FAT, which has no owners: on the radio everything runs as
   root), never shown, never written to a log, not in a Backup and not on the
   Files page. The settings are in `/mnt/svxconnect/svxconnect.conf`, which
-  the page writes whole at each Save.
+  the page writes whole at each Save; they are in the Backup's Apps' lists.
 
 **On the radio:**
 
@@ -6432,7 +6432,7 @@ The menu has General and five groups:
 | | SmartCW | SmartCW's own page through the radio, in a new tab on port 8073; in the menu while SmartCW is plugged in (see [SmartCW](#smartcw)) |
 | Files | Files | browse and download `/mnt` |
 | | Gallery | screen recordings, voice recordings, screenshots, SSTV and WeFax pictures (see below) |
-| | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages, your own boot picture, the apps' lists (GhostNet's settings and nets file, the Internet radio's favourites and country, the Zello channels; Flights, HF Air Band and CB keep theirs in the settings) (optionally CW trainer and WiFi) as one file, and restore the parts you choose (restored WiFi networks are taken a few seconds after, no restart needed; see below) |
+| | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages, your own boot picture, the apps' lists (GhostNet's settings and nets file, the Internet radio's favourites and country, the Zello channels, the SVXConnect settings; Flights, HF Air Band and CB keep theirs in the settings) (optionally CW trainer and WiFi) as one file, and restore the parts you choose (restored WiFi networks are taken a few seconds after, no restart needed; see below) |
 | System | Display | every display option of the radio, a few station options of the other tabs (independent VFOs, the band plan, the WR12, [TX ranges, the own list and TX outside ham bands](#amateur-bands-only) in the Transmitter card), and the [boot picture](#boot-picture) (see below) |
 | | Time | local and server time; Sync sets the radio clock from the browser's, in the radio's timezone; NTP sync; timezone |
 | | Network | the radio's [network name](#network-name), its [other names](#the-radios-own-names), and the USB Ethernet adapter: state, DHCP or static address (see [Ethernet](#ethernet)) |

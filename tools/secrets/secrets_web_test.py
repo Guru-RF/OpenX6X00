@@ -565,6 +565,9 @@ class Secrets(unittest.TestCase):
             names = tf.getnames()
         self.assertIn("zello/channels.txt", names)
         self.assertFalse([n for n in names if "account" in n or n.endswith(".pem")], names)
+        if hasattr(settings, "SVX_DIR"):                      # SVXConnect's settings in it, its key and certificate not
+            self.assertIn("svxconnect/svxconnect.conf", names)
+            self.assertFalse([n for n in names if "pki" in n or n.endswith((".key", ".crt", ".csr"))], names)
         st, data = self.req("GET", "/api/backup/download?parts=wifi")
         self.assertEqual(st, 200, data)
         found = [s for s in SECRETS if s.encode() in unpacked(data)]

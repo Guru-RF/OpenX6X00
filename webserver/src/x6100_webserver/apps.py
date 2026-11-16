@@ -3965,12 +3965,14 @@ def backup_files():
             "cw_trainer.json": ("cw", settings.CW_TRAINER_FILE),
             "bootlogo.png": ("bootpic", settings.BOOT_PICTURE),
             # The apps' own lists and settings, none of their accounts or keys (Zello's account.conf and
-            # private_key.pem stay out): the GUI reads each again when its app opens, GhostNet's when it changes
+            # private_key.pem, SVXConnect's pki/ stay out): the GUI reads each again when its app opens, GhostNet's
+            # when it changes
             "ghostnet.conf": ("apps", settings.GHOSTNET_CONF),
             "ghostnet_nets.txt": ("apps", settings.GHOSTNET_NETS_USER),
             "iradio/favorites.tsv": ("apps", settings.IRADIO_FAV_FILE),
             "iradio/country": ("apps", settings.IRADIO_COUNTRY_FILE),
-            "zello/channels.txt": ("apps", os.path.join(settings.ZELLO_DIR, "channels.txt"))}
+            "zello/channels.txt": ("apps", os.path.join(settings.ZELLO_DIR, "channels.txt")),
+            "svxconnect/svxconnect.conf": ("apps", os.path.join(settings.SVX_DIR, "svxconnect.conf"))}
 
 
 def backup_member(name):
@@ -4150,6 +4152,8 @@ def describe_backup(files, date=None):
         if "zello/channels.txt" in files:
             chans = {" ".join(x.split()) for x in read_text(files["zello/channels.txt"]).splitlines()} - {""}
             apps_in.append(plural(len(chans), "Zello channel"))
+        if "svxconnect/svxconnect.conf" in files:
+            apps_in.append("SVXConnect settings")
         if apps_in:
             out["apps"] = ", ".join(apps_in)
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
