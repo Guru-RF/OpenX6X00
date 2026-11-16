@@ -204,6 +204,8 @@ static void show_cb(button_data_t *btn);
 static void reply_cb(button_data_t *btn);
 static const char *reply_label_getter(void);
 static void settings_cb(button_data_t *btn);
+static const char *hb_main_label(void);
+static void hb_main_hold_cb(button_data_t *btn);
 static void send_cb(button_data_t *btn);
 static void clear_cb(button_data_t *btn);
 static void time_sync_cb(button_data_t *btn);
@@ -522,14 +524,16 @@ static button_data_t btn_inbox  = {.type = BTN_TEXT_FN, .label_fn = inbox_label_
                                    .press = inbox_cb};
 static buttons_page_t page_1    = {{&btn_p1, &btn_cq, &btn_reply, &btn_send, &btn_inbox}};
 
-/* 2: the stations */
+/* 2: the stations, and the heartbeat: a press sends one, a hold opens Settings on HB (automatic on, off) */
+static button_data_t btn_hb_main  = {.type = BTN_TEXT_FN, .label_fn = hb_main_label, .press = heartbeat_cb,
+                                     .hold = hb_main_hold_cb};
 static button_data_t btn_p2       = PAGE_BUTTON("(JS8 2:4)", &page_3, &page_1);
 static button_data_t btn_query    = {.type = BTN_TEXT, .label = "Query >", .press = query_cb};
 static button_data_t btn_hw_cpy   = {.type = BTN_TEXT, .label = "HW CPY?", .press = hw_cpy_cb};
 static button_data_t btn_stations = {.type = BTN_TEXT_FN, .label_fn = stations_label_getter,
                                      .press = stations_cb};
 static button_data_t btn_map      = {.type = BTN_TEXT, .label = "Map", .press = map_cb};
-static buttons_page_t page_2      = {{&btn_p2, &btn_query, &btn_hw_cpy, &btn_stations, &btn_map}};
+static buttons_page_t page_2      = {{&btn_p2, &btn_query, &btn_hb_main, &btn_stations, &btn_map}};
 
 /* 3: the clock, the power and the switches set once (Settings...) */
 static button_data_t btn_p3        = PAGE_BUTTON("(JS8 3:4)", &page_4, &page_2);
@@ -3477,6 +3481,13 @@ static void query_msg_cb(lv_event_t *ev) {
     tx_queue(text); /* QUERY MSGS */
 }
 
+static void query_hw_cpy_cb(lv_event_t *ev) {
+    (void)ev;
+    list_drop(&query_list); /* hw_cpy_cb would only close it */
+    if (table) table_takes_keys();
+    hw_cpy_cb(NULL);
+}
+
 static void query_close_item_cb(lv_event_t *ev) {
     (void)ev;
     query_close(); /* the Close item */
@@ -3555,6 +3566,9 @@ static void settings_item_cb(lv_event_t *ev) {
     void (*fn)(button_data_t *) = st->hold ? st->btn->hold : st->btn->press;
 
     if (fn) fn(st->btn);
+    /* HB turned on starts its interval on the knob: here the interval has its own row, the knob stays the list's */
+    if (st->btn == &btn_hbauto && !st->hold && hb_adjusting) hb_adjust_end();
+    buttons_refresh(&btn_hb_main); /* "Heartbeat\nauto 10 min" when HB is on */
     if (st->again && !any_popup() && !composing) settings_open((int)i);
 }
 
@@ -3821,6 +3835,20 @@ static void conv_msg_cb(button_data_t *b) { /* a message for their Inbox, throug
     msg_update_text_fmt("Message for %s's inbox: type it and press Enter", conv_call);
 }
 
+static const char *hb_main_label(void) { /* "Heart-\nbeat", or "Heartbeat\nauto 10 min" while they go out */
+    static char text[32];
+    if (!params.js8_hb.x) return "Heart-\nbeat";
+    snprintf(text, sizeof(text), "Heartbeat\nauto %u min", params.js8_hb_interval.x);
+    return text;
+}
+
+static void hb_main_hold_cb(button_data_t *b) { /* Settings, on the row of the automatic heartbeat */
+    (void)b;
+    user_touch();
+    if (popup_guard() || composing) return;
+    settings_open(1);
+}
+
 static const char *reply_label_getter(void) { /* "Reply\nTHEIRCALL" once a station is selected */
     static char text[JS8_RX_CALL_LEN + 8];
     if (!sel_call[0]) return "Reply";
@@ -3852,10 +3880,8 @@ static void query_open(void) { /* (Query >) */
 
     lv_obj_t *focus_first = NULL;
     if (selected) {
-        for (int q = 0; q < JS8_Q_COUNT; q++) {
-            lv_obj_t *item = query_add(js8_query_label((js8_query_t)q), query_pick_cb, q);
-            if (q == 0) focus_first = item;
-        }
+        focus_first = query_add("HW CPY?", query_hw_cpy_cb, 0); /* how desktop answers a CQ */
+        for (int q = 0; q < JS8_Q_COUNT; q++) query_add(js8_query_label((js8_query_t)q), query_pick_cb, q);
         for (size_t m = 0; m < sizeof(query_msg_items) / sizeof(query_msg_items[0]); m++)
             lv_obj_set_style_text_color(query_add(query_msg_items[m].label, query_msg_cb, (intptr_t)m), TC(ok),
                                         LV_PART_MAIN);

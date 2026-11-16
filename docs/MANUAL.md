@@ -3568,8 +3568,8 @@ First steps:
    reduction, noise blanker and notch are off, and power is capped at 7 W;
    all go back when you leave.
 4. Turn the MFK onto a station's row: Reply (page 1) shows its call. Press
-   the MFK there for the conversation with that station, or use HW CPY? and
-   Query > (page 2).
+   the MFK there for the conversation with that station, or use Query >
+   (page 2), HW CPY? first in it.
 5. ESC or the top knob stops sending; the next ESC leaves the app.
 
 Nothing sends by itself: AUTO (automatic replies), HB (heartbeats) and HB ACK
@@ -3580,9 +3580,13 @@ Buttons (the first one of each row turns the page, hold to go back):
 | Page | Buttons |
 |---|---|
 | 1 | CQ (hold: auto CQ), Reply (the call selected), Send..., Inbox (n new) |
-| 2 | Query >, HW CPY?, Show Stations / Messages, Map |
+| 2 | Query > (HW CPY? first), Heartbeat (hold: HB in Settings), Show Stations / Messages, Map |
 | 3 | Time Sync (hold: reset), Power, Ext tune, Settings... |
 | 4 | Translate |
+
+Heartbeat (page 2) sends one at once; it reads "Heartbeat auto 10 min"
+while the automatic ones go out. Held, it opens Settings on HB to turn them
+on or off.
 
 Settings... is one list of the switches set once, each row doing what its
 button did: AUTO, HB (on, off) and its interval (the knob), HB ACK, Hold,
