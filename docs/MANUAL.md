@@ -859,6 +859,15 @@ active bands of the band list, from the frequency up or down.
   Airband, after 6 m on the band keys. They are receive only: PTT, the digital
   apps, CW from the keyboard, the tuner and the SWR scan are refused there:
   "No TX on 100.000 MHz", then "Receive only there".
+- Wide FM's filter (X6200): 16 kHz by default, the widest the X6200's base
+  takes and the stock firmware's own WFM filter. Filter BW (the knob, the
+  button, the info bar) shows the whole width, both sides of the dial, as the
+  stock firmware does, from 16 kHz down in 100 Hz detents; Filter high is the
+  edge on one side, 8 kHz at the widest. Up to v0.3.12 Filter BW showed that
+  edge, 8000 Hz at the default and 10000 Hz at most: the base took 8 to 10 kHz
+  all as 16 kHz, so the sound was the same, only the number was half (issue
+  #283). A filter set to 10000 then is 16 kHz now. AM, NFM and SAM still show
+  the edge as Filter BW. CAT reports WFM's filter by its edge, as before.
 - The same refusal holds anywhere the radio does not transmit: above 55 MHz
   without a transverter, and what the WR12 receives unless a transverter with
   a shift covers it (the transverter wins, see
@@ -7218,9 +7227,11 @@ browser paired at home on any device.
   typed alone takes the other one along, as the radio's own Filter low and
   Filter high do, and the two typed give their width; in AM, NFM and
   SAM the high edge alone, the low one is always 0 (2.5 to 6 kHz); in WFM
-  the same up to 10 kHz (4 to 10 kHz). No edge goes past 6 kHz, 10 kHz in
-  WFM. A field left empty, or holding no number, keeps its edge. The preset
-  lit is the one whose edges the radio has.
+  the same up to 8 kHz, the presets and the button showing the whole width,
+  twice the edge (10, 12, 14 and 16 kHz). No edge goes past 6 kHz, 8 kHz in
+  WFM (up to v0.3.12 10 kHz, which the base took as 16 kHz too). A field
+  left empty, or holding no number, keeps its edge. The preset lit is the
+  one whose edges the radio has.
 - The S-meter, the power and SWR while transmitting, the battery.
 - Spots: the DX cluster's spots as the radio filters them (see
   [DX Cluster](#dx-cluster)), newest first, tap one to tune to it; the calls

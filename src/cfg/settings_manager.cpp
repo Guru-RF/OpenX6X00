@@ -1,6 +1,7 @@
 #include "settings_manager.h"
 
 #include "smeter_att.h"
+#include "../wfm_filter.h"
 
 #include <algorithm>
 #include <chrono>
@@ -730,10 +731,11 @@ int32_t SettingsManager::filter_low_validate(int32_t v) {
     return clip(v, 0, hi);
 }
 
-/* The widest filter the mode takes: the X6200's WFM goes to 10 kHz (its stock GUI's limit, the
- * default 8 kHz), every other mode to 6 kHz */
+/* The highest edge the mode takes: 6 kHz, in the X6200's WFM 8 kHz. WFM goes to the base from -edge to +edge, which
+ * its base (1.0.8) takes as one width and cuts at 16 kHz, the stock firmware's fixed WFM filter (#283, wfm_filter.h);
+ * up to v0.3.12 the edge went to 10 kHz, all of 8 to 10 kHz the same 16 kHz at the base */
 int32_t SettingsManager::filter_high_max() {
-    return cp_cur_mode.get() == radio_mode_wfm ? 10000 : 6000;
+    return cp_cur_mode.get() == radio_mode_wfm ? WFM_BW_MAX / 2 : 6000;
 }
 
 int32_t SettingsManager::filter_high_validate(int32_t v) {
@@ -775,7 +777,12 @@ int32_t SettingsManager::cur_filter_high_compute() {
     }
 }
 
+/* WFM's width is both sides of the dial, as the base takes it and the stock firmware shows it (16 kHz at the edge
+ * 8000, #283). AM, NFM and SAM keep the edge as their width, as up to v0.3.12 */
 int32_t SettingsManager::cur_filter_bw_compute() {
+    if (cp_cur_mode.get() == radio_mode_wfm) {
+        return wfm_bw_of_edge(p_mode_filter_high.get());
+    }
     return cp_cur_filter_high.get() - cp_cur_filter_low.get();
 }
 
@@ -819,6 +826,10 @@ void SettingsManager::cur_filter_high_reverse(int32_t v) {
 }
 
 void SettingsManager::cur_filter_bw_reverse(int32_t v) {
+    if (cp_cur_mode.get() == radio_mode_wfm) {
+        p_mode_filter_high.set(wfm_edge_of_bw(v));
+        return;
+    }
     v = clip(v, 10, filter_high_max());
     switch (filter_mode(cp_cur_mode.get())) {
         case FilterMode::AM:

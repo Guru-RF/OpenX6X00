@@ -547,7 +547,8 @@ static uint8_t get_if_bandwidth() {
         case radio_mode_nfm:
         case radio_mode_sam:
         case radio_mode_wfm:
-            val = (bw - 100) / 200;
+            /* the high edge, as up to v0.3.12: WFM's width is both sides of it now (#283), past the index's 10 kHz */
+            val = (cfg_sm.cp_cur_filter_high.get() - 100) / 200;
             break;
         default:
             val = 31;
