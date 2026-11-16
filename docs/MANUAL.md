@@ -274,7 +274,7 @@ closes the grid. Four rows are in sight; the grid scrolls to the rows below
 as the MFK goes there (or by a swipe on the touch screen). "APP > CW Keyboard" in this manual is the tile, or the
 button on APP 3:6.
 
-- Each app has its own button pages, named like `(JS8 1:7)`. The first
+- Each app has its own button pages, named like `(JS8 1:4)`. The first
   button goes to the next page.
 - The MFK walks the items of an app or a list; a press chooses.
 - ESC closes popups and apps.
@@ -3020,7 +3020,7 @@ Starting and stopping it:
 
 - A key: give "TUNE ext. tuner on/off" to a front key's long press or to a
   hand mic F key (Settings > Keys). It works with an app open.
-- The Ext tune button of the digital apps: FT8/FT4/FT2 page 5, JS8 page 7,
+- The Ext tune button of the digital apps: FT8/FT4/FT2 page 5, JS8 page 3,
   WSPR page 2, SSTV page 3, PSK31/PSK63 and Olivia page 6, JTTY page 5. It
   shows the TUNE power, and Stop while it tunes.
 - The browser Panel's TUNE button (see
@@ -3660,10 +3660,10 @@ default, and everyone is free to take it out:
 - The radio never transmits to the group by itself: no automatic answers,
   heartbeat acks, ACKs or relays for @X6100 traffic, with AUTO on or off,
   in the group or not. Only what you send yourself goes out.
-- To leave it: page 3, Settings..., Groups, INFO, STATUS, Relay..., Groups: @X6100. Delete @X6100 from the
-  text and confirm; the radio shows "No groups" (or your other groups). It
-  stays out after that, also after a restart or an update. To join again,
-  type @X6100 there.
+- To leave it: Settings... (page 3), Groups, INFO, STATUS, Relay...,
+  Groups: @X6100. Delete @X6100 from the text and confirm; the radio shows
+  "No groups" (or your other groups). It stays out after that, also after a
+  restart or an update. To join again, type @X6100 there.
 
 Known limits: relays, store and forward, and most APRS items are not yet
 proven on the air (only the grid spot and SMS are). The main screen's
@@ -3673,14 +3673,14 @@ waterfall stands still while JS8 is open.
 
 GhostNet is a weekly JS8 net for emergency communication, with a net in
 each region on Thursday evening and data bridges between the regions on
-Saturday. Freq (page 6) has two GhostNet items:
+Saturday. Freq (Settings..., page 3) has two GhostNet items:
 
 - **GhostNet mode: 7.107 + its groups** tunes 7.107 MHz, the GhostNet
   frequency of the weekly nets (the band keys step through GhostNet's list:
   3.575, 7.107 and 14.107), and puts @GHOSTNET, @GSTFLASH and your regional group
-  in Groups (page 4, Settings...). The groups go in once; take any of them
-  out in Groups as you would @X6100. The row "GhostNet groups: ..." in the
-  list says what you are in. With AUTO on, JS8 answers the queries sent to
+  in Groups (Settings..., page 3: Groups, INFO, STATUS, Relay...). The
+  groups go in once; take any of them out in Groups as you would @X6100.
+  The row "GhostNet groups: ..." in the list says what you are in. With AUTO on, JS8 answers the queries sent to
   your groups (SNR?, GRID? ...) as desktop JS8Call does; AUTO is off every
   time the app opens.
 - **GhostNet: nets, reminder, RTTY...** opens GhostNet's popup:
@@ -3724,12 +3724,13 @@ Translation, through MyMemory (mymemory.translated.net, Translated's free
 translation memory, used without a key and without an account). GhostNet's
 nets are held in English, and some in Spanish:
 
-- **Translate** (page 7): turn the MFK onto a message, press Translate. The
-  translation into the GUI's language (Settings > Display > INTERFACE >
-  Language) comes on a line of its own under the message, with the language
-  in front ("NL: ..."), and stays while the radio is on. It translates from
-  English, or from Spanish when the message reads as Spanish; with the GUI
-  in English, from Spanish.
+- **Translate** (page 4): in View: Messages (page 2) turn the MFK onto a
+  message, press Translate. The translation into the GUI's language
+  (Settings > Display > INTERFACE > Language) comes on a line of its own
+  under the message, with the language in front ("NL: ..."), and in its
+  bubble in the conversations, and stays while the radio is on. It
+  translates from English, or from Spanish when the message reads as
+  Spanish; with the GUI in English, from Spanish.
 - **Translate arriving messages** (GhostNet's popup, Off by default): each
   message that arrives in English (or Spanish) is translated the same way,
   on any frequency. Messages already in your language, heartbeats and SNR

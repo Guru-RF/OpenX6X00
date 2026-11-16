@@ -205,6 +205,7 @@ static void reply_cb(button_data_t *btn);
 static const char *reply_label_getter(void);
 static void settings_cb(button_data_t *btn);
 static const char *hb_main_label(void);
+static void hb_main_follow(void);
 static void hb_main_hold_cb(button_data_t *btn);
 static void send_cb(button_data_t *btn);
 static void clear_cb(button_data_t *btn);
@@ -996,6 +997,7 @@ static void trans_store(uint32_t id, int32_t utc, const char *text) {
         if (ghostnet_traffic(h)) ghostnet_log('T', id, h->from, h->to, h->snr, cparam_i_get(cfg_fg_freq), text);
         js8_rx_msg_t copy = *h;
         update_slot(idx, &copy); /* its row again, with the translation */
+        conv_refresh(&copy);     /* and its bubble, when the conversation is open */
         return;
     }
 }
@@ -1900,6 +1902,7 @@ static void every_second(void)
     hb_tick();
     auto_cq_tick();
     update_status(); /* keeps the clock going */
+    hb_main_follow();
 }
 
 /* Every 250 ms while the app is open. */
@@ -4173,13 +4176,17 @@ static void conv_bubble(const js8_rx_msg_t *m)
     lv_obj_set_style_text_font(t, &sony_14, LV_PART_MAIN);
     lv_obj_set_style_text_color(t, TC(text_mute), LV_PART_MAIN);
 
-    /* their words without "CALL: ", ours without our call */
+    /* their words without "CALL: ", ours without our call; GhostNet's translation on a line of its own under them */
     const char *text = m->text, *colon = strstr(text, ": ");
     if (colon && (size_t)(colon - text) < JS8_RX_CALL_LEN) text = colon + 2;
+    char words[ROW_MAX];
+    int  tr = trans_find(m);
+    if (tr >= 0) snprintf(words, sizeof(words), "%s\n%s: %s", text, trans[tr].lang, trans[tr].text);
+    else snprintf(words, sizeof(words), "%s", text);
 
     lv_obj_t *b = lv_label_create(line);
     lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(b, text);
+    lv_label_set_text(b, words);
     lv_obj_set_width(b, LV_SIZE_CONTENT);
     lv_obj_set_style_max_width(b, WIDTH - CONV_LEFT_W - 90, LV_PART_MAIN);
     lv_obj_set_style_text_font(b, &sony_18, LV_PART_MAIN);
@@ -4425,6 +4432,15 @@ static void view_cb(button_data_t *b) { /* the board -> the messages -> the stat
     }
     rebuild_rows();
     buttons_refresh(b);
+}
+
+/* Heartbeat's label again when HB or its interval changed elsewhere than in the Settings list (the web page), once */
+static void hb_main_follow(void) {
+    static int shown = -1;
+    int        now   = params.js8_hb.x ? (int)params.js8_hb_interval.x : 0;
+    if (now == shown || !btn_hb_main.disp_btn) return;
+    shown = now;
+    buttons_refresh(&btn_hb_main);
 }
 
 static const char *hb_main_label(void) { /* "Heart-\nbeat", or "Heartbeat\nauto 10 min" while they go out */
@@ -7281,8 +7297,8 @@ static void translate_cb(button_data_t *btn) {
     (void)btn;
     user_touch();
     if (popup_guard() || composing) return;
-    if (view_stations) {
-        msg_update_text_fmt("Translate: Show Messages first");
+    if (board_on || view_stations) { /* the list of messages is not in sight */
+        msg_update_text_fmt("Translate: View: Messages (page 2) first");
         return;
     }
     lv_table_get_selected_cell(table, &r, &c);
