@@ -611,3 +611,33 @@ extern "C" int i18n_list(i18n_lang_t *out, int max) {
     }
     return n;
 }
+
+/* The English names of the languages whose own names are in another script than Latin; a code not here shows as
+ * its code */
+static const struct { const char *code, *name; } en_names[] = {
+    {"zh_CN", "Chinese, simplified"}, {"zh_TW", "Chinese, traditional"}, {"ja", "Japanese"}, {"ko", "Korean"},
+    {"ru", "Russian"}, {"uk", "Ukrainian"}, {"bg", "Bulgarian"}, {"sr", "Serbian"}, {"el", "Greek"},
+    {"he", "Hebrew"}, {"ar", "Arabic"}, {"th", "Thai"}, {"hi", "Hindi"},
+};
+
+/* Letters past Latin-1 (lead bytes from U+0100 up): our own fonts stop at Latin-1 plus a few, a TrueType font
+ * behind them comes only with the language that asks for it */
+static bool beyond_latin1(const char *s) {
+    for (; *s; s++)
+        if ((unsigned char)*s >= 0xC4)
+            return true;
+    return false;
+}
+
+extern "C" void i18n_list_name(const i18n_lang_t *lang, char *out, size_t size) {
+    if (!beyond_latin1(lang->name) || !strcmp(lang->code, i18n_code()) || i18n_font()) {
+        snprintf(out, size, "%s", lang->name);
+        return;
+    }
+    for (const auto &e : en_names)
+        if (!strcmp(e.code, lang->code)) {
+            snprintf(out, size, "%s (%s)", e.name, lang->code);
+            return;
+        }
+    snprintf(out, size, "%s", lang->code);
+}

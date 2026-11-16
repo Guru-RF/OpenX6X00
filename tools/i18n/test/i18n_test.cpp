@@ -88,6 +88,20 @@ int main(void) {
     check(n >= 3 && is(langs[2].code, "yy") && is(langs[2].name, "Ypsilon") && !langs[2].user, "yy from the image's");
     check(i18n_list(langs, 1) == 1, "the list stops at max");
 
+    printf("A language's name the list can draw\n");
+    char        nm[80];
+    i18n_lang_t zh = {"zh_CN", "简体中文", "draft", false}, ko = {"ko", "한국어", "", false}, qq = {"qq", "ŝŝ", "", false};
+    i18n_list_name(&langs[1], nm, sizeof(nm));
+    check(is(nm, "Testisch (mine)"), "a Latin name as it is");
+    i18n_list_name(&zh, nm, sizeof(nm));
+    check(is(nm, "Chinese, simplified (zh_CN)"), "Chinese from English: its English name and code, no boxes");
+    i18n_list_name(&ko, nm, sizeof(nm));
+    check(is(nm, "Korean (ko)"), "another script from English too");
+    i18n_list_name(&qq, nm, sizeof(nm));
+    check(is(nm, "qq"), "a code without an English name: the code");
+    i18n_list_name(&zh, nm, 12);
+    check(strlen(nm) < 12, "cut at size");
+
     printf("Capitals\n");
     char up[64];
     i18n_upper(up, sizeof(up), "Inalámbrico œuvre ÿ łódź š ß 设置 kHz", true);

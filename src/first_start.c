@@ -361,15 +361,6 @@ static void lang_cb(lv_event_t *e) {
 
 /* A name our own fonts cannot draw: a letter beyond Latin-1 (UTF-8 lead bytes from 0xC4 on). The font of such a
  * language comes with it (i18n_font()), so the name shows as boxes until it is chosen */
-static bool beyond_latin1(const char *s) {
-    for (; *s; s++) {
-        if ((unsigned char)*s >= 0xC4) {
-            return true;
-        }
-    }
-    return false;
-}
-
 static void build_lang(void) {
     static char options[sizeof(langs) / sizeof(langs[0]) * 80];
     size_t      n     = 0;
@@ -382,14 +373,10 @@ static void build_lang(void) {
     for (int i = 0; i < n_langs && n < sizeof(options) - 80; i++) {
         bool d   = !strcmp(langs[i].status, "draft");
         bool now = !strcmp(langs[i].code, i18n_code());
-        char code[24] = "";
+        char name[80];
 
-        /* 中文 is two boxes on a radio still in English: its code beside it, which a speaker knows */
-        if (!now && beyond_latin1(langs[i].name)) {
-            snprintf(code, sizeof(code), " (%s)", langs[i].code);
-        }
-        n += snprintf(options + n, sizeof(options) - n, "%s%s%s%s", i ? "\n" : "", langs[i].name, code,
-                      d ? " (draft)" : "");
+        i18n_list_name(&langs[i], name, sizeof(name));   /* 中文 as "Chinese, simplified (zh_CN)" where it would be boxes */
+        n += snprintf(options + n, sizeof(options) - n, "%s%s%s", i ? "\n" : "", name, d ? " (draft)" : "");
         draft |= d;
         if (now) {
             sel = i;
