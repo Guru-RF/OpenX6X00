@@ -7329,7 +7329,12 @@ the CW decoder's text as `cw "..."`; `ft8 open|close|cq|stop|auto|hold|mode`,
 open|close|auto|cont|save|clear` works the WeFax app as its buttons do (RX
 Auto, RX Cont, Save, Clear; operate and control, `err wefax WHAT` for one it
 does not know), and the panel state's `app` names the digital app open
-(`"FT8"`, `"WeFax"`, `""` for none); the FT8 state
+(`"FT8"`, `"WeFax"`, `""` for none); its state comes as `wefax {...}` (open,
+auto, fax: a chart coming in, tx and txp, gen: a new picture, rows kept,
+freq, station, saved: the last file written to `/mnt/wefax`, saves), and to
+a client that sent `wefax rows 1` (no role needed) the picture row by row as
+binary frames (8 bytes header `{u16 0xFFFE, u16 width, u32 the row's number
+in the picture, from 1}`, then a grey byte a pixel); the FT8 state
 carries the timeline too (`in` ms to our next slot, `slot` its length, `rep`
 the sends left, `qso`, `hound`, `nocall`, `logged` and `logged_s`), once a
 second while a countdown runs; `log CALL|RSTS|RSTR|NAME`

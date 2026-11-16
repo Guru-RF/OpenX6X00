@@ -59,7 +59,9 @@
  *  list's rows go out as they come ("ft8r {...}", the last 48 to a page that opens later), the
  *  app's state when it changes ("ft8 {...}"), the CW decoder's text ("cw \"...\""); "ft8
  *  open|close|cq|stop|auto|hold|mode", "ft8 txfreq HZ", "ft8 reply ID" work the app, "wefax
- *  open|close|auto|cont|save|clear" the WeFax app (the state's "app" names the one open), "pos LAT
+ *  open|close|auto|cont|save|clear" the WeFax app (the state's "app" names the one open), whose state goes
+ *  out as "wefax {...}" and, to a page that sent "wefax rows 1", its picture row by row (binary 0xFFFE,
+ *  remote_server_wefax_row), "pos LAT
  *  LON [ACC]" gives the radio the phone's position (degrees, the accuracy in metres; Field Ops uses
  *  it when no GPS is plugged in, operate without control: it touches nothing of the RF side), "clk?
  *  MS" and "clk MS RTT" the phone's clock (clock_from_phone: the radio's set from it in the field,
@@ -209,6 +211,7 @@ typedef struct {
     uint64_t        screen_ms;      /* its last frame */
     bool            panel;          /* wants the state, the spectrum and the spots (the Panel page) */
     bool            panel_fresh;    /* just subscribed: the whole state goes out next */
+    bool            fax;            /* wants the WeFax picture's rows (the WeFax page: "wefax rows 1") */
     atomic_bool     state_due;      /* a "set" refused: the state goes out to it next, changed or not */
     int             sess;           /* the session it authenticated as, -1 none (a viewer) */
     uint8_t         role;           /* ROLE_VIEW, ROLE_OPERATE, ROLE_ADMIN */
@@ -956,6 +959,7 @@ static void client_close(client_t *c) {
     c->up      = false;
     c->funnel  = false;
     c->panel   = false;
+    c->fax     = false;
     c->out_len = c->in_len = c->text_len = 0;
     pthread_mutex_unlock(&c->lock);
 }
@@ -1331,6 +1335,41 @@ void remote_server_ft8_row(const void *cell) {
     panel_broadcast(line);
 }
 
+/* LVGL thread (wefax_window.c): a row of the WeFax picture coming in, to the pages that asked for them ("wefax rows
+ * 1"), binary: {u16 0xFFFE, u16 width, u32 its number in the picture, from 1; 1 again is a new picture}, then a grey
+ * byte a pixel. The Panel takes binary frames for the spectrum: only the pages that asked get these. A client with
+ * no room loses the row, and the page draws the one before in its place (the number says one is missing) */
+void remote_server_wefax_row(const uint8_t *row, unsigned width, uint32_t number) {
+    struct {
+        uint16_t mark, w;
+        uint32_t n;
+    } hdr = {0xFFFE, (uint16_t)width, number};
+
+    if (!atomic_load(&npanel))
+        return;
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        client_t *c = &clients[i];
+        if (c->fd < 0 || !c->up || !c->panel || !c->fax)
+            continue;
+        pthread_mutex_lock(&c->lock);
+        bool room = c->out_len < PANEL_ROOM;
+        pthread_mutex_unlock(&c->lock);
+        if (room)
+            client_frame(c, WS_OP_BINARY, &hdr, sizeof(hdr), row, width);
+    }
+}
+
+/* The WeFax app as JSON: "wefax {...}" */
+static void wefax_status_line(char *buf, size_t n, const wefax_status_t *s) {
+    size_t k = snprintf(buf, n, "wefax {\"open\":%d,\"auto\":%d,\"fax\":%d,\"tx\":%d,\"txp\":%d,\"gen\":%u,"
+                        "\"rows\":%u,\"freq\":%d,\"saves\":%u,\"station\":", s->open, s->auto_mode, s->fax_on, s->tx,
+                        s->tx_pct, s->gen, s->rows, s->freq, s->saves);
+    k += json_str(buf + k, n - k, s->station);
+    k += snprintf(buf + k, n - k, ",\"saved\":");
+    k += json_str(buf + k, n - k, s->saved);
+    snprintf(buf + k, n - k, "}");
+}
+
 /* Any thread (the CW decoder's) */
 void remote_server_cw_text(const char *text) {
     size_t n = strlen(text);
@@ -1660,6 +1699,8 @@ static void *panel_thread(void *arg) {
     static int8_t  bins[WATERFALL_NFFT];
     pstate_t       last = {0};
     ft8_status_t   ft8_last = {0};
+    wefax_status_t fax_last = {0};
+    uint64_t       fax_ms = 0;
     bool           have_last = false;
     uint32_t       sp_seq = 0, spots_gen = 0, plan_gen = band_plan_gen();
     uint64_t       state_ms = 0, meter_ms = 0, spots_ms = 0, ft8_ms = 0, ft8_sent_ms = 0;
@@ -1726,6 +1767,9 @@ static void *panel_thread(void *arg) {
                     ft8_window_status(&ft8_last);
                     ft8_status_line(line, sizeof(line), &ft8_last);
                     client_text(c, line);
+                    wefax_window_status(&fax_last);
+                    wefax_status_line(line, sizeof(line), &fax_last);
+                    client_text(c, line);
                     panel_app_history(c);
                     if (changed)
                         pstate_line(line, sizeof(line), &s);     /* the line the others get */
@@ -1780,6 +1824,17 @@ static void *panel_thread(void *arg) {
                 ft8_last    = fs;
                 ft8_sent_ms = now;
                 ft8_status_line(line, sizeof(line), &fs);
+                panel_broadcast(line);
+            }
+            /* WeFax: on a change, the rows kept (two a second while a chart comes in) once a second at most */
+            wefax_status_t ws, wa, wb;
+            wefax_window_status(&ws);
+            wa = ws; wb = fax_last;
+            wa.rows = wb.rows = 0;
+            if (memcmp(&wa, &wb, sizeof(wa)) != 0 || (ws.rows != fax_last.rows && now - fax_ms >= 1000)) {
+                fax_last = ws;
+                fax_ms   = now;
+                wefax_status_line(line, sizeof(line), &ws);
                 panel_broadcast(line);
             }
             panel_cw_flush();
@@ -2242,6 +2297,8 @@ static void handle_text(client_t *c, char *text) {
             return;
         if (!app_ft8_cmd(a[1], n >= 3 ? a[2] : NULL))
             client_textf(c, "err ft8 %s", a[1]);
+    } else if (!strcmp(a[0], "wefax") && n >= 3 && !strcmp(a[1], "rows")) {
+        c->fax = atoi(a[2]) != 0;           /* only watching: no role needed */
     } else if (!strcmp(a[0], "wefax") && n >= 2) {
         if (!allowed(c, ROLE_OPERATE, true))
             return;
@@ -2529,7 +2586,7 @@ static void accept_client(int listen_fd) {
         c->pic     = PIC_SHARP;
         c->screen_stale = true;
         c->screen_ms    = 0;
-        c->panel   = c->panel_fresh = false;
+        c->panel   = c->panel_fresh = c->fax = false;
         atomic_store(&c->state_due, false);
         c->sess    = -1;
         c->role    = ROLE_VIEW;

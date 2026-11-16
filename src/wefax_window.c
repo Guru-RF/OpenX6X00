@@ -25,6 +25,7 @@
 #include "gui_events.h"
 #include "app_frame.h"
 #include "channel_list.h"
+#include "remote_server.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -90,6 +91,8 @@ static void draw_live(void);
 static wefax_decoder_t *decoder;
 static uint32_t gen_seen;           /* Auto start generation already handled here */
 static bool     fax_on;             /* Auto: the GUI took the confirmed fax, rows are kept */
+static uint32_t fax_gen;            /* counts clear_fax: the browser starts a new picture */
+static uint32_t fax_rows;           /* rows of this picture so far, past the kept ones too: the browser's row number */
 
 /* audio thread -> LVGL thread: the last finished row */
 static pthread_mutex_t row_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -367,6 +370,8 @@ static void clear_fax(void)
     pthread_mutex_unlock(&row_lock);
 
     store_n = store_head = 0;
+    fax_rows = 0;
+    fax_gen++;
 }
 
 /* ---- drawing ---- */
@@ -526,6 +531,48 @@ static bool png_write_fixed(FILE *fp, const uint8_t *img, unsigned w, unsigned h
     return true;
 }
 
+/* ---- what the browser's WeFax page sees (wefax_window_status) ---- */
+
+static pthread_mutex_t rstat_lock = PTHREAD_MUTEX_INITIALIZER;
+static wefax_status_t  rstat;       /* under rstat_lock: the LVGL thread writes it, the remote server's thread reads */
+
+/* LVGL thread: the state as it is now */
+static void rstat_update(void)
+{
+    int32_t                 f  = cparam_i_get(cfg_fg_freq) + WEFAX_CENTER_HZ;
+    const freq_list_item_t *at = entry_at(freqs, freqs_n, f);
+
+    pthread_mutex_lock(&rstat_lock);
+    rstat.open      = decoder != NULL;
+    rstat.auto_mode = decoder && auto_mode();
+    rstat.fax_on    = decoder && (rstat.auto_mode ? fax_on : store_n > 0);
+    rstat.tx        = tx_running;
+    rstat.tx_pct    = tx_progress / 10;
+    rstat.rows      = store_n;
+    rstat.gen       = fax_gen;
+    rstat.freq      = f;
+    snprintf(rstat.station, sizeof(rstat.station), "%s", at && at->name ? at->name : "");
+    pthread_mutex_unlock(&rstat_lock);
+}
+
+/* The save worker: a picture written, its file name for the page's Last charts */
+static void rstat_saved(const char *path)
+{
+    const char *base = strrchr(path, '/');
+
+    pthread_mutex_lock(&rstat_lock);
+    snprintf(rstat.saved, sizeof(rstat.saved), "%s", base ? base + 1 : path);
+    rstat.saves++;
+    pthread_mutex_unlock(&rstat_lock);
+}
+
+void wefax_window_status(wefax_status_t *s)
+{
+    pthread_mutex_lock(&rstat_lock);
+    *s = rstat;
+    pthread_mutex_unlock(&rstat_lock);
+}
+
 static void *save_worker(void *arg)
 {
     save_job_t *job = arg;
@@ -548,6 +595,7 @@ static void *save_worker(void *arg)
 
     if (ok) {
         printf("WEFAX: saved %s (%u x %u)\n", job->path, WEFAX_WIDTH, job->rows);
+        rstat_saved(job->path);
     }
 
     free(job->img);
@@ -818,6 +866,7 @@ static void view_timer_cb(lv_timer_t *t)
 
     if (frame.head_left)
         header_update();
+    rstat_update();
     tx_poll();
     save_result();
     if (!canvas)
@@ -864,6 +913,7 @@ static void view_timer_cb(lv_timer_t *t)
         return;
 
     store_add(row);
+    remote_server_wefax_row(row, WEFAX_WIDTH, ++fax_rows);
 
     /* a fax longer than the kept rows: save it rather than lose its top */
     if (auto_mode() && fax_on && store_n >= STORE_ROWS) {
@@ -1059,6 +1109,7 @@ static void app_close(void)
     store_n = store_head = 0;
     free(store);
     store = NULL;
+    rstat_update();     /* the decoder gone: the browser sees the app closed */
 }
 
 static void app_key_cb(lv_event_t *e)
