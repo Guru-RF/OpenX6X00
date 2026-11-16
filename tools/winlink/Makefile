@@ -1,5 +1,5 @@
 # Host test of the Winlink modem bridge (src/winlink.c): `make` builds it against the stubs and runs the
-# protocol test; `make modems` runs the real modems against it. See README.md.
+# protocol test; `make modems` runs the real modems against it; `make mail` APP > Mail's helper. See README.md.
 # The sources are copied to build/ first: a quoted #include looks beside the including file before the -I
 # paths, and the shims in stub_include must win over src/. The band table (cluster/spots.c, the SWR hold's bands)
 # is the real one, in build/cluster/.
@@ -36,7 +36,12 @@ test: winlink_host
 modems: winlink_host clockskip.so
 	unshare -rn sh -c 'ip link set lo up && python3 -I winlink_modems_test.py --ardopcf $(BUILD)/third-party/ardopcf/ardopcf --mercury $(BUILD)/third-party/mercury/x6x00-mercury --xara "$(XARA)" --pat $(PAT)'
 
+# APP > Mail's helper (rootfs/usr/sbin/x6100-winlink-mail) against a real Pat, with a CMS of the test's own on
+# loopback: no network needed
+mail:
+	unshare -rn sh -c 'ip link set lo up && python3 -B winlink_mail_test.py --pat $(PAT)'
+
 clean:
 	rm -rf winlink_host clockskip.so build
 
-.PHONY: all test modems clean
+.PHONY: all test modems mail clean
