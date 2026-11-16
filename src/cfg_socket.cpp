@@ -96,6 +96,7 @@ static const struct {
     {"spectrum_line_color", &cfg_sm.p_spectrum_line_color, -1, 0xffffff},
     {"spectrum_fill_color", &cfg_sm.p_spectrum_fill_color, -1, 0xffffff},
     {"spectrum_fill_gradient", &cfg_sm.p_spectrum_fill_gradient, 0, 1},
+    {"spectrum_fill_level", &cfg_sm.p_spectrum_fill_level, 0, 1},
     {"smeter_bar_color", &cfg_sm.p_smeter_bar_color, -1, 0xffffff},
     {"swr_color", &cfg_sm.p_swr_color, -1, 0xffffff},
     {"smeter_lamp", &cfg_sm.p_smeter_lamp, 0, 1},

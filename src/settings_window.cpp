@@ -4304,6 +4304,7 @@ static void make_display_page() {
     if (cfg_sm.p_spectrum_show.get()) {
         row = make_spectrum_fill_peak(row);
         row = make_param_switch(row, "Fill gradient", cfg_sm.p_spectrum_fill_gradient);
+        row = make_param_switch(row, "Fill by level", cfg_sm.p_spectrum_fill_level);   /* over the gradient when on */
         /* Filter passband on the spectrum and waterfall: the theme's colour or a preset (theme_filter_color()) */
         row = make_param_choice(row, "Filter colour",
                                 " Theme \n Blue \n Cyan \n Green \n Yellow \n Orange \n Red \n Violet \n White ",

@@ -57,6 +57,7 @@ ParamInt         *cfg_filter_shade_where  = nullptr;
 ParamInt         *cfg_spectrum_line_color = nullptr;
 ParamInt         *cfg_spectrum_fill_color = nullptr;
 ParamInt         *cfg_spectrum_fill_gradient = nullptr;
+ParamInt         *cfg_spectrum_fill_level = nullptr;
 ParamInt         *cfg_smeter_bar_color = nullptr;
 ParamInt         *cfg_swr_color = nullptr;
 ParamInt         *cfg_swr_protect = nullptr;
@@ -265,6 +266,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_spectrum_line_color = &cfg_sm.p_spectrum_line_color;
     cfg_spectrum_fill_color = &cfg_sm.p_spectrum_fill_color;
     cfg_spectrum_fill_gradient = &cfg_sm.p_spectrum_fill_gradient;
+    cfg_spectrum_fill_level = &cfg_sm.p_spectrum_fill_level;
     cfg_smeter_bar_color = &cfg_sm.p_smeter_bar_color;
     cfg_swr_color        = &cfg_sm.p_swr_color;
     cfg_swr_protect      = &cfg_sm.p_swr_protect;
