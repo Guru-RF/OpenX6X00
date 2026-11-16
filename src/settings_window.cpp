@@ -4054,20 +4054,20 @@ static void smc_timer_cb(lv_timer_t *t) {
      * gain then only on its slider, and at the top PRE too, for the line to fit */
     std::vector<BandInfo> parts  = SettingsManager::smeter_parts(smc_band);
     std::string           set_on = smeter_parts_names(parts);
-    const char *on    = parts.empty() ? "outside the bands" : "on ";
+    const char *on    = parts.empty() ? _("outside the bands") : _("on ");   /* the language's, before the line is made */
     const char *name  = set_on.c_str();
-    const char *power = smc_bat ? "on battery" : "on the supply";
+    const char *power = smc_bat ? _("on battery") : _("on the supply");
 
     if (att_top) {
-        snprintf(buf, sizeof(buf), "Done %s%s, %s: ATT %i, the top, so %i or more.", on, name, power, att, att);
+        snprintf(buf, sizeof(buf), _("Done %s%s, %s: ATT %i, the top, so %i or more."), on, name, power, att, att);
     } else {
-        snprintf(buf, sizeof(buf), "Done %s%s, %s: PRE %i dB, ATT %i dB.", on, name, power, pre, att);
+        snprintf(buf, sizeof(buf), _("Done %s%s, %s: PRE %i dB, ATT %i dB."), on, name, power, pre, att);
     }
 #else
     if (att_top) {
-        snprintf(buf, sizeof(buf), "Done: preamp %i dB, attenuator %i, the top, so %i or more.", pre, att, att);
+        snprintf(buf, sizeof(buf), _("Done: preamp %i dB, attenuator %i, the top, so %i or more."), pre, att, att);
     } else {
-        snprintf(buf, sizeof(buf), "Done: preamp %i dB, attenuator %i dB, RF gain %i.%02i dB a step.", pre, att,
+        snprintf(buf, sizeof(buf), _("Done: preamp %i dB, attenuator %i dB, RF gain %i.%02i dB a step."), pre, att,
                  rfg / 100, rfg % 100);
     }
 #endif
@@ -4180,18 +4180,18 @@ static void txr_note_show(void) {
     /* What matters first: the line cut with ... keeps it */
     if (!st.count) {
         if (st.bad) {
-            l += snprintf(text + l, sizeof(text) - l, "No TX anywhere: line %d not read%s,", st.first_bad,
-                          st.bad > 1 ? " (and more)" : "");
+            l += snprintf(text + l, sizeof(text) - l, _("No TX anywhere: line %d not read%s,"), st.first_bad,
+                          st.bad > 1 ? _(" (and more)") : "");   /* the pieces in the language: the line is made of them */
         } else {
-            l += snprintf(text + l, sizeof(text) - l, "No TX anywhere:");
+            l += snprintf(text + l, sizeof(text) - l, "%s", _("No TX anywhere:"));
         }
-        snprintf(text + l, sizeof(text) - l, " no %s%s", st.missing ? "" : "range in ", cfg_tx_ranges_path());
+        snprintf(text + l, sizeof(text) - l, _(" no %s%s"), st.missing ? "" : _("range in "), cfg_tx_ranges_path());
     } else {
         if (st.bad) {
-            l += snprintf(text + l, sizeof(text) - l, "Line %d not read%s. ", st.first_bad,
-                          st.bad > 1 ? " (and more)" : "");
+            l += snprintf(text + l, sizeof(text) - l, _("Line %d not read%s. "), st.first_bad,
+                          st.bad > 1 ? _(" (and more)") : "");
         }
-        l += snprintf(text + l, sizeof(text) - l, "%d range%s, MHz:", st.count, st.count > 1 ? "s" : "");
+        l += snprintf(text + l, sizeof(text) - l, _("%d range%s, MHz:"), st.count, st.count > 1 ? "s" : "");
         for (int i = 0; i < st.count && l < (int)sizeof(text) - 1; i++) {
             int32_t lo, hi;
             char    to[24], *unit;

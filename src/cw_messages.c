@@ -203,7 +203,7 @@ static const char *end_day(bcn_sched_t s) {
     time_t now  = time(NULL);
     int    days = bcn_end_days(&s, bcn_start_at(&s, now), now);
 
-    return days == 1 ? " tomorrow" : days > 1 ? " day after" : "";
+    return days == 1 ? _(" tomorrow") : days > 1 ? _(" day after") : "";   /* into a longer text: the language's */
 }
 
 /* "From 20:00 UTC, 10 sends", "From 20:00 to 21:00 UTC", "Now, until 21:00 tomorrow UTC", "Now, until stopped" */

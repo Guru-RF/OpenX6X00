@@ -4292,7 +4292,7 @@ static void p3_spot_update(void) {
 static void p3_spot_send(void) {
     const char *gateway = spot_sota ? "APRS2SOTA" : "APSPOT";
     if ((spot_sota ? last_sota : last_pota)[0] == '\0') {
-        msg_update_text_fmt("Type the %s first", spot_sota ? "summit" : "park"); /* the form can't send without */
+        msg_update_text_fmt("Type the %s first", spot_sota ? _("summit") : _("park")); /* the form can't send without */
         return;
     }
     char body[96], text[TX_TEXT_MAX + 8], ready[TX_TEXT_MAX + 8];
@@ -4697,7 +4697,7 @@ static void act_cb(button_data_t *b) {
     }
     const char *ref = mode == 1 ? last_pota : last_sota;
     if (ref[0]) msg_update_text_fmt("Logging as %s %s (hold to change)", mode == 1 ? "POTA" : "SOTA", ref);
-    else msg_update_text_fmt("Hold this button to set your %s", mode == 1 ? "park" : "summit");
+    else msg_update_text_fmt("Hold this button to set your %s", mode == 1 ? _("park") : _("summit"));
 }
 
 static void act_hold_cb(button_data_t *b) {
@@ -5025,7 +5025,7 @@ static lv_obj_t *p3_inbox_list_view(void) {
 
     int n = js8_inbox_list(inbox, mine, INBOX_ROWS);
     total = js8_inbox_count(inbox);
-    snprintf(text, sizeof(text), "Inbox: %d message%s, %d new", total, total == 1 ? "" : "s", js8_inbox_unread(inbox));
+    snprintf(text, sizeof(text), _("Inbox: %d message%s, %d new"), total, total == 1 ? "" : "s", js8_inbox_unread(inbox));
     p3_popup_note(inbox_list, text);
 
     if (p3_selected(to, &audio_hz)) snprintf(text, sizeof(text), "New message to %s...", to);

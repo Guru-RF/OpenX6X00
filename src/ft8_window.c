@@ -1148,7 +1148,7 @@ static void auto_sync_tick(float sec) {
             sync_report = false;
             if (!sync_said_far)
                 msg_schedule_text_fmt("Auto Sync: by the decodes the clock is %.1f s %s, too far: press Time Sync as "
-                                      "a slot starts", fabsf(r.step), r.step < 0 ? "ahead" : "behind");
+                                      "a slot starts", fabsf(r.step), r.step < 0 ? _("ahead") : _("behind"));
             sync_said_far = true;
             break;
         case FTX_SYNC_STEP:
