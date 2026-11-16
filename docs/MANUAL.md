@@ -41,38 +41,56 @@ Settings. Button and option names are written as the radio shows them.
 
 A radio with no callsign, at its first start on a new card or after a factory
 reset (Settings > Info), opens the first-start guide a few seconds after the
-start: three steps, then a summary. The radio receives underneath all the
+start: five steps, then a summary. The radio receives underneath all the
 while. A radio that has a callsign, for example one updated from an earlier
 version, never opens it by itself. The X6100 and the X6200 show the same guide
 (both screens are 800 by 480).
 Where: Settings > General > STATION > First-start guide (Start runs it again).
 
-1. WiFi. Networks opens the WiFi window and turns WiFi on: choose a network
+1. Language. The same list as Settings > Display > Language, each language
+   by its own name ("(draft)" after one a speaker has not checked yet; a
+   name our fonts cannot draw before it is chosen, such as 中文, has its code
+   beside it: zh_CN). The choice is taken at once: the screen is built again
+   in it, and the guide comes back on this step in that language.
+2. WiFi. Networks opens the WiFi window and turns WiFi on: choose a network
    there, then ESC or GEN brings you back to the guide. The line above
    Networks says whether the radio is connected, to which network and with
    which address. With Ethernet connected, WiFi is not needed.
-2. Callsign and locator. Callsign and Locator open the keyboard (on the
+3. Callsign and locator. Callsign and Locator open the keyboard (on the
    screen, or a USB keyboard when one is plugged in); Enter or the tick key
    saves. With a GPS that has a fix, a GPS fix line offers its locator:
    Use <locator> sets it.
-3. Clock and time zone. The clock with the date and UTC, and what set it:
+4. Country. The country you operate from, as Settings > General > STATION >
+   Country has it: Country opens the list (the names in the screen's
+   language, "-" for none). With a callsign, the line From the callsign
+   offers its country (from cty.dat): Use <country> sets it. The line under
+   it says what the band plan takes now: "Auto, Region 1 from the country",
+   from the GPS, the locator or the callsign (see [Band plan](#band-plan)).
+   A country chosen here also sets the clock's time zone to the country's
+   (the capital's or the largest city's, as the time zone database has it;
+   one of the same time when the list has not that one), but only while no
+   time zone was ever chosen (a new card, a factory reset), or the guide set
+   it from a country before.
+5. Clock and time zone. The clock with the date and UTC, and what set it:
    NTP (over WiFi) or the GPS. Set by either, there is nothing to do. If
    neither did, set the date and time in the fields under it, as in
    Settings > General > DATE / TIME. Time zone sets the zone the clock at the
-   top right shows; the logs and the digital modes stay on UTC.
-4. Done. What is set and what is not, the web configurator's address
+   top right shows ("From the country" under it when step 4 set it); the
+   logs and the digital modes stay on UTC.
+6. Done. What is set and what is not, the web configurator's address
    (`http://x6100.local` or `http://x6200.local`, or the
    [network name](#network-name) you gave the radio, and its IP address), and
    where this manual is.
 
 Moving through it:
 
-- The buttons at the bottom: Back, the step's own (Networks, Callsign,
-  Locator, Time zone), Skip and Next (Done on the last screen). The MFK moves
-  between the controls of a step and its press opens one; touch works too.
-- Skip goes on without the step: the summary then says "Skipped" for WiFi
-  or the callsign while they are not set. One set elsewhere (the callsign in
-  Settings, WiFi in the WiFi window) shows as set.
+- The buttons at the bottom: Back, the step's own (Language, Networks,
+  Callsign, Locator, Country, Time zone), Skip and Next (Done on the last
+  screen). The MFK moves between the controls of a step and its press opens
+  one; touch works too.
+- Skip goes on without the step: the summary then says "Skipped" for WiFi,
+  the callsign or the country while they are not set. One set elsewhere
+  (the callsign in Settings, WiFi in the WiFi window) shows as set.
 - ESC asks "Skip the guide?" first; a second ESC within 4 seconds skips the
   rest. GEN, or another app, leaves the guide as well.
 - Finished, skipped or left, the guide does not come back by itself; a
@@ -85,7 +103,8 @@ Moving through it:
 ### First steps
 
 On a new card the [first-start guide](#first-start-guide) takes you through
-steps 1 to 3 and names the web configurator's address.
+steps 1 to 3 (and the language and the country) and names the web
+configurator's address.
 
 1. Set your callsign and QTH locator.
    Where: Settings > General > STATION.
@@ -1454,15 +1473,19 @@ STATION > Band plan (also on the web configurator's Display page, Plan).
 | US Extra, US Advanced, US General, US Technician | the US sub-bands of 47 CFR Part 97 for that licence class (Technician stands for Novice too), as of October 2026 |
 
 Auto takes the region from the first of these that it has: a GPS fix less
-than 10 s old, the QTH locator, the country of the callsign (from cty.dat,
-looked up once, a moment after the start). With none of them (the GPS fix
+than 10 s old, the QTH locator, the country set in Settings > General >
+STATION > Country (or in the first-start guide), the country of the callsign
+(from cty.dat, looked up once, a moment after the start). The country set
+goes before the callsign, which may be a foreign one; a GPS fix or a
+locator goes before both. With none of them (the GPS fix
 lost, or not there yet after a start) it keeps the region the radio had
 last, from one of them or from a plan chosen by hand: the one the band list
 is on (below), so the strip and the band list agree. Region 1 only when it
 never had another. The dropdown's first entry says what Auto takes, "Auto
 (Region 2)", and the web page from what: "Auto: Region 2 from the locator
-FN31", or "Region 2, the last one it had". Auto looks again when the locator
-or the callsign is saved, at each band change, and every 10 s for the GPS.
+FN31", "from the country UY", or "Region 2, the last one it had". Auto looks
+again when the locator, the country or the callsign is saved, at each band
+change, and every 10 s for the GPS.
 The regions are the ITU's (Radio Regulations, Article 5), with the countries
 it puts whole in one region (Russia, Kazakhstan, Mongolia, Turkey, the
 Caucasus and Central Asia in Region 1, all of Iran in Region 3). A
@@ -1634,7 +1657,7 @@ base is too old.
 
 | Card | Options |
 |---|---|
-| STATION | First-start guide (Start runs the [first-start guide](#first-start-guide) again), callsign (an empty field clears it), QTH locator, Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
+| STATION | First-start guide (Start runs the [first-start guide](#first-start-guide) again), callsign (an empty field clears it), QTH locator, Country (the country you operate from, "-" for none, the default; the names in the screen's language, from the Unicode CLDR; the band plan's Auto takes its region when the GPS and the locator do not tell, see [Band plan](#band-plan)), Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone, 12-hour clock (the clock at the top right as `1:05:30 PM`, off as `13:05:30`, the default; VISION shows `1:05 PM`, Ops Room's digits the hours 1 to 12 without AM or PM; Field Ops' clock and its QSO times and Walkie Talkie's clock follow it, `1:05 PM`; the logs, FT8 and the other digital modes stay on UTC; #54) |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off, the default on both radios (see [Amateur bands only](#amateur-bands-only) and [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |

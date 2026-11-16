@@ -595,6 +595,11 @@ class SettingsManager {
     // settings reset, nor on a radio updated from before the guide: there the callsign decides (first_start_rule.h)
     Parameter<int32_t> p_first_start_done{"first_start_done", 0, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // The country the radio is used in (Settings > General > STATION, the first-start guide): its ISO 3166-1 alpha-2
+    // code in capitals ("BE"), "" when none is set. The band plan's Auto takes its IARU region when the GPS and the
+    // locator do not tell (band_plan.c); the list and the C getters are in countries.h
+    Parameter<std::string> p_country{"country", "", country_validate,
+        StorageType::GLOBAL, pending_writes_, {}, &global_params_};
 
     // Waterfall Mode Fixed (Settings > Display > WATERFALL, live, #10): the view moves on when 0 the line (or what is
     // received) is 40% of the span from the centre, 1 the passband's edge 100 Hz from the screen's edge, 2 the line
@@ -1090,6 +1095,9 @@ class SettingsManager {
     // Validate/pad the encoder-bind string to CTRL_FAST_ACCESS_LAST chars
     // (filling any shorter input with ENCODER_BIND_NONE). Pure function.
     static std::string encoder_bind_validate(const std::string &val);
+
+    // A country code as p_country keeps it: two letters in capitals, anything else "" (none set). Pure function
+    static std::string country_validate(const std::string &val);
 
     // Filter category of a mode (SSB/AM/FM/CW; unknown/default -> SSB).
     enum class FilterMode {

@@ -53,6 +53,7 @@ extern "C" {
     #include "text_popup.h"
     #include "station.h"
     #include "band_plan.h"
+    #include "countries.h"
     #include "tci_server.h"
     #include "remote_server.h"
     #include "cluster/client.h"
@@ -3136,7 +3137,10 @@ static void wv_timer_cb(lv_timer_t *t) {
     wv_update();
 }
 
+static lv_obj_t *band_region_dd;     /* the band plan's row, while the page has it */
+
 static void st_delete_cb(lv_event_t *e) {
+    band_region_dd = NULL;
     if (st_kbd || wl_kbd) {
         st_kbd = 0;
         wl_kbd = false;
@@ -3161,13 +3165,49 @@ static uint8_t make_station_row(uint8_t row, const char *label, const char *val,
 /* The band plan: IARU Region 1, 2 or 3, or the US sub-bands of a licence class; Auto names the region it takes.
  * Four cells wide, out to the left of the column (the dropdowns run right to left, flat_ctl()): "Auto (Region 2)"
  * was cut in three */
-static uint8_t make_band_region(uint8_t row) {
+static std::string band_region_options() {
     std::string options = "Auto (" + std::string(band_plan_name(band_plan_auto(NULL, NULL, 0))) + ")";
 
     for (int i = BP_PLAN_AUTO + 1; i < BP_PLAN_COUNT; i++)
         options += std::string("\n") + band_plan_name(i);
+    return options;
+}
+
+static uint8_t make_band_region(uint8_t row) {
     wl_row_label(row, "Band plan");
-    row_choice(row, 1, 1, SMALL_4, options.c_str(), cfg_sm.p_band_region.get(), int_choice_cb, &cfg_sm.p_band_region);
+    band_region_dd = row_choice(row, 1, 1, SMALL_4, band_region_options().c_str(), cfg_sm.p_band_region.get(),
+                                int_choice_cb, &cfg_sm.p_band_region);
+    return row + 1;
+}
+
+/* The country the radio is used in (countries.h): "-" for none, then the countries in the language's alphabetical
+ * order. Auto in the band plan goes by it when the GPS and the locator do not tell: the band plan's row names the
+ * region it takes now. All six cells wide and at the zone's size: the longer names fit, and the list opens with room
+ * to the right */
+static void country_cb(lv_event_t *e) {
+    uint16_t         i = lv_dropdown_get_selected(lv_event_get_target(e));
+    const country_t *c = i ? country_sorted(i - 1) : NULL;
+
+    country_save(c ? c->cc : "");
+    if (band_region_dd) {
+        lv_dropdown_set_options(band_region_dd, band_region_options().c_str());
+        lv_dropdown_set_selected(band_region_dd, cfg_sm.p_band_region.get());
+    }
+}
+
+static uint8_t make_country(uint8_t row) {
+    std::string options = "-";
+    char        cc[3];
+    lv_obj_t   *dd;
+
+    for (int i = 0; i < countries_n(); i++)
+        options += std::string("\n") + country_name(country_sorted(i));
+    wl_row_label(row, "Country");
+    dd = row_choice(row, 1, 1, SMALL_6, "-", 0, country_cb, NULL);
+    lv_obj_set_style_text_font(dd, &sony_22, 0);
+    lv_obj_set_style_text_font(lv_dropdown_get_list(dd), SF(22), 0);
+    (lv_dropdown_set_options)(dd, options.c_str());     /* the names are in the language already: past i18n_hook.h */
+    lv_dropdown_set_selected(dd, country_sorted_index(country_code(cc)) + 1);
     return row + 1;
 }
 
@@ -3190,6 +3230,7 @@ static uint8_t make_station(uint8_t row) {
 
     row = make_station_row(row, "Callsign", params.callsign.x, ST_CALLSIGN);
     row = make_station_row(row, "QTH locator", params.qth.x, ST_QTH);
+    row = make_country(row);
     row = make_band_region(row);
     /* The switches in the card's own second column: make_param_switch places them in the
      * seven-column template, past the end of this two-column one */

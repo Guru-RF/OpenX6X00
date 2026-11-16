@@ -22,7 +22,8 @@ extern "C" {
 typedef enum { BP_CW, BP_DIG, BP_ALL, BP_BCN, BP_OUT } bp_type_t;
 
 /* The plans, as Settings > General > Band plan lists them (band_region); Auto takes the region from where the
- * radio is. US Technician is Novice too */
+ * radio is: a GPS fix, the QTH locator, the country set (countries.h), the callsign's country. US Technician is
+ * Novice too */
 typedef enum {
     BP_PLAN_AUTO, BP_PLAN_R1, BP_PLAN_R2, BP_PLAN_R3,
     BP_PLAN_US_EXTRA, BP_PLAN_US_ADVANCED, BP_PLAN_US_GENERAL, BP_PLAN_US_TECH,
@@ -48,7 +49,8 @@ void band_plan_refresh(void);
  * type their name says (CW, DIG/FT8/DATA, BCN, else all modes). LVGL thread */
 void band_plan_reload(void);
 
-/* Where Auto looks may have changed (the QTH locator or the callsign saved): reload and redraw. LVGL thread */
+/* Where Auto looks may have changed (the QTH locator, the country or the callsign saved): reload and redraw. LVGL
+ * thread */
 void band_plan_follow(void);
 
 /* The plan in use (bp_plan_t, never Auto). Any thread */
@@ -57,9 +59,10 @@ int band_plan_now(void);
 /* The IARU region of the plan in use: 1, 2 or 3 (the US plans: 2). Any thread */
 int band_plan_region(void);
 
-/* What Auto finds, whatever the setting is: the region (1, 2 or 3); how, unless NULL: "gps", "qth" or "call", with
- * the locator or the callsign it came from in at (size bytes), "last" when nothing tells now and the radio had Region
- * 2 or 3 last (the band list's region; at ""), or "" when nothing tells (Region 1). Any thread */
+/* What Auto finds, whatever the setting is: the region (1, 2 or 3); how, unless NULL: "gps", "qth", "country" or
+ * "call", with the locator, the country's code or the callsign it came from in at (size bytes), "last" when nothing
+ * tells now and the radio had Region 2 or 3 last (the band list's region; at ""), or "" when nothing tells (Region
+ * 1). Any thread */
 int band_plan_auto(const char **how, char *at, size_t size);
 
 /* "Region 2", "US General" ("Auto" for 0) */

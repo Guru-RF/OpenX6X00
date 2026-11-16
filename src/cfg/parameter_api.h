@@ -9,6 +9,7 @@
 // SettingsManager (cfg_api.cpp). Creation stays C++-only (validators and
 // storage wiring are C++ constructs).
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -35,6 +36,9 @@ extern "C" {
 int32_t     param_i_get(const ParamInt *p);
 void        param_i_set(ParamInt *p, int32_t v);
 float       param_f_get(const ParamFloat *p);
+// A text parameter into out (size bytes, cut short to fit, always ended), the length of the whole value; and set
+size_t      param_t_get(const ParamText *p, char *out, size_t size);
+void        param_t_set(ParamText *p, const char *v);
 
 #ifdef __cplusplus
 } // extern "C"

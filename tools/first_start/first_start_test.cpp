@@ -12,7 +12,9 @@
  *  - a radio updated from before the guide, with its callsign and no mark: no guide, and no mark written;
  *  - Settings > Info > Factory reset (factory_reset.h deletes params.db): the guide at the next start;
  *  - ESC: the first asks, a second within FIRST_START_ESC_MS skips, a later one asks again, and so across the tick
- *    going round.
+ *    going round;
+ *  - the country the guide and Settings set (p_country, through the C API countries.c uses): none on a new card, a
+ *    code kept in capitals and read back at the next start, anything but two letters taken as none.
  *    first_start_x6100 / first_start_x6200 <params.sql>
  */
 
@@ -29,6 +31,7 @@ extern "C" {
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <memory>
 #include <sstream>
@@ -145,6 +148,57 @@ static void esc(void) {
     check(!first_start_esc(&e, 1500), "past the time across it: asks again", 0);
 }
 
+/* The row of the country, "(none)" without one; the pending writes flushed first */
+static std::string country_row(SettingsManager &sm) {
+    sqlite3_stmt *st;
+    std::string   v = "(none)";
+
+    sm.flush_all();
+    sqlite3_prepare_v2(db, "SELECT val FROM params WHERE name = 'country'", -1, &st, nullptr);
+    if (sqlite3_step(st) == SQLITE_ROW && sqlite3_column_text(st, 0)) v = (const char *)sqlite3_column_text(st, 0);
+    sqlite3_finalize(st);
+    return v;
+}
+
+static std::string country_get(SettingsManager &sm) {
+    char   cc[3];
+    size_t n = param_t_get(&sm.p_country, cc, sizeof(cc));
+
+    check(n == strlen(cc), "the whole code fits", (long)n);
+    return cc;
+}
+
+static void country(void) {
+    card_new();
+    {
+        Start s = start();
+        check(country_get(*s.sm).empty(), "new card: no country", 0);
+        check(country_row(*s.sm) == "(none)", "new card: a start writes no country", 0);
+        param_t_set(&s.sm->p_country, "be");
+        check(country_get(*s.sm) == "BE", "be set: BE", 0);
+        check(country_row(*s.sm) == "BE", "be set: its row BE", 0);
+    }
+    {
+        Start s = start();
+        check(country_get(*s.sm) == "BE", "next start: BE", 0);
+        for (const char *bad : {"BEL", "B", "B1", " BE", "1E", "ÉS"}) {
+            param_t_set(&s.sm->p_country, "UY");
+            param_t_set(&s.sm->p_country, bad);
+            check(country_get(*s.sm).empty(), bad, 0);
+        }
+        param_t_set(&s.sm->p_country, "UY");
+        param_t_set(&s.sm->p_country, nullptr);
+        check(country_get(*s.sm).empty(), "NULL clears it", 0);
+        check(country_row(*s.sm).empty(), "cleared: its row empty", 0);
+    }
+    {
+        Start s = start();
+        check(country_get(*s.sm).empty(), "cleared, next start: none", 0);
+    }
+    card_close();
+    factory_reset_dir(dir.c_str());
+}
+
 int main(int argc, char **argv) {
     char tmpl[] = "/tmp/first_start_test-XXXXXX";
 
@@ -163,6 +217,7 @@ int main(int argc, char **argv) {
 
     rule();
     esc();
+    country();
 
     /* A new card: the guide, and a start writes no mark */
     card_new();

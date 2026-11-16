@@ -9,6 +9,7 @@
 #include "board.h"
 #include "band_names.h"
 #include "cfg/cfg_api.h"
+#include "countries.h"
 #include "dxcc.h"
 #include "gps.h"
 #include "itu_region.h"
@@ -238,8 +239,8 @@ static pthread_mutex_t cur_lock = PTHREAD_MUTEX_INITIALIZER;
 static atomic_uint     plan_gen;    /* one up with every change of the segments or the active bands */
 
 /* Where the radio is: the region Auto takes, whether a US plan has phone at 7.075-7.100 MHz, and how it is known
- * ("gps", "qth", "call", "last" for the region it had last, "" for not at all) and from what (the locator, the
- * callsign) for Settings and the web page */
+ * ("gps", "qth", "country", "call", "last" for the region it had last, "" for not at all) and from what (the locator,
+ * the country's code, the callsign) for Settings and the web page */
 typedef struct {
     int         region;
     bool        pacific;
@@ -279,9 +280,13 @@ static void *call_thread(void *arg) {
 }
 
 /* The position, the first that answers: a GPS fix under 10 s old (as station_qth()), the QTH locator, the country
- * of the callsign (cty.dat's centre of it, once the worker has it). False: none. LVGL thread */
+ * set in Settings > General (its place in the time zone database; its region is the country's, w->region), the
+ * country of the callsign (cty.dat's centre of it, once the worker has it). False: none. LVGL thread */
 static bool locate(double *lat, double *lon, where_t *w) {
-    int age;
+    int              age;
+    const country_t *c;
+
+    w->region = 0;      /* from the position, unless the country says it */
 
     if (gps_last_fix(lat, lon, &age) && age < 10) {
         char grid[9];
@@ -296,6 +301,15 @@ static bool locate(double *lat, double *lon, where_t *w) {
         qth_str_to_pos(params.qth.x, lat, lon);
         snprintf(w->at, sizeof(w->at), "%s", params.qth.x);
         w->how = "qth";
+        return true;
+    }
+    /* Said by the user: before the callsign, which may be a foreign one or the call of a trip abroad */
+    if ((c = country_now())) {
+        *lat      = c->lat;
+        *lon      = c->lon;
+        w->region = c->region;
+        snprintf(w->at, sizeof(w->at), "%s", c->cc);
+        w->how = "country";
         return true;
     }
     w->how   = "";
@@ -353,7 +367,9 @@ static bool find_where(where_t *w) {
         where_last(w);
         return false;
     }
-    w->region  = itu_region(lat, lon);
+    if (!w->region) {
+        w->region = itu_region(lat, lon);
+    }
     w->pacific = w->region != 2 || lon < -130 || lon > 0 || lat < 20;
     return true;
 }
@@ -452,7 +468,7 @@ void band_plan_follow(void) {
 }
 
 /* A GPS fix that comes or goes (or moves the radio into another region, or across 130 W) shows within 10 s; the
- * locator and the callsign call band_plan_follow() when saved */
+ * locator, the country and the callsign call band_plan_follow() when saved */
 static void where_timer_cb(lv_timer_t *t) {
     where_t w;
 
