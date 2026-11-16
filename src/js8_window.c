@@ -26,6 +26,8 @@
 #include "qth/qth.h"
 #include "station.h"
 #include "qso_log.h"
+#include "dxcc.h"
+#include "ft8/decode_list.h"
 
 #include "audio.h"
 #include "buttons.h"
@@ -71,9 +73,12 @@
 #include <unistd.h>
 
 /* Screen geometry */
+#define FLAG_W_JS8       16                        /* flags.h FLAG_W */
 #define WIDTH            771                       /* waterfall, TX line and list, px */
 #define WF_HEIGHT        (DIALOG_H - 26)           /* the dialog less a 13 px border top and bottom */
-#define WF_VISIBLE       0                         /* list drawn over all of the waterfall, for more rows */
+#define LANE_H           26                        /* the calls heard, over their offsets */
+#define WF_VISIBLE       (LANE_H + 40)             /* the lane and the newest rows of the waterfall; the list under */
+#define LANE_SHOW_MS     (3 * 60 * 1000)           /* a call stays in the lane this long after its last decode */
 #define TX_BAR_H         30                        /* the TX line above the list */
 
 /* Audio and waterfall */
@@ -198,6 +203,11 @@ static void query_cb(button_data_t *btn);
 static void hw_cpy_cb(button_data_t *btn);
 static void show_cb(button_data_t *btn);
 static void reply_cb(button_data_t *btn);
+static const char *reply_label_getter(void);
+static void settings_cb(button_data_t *btn);
+static const char *hb_main_label(void);
+static void hb_main_follow(void);
+static void hb_main_hold_cb(button_data_t *btn);
 static void send_cb(button_data_t *btn);
 static void clear_cb(button_data_t *btn);
 static void time_sync_cb(button_data_t *btn);
@@ -265,6 +275,7 @@ static void alerts_close(void), alerts_show(void);
 static void freq_close(void);
 static void freq_show(void);
 static void map_close(void);
+static void settings_close(void);
 static void spot_show(bool sota, spot_item_t focus);
 static void spot_close(void);
 
@@ -368,6 +379,35 @@ static bool          st_worked[MAX_ROWS];            /* st_rows[i] is in the log
 static lv_obj_t *query_list, *aprs_list, *log_list, *inbox_list, *alerts_list, *freq_list, *spot_list;
 static lv_obj_t *map_obj;
 static lv_obj_t *texts_list;
+static lv_obj_t *settings_list;   /* Settings... (page 3) */
+static lv_obj_t *lane;            /* the calls over the waterfall */
+static lv_obj_t *conv_root;       /* the conversation with one station, over the list */
+static lv_obj_t *board;           /* the stations as cards: the main view */
+static bool      board_on = true; /* the board shows (else the list, of messages or stations) */
+static lv_obj_t *hb_info;         /* right of the TX line: the last HB and who heard it */
+static int64_t   hb_sent_ms;      /* our last heartbeat queued, wall clock; 0 none yet */
+static void      board_update(void);
+static void      board_move(int step);
+static void      board_press(void);
+static void      unread_seen(const char *call);
+static void      unread_add(const char *call);
+static void      board_show(bool on);
+static void      table_takes_keys(void);
+static void      keys_leave_main(void);
+static char      board_sel_call[JS8_RX_CALL_LEN];
+static void      conv_close(void);
+static void      tx_target(const js8_rx_msg_t *m, char *call, size_t size);
+static const char *conv_call_now(void);
+static void      conv_choose(const char *call);
+static void      conv_fill(void);
+static int64_t   alert_opened_ms;
+static void      conv_open(void);
+static const char *conv_call_now(void);
+static lv_obj_t *alert_box;       /* "Message from ...": a message just came into the Inbox */
+static void      alert_close(void);
+static void      p3_inbox_view(int id);
+static void      conv_refresh(const js8_rx_msg_t *m);
+static void      lane_update(void);
 
 /* Settings kept in JS8_TEXTS_PATH */
 static char alert_words[128];                        /* ALERTS=, e.g. "VE7ABC @POTA SOTA" */
@@ -496,72 +536,75 @@ static float beep_level_before_db = -200.0f;
         .next = nxt, .prev = prv                                                                    \
     }
 
-static buttons_page_t page_1, page_2, page_3, page_4, page_5, page_6, page_7;
+static buttons_page_t page_1, page_2, page_3, page_4;
 
-/* 1: calling */
-static button_data_t btn_p1     = PAGE_BUTTON("(JS8 1:7)", &page_2, &page_7);
+/* 1: the band: a heartbeat, a CQ, the conversation with the station chosen on the board, the Inbox */
+static const char *chat_label(void);
+static void        chat_cb(button_data_t *btn);
+static const char *view_label(void);
+static void        view_cb(button_data_t *btn);
+static button_data_t btn_p1     = PAGE_BUTTON("(JS8 1:4)", &page_2, &page_4);
+static button_data_t btn_hb_main = {.type = BTN_TEXT_FN, .label_fn = hb_main_label, .press = heartbeat_cb,
+                                    .hold = hb_main_hold_cb};  /* a press sends one, a hold: Settings on HB */
 static button_data_t btn_cq     = {.type = BTN_TEXT_FN, .label_fn = cq_label_getter,
                                    .press = cq_cb, .hold = cq_hold_cb};
-static button_data_t btn_hb     = {.type = BTN_TEXT, .label = "Heart-\nbeat", .press = heartbeat_cb};
-static button_data_t btn_query  = {.type = BTN_TEXT, .label = "Query >", .press = query_cb};
-static button_data_t btn_hw_cpy = {.type = BTN_TEXT, .label = "HW CPY?", .press = hw_cpy_cb};
-static buttons_page_t page_1    = {{&btn_p1, &btn_cq, &btn_hb, &btn_query, &btn_hw_cpy}};
+static button_data_t btn_chat   = {.type = BTN_TEXT_FN, .label_fn = chat_label, .press = chat_cb};
+static button_data_t btn_inbox  = {.type = BTN_TEXT_FN, .label_fn = inbox_label_getter,
+                                   .press = inbox_cb};
+static buttons_page_t page_1    = {{&btn_p1, &btn_hb_main, &btn_cq, &btn_chat, &btn_inbox}};
 
-/* 2: the list */
-static button_data_t btn_p2     = PAGE_BUTTON("(JS8 2:7)", &page_3, &page_1);
-static button_data_t btn_show   = {.type = BTN_TEXT_FN, .label_fn = show_label_getter, .press = show_cb};
-static button_data_t btn_reply  = {.type = BTN_TEXT, .label = "Reply", .press = reply_cb};
-static button_data_t btn_send   = {.type = BTN_TEXT, .label = "Send...", .press = send_cb};
-static button_data_t btn_clear  = {.type = BTN_TEXT, .label = "Clear", .press = clear_cb};
-static buttons_page_t page_2    = {{&btn_p2, &btn_show, &btn_reply, &btn_send, &btn_clear}};
+/* 2: to the station selected, to anyone, and the view: the board, the messages, the stations' table */
+static button_data_t btn_p2       = PAGE_BUTTON("(JS8 2:4)", &page_3, &page_1);
+static button_data_t btn_query    = {.type = BTN_TEXT, .label = "Query >", .press = query_cb};
+static button_data_t btn_reply    = {.type = BTN_TEXT_FN, .label_fn = reply_label_getter, .press = reply_cb};
+static button_data_t btn_send     = {.type = BTN_TEXT, .label = "Send...", .press = send_cb};
+static button_data_t btn_view     = {.type = BTN_TEXT_FN, .label_fn = view_label, .press = view_cb};
+static buttons_page_t page_2      = {{&btn_p2, &btn_query, &btn_reply, &btn_send, &btn_view}};
+static button_data_t btn_hw_cpy   = {.type = BTN_TEXT, .label = "HW CPY?", .press = hw_cpy_cb};
+static button_data_t btn_stations = {.type = BTN_TEXT_FN, .label_fn = stations_label_getter,
+                                     .press = stations_cb};
+static button_data_t btn_map      = {.type = BTN_TEXT, .label = "Map", .press = map_cb};
 
-/* 3 */
-static button_data_t btn_p3        = PAGE_BUTTON("(JS8 3:7)", &page_4, &page_2);
+/* 3: the clock, the power and the switches set once (Settings...) */
+static button_data_t btn_p3        = PAGE_BUTTON("(JS8 3:4)", &page_4, &page_2);
 static button_data_t btn_time_sync = {.type = BTN_TEXT, .label = "Time\nSync",
                                       .press = time_sync_cb, .hold = time_sync_hold_cb};
-static button_data_t btn_hold      = {.type = BTN_TEXT_FN, .label_fn = hold_label_getter,
-                                      .press = hold_cb};
-static button_data_t btn_stations  = {.type = BTN_TEXT_FN, .label_fn = stations_label_getter,
-                                      .press = stations_cb};
-static button_data_t btn_inbox     = {.type = BTN_TEXT_FN, .label_fn = inbox_label_getter,
-                                      .press = inbox_cb};
-static buttons_page_t page_3       = {{&btn_p3, &btn_time_sync, &btn_hold, &btn_stations, &btn_inbox}};
+static button_data_t btn_settings  = {.type = BTN_TEXT, .label = "Settings...", .press = settings_cb};
+static buttons_page_t page_3       = {{&btn_p3, &btn_time_sync, &btn_dig_pwr, &btn_ext_tune, &btn_settings}};
 
-/* 4: automatic sending */
-static button_data_t btn_p4     = PAGE_BUTTON("(JS8 4:7)", &page_5, &page_3);
-static button_data_t btn_auto   = {.type = BTN_TEXT_FN, .label_fn = auto_label_getter,
-                                   .press = auto_cb};
+/* 4: GhostNet's on-demand translation (the message on the list's cursor), the map of the log */
+static button_data_t btn_p4     = PAGE_BUTTON("(JS8 4:4)", &page_1, &page_3);
+static button_data_t btn_transl = {.type = BTN_TEXT, .label = "Trans-\nlate", .press = translate_cb};
+static buttons_page_t page_4    = {{&btn_p4, &btn_transl, &btn_map}};
+
+/* The conversation with a station (press on its row): F1 back to the list */
+static const char *conv_label_getter(void);
+static void        conv_back_cb(button_data_t *btn);
+static void        conv_msg_cb(button_data_t *btn);
+static button_data_t btn_conv     = {.type = BTN_TEXT_FN, .label_fn = conv_label_getter, .press = conv_back_cb};
+static button_data_t btn_conv_msg = {.type = BTN_TEXT, .label = "Write...", .press = conv_msg_cb};
+static buttons_page_t page_conv   = {{&btn_conv, &btn_hb_main, &btn_reply, &btn_query, &btn_conv_msg}};
+
+/* Not on a page: the Settings list presses them (settings_open), their labels are its rows */
+static button_data_t btn_hb     = {.type = BTN_TEXT, .label = "Heart-\nbeat", .press = heartbeat_cb};
+static button_data_t btn_show   = {.type = BTN_TEXT_FN, .label_fn = show_label_getter, .press = show_cb};
+static button_data_t btn_clear  = {.type = BTN_TEXT, .label = "Clear", .press = clear_cb};
+static button_data_t btn_hold   = {.type = BTN_TEXT_FN, .label_fn = hold_label_getter, .press = hold_cb};
+static button_data_t btn_auto   = {.type = BTN_TEXT_FN, .label_fn = auto_label_getter, .press = auto_cb};
 static button_data_t btn_hbauto = {.type = BTN_TEXT_FN, .label_fn = hb_label_getter,
                                    .press = hb_cb, .hold = hb_hold_cb};
-static button_data_t btn_hbackk = {.type = BTN_TEXT_FN, .label_fn = hb_ack_label_getter,
-                                   .press = hb_ack_cb};
-static button_data_t btn_texts  = {.type = BTN_TEXT, .label = "Settings...",
-                                   .press = texts_cb};
-static buttons_page_t page_4    = {{&btn_p4, &btn_auto, &btn_hbauto, &btn_hbackk, &btn_texts}};
-
-/* 5 */
-static button_data_t btn_p5     = PAGE_BUTTON("(JS8 5:7)", &page_6, &page_4);
+static button_data_t btn_hbackk = {.type = BTN_TEXT_FN, .label_fn = hb_ack_label_getter, .press = hb_ack_cb};
+static button_data_t btn_texts  = {.type = BTN_TEXT, .label = "Settings...", .press = texts_cb};
 static button_data_t btn_aprs   = {.type = BTN_TEXT, .label = "APRS >", .press = aprs_cb};
 static button_data_t btn_log    = {.type = BTN_TEXT, .label = "Log QSO", .press = log_cb};
 static button_data_t btn_act    = {.type = BTN_TEXT_FN, .label_fn = act_label_getter,
                                    .press = act_cb, .hold = act_hold_cb};
 static button_data_t btn_prompt = {.type = BTN_TEXT_FN, .label_fn = prompt_label_getter, .press = prompt_cb};
-static buttons_page_t page_5    = {{&btn_p5, &btn_aprs, &btn_log, &btn_act, &btn_prompt}};
-
-/* 6 */
-static button_data_t btn_p6     = PAGE_BUTTON("(JS8 6:7)", &page_7, &page_5);
 static button_data_t btn_alerts = {.type = BTN_TEXT, .label = "Alerts >", .press = alerts_cb};
 static button_data_t btn_speed  = {.type = BTN_TEXT_FN, .label_fn = speed_label_getter,
                                    .press = speed_cb, .hold = speed_hold_cb};
 static button_data_t btn_decode = {.type = BTN_TEXT_FN, .label_fn = decode_label_getter, .press = decode_cb};
 static button_data_t btn_freq   = {.type = BTN_TEXT_FN, .label_fn = freq_label_getter, .press = freq_cb};
-static buttons_page_t page_6    = {{&btn_p6, &btn_alerts, &btn_speed, &btn_decode, &btn_freq}};
-
-/* 7 */
-static button_data_t btn_p7     = PAGE_BUTTON("(JS8 7:7)", &page_1, &page_6);
-static button_data_t btn_map    = {.type = BTN_TEXT, .label = "Map", .press = map_cb};
-static button_data_t btn_transl = {.type = BTN_TEXT, .label = "Trans-\nlate", .press = translate_cb};
-static buttons_page_t page_7    = {{&btn_p7, &btn_dig_pwr, &btn_map, &btn_ext_tune, &btn_transl}};
 
 static dialog_t dialog = {.run           = false,
                           .construct_cb  = construct_cb,
@@ -601,7 +644,7 @@ static bool passes_filter(const js8_rx_msg_t *msg)
 /* "hh:mm:ss  TX 1500  text" for ours, "hh:mm:ss -12 1500  text" for theirs.
  * A speed other than Normal adds its letter after the offset, the same
  * column desktop shows it in. */
-/* Translations (MyMemory, through x6100-translate): of the messages the operator asked for (Translate, page 7) or,
+/* Translations (MyMemory, through x6100-translate): of the messages the operator asked for (Translate, page 4) or,
  * with GhostNet's switch on, of those arriving in English (or Spanish). By message, the newest 48 kept while the
  * radio is on; a row shows its translation on a line of its own under the message. */
 #define TRANS_N 48
@@ -758,7 +801,7 @@ static void rebuild_rows(void)
     else rebuild_station_rows();
 }
 
-/* Our TX speed (page 6). */
+/* Our TX speed (Settings...). */
 static js8_speed_t cur_speed(void)
 {
     js8_speed_t sp = (js8_speed_t)params.js8_speed.x;
@@ -894,10 +937,16 @@ static void add_message(const js8_rx_msg_t *in)
     if (!m.partial && ghostnet_traffic(&m))
         ghostnet_log(m.tx ? 'X' : 'R', m.msg_id, m.tx ? params.callsign.x : m.from, m.to, m.snr,
                      cparam_i_get(cfg_fg_freq), m.text);
+    if (!m.partial && !m.tx && m.to_me && m.from[0] &&
+        !(conv_root && !strcasecmp(m.from, conv_call_now()))) unread_add(m.from); /* the card says "1 new" */
     if (growing >= 0) {
         update_slot(growing, &m);
+        conv_refresh(&m);
+        board_update();
         return;
     }
+    conv_refresh(&m);
+    board_update();
 
     int slot           = hist_head;
     history[hist_head] = m;
@@ -950,6 +999,7 @@ static void trans_store(uint32_t id, int32_t utc, const char *text) {
         if (ghostnet_traffic(h)) ghostnet_log('T', id, h->from, h->to, h->snr, cparam_i_get(cfg_fg_freq), text);
         js8_rx_msg_t copy = *h;
         update_slot(idx, &copy); /* its row again, with the translation */
+        conv_refresh(&copy);     /* and its bubble, when the conversation is open */
         return;
     }
 }
@@ -996,8 +1046,137 @@ typedef struct {
     char snr[8];
     char heard[40];              /* when they heard us, and how well */
     char grid[8];
-    char dist[16];               /* from our locator */
+    char dist[16];               /* from their locator, else "~" from their country's middle */
+    char country[32];
+    int  flag;                   /* flags.h, -1 none */
 } station_fields_t;
+
+/* ---- Where a station is: its flag, country and distance, as the FT8 list shows them. From cty.dat by the call;
+ * the distance from the locator it sent, else from its country's middle ("~"). Kept 30 s a call: the list is
+ * drawn often and a locator may come later. */
+
+typedef struct {
+    char    call[JS8_RX_CALL_LEN];
+    int64_t at;
+    int     flag;
+    char    country[32], prefix[8];
+    int     km;         /* -1 unknown */
+    bool    approx;     /* from the country */
+} where_t;
+
+#define WHERE_N     48
+#define WHERE_MS    30000
+
+static where_t where_cache[WHERE_N];
+static int     where_next;
+
+static const where_t *station_where(const char *call)
+{
+    int64_t now = now_mono_ms();
+
+    if (!call || !call[0]) return NULL;
+    for (int i = 0; i < WHERE_N; i++)
+        if (where_cache[i].call[0] && !strcmp(where_cache[i].call, call) && now - where_cache[i].at < WHERE_MS)
+            return &where_cache[i];
+
+    where_t    *w = &where_cache[where_next];
+    const char *name, *prefix;
+
+    where_next = (where_next + 1) % WHERE_N;
+    memset(w, 0, sizeof(*w));
+    snprintf(w->call, sizeof(w->call), "%s", call);
+    w->at   = now;
+    w->flag = -1;
+    w->km   = -1;
+    if (dxcc_lookup(call, &name, &prefix)) {
+        snprintf(w->country, sizeof(w->country), "%s", name);
+        snprintf(w->prefix, sizeof(w->prefix), "%s", prefix);
+        w->flag = table_view_flag_of(prefix);
+    }
+
+    const char *mine = station_qth();
+    double      my_lat, my_lon, lat, lon;
+
+    if (!mine[0]) return w;
+    qth_str_to_pos(mine, &my_lat, &my_lon);
+
+    js8_station_t st;
+
+    if (find_station(call, &st) && st.grid[0]) {
+        qth_str_to_pos(st.grid, &lat, &lon);
+        w->km = (int)(qth_pos_dist(lat, lon, my_lat, my_lon) + 0.5);
+    } else if (dxcc_pos(call, &lat, &lon)) {
+        w->km     = (int)(qth_pos_dist(lat, lon, my_lat, my_lon) + 0.5);
+        w->approx = true;
+    }
+    return w;
+}
+
+static lv_coord_t text_w(const char *text, const lv_font_t *font)
+{
+    lv_point_t size;
+    lv_txt_get_size(&size, text, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return size.x;
+}
+
+static void draw_flag(lv_draw_ctx_t *ctx, int flag, lv_coord_t x, const lv_area_t *row)
+{
+    const lv_img_dsc_t *img = table_view_flag(flag);
+    if (!img) return;
+
+    lv_draw_img_dsc_t id;
+    lv_area_t         a;
+    lv_draw_img_dsc_init(&id);
+    a.x1 = x;
+    a.x2 = x + img->header.w - 1;
+    a.y1 = (row->y1 + row->y2 - img->header.h) / 2;
+    a.y2 = a.y1 + img->header.h - 1;
+    lv_draw_img(ctx, &id, &a, img);
+}
+
+/* A message's sender, right-aligned after its text where it fits: flag, country and km; else the prefix; else
+ * the flag and km; else nothing */
+static void draw_message_where(lv_obj_draw_part_dsc_t *d, lv_obj_t *tbl, uint32_t row, const js8_rx_msg_t *msg)
+{
+    const where_t *w = station_where(msg->from);
+    if (!w) return;
+
+    lv_draw_label_dsc_t ld = *d->label_dsc;
+    ld.font                = &sony_20;
+    ld.opa                 = LV_OPA_80;
+
+    /* After the first line: a translation (GhostNet) is a line of its own under it */
+    const char *cell = lv_table_get_cell_value(tbl, row, 0);
+    char        first[ROW_MAX];
+    snprintf(first, sizeof(first), "%.*s", (int)strcspn(cell, "\n"), cell);
+
+    lv_coord_t left     = d->draw_area->x1 + lv_obj_get_style_pad_left(tbl, LV_PART_ITEMS);
+    lv_coord_t text_end = left + text_w(first, d->label_dsc->font);
+    lv_coord_t right    = d->draw_area->x2 - 8;
+    lv_area_t  line     = *d->draw_area; /* the first line, where the flag goes */
+    char       km[16]   = "", with[56];
+
+    line.y1 += lv_obj_get_style_pad_top(tbl, LV_PART_ITEMS);
+    line.y2 = line.y1 + lv_font_get_line_height(d->label_dsc->font) - 1;
+
+    if (w->km >= 0) snprintf(km, sizeof(km), "%s%d km", w->approx ? "~" : "", w->km);
+
+    const char *names[3] = {w->country, w->prefix, ""};
+    for (int i = 0; i < 3; i++) {
+        if (i < 2 && !names[i][0]) continue;
+        snprintf(with, sizeof(with), "%s%s%s", names[i], names[i][0] && km[0] ? "  " : "", km);
+        lv_coord_t tw = text_w(with, ld.font), fw = w->flag >= 0 ? FLAG_W_JS8 + 6 : 0;
+        if (right - tw - fw < text_end + 16) continue;
+
+        lv_area_t a = *d->draw_area;
+        a.x2 = right;
+        a.x1 = right - tw;
+        a.y1 += lv_obj_get_style_pad_top(tbl, LV_PART_ITEMS) + 2;
+        lv_draw_label(d->draw_ctx, &ld, &a, with, NULL);
+        if (fw) draw_flag(d->draw_ctx, w->flag, a.x1 - fw, &line);
+        return;
+    }
+}
 
 static void station_fields(const js8_station_t *stn, int64_t now, station_fields_t *out)
 {
@@ -1018,12 +1197,11 @@ static void station_fields(const js8_station_t *stn, int64_t now, station_fields
         else snprintf(out->heard, sizeof(out->heard), "heard you %+03d (%s)", stn->reported_snr, ago);
     }
 
-    const char *mine = station_qth();
-    if (!stn->grid[0] || !mine[0]) return;
-    double their_lat, their_lon, my_lat, my_lon;
-    qth_str_to_pos(stn->grid, &their_lat, &their_lon);
-    qth_str_to_pos(mine, &my_lat, &my_lon);
-    snprintf(out->dist, sizeof(out->dist), "%.0f km", qth_pos_dist(their_lat, their_lon, my_lat, my_lon));
+    const where_t *w = station_where(stn->call);
+    out->flag = w ? w->flag : -1;
+    if (!w) return;
+    snprintf(out->country, sizeof(out->country), "%s", w->country);
+    if (w->km >= 0) snprintf(out->dist, sizeof(out->dist), "%s%d km", w->approx ? "~" : "", w->km);
 }
 
 /* Who is on the cursor's row (either view). False on text rows and on rows
@@ -1152,8 +1330,9 @@ static void draw_station_columns(lv_obj_draw_part_dsc_t *d, lv_obj_t *tbl, int16
 {
     station_fields_t cols;
     station_fields(&st_rows[slot], now_wall_ms(), &cols);
-    const char *text[] = {cols.star, cols.call, cols.speed, cols.age, cols.snr, cols.heard, cols.grid, cols.dist};
-    static const lv_coord_t col_x[] = {0, 18, 140, 162, 218, 276, 520, 610};
+    const char *text[] = {cols.star, "", cols.call, cols.speed, cols.age, cols.snr, cols.heard, cols.country, cols.grid,
+                          cols.dist};
+    static const lv_coord_t col_x[] = {0, 16, 44, 158, 174, 222, 276, 476, 592, 660};
     const int               ncols   = (int)(sizeof(col_x) / sizeof(col_x[0]));
 
     /* Calls already logged are green, like the worked-before mark on desktop. */
@@ -1167,8 +1346,15 @@ static void draw_station_columns(lv_obj_draw_part_dsc_t *d, lv_obj_t *tbl, int16
     for (int c = 0; c < ncols; c++) {
         cell.x1 = left + col_x[c];
         cell.x2 = c == ncols - 1 ? d->draw_area->x2 : left + col_x[c + 1] - 6;
-        const lv_draw_label_dsc_t *style = (c == 1 && st_worked[slot]) ? &logged : d->label_dsc;
-        lv_draw_label(d->draw_ctx, style, &cell, text[c], NULL);
+        if (c == 1) {
+            draw_flag(d->draw_ctx, cols.flag, cell.x1, d->draw_area);
+            continue;
+        }
+        lv_draw_label_dsc_t style = (c == 2 && st_worked[slot]) ? logged : *d->label_dsc;
+        if (c >= 7) style.font = &sony_20;  /* country, grid, km: the narrower font fits them */
+        if (c >= 7) cell.y1 += 2;
+        lv_draw_label(d->draw_ctx, &style, &cell, text[c], NULL);
+        if (c >= 7) cell.y1 -= 2;
     }
 
     /* Heard sending to @X6100, while we are in it: a small tag at the end of
@@ -1177,8 +1363,9 @@ static void draw_station_columns(lv_obj_draw_part_dsc_t *d, lv_obj_t *tbl, int16
         lv_draw_label_dsc_t tag = *d->label_dsc;
         tag.font                = &sony_14;
         tag.align               = LV_TEXT_ALIGN_RIGHT;
-        cell.x1                 = left + 700;
-        cell.x2                 = d->draw_area->x2 - 2;
+        tag.align               = LV_TEXT_ALIGN_LEFT;
+        cell.x1                 = left + 44 + text_w(cols.call, d->label_dsc->font) + 4;
+        cell.x2                 = cell.x1 + 60;
         cell.y1 += 5;
         lv_draw_label(d->draw_ctx, &tag, &cell, "X6100", NULL);
     }
@@ -1205,11 +1392,15 @@ static void table_draw_end_cb(lv_event_t *ev)
         lv_draw_rect(d->draw_ctx, &mark, &a);
     }
     if (view_stations) draw_station_columns(d, tbl, slot);
+    else if (!history[slot].tx && history[slot].from[0]) draw_message_where(d, tbl, row, &history[slot]);
 }
 
 /* The green line on the waterfall at the selected station's offset. */
 static void show_selection(void)
 {
+    buttons_refresh(&btn_reply); /* "Reply\nTHEIRCALL" */
+    buttons_refresh(&btn_chat);
+    if (lane) lv_obj_invalidate(lane); /* the call selected stands out */
     lv_obj_t *line = finder;
     if (qso_freq < 0) lv_finder_clear_cursor(line);
     else lv_finder_set_cursor(line, (int16_t)(qso_freq + 0.5f));
@@ -1221,33 +1412,43 @@ static void show_selection(void)
 /* MFK or a tap moved the cursor: its station becomes the selected one. A
  * row without a station (ours, text) keeps the old selection. On a tap
  * (`announce`) a message says who it is; not on every MFK step. */
-static void select_at_cursor(bool announce)
+static bool select_at_cursor(bool announce)
 {
     char  who[JS8_RX_CALL_LEN];
     float hz;
     int   db;
-    if (row_station(who, sizeof(who), &hz, &db)) {
-        memcpy(sel_call, who, sizeof(sel_call));
-        selection_move(hz, db);
-        if (announce) msg_update_text_fmt("%s at %.0f Hz, %+d dB", who, hz, db);
-    }
+    if (!row_station(who, sizeof(who), &hz, &db)) return false;
+    memcpy(sel_call, who, sizeof(sel_call));
+    selection_move(hz, db);
+    if (announce) msg_update_text_fmt("%s at %.0f Hz, %+d dB", who, hz, db);
+    return true;
 }
 
 static void clear_selection(void)
 {
     memset(sel_call, 0, sizeof(sel_call));
+    board_sel_call[0] = '\0';
+    buttons_refresh(&btn_reply);
+    buttons_refresh(&btn_chat);
     selection_move(-1, sel_snr);
 }
+
+static void conv_open(void);
 
 static void table_press_cb(lv_event_t *ev)
 {
     LV_UNUSED(ev);
-    select_at_cursor(true); /* a tap: say who it is */
+    if (board_on) { /* the list is hidden under the board, which has the press */
+        board_press();
+        return;
+    }
+    if (select_at_cursor(true) && !any_popup() && !composing) conv_open(); /* who it is, what was said */
 }
 
 static void table_select_cb(lv_event_t *ev)
 {
     LV_UNUSED(ev);
+    if (board_on) return; /* the hidden list's cursor selects nothing */
     if (!auto_selecting) {
         cursor_user_ms = now_wall_ms();
         select_at_cursor(false);
@@ -1693,9 +1894,20 @@ static void tx_stop_all(void)
  * decode cycles, but those stop while we transmit. */
 static void every_second(void)
 {
+    lane_update(); /* calls heard, their ages */
+    board_update(); /* the cards: who heard us, the ages */
+    if (conv_root) { /* chosen elsewhere (the map, the web page): the conversations follow, or close with none */
+        if (!sel_call[0]) conv_close();
+        else if (strcasecmp(sel_call, conv_call_now())) {
+            conv_choose(sel_call);
+            conv_fill();
+        }
+    }
+    if (alert_box && now_mono_ms() - alert_opened_ms > 5 * 60 * 1000) alert_close(); /* left: it is in the Inbox */
     hb_tick();
     auto_cq_tick();
     update_status(); /* keeps the clock going */
+    hb_main_follow();
 }
 
 /* Every 250 ms while the app is open. */
@@ -1831,6 +2043,7 @@ static void set_tx_offset(int32_t hz)
     lv_obj_t *band = finder;
     lv_finder_set_value(band, (int16_t)hz);
     lv_obj_invalidate(band);
+    if (lane) lv_obj_invalidate(lane); /* TX moves there too */
     update_tx_bar(); /* shows the new offset */
 }
 
@@ -2023,10 +2236,12 @@ static void compose_layout(bool typing)
         lv_obj_get_coords(dialog.obj, &dlg);
         lv_coord_t kb_y = lv_obj_get_height(lv_scr_act()) / 2; /* lv_keyboard takes the lower half */
         lv_obj_add_flag(bar, LV_OBJ_FLAG_HIDDEN);
+        if (hb_info) lv_obj_add_flag(hb_info, LV_OBJ_FLAG_HIDDEN); /* it goes with the TX line */
         lv_obj_set_pos(list, 13, 13);
         lv_obj_set_size(list, WIDTH, kb_y - dlg.y1 - 15);
     } else {
         lv_obj_clear_flag(bar, LV_OBJ_FLAG_HIDDEN);
+        if (hb_info) lv_obj_clear_flag(hb_info, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_pos(list, 13, 13 + TX_BAR_H + WF_VISIBLE);
         lv_obj_set_size(list, WIDTH, WF_HEIGHT - TX_BAR_H - WF_VISIBLE);
     }
@@ -2040,11 +2255,7 @@ static void compose_close(void)
         textarea_window_close();
         composing = false;
         compose_layout(false);
-        if (table) {
-            lv_group_add_obj(keyboard_group, table);
-            lv_group_focus_obj(table);
-            lv_group_set_editing(keyboard_group, true); /* MFK moves the cursor again */
-        }
+        if (table) table_takes_keys(); /* the list, or the conversations in front of it */
     }
 }
 
@@ -2053,6 +2264,21 @@ static void edit_finish(void)
 {
     edit_target = 0;  /* back to composing messages */
     compose_close();  /* and the list gets its keys back */
+}
+
+/* A message closed unsent (ESC, the MFK held, its button again) comes back in the next window that starts as it
+ * does (Send..., or Reply to the same station); one sent is forgotten (#280) */
+static char compose_draft[TX_TEXT_MAX + 1];
+static char compose_first[TX_TEXT_MAX + 1]; /* what the window opened with: closed as it was, the draft stays */
+
+/* A message window closing unsent: what was typed in is kept (true), a text emptied forgets the draft */
+static bool compose_keep(void)
+{
+    if (!composing || edit_target != 0 || !strcmp(textarea_window_get(), compose_first)) return false;
+    snprintf(compose_draft, sizeof(compose_draft), "%s", textarea_window_get());
+    if (compose_draft[strspn(compose_draft, " ")]) return true;
+    compose_draft[0] = '\0';
+    return false;
 }
 
 /* OK in the compose window. As in the FT8 app's keyboard we close it here
@@ -2116,7 +2342,8 @@ static bool compose_ok_cb(void)
         if (deliver_pending.id && !strcasecmp(out, deliver_pending.text))
             deliver_start(deliver_pending.id, deliver_pending.group_call, out);
         deliver_pending.id = 0;
-        compose_close(); /* sent */
+        compose_draft[0]   = '\0'; /* sent: no draft */
+        compose_close();           /* sent */
         return true;
     }
     case EDIT_INFO:
@@ -2162,6 +2389,7 @@ static bool compose_ok_cb(void)
 static bool compose_cancel_cb(void)
 {
     deliver_pending.id = 0; /* not sent: no longer on offer */
+    if (compose_keep()) msg_update_text_fmt("Not sent: kept for Send... or Reply");
     switch (edit_target) {
     case 0:
     case EDIT_INFO:
@@ -2236,7 +2464,7 @@ static void compose_open(const char *prefill)
     composing = true; /* from here on ESC and the keys belong to the window */
     tx_tr_done = false; /* a new message: into English first again, when GhostNet's switch says so */
     tx_tr_window++;
-    lv_group_remove_obj(table); /* keys go to the text box now */
+    keys_leave_main(); /* keys go to the text box now */
     lv_obj_t *win = textarea_window_open(compose_ok_cb, compose_cancel_cb);
     lv_obj_set_y(win, 0);
     compose_layout(true); /* list under the text box */
@@ -2252,8 +2480,22 @@ static void compose_open(const char *prefill)
     if (edit_target == 0) lv_obj_add_event_cb(box, compose_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
     else if (edit_target >= EDIT_BEACON_GRID) lv_obj_add_event_cb(box, beacon_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
-    if (prefill && prefill[0]) textarea_window_set(prefill);
+    const char *start = prefill ? prefill : "";
+    if (edit_target == 0 && compose_draft[0] && !strncasecmp(compose_draft, start, strlen(start))) {
+        start = compose_draft;
+        msg_update_text_fmt("Your message not sent yet: Enter sends it");
+    }
+    snprintf(compose_first, sizeof(compose_first), "%s", start);
+    if (start[0]) textarea_window_set(start);
     else lv_textarea_set_placeholder_text(box, edit_hint(edit_target));
+}
+
+/* The window's button pressed again: it closes as with ESC, the words kept */
+static bool compose_again(void)
+{
+    if (!composing) return false;
+    textarea_window_cancel();
+    return true;
 }
 
 /* ---- Band and frequency ------------------------------------------------ */
@@ -2349,6 +2591,7 @@ static void retuned(void)
     lv_waterfall_clear_data(waterfall);   /* likewise the picture */
     wf_queue_clear();                     /* and rows not drawn yet */
     clear_selection();                    /* the station is not here */
+    conv_close();                         /* nor the conversations */
     if (view_stations) rebuild_rows();    /* another list */
     add_info_row("%s", where_label());    /* where we are now */
     if (btn_freq.disp_btn) buttons_refresh(&btn_freq); /* its label names the frequency */
@@ -2386,6 +2629,10 @@ static void key_cb(lv_event_t *ev)
     bool vol_up   = key == KEY_VOL_RIGHT_EDIT || key == KEY_VOL_RIGHT_SELECT;
     if (vol_down || vol_up) {
         radio_change_vol(vol_down ? -1 : 1);
+    } else if (board_on && !auto_selecting && (key == LV_KEY_LEFT || key == LV_KEY_UP)) {
+        board_move(-1);
+    } else if (board_on && !auto_selecting && (key == LV_KEY_RIGHT || key == LV_KEY_DOWN)) {
+        board_move(1); /* the user's: select_row()'s DOWN, the list following its newest row, is not */
     } else if (key == LV_KEY_ESC) { /* LVGL prints the calling function with the line below: keep it here */
         LV_LOG_USER("JS8 ESC on the list: tick %u composing %d popup %d tx %d",
                     (unsigned)lv_tick_get(), composing, any_popup(), js8_tx_busy(tx));
@@ -2451,6 +2698,94 @@ static void main_dsp(bool on) {
  * background picture beneath: a megabyte read from the file row by row and alpha-blended, most of
  * what a row cost. A plain opaque object does cover, so drawing starts at the box, as it does for the
  * main screen's waterfall. */
+/* ---- The lane over the waterfall: each call heard lately over its offset, on two lines where they would meet;
+ * the one selected stands out, those that called us in red; TX where we send ---- */
+
+typedef struct {
+    char  call[JS8_RX_CALL_LEN];
+    float hz;
+    bool  me;       /* called us */
+} lane_call_t;
+
+static lane_call_t lane_calls[MAX_ROWS];
+static int         lane_n;
+
+static int lane_by_hz(const void *a, const void *b)
+{
+    float x = ((const lane_call_t *)a)->hz, y = ((const lane_call_t *)b)->hz;
+    return (x > y) - (x < y);
+}
+
+static void lane_update(void)
+{
+    static js8_station_t st[MAX_ROWS];
+    int64_t              now = now_wall_ms();
+    int                  n   = stations ? js8_stations_list(stations, now, st, MAX_ROWS) : 0;
+
+    lane_n = 0;
+    for (int k = 0; k < n; k++) {
+        if (now - st[k].heard_ms > LANE_SHOW_MS) continue;
+        lane_call_t *c = &lane_calls[lane_n++];
+        snprintf(c->call, sizeof(c->call), "%s", st[k].call);
+        c->hz = st[k].freq_hz;
+        c->me = st[k].heard_me && now - st[k].heard_me_ms < LANE_SHOW_MS;
+    }
+    qsort(lane_calls, lane_n, sizeof(lane_calls[0]), lane_by_hz);
+    if (lane) lv_obj_invalidate(lane);
+}
+
+static lv_coord_t lane_x(float hz)
+{
+    if (filter_high <= filter_low) return 0;
+    return (lv_coord_t)((hz - filter_low) * WIDTH / (filter_high - filter_low));
+}
+
+static void lane_draw_cb(lv_event_t *ev)
+{
+    lv_draw_ctx_t *ctx = lv_event_get_draw_ctx(ev);
+    lv_area_t      box;
+    lv_coord_t     ends[2] = {-1000, -1000};
+
+    lv_obj_get_coords(lane, &box);
+
+    lv_draw_label_dsc_t ld;
+    lv_draw_label_dsc_init(&ld);
+    ld.font = &sony_16;
+
+    /* TX first: the calls give way to it on its line */
+    for (int k = -1; k < lane_n; k++) {
+        const char *call = k < 0 ? "TX" : lane_calls[k].call;
+        lv_coord_t  x    = box.x1 + lane_x(k < 0 ? params.js8_tx_freq.x : lane_calls[k].hz);
+        lv_coord_t  w    = text_w(call, ld.font);
+
+        if (x + w > box.x2) x = box.x2 - w;
+        int line = x > ends[0] + 6 ? 0 : x > ends[1] + 6 ? 1 : -1;
+        if (line < 0) continue; /* no room on either line */
+        ends[line] = x + w;
+
+        if (k < 0) ld.color = TC(text);
+        else if (sel_call[0] && !strcasecmp(lane_calls[k].call, sel_call)) ld.color = TC(warn);
+        else if (lane_calls[k].me) ld.color = TC(err);
+        else ld.color = TC(text_mute);
+
+        lv_area_t a = {x, box.y1 + 1 + line * 12, x + w, box.y1 + 1 + line * 12 + 14};
+        lv_draw_label(ctx, &ld, &a, call, NULL);
+    }
+}
+
+static void build_lane(void) {
+    lv_obj_t *l = lane = lv_obj_create(dialog.obj);
+
+    lv_obj_remove_style_all(l);
+    lv_obj_set_style_bg_color(l, TC(panel), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(l, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_clear_flag(l, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(l, WIDTH, LANE_H);
+    lv_obj_set_pos(l, 13, 13);
+    lv_obj_add_event_cb(l, lane_draw_cb, LV_EVENT_DRAW_MAIN_END, NULL);
+    lane_n = 0;
+}
+
 static void build_waterfall(void) {
     lv_obj_t *box = lv_obj_create(dialog.obj);
 
@@ -2458,14 +2793,14 @@ static void build_waterfall(void) {
     lv_obj_set_style_bg_color(box, TC(panel), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(box, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(box, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_size(box, WIDTH, WF_HEIGHT);
-    lv_obj_set_pos(box, 13, 13);
+    lv_obj_set_size(box, WIDTH, WF_HEIGHT - LANE_H);
+    lv_obj_set_pos(box, 13, 13 + LANE_H);
 
     lv_obj_t *wf = waterfall = lv_waterfall_create(box);
     lv_obj_add_style(wf, &waterfall_style, LV_PART_MAIN);
     lv_obj_clear_flag(wf, LV_OBJ_FLAG_SCROLLABLE);
     lv_waterfall_set_palette(wf, (lv_color_t *)wf_palette, 256);
-    lv_waterfall_set_size(wf, WIDTH, WF_HEIGHT);
+    lv_waterfall_set_size(wf, WIDTH, WF_HEIGHT - LANE_H);
     lv_waterfall_set_min(wf, WF_MIN_DB);
     lv_waterfall_set_max(wf, WF_MAX_DB);
     wf_due_us = 0; /* the first row is due at once */
@@ -2486,7 +2821,7 @@ static void build_waterfall(void) {
     *sel_call      = '\0';
 
     const lv_style_selector_t band = LV_PART_INDICATOR;
-    lv_obj_set_size(f, WIDTH, WF_HEIGHT);
+    lv_obj_set_size(f, WIDTH, WF_HEIGHT - LANE_H);
     lv_obj_set_pos(f, 0, 0);
     lv_obj_set_style_radius(f, 0, LV_PART_MAIN);
     lv_obj_set_style_border_width(f, 0, LV_PART_MAIN);
@@ -2517,6 +2852,297 @@ static void build_tx_bar(void) {
     lv_obj_set_style_pad_top(bar, 3, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_label_set_long_mode(bar, LV_LABEL_LONG_DOT);
+
+    /* the last HB and who heard it, on the right of the line */
+    hb_info = lv_label_create(dialog.obj);
+    lv_obj_set_style_text_font(hb_info, &sony_18, LV_PART_MAIN);
+    lv_obj_set_style_text_color(hb_info, TC(text_mute), LV_PART_MAIN);
+    lv_obj_align(hb_info, LV_ALIGN_TOP_RIGHT, -20, WF_VISIBLE + 13 + 6);
+    lv_label_set_text(hb_info, "");
+}
+
+
+/* ---- The board: the stations of the band as cards, the main view. Those that heard us come first (a HB
+ * answered, a call), then the others, newest first. A card: flag, call, signal, country and distance, and a
+ * tag: messages for us not read yet, "heard you" with their report, else what they sent last (CQ, HB,
+ * X6100). The MFK goes from card to card (the station selected for Reply, Query >...), its press opens the
+ * conversations on that one. The list stays under it, hidden, and keeps the keys. */
+
+#define BOARD_COLS  3
+#define BOARD_ROWS  3
+#define BOARD_N     (BOARD_COLS * BOARD_ROWS)
+#define BARS        5
+
+typedef struct {
+    lv_obj_t *box, *flag, *call, *info, *tag, *bar[BARS];
+} card_t;
+
+static card_t        cards[BOARD_N];
+static lv_obj_t     *board_page;
+static js8_station_t board_st[MAX_ROWS];
+static int           board_n, board_sel;
+static char          board_sel_call[JS8_RX_CALL_LEN];
+
+/* Messages for us not read in the conversations yet, by call */
+#define UNREAD_N 32
+static struct {
+    char call[JS8_RX_CALL_LEN];
+    int  n;
+} unread[UNREAD_N];
+
+static int unread_of(const char *call)
+{
+    for (int i = 0; i < UNREAD_N; i++)
+        if (unread[i].call[0] && !strcasecmp(unread[i].call, call)) return unread[i].n;
+    return 0;
+}
+
+static void unread_add(const char *call)
+{
+    int free_at = -1;
+    for (int i = 0; i < UNREAD_N; i++) {
+        if (unread[i].call[0] && !strcasecmp(unread[i].call, call)) {
+            unread[i].n++;
+            return;
+        }
+        if (!unread[i].call[0] && free_at < 0) free_at = i;
+    }
+    if (free_at < 0) free_at = 0; /* full: the first goes */
+    snprintf(unread[free_at].call, sizeof(unread[free_at].call), "%s", call);
+    unread[free_at].n = 1;
+}
+
+static void unread_seen(const char *call)
+{
+    for (int i = 0; i < UNREAD_N; i++)
+        if (unread[i].call[0] && !strcasecmp(unread[i].call, call)) unread[i].call[0] = '\0';
+}
+
+/* What a station sent last, from the messages kept: "CQ", "HB", "X6100" or "" */
+static const char *last_role(const char *call)
+{
+    int idx = hist_head;
+    for (int i = 0; i < hist_count; i++) {
+        idx = (idx + HISTORY - 1) % HISTORY;
+        const js8_rx_msg_t *m = &history[idx];
+        if (m->tx || m->partial || strcasecmp(m->from, call)) continue;
+        if (js8_to_x6100(m, groups_text)) return "X6100";
+        if (m->cq) return "CQ";
+        if (m->heartbeat) return "HB";
+        return "";
+    }
+    return "";
+}
+
+static int board_order(const void *a, const void *b)
+{
+    const js8_station_t *x = a, *y = b;
+    if (x->heard_me != y->heard_me) return x->heard_me ? -1 : 1;
+    int64_t tx = x->heard_me ? x->heard_me_ms : x->heard_ms, ty = y->heard_me ? y->heard_me_ms : y->heard_ms;
+    return (ty > tx) - (ty < tx);
+}
+
+static void hb_info_update(void)
+{
+    if (!hb_info) return;
+    int heard = 0;
+    for (int k = 0; k < board_n; k++)
+        if (board_st[k].heard_me && hb_sent_ms && board_st[k].heard_me_ms >= hb_sent_ms) heard++;
+
+    char text[96];
+    if (hb_sent_ms) {
+        time_t    t = (time_t)(hb_sent_ms / 1000);
+        struct tm tm;
+        gmtime_r(&t, &tm);
+        snprintf(text, sizeof(text), "HB %02d:%02d - %d heard you", tm.tm_hour, tm.tm_min, heard);
+    } else {
+        snprintf(text, sizeof(text), "%d station%s - HB: say you're here", board_n, board_n == 1 ? "" : "s");
+    }
+    if (board_on && board_n > BOARD_N) /* the board's page */
+        snprintf(text + strlen(text), sizeof(text) - strlen(text), "   %d/%d", (board_sel > 0 ? board_sel : 0) / BOARD_N + 1,
+                 (board_n + BOARD_N - 1) / BOARD_N);
+    lv_label_set_text(hb_info, text);
+}
+
+static void card_show(card_t *c, const js8_station_t *st, bool sel)
+{
+    const where_t *w   = station_where(st->call);
+    int            n   = unread_of(st->call);
+    bool           you = st->heard_me;
+
+    lv_obj_clear_flag(c->box, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_bg_color(c->box, you ? TC(row_to_me) : TC(row), LV_PART_MAIN);
+    lv_obj_set_style_border_opa(c->box, sel ? LV_OPA_COVER : LV_OPA_TRANSP, LV_PART_MAIN);
+
+    const lv_img_dsc_t *f = w ? table_view_flag(w->flag) : NULL;
+    if (f) {
+        lv_img_set_src(c->flag, f);
+        lv_obj_clear_flag(c->flag, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(c->flag, LV_OBJ_FLAG_HIDDEN);
+    }
+    lv_label_set_text(c->call, st->call);
+
+    char info[64] = "";
+    if (w && w->country[0]) snprintf(info, sizeof(info), "%s", w->country);
+    if (w && w->km >= 0)
+        snprintf(info + strlen(info), sizeof(info) - strlen(info), "%s%s%d km", info[0] ? "  " : "",
+                 w->approx ? "~" : "", w->km);
+    lv_label_set_text(c->info, info);
+
+    /* their signal as we hear it, -24 dB one bar to -4 dB five */
+    int lit = (st->snr + 28) / 5;
+    for (int b = 0; b < BARS; b++)
+        lv_obj_set_style_bg_color(c->bar[b], b < lit ? TC(ok) : TC(line), LV_PART_MAIN);
+
+    char        tag[32] = "";
+    lv_color_t  col     = TC(text_mute);
+    const char *role    = last_role(st->call);
+    if (n) {
+        snprintf(tag, sizeof(tag), "%d new", n);
+        col = TC(warn);
+    } else if (you && st->has_reported_snr) {
+        snprintf(tag, sizeof(tag), "heard you %+d", st->reported_snr);
+        col = TC(err);
+    } else if (you) {
+        snprintf(tag, sizeof(tag), "heard you");
+        col = TC(err);
+    } else if (role[0]) {
+        snprintf(tag, sizeof(tag), "%s", role);
+        col = !strcmp(role, "CQ") ? TC(ok) : TC(text_mute);
+    }
+    lv_label_set_text(c->tag, tag);
+    lv_obj_set_style_text_color(c->tag, col, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(c->tag, tag[0] ? LV_OPA_60 : LV_OPA_TRANSP, LV_PART_MAIN);
+}
+
+static void board_update(void)
+{
+    if (!board) return;
+    board_n = stations ? js8_stations_list(stations, now_wall_ms(), board_st, MAX_ROWS) : 0;
+    qsort(board_st, board_n, sizeof(board_st[0]), board_order);
+
+    /* the card selected follows its station when the order changes, and the list's choice */
+    if (sel_call[0] && strcasecmp(sel_call, board_sel_call)) snprintf(board_sel_call, sizeof(board_sel_call), "%s", sel_call);
+    board_sel = -1; /* no card framed unless its station is here */
+    for (int k = 0; k < board_n; k++)
+        if (board_sel_call[0] && !strcasecmp(board_st[k].call, board_sel_call)) board_sel = k;
+
+    int first = board_sel > 0 ? board_sel / BOARD_N * BOARD_N : 0;
+    for (int i = 0; i < BOARD_N; i++) {
+        int k = first + i;
+        if (k < board_n) card_show(&cards[i], &board_st[k], k == board_sel);
+        else lv_obj_add_flag(cards[i].box, LV_OBJ_FLAG_HIDDEN);
+    }
+    lv_obj_add_flag(board_page, LV_OBJ_FLAG_HIDDEN); /* the page is on the TX line's right */
+    if (!board_n) {
+        lv_label_set_text(board_page, "Listening... the stations heard come here. HB tells them you are here.");
+        lv_obj_clear_flag(board_page, LV_OBJ_FLAG_HIDDEN);
+    }
+    hb_info_update();
+}
+
+/* The MFK on the board: the next card, its station selected as a row of the list would be */
+static void board_move(int step)
+{
+    if (!board_n) return;
+    int k = board_sel >= 0 ? (board_sel + step + board_n) % board_n : 0;
+    snprintf(board_sel_call, sizeof(board_sel_call), "%s", board_st[k].call);
+    memcpy(sel_call, board_st[k].call, sizeof(sel_call));
+    selection_move(board_st[k].freq_hz, board_st[k].snr);
+    board_update();
+}
+
+static void conv_open(void);
+
+static void board_press(void)
+{
+    if (!board_n || any_popup() || composing) return;
+    if (board_sel < 0) board_move(0);   /* the first card, and its station selected */
+    else if (strcasecmp(sel_call, board_st[board_sel].call)) board_move(0);
+    conv_open();
+}
+
+static void board_show(bool on)
+{
+    board_on = on;
+    if (!board) return;
+    if (on) {
+        lv_obj_clear_flag(board, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(table, LV_OBJ_FLAG_HIDDEN);
+        board_update();
+    } else {
+        lv_obj_add_flag(board, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(table, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+static void build_board(void) {
+    lv_obj_t *b = board = lv_obj_create(dialog.obj);
+    lv_obj_remove_style_all(b);
+    lv_obj_set_size(b, WIDTH, WF_HEIGHT - TX_BAR_H - WF_VISIBLE);
+    lv_obj_set_pos(b, 13, WF_VISIBLE + TX_BAR_H + 13);
+    lv_obj_set_style_bg_color(b, TC(panel), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_clear_flag(b, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_coord_t h  = WF_HEIGHT - TX_BAR_H - WF_VISIBLE;
+    lv_coord_t cw = (WIDTH - (BOARD_COLS - 1) * 6) / BOARD_COLS;
+    lv_coord_t ch = (h - 4 - (BOARD_ROWS - 1) * 4) / BOARD_ROWS;
+
+    for (int i = 0; i < BOARD_N; i++) {
+        card_t   *c   = &cards[i];
+        lv_obj_t *box = c->box = lv_obj_create(b);
+        lv_obj_remove_style_all(box);
+        lv_obj_set_size(box, cw, ch);
+        lv_obj_set_pos(box, (i % BOARD_COLS) * (cw + 6), 2 + (i / BOARD_COLS) * (ch + 4));
+        lv_obj_set_style_bg_opa(box, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_radius(box, 8, LV_PART_MAIN);
+        lv_obj_set_style_border_width(box, 3, LV_PART_MAIN);
+        lv_obj_set_style_border_color(box, TC(warn), LV_PART_MAIN);
+        lv_obj_clear_flag(box, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+
+        c->flag = lv_img_create(box);
+        lv_img_set_zoom(c->flag, 384); /* 24 x 18 */
+        lv_obj_set_pos(c->flag, 12, 8);
+
+        c->call = lv_label_create(box);
+        lv_obj_set_style_text_font(c->call, &sony_22, LV_PART_MAIN);
+        lv_obj_set_style_text_color(c->call, TC(text), LV_PART_MAIN);
+        lv_obj_set_pos(c->call, 40, 2);
+
+        for (int k = 0; k < BARS; k++) {
+            lv_obj_t *bar = c->bar[k] = lv_obj_create(box);
+            lv_obj_remove_style_all(bar);
+            lv_obj_set_size(bar, 4, 4 + k * 3);
+            lv_obj_set_pos(bar, cw - 44 + k * 6, 22 - k * 3);
+            lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
+        }
+
+        c->info = lv_label_create(box);
+        lv_label_set_long_mode(c->info, LV_LABEL_LONG_DOT);
+        lv_obj_set_width(c->info, cw - 110);
+        lv_obj_set_style_text_font(c->info, &sony_16, LV_PART_MAIN);
+        lv_obj_set_style_text_color(c->info, TC(text_mute), LV_PART_MAIN);
+        lv_obj_set_pos(c->info, 8, ch - 24);
+
+        c->tag = lv_label_create(box);
+        lv_obj_set_style_text_font(c->tag, &sony_16, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(c->tag, lv_color_black(), LV_PART_MAIN);
+        lv_obj_set_style_radius(c->tag, 8, LV_PART_MAIN);
+        lv_obj_set_style_pad_hor(c->tag, 6, LV_PART_MAIN);
+        lv_obj_align(c->tag, LV_ALIGN_BOTTOM_RIGHT, -6, -3);
+        lv_obj_add_flag(box, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    board_page = lv_label_create(b);
+    lv_obj_set_style_text_font(board_page, &sony_16, LV_PART_MAIN);
+    lv_obj_set_style_text_color(board_page, TC(text_mute), LV_PART_MAIN);
+    lv_obj_align(board_page, LV_ALIGN_CENTER, 0, 0);
+
+    board_n = 0;
+    board_sel_call[0] = '\0';
+    board_show(board_on);
 }
 
 /* The message list: one column, over the waterfall, which shows through it. */
@@ -2582,9 +3208,11 @@ static void construct_cb(lv_obj_t *screen) {
     filter_low  = cparam_i_get(cfg_cur_filter_low); /* the edges as the radio took them */
     filter_high = cparam_i_get(cfg_cur_filter_high); /* (each was checked against the other) */
 
+    build_lane();
     build_waterfall();
     build_tx_bar();
     build_list();
+    build_board();
 
     rebuild_rows(); /* empty, or the messages kept from the last time */
     const char *where = where_label();
@@ -2637,13 +3265,14 @@ static void destruct_cb(void) { /* the app closes: the radio goes back to how it
         lv_timer_del(*timers[i]);
         *timers[i] = NULL;
     }
+    compose_keep();  /* closed unsent: the message comes back next time */
     compose_close(); /* the keyboard, if open */
 
     /* Popups go now, not later as query_close() and aprs_close() would do it: dialog_destruct() frees
      * their parent, dialog.obj, as soon as this returns, and a delete still pending then would use
      * freed memory (GEN or APP pressed with the Query list open used to crash the app). */
     lv_obj_t **popups[] = {&query_list, &aprs_list,  &texts_list, &log_list,
-                           &inbox_list, &alerts_list, &freq_list,  &spot_list};
+                           &inbox_list, &alerts_list, &freq_list,  &spot_list, &settings_list, &alert_box};
     for (size_t i = 0; i < sizeof(popups) / sizeof(popups[0]); i++) {
         if (!*popups[i]) continue;
         lv_obj_del(*popups[i]);
@@ -2662,6 +3291,10 @@ static void destruct_cb(void) { /* the app closes: the radio goes back to how it
 
     /* dialog_destruct() deletes these with dialog.obj, right after us */
     waterfall = NULL;
+    lane      = NULL;
+    conv_root = NULL;
+    board     = NULL;
+    hb_info   = NULL;
     finder    = NULL;
     table     = NULL;
     status    = NULL;
@@ -2785,7 +3418,7 @@ static bool need_station(char *call, float *hz) {
  * answer instead (and the held message it hands over, if any). */
 static void reply_cb(button_data_t *b) {
     (void)b;
-    if (press_closes_list()) return;
+    if (compose_again() || press_closes_list()) return;
     char  call[JS8_RX_CALL_LEN], start[JS8_RX_TEXT_LEN];
     float hz;
     if (!need_station(call, &hz)) return;
@@ -2807,7 +3440,7 @@ static void reply_cb(button_data_t *b) {
 
 static void send_cb(button_data_t *b) {
     (void)b;
-    if (press_closes_list()) return;
+    if (compose_again() || press_closes_list()) return;
     compose_open(NULL); /* an empty keyboard */
 }
 
@@ -2983,7 +3616,9 @@ static bool send_heartbeat(bool by_itself) {
     if (js8_speed_heartbeats(cur_speed())) {
         char hb[48];
         js8_heartbeat_text(params.callsign.x, station_qth(), hb, sizeof(hb));
-        return tx_queue_at(hb, hb_free_offset(), by_itself);
+        bool queued = tx_queue_at(hb, hb_free_offset(), by_itself);
+        if (queued) hb_sent_ms = now_wall_ms(); /* the board counts who heard it from here */
+        return queued;
     }
     if (!by_itself) msg_update_text_fmt("No heartbeats in Turbo, as in desktop JS8Call");
     return false;
@@ -3030,12 +3665,27 @@ static void stations_cb(button_data_t *b) {
 
 /* Nothing new while sending, typing or looking at a list; the automatic sends all wait for this. */
 static bool busy_elsewhere(void) {
-    return js8_tx_busy(tx) || composing || any_popup();
+    bool only_alert = alert_box && !(aprs_list || spot_list || log_list || inbox_list || alerts_list || freq_list ||
+                                     query_list || texts_list || settings_list || map_obj);
+    return js8_tx_busy(tx) || composing || (any_popup() && !only_alert); /* the message box waits, they don't */
+}
+
+/* The keys away from the list and the conversations: a popup, the keyboard or the map takes them */
+static void keys_leave_main(void) {
+    if (table) lv_group_remove_obj(table);
+    if (conv_root) lv_group_remove_obj(conv_root);
 }
 
 /* The message list gets the keys back once a popup has gone. */
 static void table_takes_keys(void) {
     lv_group_t *keys = keyboard_group;
+
+    if (conv_root) { /* the conversation is in front of the list */
+        lv_group_add_obj(keys, conv_root);
+        lv_group_focus_obj(conv_root);
+        lv_group_set_editing(keys, true);
+        return;
+    }
 
     lv_group_add_obj(keys, table);
     lv_group_focus_obj(table); /* in front of the popup's items, if any are left */
@@ -3105,7 +3755,7 @@ static void query_key_cb(lv_event_t *ev) {
 /* Closes whichever list popups are open. */
 static void popups_close_all(void) {
     void (*const closers[])(void) = {query_close, texts_close, aprs_close, log_close, inbox_close,
-                                     alerts_close, freq_close, spot_close, map_close};
+                                     alerts_close, freq_close, spot_close, map_close, settings_close, alert_close};
     if (any_popup())
         for (size_t k = 0; k < sizeof(closers) / sizeof(closers[0]); k++) closers[k]();
 }
@@ -3155,7 +3805,7 @@ static lv_obj_t *list_add_item(lv_obj_t *parent, const char *text) {
 
 /* A list popup's frame, top right over the message list; it takes the keys from the table. */
 static lv_obj_t *popup_frame(lv_coord_t w, lv_coord_t h, const char *title) {
-    lv_group_remove_obj(table); /* the popup's items get the keys */
+    keys_leave_main(); /* the popup's items get the keys */
     lv_obj_t *p = lv_list_create(dialog.obj);
 
     lv_obj_set_size(p, w, h);
@@ -3227,6 +3877,13 @@ static void query_msg_cb(lv_event_t *ev) {
     tx_queue(text); /* QUERY MSGS */
 }
 
+static void query_hw_cpy_cb(lv_event_t *ev) {
+    (void)ev;
+    list_drop(&query_list); /* hw_cpy_cb would only close it */
+    if (table) table_takes_keys();
+    hw_cpy_cb(NULL);
+}
+
 static void query_close_item_cb(lv_event_t *ev) {
     (void)ev;
     query_close(); /* the Close item */
@@ -3250,6 +3907,602 @@ static void query_saved_cb(lv_event_t *ev) {
     (void)ev;
     list_drop(&query_list);
     saved_open(0);
+}
+
+/* ---- Settings... (page 3): the switches set once, one list ---------------
+ * Each row does what its button did on the old pages: the list goes first (the buttons' callbacks close an open
+ * list and stop there), the button's callback runs, and a switch opens the list again on its row, its new value
+ * shown. The rows that open their own list, the keyboard, the knob or send close it for good. */
+
+typedef struct {
+    button_data_t *btn;
+    bool           hold;    /* its hold, not its press */
+    bool           again;   /* a switch: the list again, on this row */
+    const char    *text;    /* else its label, "AUTO:\nOff" read "AUTO: Off" */
+} setting_t;
+
+static const setting_t settings[] = {
+    {&btn_auto, false, true, NULL},          {&btn_hbauto, false, true, NULL},
+    {&btn_hbauto, true, false, "Heartbeat interval (knob)..."},
+    {&btn_hbackk, false, true, NULL},        {&btn_hold, false, true, NULL},
+    {&btn_show, false, true, NULL},          {&btn_speed, false, true, NULL},
+    {&btn_speed, true, true, "Speed: the selected station's"},
+    {&btn_decode, false, true, NULL},        {&btn_freq, false, false, NULL},
+    {&btn_act, false, true, NULL},           {&btn_act, true, false, "Activation reference..."},
+    {&btn_prompt, false, true, NULL},        {&btn_log, false, false, "Log QSO..."},
+    {&btn_hb, false, false, "Send a heartbeat now"},
+    {&btn_alerts, false, false, NULL},       {&btn_aprs, false, false, NULL},
+    {&btn_texts, false, false, "Groups, INFO, STATUS, Relay..."},
+    {&btn_clear, false, true, "Clear the list"},
+};
+#define SETTINGS_N (sizeof(settings) / sizeof(settings[0]))
+
+static void settings_open(int focus);
+
+static void settings_close(void) {
+    if (settings_list == NULL) return;
+    list_forget(&settings_list);
+    if (table) table_takes_keys();
+}
+
+static void settings_key_cb2(lv_event_t *ev) {
+    uint32_t key = *(uint32_t *)lv_event_get_param(ev);
+    if (key == LV_KEY_ESC) settings_close();
+    else if (!list_step_key(key)) volume_key(key);
+}
+
+static void settings_item_cb(lv_event_t *ev) {
+    intptr_t i = (intptr_t)lv_event_get_user_data(ev);
+
+    list_drop(&settings_list);
+    if (table) table_takes_keys();
+    if (i < 0 || i >= (intptr_t)SETTINGS_N) return; /* Close */
+
+    const setting_t *st = &settings[i];
+    void (*fn)(button_data_t *) = st->hold ? st->btn->hold : st->btn->press;
+
+    if (fn) fn(st->btn);
+    /* HB turned on starts its interval on the knob: here the interval has its own row, the knob stays the list's */
+    if (st->btn == &btn_hbauto && !st->hold && hb_adjusting) hb_adjust_end();
+    buttons_refresh(&btn_hb_main); /* "Heartbeat\nauto 10 min" when HB is on */
+    if (st->again && !any_popup() && !composing) settings_open((int)i);
+}
+
+static void settings_open(int focus) {
+    lv_obj_t *p = settings_list = query_list_create(380, "JS8 Settings");
+    lv_obj_t *first = NULL;
+
+    for (size_t i = 0; i < SETTINGS_N; i++) {
+        const setting_t *st = &settings[i];
+        char             text[64];
+
+        if (st->text) {
+            snprintf(text, sizeof(text), "%s", st->text);
+        } else {
+            const char *l = st->btn->type == BTN_TEXT_FN ? st->btn->label_fn() : st->btn->label;
+
+            snprintf(text, sizeof(text), "%s", l);
+            for (char *c = text; *c; c++)
+                if (*c == '\n') *c = ' ';
+        }
+
+        lv_obj_t *item = list_add_item(p, text);
+
+        lv_obj_add_event_cb(item, settings_item_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        lv_obj_add_event_cb(item, settings_key_cb2, LV_EVENT_KEY, NULL);
+        lv_group_add_obj(keyboard_group, item);
+        if ((int)i == focus) first = item;
+    }
+
+    lv_obj_t *close = list_add_item(p, "Close");
+
+    lv_obj_set_style_text_color(close, TC(action), LV_PART_MAIN);
+    lv_obj_add_event_cb(close, settings_item_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
+    lv_obj_add_event_cb(close, settings_key_cb2, LV_EVENT_KEY, NULL);
+    lv_group_add_obj(keyboard_group, close);
+    lv_group_focus_obj(first ? first : close);
+    lv_group_set_editing(keyboard_group, false);
+}
+
+static void settings_cb(button_data_t *b) {
+    (void)b;
+    user_touch();
+    if (settings_list) { /* a second press closes it */
+        settings_close();
+        return;
+    }
+    if (popup_guard() || composing) return;
+    settings_open(-1); /* on Close: AUTO is not one press away */
+}
+
+/* ---- The conversations: on the left every station we are talking with (a message for us, one of ours to them,
+ * a HB of ours they heard), newest first, their flag, last words and the messages for us not read; on the right
+ * the one chosen: every message from them, to them and ours to them, theirs on the left and ours on the right in
+ * blue, their flag, country, locator, distance and signal on top. The MFK goes from one station to the next, its
+ * press opens Query > for it; F1 back to the board. The lane and the TX line stay above it, the TX line moved
+ * up over the waterfall. */
+
+#define CONV_HEAD_H 40
+#define CONV_MAX    40      /* the last messages shown */
+#define CONV_LEFT_W 248
+#define CONV_ROW_H  42
+#define CONV_LIST_N 16
+
+static lv_obj_t *conv_body, *conv_info, *conv_flag, *conv_title, *conv_left;
+static char      conv_call[JS8_RX_CALL_LEN];
+static int64_t   conv_opened_ms;    /* the press that opened it is released on it: not a press of its own */
+
+typedef struct {
+    char    call[JS8_RX_CALL_LEN];
+    char    last[JS8_RX_TEXT_LEN];
+    int32_t utc;
+} conv_item_t;
+
+static conv_item_t conv_items[CONV_LIST_N];
+static int         conv_n;
+
+static const char *conv_call_now(void) { return conv_root ? conv_call : ""; }
+
+static bool conv_has(const js8_rx_msg_t *m)
+{
+    if (!conv_call[0] || m->partial) return false;
+    if (!strcasecmp(m->from, conv_call) || !strcasecmp(m->to, conv_call)) return true;
+    if (!m->tx) return false;
+    char to[JS8_RX_CALL_LEN];
+    tx_target(m, to, sizeof(to));
+    return !strcasecmp(to, conv_call);
+}
+
+/* A callsign: letters and a digit, maybe a "/" (not CQ, HB, a group or a relay path) */
+static bool looks_like_call(const char *c)
+{
+    size_t n = strlen(c);
+    bool   digit = false, letter = false;
+    if (n < 3 || n > 12 || !strcasecmp(c, "CQ") || !strcasecmp(c, "HB")) return false;
+    for (const char *p = c; *p; p++) {
+        if (isdigit((unsigned char)*p)) digit = true;
+        else if (isalpha((unsigned char)*p)) letter = true;
+        else if (*p != '/') return false;
+    }
+    return digit && letter;
+}
+
+/* The station a message of ours went to: its "to", else the first word of its text */
+static void tx_target(const js8_rx_msg_t *m, char *call, size_t size)
+{
+    if (m->to[0] && m->to[0] != '@') {
+        snprintf(call, size, "%s", m->to);
+        return;
+    }
+    call[0] = '\0';
+    const char *t = m->text;
+    const char *colon = strstr(t, ": ");
+    if (colon) t = colon + 2;
+    size_t n = strcspn(t, " ");
+    if (n && n < size && t[0] != '@') snprintf(call, size, "%.*s", (int)n, t);
+    if (!looks_like_call(call)) call[0] = '\0'; /* our CQ, a relay A>B, a command */
+}
+
+static void conv_list_add(const char *call, const js8_rx_msg_t *m)
+{
+    if (!call[0] || conv_n >= CONV_LIST_N) return;
+    for (int i = 0; i < conv_n; i++)
+        if (!strcasecmp(conv_items[i].call, call)) return;
+    conv_item_t *it = &conv_items[conv_n++];
+    snprintf(it->call, sizeof(it->call), "%s", call);
+    if (m) {
+        const char *t = m->text, *colon = strstr(t, ": ");
+        snprintf(it->last, sizeof(it->last), "%s", colon ? colon + 2 : t);
+        it->utc = m->utc;
+    } else {
+        it->last[0] = '\0';
+        it->utc     = -1;
+    }
+}
+
+/* The stations we talk with, newest first; the one chosen in any case */
+static void conv_list_build(void)
+{
+    conv_n  = 0;
+    int idx = hist_head;
+    for (int i = 0; i < hist_count && conv_n < CONV_LIST_N; i++) {
+        idx = (idx + HISTORY - 1) % HISTORY;
+        const js8_rx_msg_t *m = &history[idx];
+        if (m->partial) continue;
+        if (m->tx) {
+            char to[JS8_RX_CALL_LEN];
+            tx_target(m, to, sizeof(to));
+            conv_list_add(to, m);
+        } else if (m->to_me && m->from[0]) {
+            conv_list_add(m->from, m);
+        }
+    }
+    if (conv_n < CONV_LIST_N) { /* those that heard a HB of ours, nothing said yet */
+        for (int k = 0; k < board_n; k++)
+            if (board_st[k].heard_me) conv_list_add(board_st[k].call, NULL);
+    }
+    bool here = false;
+    for (int i = 0; i < conv_n; i++) here |= !strcasecmp(conv_items[i].call, conv_call);
+    if (!here && conv_call[0]) {
+        if (conv_n == CONV_LIST_N) conv_n--;
+        memmove(&conv_items[1], &conv_items[0], sizeof(conv_items[0]) * conv_n);
+        conv_n++;
+        memset(&conv_items[0], 0, sizeof(conv_items[0]));
+        snprintf(conv_items[0].call, sizeof(conv_items[0].call), "%s", conv_call);
+        conv_items[0].utc = -1;
+    }
+}
+
+static void conv_left_fill(void)
+{
+    lv_obj_clean(conv_left);
+    int sel = 0;
+    for (int i = 0; i < conv_n; i++)
+        if (!strcasecmp(conv_items[i].call, conv_call)) sel = i;
+    int rows  = (lv_obj_get_height(conv_left)) / CONV_ROW_H;
+    int first = sel >= rows ? sel - rows + 1 : 0;
+
+    for (int i = first; i < conv_n && i < first + rows; i++) {
+        conv_item_t *it  = &conv_items[i];
+        lv_obj_t    *row = lv_obj_create(conv_left);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_size(row, CONV_LEFT_W, CONV_ROW_H - 1);
+        lv_obj_set_pos(row, 0, (i - first) * CONV_ROW_H);
+        lv_obj_set_style_bg_color(row, i == sel ? TC(sel_bg) : TC(row), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+
+        const where_t      *w = station_where(it->call);
+        const lv_img_dsc_t *f = w ? table_view_flag(w->flag) : NULL;
+        if (f) {
+            lv_obj_t *img = lv_img_create(row);
+            lv_img_set_src(img, f);
+            lv_obj_set_pos(img, 8, 6);
+        }
+        lv_obj_t *call = lv_label_create(row);
+        lv_label_set_text(call, it->call);
+        lv_obj_set_style_text_font(call, &sony_18, LV_PART_MAIN);
+        lv_obj_set_style_text_color(call, i == sel ? TC(sel_text) : TC(text), LV_PART_MAIN);
+        lv_obj_set_pos(call, 30, 1);
+
+        lv_obj_t *last = lv_label_create(row);
+        lv_label_set_long_mode(last, LV_LABEL_LONG_DOT);
+        lv_obj_set_size(last, CONV_LEFT_W - 40, 18); /* one line */
+        js8_station_t st; /* nothing said yet: they heard us, or only chosen (the board, Chat, the map) */
+        bool          heard = !it->last[0] && find_station(it->call, &st) && st.heard_me;
+        lv_label_set_text(last, it->last[0] ? it->last : heard ? "heard your HB" : "nothing said yet");
+        lv_obj_set_style_text_font(last, &sony_14, LV_PART_MAIN);
+        lv_obj_set_style_text_color(last, TC(text_mute), LV_PART_MAIN);
+        lv_obj_set_pos(last, 8, 22);
+
+        if (it->utc >= 0) {
+            lv_obj_t *t = lv_label_create(row);
+            lv_label_set_text_fmt(t, "%02d:%02d", (int)(it->utc / 10000), (int)(it->utc / 100 % 100));
+            lv_obj_set_style_text_font(t, &sony_14, LV_PART_MAIN);
+            lv_obj_set_style_text_color(t, TC(text_mute), LV_PART_MAIN);
+            lv_obj_align(t, LV_ALIGN_TOP_RIGHT, -6, 2);
+        }
+        int n = unread_of(it->call);
+        if (n) {
+            lv_obj_t *u = lv_label_create(row);
+            lv_label_set_text_fmt(u, "%d", n);
+            lv_obj_set_style_text_font(u, &sony_14, LV_PART_MAIN);
+            lv_obj_set_style_text_color(u, TC(text), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(u, TC(err), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(u, LV_OPA_COVER, LV_PART_MAIN);
+            lv_obj_set_style_radius(u, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+            lv_obj_set_style_pad_hor(u, 6, LV_PART_MAIN);
+            lv_obj_align(u, LV_ALIGN_BOTTOM_RIGHT, -6, -3);
+        }
+    }
+}
+
+static void conv_bubble(const js8_rx_msg_t *m)
+{
+    bool      ours = m->tx;
+    lv_obj_t *line = lv_obj_create(conv_body);
+
+    lv_obj_remove_style_all(line);
+    lv_obj_set_size(line, lv_pct(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(line, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(line, ours ? LV_FLEX_ALIGN_END : LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(line, 6, LV_PART_MAIN);
+    lv_obj_clear_flag(line, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+
+    char      hhmm[8];
+    lv_obj_t *t = lv_label_create(line);
+    snprintf(hhmm, sizeof(hhmm), "%02d:%02d", (int)(m->utc / 10000), (int)(m->utc / 100 % 100));
+    lv_label_set_text(t, hhmm);
+    lv_obj_set_style_text_font(t, &sony_14, LV_PART_MAIN);
+    lv_obj_set_style_text_color(t, TC(text_mute), LV_PART_MAIN);
+
+    /* their words without "CALL: ", ours without our call; GhostNet's translation on a line of its own under them */
+    const char *text = m->text, *colon = strstr(text, ": ");
+    if (colon && (size_t)(colon - text) < JS8_RX_CALL_LEN) text = colon + 2;
+    char words[ROW_MAX];
+    int  tr = trans_find(m);
+    if (tr >= 0) snprintf(words, sizeof(words), "%s\n%s: %s", text, trans[tr].lang, trans[tr].text);
+    else snprintf(words, sizeof(words), "%s", text);
+
+    lv_obj_t *b = lv_label_create(line);
+    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+    lv_label_set_text(b, words);
+    lv_obj_set_width(b, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_width(b, WIDTH - CONV_LEFT_W - 90, LV_PART_MAIN);
+    lv_obj_set_style_text_font(b, &sony_18, LV_PART_MAIN);
+    lv_obj_set_style_text_color(b, TC(text), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(b, ours ? TC(row_tx) : m->to_me ? TC(row_to_me) : TC(row), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_radius(b, 10, LV_PART_MAIN);
+    lv_obj_set_style_pad_hor(b, 10, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(b, 4, LV_PART_MAIN);
+    if (!ours) lv_obj_move_to_index(t, 1); /* the time outside the bubble, on its far side */
+}
+
+static void conv_fill(void)
+{
+    if (!conv_root) return;
+
+    conv_list_build();
+    conv_left_fill();
+
+    /* the header: where they are, how we hear them */
+    js8_station_t       st;
+    const where_t      *w     = station_where(conv_call);
+    const lv_img_dsc_t *f     = w ? table_view_flag(w->flag) : NULL;
+    bool                known = find_station(conv_call, &st);
+    char                info[160] = "", km[16] = "";
+
+    if (f) {
+        lv_img_set_src(conv_flag, f);
+        lv_obj_clear_flag(conv_flag, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(conv_flag, LV_OBJ_FLAG_HIDDEN);
+    }
+    lv_label_set_text(conv_title, conv_call);
+    if (w && w->km >= 0) snprintf(km, sizeof(km), "%s%d km", w->approx ? "~" : "", w->km);
+    snprintf(info, sizeof(info), "%s  %s  %s", w ? w->country : "", known ? st.grid : "", km);
+    if (known)
+        snprintf(info + strlen(info), sizeof(info) - strlen(info), "   %+d dB%s", st.snr,
+                 st.has_reported_snr ? "" : "");
+    if (known && st.has_reported_snr)
+        snprintf(info + strlen(info), sizeof(info) - strlen(info), ", they hear you %+d", st.reported_snr);
+    lv_label_set_text(conv_info, info);
+    lv_obj_set_x(conv_info, CONV_LEFT_W + 6 + 40 + text_w(conv_call, &sony_24) + 12);
+
+    /* the messages, oldest first */
+    lv_obj_clean(conv_body);
+
+    int16_t picked[CONV_MAX];
+    int     n   = 0;
+    int     idx = hist_head;
+    for (int i = 0; i < hist_count && n < CONV_MAX; i++) {
+        idx = (idx + HISTORY - 1) % HISTORY;
+        if (conv_has(&history[idx])) picked[n++] = (int16_t)idx;
+    }
+    if (!n) {
+        lv_obj_t *none = lv_label_create(conv_body);
+        lv_label_set_text_fmt(none, "Nothing with %s yet: Reply, Query > or Write...", conv_call);
+        lv_obj_set_style_text_color(none, TC(text_mute), LV_PART_MAIN);
+        lv_obj_set_style_text_font(none, &sony_18, LV_PART_MAIN);
+    }
+    while (n--) conv_bubble(&history[picked[n]]);
+    lv_obj_update_layout(conv_body);
+    lv_obj_scroll_to_y(conv_body, LV_COORD_MAX, LV_ANIM_OFF);
+}
+
+static void conv_refresh(const js8_rx_msg_t *m)
+{
+    if (!conv_root || m->partial) return;
+    bool here = conv_has(m);
+    if (here) unread_seen(conv_call); /* read as it comes in */
+    if (here || m->tx || m->to_me) conv_fill(); /* this one, or the list on the left */
+}
+
+/* The station chosen: the one Reply, Query > and Write... go to */
+static void conv_choose(const char *call)
+{
+    js8_station_t st;
+    snprintf(conv_call, sizeof(conv_call), "%s", call);
+    memcpy(sel_call, conv_call, sizeof(sel_call));
+    snprintf(board_sel_call, sizeof(board_sel_call), "%s", conv_call);
+    if (find_station(conv_call, &st)) selection_move(st.freq_hz, st.snr);
+    else show_selection();
+    unread_seen(conv_call);
+    buttons_refresh(&btn_conv);
+}
+
+/* The TX line over the waterfall while the conversations show, back under it after */
+static void tx_line_up(bool up)
+{
+    lv_coord_t y = up ? 13 + LANE_H : WF_VISIBLE + 13;
+    if (tx_bar) lv_obj_set_y(tx_bar, y);
+    if (hb_info) lv_obj_align(hb_info, LV_ALIGN_TOP_RIGHT, -20, y + 6);
+}
+
+static void conv_close(void)
+{
+    if (!conv_root) return;
+    lv_obj_del(conv_root);
+    conv_root = conv_body = conv_info = conv_flag = conv_title = conv_left = NULL;
+    tx_line_up(false);
+    if (table) table_takes_keys();
+    buttons_load_page(&page_1);
+    board_update();
+}
+
+static void conv_key_cb(lv_event_t *ev)
+{
+    uint32_t key = *(uint32_t *)lv_event_get_param(ev);
+    int      step = 0;
+
+    user_touch();
+    if (key == LV_KEY_LEFT || key == LV_KEY_UP) step = -1;
+    else if (key == LV_KEY_RIGHT || key == LV_KEY_DOWN) step = 1;
+    else if (key == LV_KEY_ESC) {
+        if (js8_tx_busy(tx) || cq_adjusting || hb_adjusting) esc_pressed(); /* the first ESC stops sending */
+        else conv_close();
+    } else volume_key(key);
+    if (!step || !conv_n) return;
+
+    int at = 0;
+    for (int i = 0; i < conv_n; i++)
+        if (!strcasecmp(conv_items[i].call, conv_call)) at = i;
+    conv_choose(conv_items[(at + step + conv_n) % conv_n].call);
+    conv_fill();
+}
+
+static void conv_click_cb(lv_event_t *ev)
+{
+    LV_UNUSED(ev);
+    if (now_mono_ms() - conv_opened_ms < 400) return;
+    if (!any_popup() && !composing) query_open(); /* every answer and question for them */
+}
+
+static void conv_open(void)
+{
+    if (conv_root || !sel_call[0]) return;
+
+    lv_coord_t top = 13 + LANE_H + TX_BAR_H, h = WF_HEIGHT - LANE_H - TX_BAR_H;
+    lv_obj_t  *r   = conv_root = lv_obj_create(dialog.obj);
+    lv_obj_remove_style_all(r);
+    lv_obj_set_size(r, WIDTH, h);
+    lv_obj_set_pos(r, 13, top);
+    lv_obj_set_style_bg_color(r, TC(panel), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+    tx_line_up(true);
+
+    lv_obj_t *l = conv_left = lv_obj_create(r);
+    lv_obj_remove_style_all(l);
+    lv_obj_set_size(l, CONV_LEFT_W, h);
+    lv_obj_set_pos(l, 0, 0);
+    lv_obj_clear_flag(l, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_coord_t x0 = CONV_LEFT_W + 6, cw = WIDTH - x0;
+    conv_flag = lv_img_create(r);
+    lv_img_set_zoom(conv_flag, 384);
+    lv_obj_set_pos(conv_flag, x0 + 8, 12);
+    conv_title = lv_label_create(r);
+    lv_obj_set_style_text_font(conv_title, &sony_24, LV_PART_MAIN);
+    lv_obj_set_style_text_color(conv_title, TC(text), LV_PART_MAIN);
+    lv_obj_set_pos(conv_title, x0 + 40, 6);
+    conv_info = lv_label_create(r);
+    lv_label_set_long_mode(conv_info, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(conv_info, cw - 180);
+    lv_obj_set_style_text_font(conv_info, &sony_16, LV_PART_MAIN);
+    lv_obj_set_style_text_color(conv_info, TC(text_mute), LV_PART_MAIN);
+    lv_obj_set_pos(conv_info, x0 + 140, 13);
+
+    lv_obj_t *b = conv_body = lv_obj_create(r);
+    lv_obj_remove_style_all(b);
+    lv_obj_set_size(b, cw, h - CONV_HEAD_H);
+    lv_obj_set_pos(b, x0, CONV_HEAD_H);
+    lv_obj_set_style_bg_color(b, TC(bg), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_flex_flow(b, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(b, 6, LV_PART_MAIN);
+    lv_obj_set_style_pad_row(b, 6, LV_PART_MAIN);
+    lv_obj_set_scrollbar_mode(b, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_clear_flag(b, LV_OBJ_FLAG_CLICKABLE);
+
+    lv_obj_add_event_cb(r, conv_key_cb, LV_EVENT_KEY, NULL);
+    lv_obj_add_event_cb(r, conv_click_cb, LV_EVENT_CLICKED, NULL);
+    keys_leave_main();
+    lv_group_add_obj(keyboard_group, r);
+    lv_group_focus_obj(r);
+    lv_group_set_editing(keyboard_group, true);
+
+    conv_opened_ms = now_mono_ms();
+    conv_choose(sel_call);
+    conv_fill();
+    buttons_load_page(&page_conv);
+}
+
+static const char *conv_label_getter(void) { return "(Board)"; } /* F1: back to the cards */
+
+static void conv_back_cb(button_data_t *b) {
+    (void)b;
+    if (press_closes_list()) return;
+    conv_close();
+}
+
+static void conv_msg_cb(button_data_t *b) { /* Write...: words for them, through the keyboard */
+    char text[JS8_RX_CALL_LEN + 8];
+    (void)b;
+    if (compose_again() || press_closes_list() || !conv_call[0]) return;
+    snprintf(text, sizeof(text), "%s ", conv_call);
+    compose_open(text);
+    lv_group_set_editing(keyboard_group, true);
+    msg_update_text_fmt("To %s: type it and press Enter (MSG first for their Inbox)", conv_call);
+}
+
+static const char *chat_label(void) { /* "Chat\nTHEIRCALL" once a station is chosen */
+    static char text[JS8_RX_CALL_LEN + 8];
+    if (!sel_call[0]) return "Chat";
+    snprintf(text, sizeof(text), "Chat\n%s", sel_call);
+    return text;
+}
+
+static void chat_cb(button_data_t *b) { /* the conversations, on the station chosen */
+    (void)b;
+    if (press_closes_list() || composing) return;
+    if (!sel_call[0]) {
+        msg_update_text_fmt("Choose a station first (MFK)");
+        return;
+    }
+    conv_open();
+}
+
+static const char *view_label(void) {
+    if (board_on) return "View:\nBoard";
+    return view_stations ? "View:\nStations" : "View:\nMessages";
+}
+
+static void view_cb(button_data_t *b) { /* the board -> the messages -> the stations' table -> the board */
+    if (press_closes_list()) return;
+    if (board_on) {
+        board_show(false);
+        view_stations = false;
+    } else if (!view_stations) {
+        view_stations = true;
+    } else {
+        view_stations = false;
+        board_show(true);
+    }
+    rebuild_rows();
+    buttons_refresh(b);
+}
+
+/* Heartbeat's label again when HB or its interval changed elsewhere than in the Settings list (the web page), once */
+static void hb_main_follow(void) {
+    static int shown = -1;
+    int        now   = params.js8_hb.x ? (int)params.js8_hb_interval.x : 0;
+    if (now == shown || !btn_hb_main.disp_btn) return;
+    shown = now;
+    buttons_refresh(&btn_hb_main);
+}
+
+static const char *hb_main_label(void) { /* "Heart-\nbeat", or "Heartbeat\nauto 10 min" while they go out */
+    static char text[32];
+    if (!params.js8_hb.x) return "Heart-\nbeat";
+    snprintf(text, sizeof(text), "Heartbeat\nauto %u min", params.js8_hb_interval.x);
+    return text;
+}
+
+static void hb_main_hold_cb(button_data_t *b) { /* Settings, on the row of the automatic heartbeat */
+    (void)b;
+    user_touch();
+    if (popup_guard() || composing) return;
+    settings_open(1);
+}
+
+static const char *reply_label_getter(void) { /* "Reply\nTHEIRCALL" once a station is selected */
+    static char text[JS8_RX_CALL_LEN + 8];
+    if (!sel_call[0]) return "Reply";
+    snprintf(text, sizeof(text), "Reply\n%s", sel_call);
+    return text;
 }
 
 static void query_cb(button_data_t *b) {
@@ -3276,10 +4529,8 @@ static void query_open(void) { /* (Query >) */
 
     lv_obj_t *focus_first = NULL;
     if (selected) {
-        for (int q = 0; q < JS8_Q_COUNT; q++) {
-            lv_obj_t *item = query_add(js8_query_label((js8_query_t)q), query_pick_cb, q);
-            if (q == 0) focus_first = item;
-        }
+        focus_first = query_add("HW CPY?", query_hw_cpy_cb, 0); /* how desktop answers a CQ */
+        for (int q = 0; q < JS8_Q_COUNT; q++) query_add(js8_query_label((js8_query_t)q), query_pick_cb, q);
         for (size_t m = 0; m < sizeof(query_msg_items) / sizeof(query_msg_items[0]); m++)
             lv_obj_set_style_text_color(query_add(query_msg_items[m].label, query_msg_cb, (intptr_t)m), TC(ok),
                                         LV_PART_MAIN);
@@ -3935,9 +5186,7 @@ static void texts_cb(button_data_t *b) {
 /* The knob back on the message list, unless the keyboard holds it. */
 static void p3_knob_to_table(void) {
     if (!table || composing) return;
-    lv_group_add_obj(keyboard_group, table); /* out of the group while a popup was up */
-    lv_group_focus_obj(table);
-    lv_group_set_editing(keyboard_group, true); /* the knob scrolls the list */
+    table_takes_keys(); /* out of the group while a popup was up */
 }
 
 /* Close a popup. This often runs inside one of its own buttons' events, so
@@ -3962,7 +5211,7 @@ static void p3_popup_drop(lv_obj_t **popup) {
 /* An empty popup list, top right over the waterfall. The message list
  * gives up the knob to it. */
 static lv_obj_t *p3_popup_new(lv_coord_t width) {
-    lv_group_remove_obj(table); /* back with p3_knob_to_table() */
+    keys_leave_main(); /* back with p3_knob_to_table() */
     lv_obj_t *p = lv_list_create(dialog.obj);
     lv_obj_set_size(p, width, WF_HEIGHT - 10);
     lv_obj_align(p, LV_ALIGN_TOP_RIGHT, -20, 18);
@@ -4533,7 +5782,7 @@ static void spot_show(bool sota, spot_item_t start) {
 
 /* A popup or the map is over the waterfall. */
 static bool any_popup(void) { return aprs_list || spot_list || log_list || inbox_list || alerts_list || freq_list ||
-                                     query_list || texts_list || map_obj; }
+                                     query_list || texts_list || settings_list || alert_box || map_obj; }
 
 static bool find_station(const char *wanted, js8_station_t *found) {
     static js8_station_t seen[MAX_ROWS]; /* too big for the stack */
@@ -4811,8 +6060,8 @@ static void log_offer(const char *with) {
         msg_update_text_fmt("QSO with %s ended - Save to log?", with);
         return;
     }
-    if (params.js8_log_prompt.x) msg_update_text_fmt("QSO with %s ended: Log QSO (page 5) to log it", with);
-    add_info_row("QSO with %s ended: Log QSO (page 5) to log it", with);
+    if (params.js8_log_prompt.x) msg_update_text_fmt("QSO with %s ended: Settings... (page 3), Log QSO, to log it", with);
+    add_info_row("QSO with %s ended: Settings... (page 3), Log QSO, to log it", with);
 }
 
 static const char *prompt_label_getter(void) { return params.js8_log_prompt.x ? "Log\nprompt: On" : "Log\nprompt: Off"; }
@@ -4901,6 +6150,104 @@ static const char *inbox_label_getter(void) { /* "Inbox", or "Inbox\n2 new" */
     return text;
 }
 
+/* ---- "Message from ...": a message for us in the Inbox, shown at once. The MFK's press opens it there (Reply
+ * there), ESC or any button leaves it in the Inbox. Not over the keyboard or a list: the status line and the
+ * Inbox button say it then. */
+
+static int     alert_id;
+
+static void alert_close(void)
+{
+    if (!alert_box) return;
+    lv_group_remove_obj(alert_box);
+    lv_obj_del_async(alert_box);
+    alert_box = NULL;
+    if (table) table_takes_keys();
+}
+
+static void alert_key_cb(lv_event_t *ev)
+{
+    uint32_t key = *(uint32_t *)lv_event_get_param(ev);
+    if (key == LV_KEY_ESC) alert_close();
+    else volume_key(key);
+}
+
+static void alert_click_cb(lv_event_t *ev)
+{
+    LV_UNUSED(ev);
+    if (now_mono_ms() - alert_opened_ms < 400) return; /* the press that came before it */
+    int id = alert_id;
+    alert_close();
+    if (inbox && !any_popup() && !composing) p3_inbox_view(id); /* the message, Reply under it */
+}
+
+static void alert_show(const js8_stored_t *s, const char *by)
+{
+    if (alert_box || any_popup() || composing || !dialog.obj) return;
+
+    lv_obj_t *b = alert_box = lv_obj_create(dialog.obj);
+    lv_obj_remove_style_all(b);
+    lv_obj_set_size(b, 620, 180);
+    lv_obj_align(b, LV_ALIGN_CENTER, 0, -10);
+    lv_obj_set_style_bg_color(b, TC(popup), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_color(b, TC(warn), LV_PART_MAIN);
+    lv_obj_set_style_border_width(b, 3, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(b, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_radius(b, 12, LV_PART_MAIN);
+    lv_obj_clear_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+
+    const where_t *w = station_where(s->from);
+    lv_coord_t     x = 20;
+    if (w && table_view_flag(w->flag)) {
+        lv_obj_t *f = lv_img_create(b);
+        lv_img_set_src(f, table_view_flag(w->flag));
+        lv_img_set_zoom(f, 512);
+        lv_obj_set_pos(f, x + 8, 22);
+        x += 44;
+    }
+    lv_obj_t *head = lv_label_create(b);
+    if (s->to[0] == '@') lv_label_set_text_fmt(head, "Message to %s from %s", s->to, by);
+    else lv_label_set_text_fmt(head, "Message from %s", by);
+    lv_obj_set_style_text_font(head, &sony_26, LV_PART_MAIN);
+    lv_obj_set_style_text_color(head, TC(warn), LV_PART_MAIN);
+    lv_obj_set_pos(head, x, 12);
+
+    lv_obj_t *text = lv_label_create(b);
+    lv_label_set_long_mode(text, LV_LABEL_LONG_DOT);
+    lv_obj_set_size(text, 580, 56);
+    lv_label_set_text(text, s->text);
+    lv_obj_set_style_text_font(text, &sony_22, LV_PART_MAIN);
+    lv_obj_set_style_text_color(text, TC(text), LV_PART_MAIN);
+    lv_obj_set_pos(text, 20, 54);
+
+    char where[64] = "";
+    if (w && w->country[0]) snprintf(where, sizeof(where), "%s", w->country);
+    if (w && w->km >= 0)
+        snprintf(where + strlen(where), sizeof(where) - strlen(where), "%s%s%d km", where[0] ? ", " : "",
+                 w->approx ? "~" : "", w->km);
+    lv_obj_t *info = lv_label_create(b);
+    lv_label_set_text(info, where);
+    lv_obj_set_style_text_font(info, &sony_18, LV_PART_MAIN);
+    lv_obj_set_style_text_color(info, TC(text_mute), LV_PART_MAIN);
+    lv_obj_set_pos(info, 20, 112);
+
+    lv_obj_t *hint = lv_label_create(b);
+    lv_label_set_text(hint, "MFK press: read it and reply      ESC or a button: later (Inbox)");
+    lv_obj_set_style_text_font(hint, &sony_18, LV_PART_MAIN);
+    lv_obj_set_style_text_color(hint, TC(text_mute), LV_PART_MAIN);
+    lv_obj_set_pos(hint, 20, 142);
+
+    alert_id        = s->id;
+    alert_opened_ms = now_mono_ms();
+    lv_obj_add_event_cb(b, alert_key_cb, LV_EVENT_KEY, NULL);
+    lv_obj_add_event_cb(b, alert_click_cb, LV_EVENT_CLICKED, NULL);
+    keys_leave_main();
+    lv_group_add_obj(keyboard_group, b);
+    lv_group_focus_obj(b);
+    lv_group_set_editing(keyboard_group, true);
+}
+
 /* js8_process() stored something: a MSG for us or one of our groups (the
  * inbox), or a "MSG TO:W1ABC ..." held until W1ABC asks for it (QUERY
  * MSGS, QUERY MSG n, the "MSG ID n" of our heartbeat ack, or our RETRIEVE
@@ -4919,11 +6266,12 @@ static void stored_received(const js8_stored_t *s) {
     if (s->id < 0) msg_update_text_fmt("Message from %s - can't save %s", by, JS8_INBOX_PATH);
     if (!s->resend) {
         if (s->id >= 0 && s->to[0] == '@')
-            msg_update_text_fmt("New message to %s from %s - Inbox on page 3", s->to, by);
+            msg_update_text_fmt("New message to %s from %s - Inbox on page 1", s->to, by);
         else if (s->id >= 0)
-            msg_update_text_fmt("New message from %s - Inbox on page 3", by);
+            msg_update_text_fmt("New message from %s - Inbox on page 1", by);
         add_info_row("Message from %s in the Inbox: %s", by, s->text);
         if (params.js8_alerts.x & JS8_ALERT_INBOX) alert_beep(2);
+        if (s->id >= 0) alert_show(s, by);
     }
     inbox_refresh_button(); /* green while unread */
     update_status();        /* the unread count */
@@ -5571,7 +6919,7 @@ static void speed_warn(void) { /* before a reply goes out */
     char        who[JS8_RX_CALL_LEN];
     float       audio_hz;
     if (!p3_selected_speed(&theirs) || theirs == ours || !p3_selected(who, &audio_hz)) return;
-    msg_update_text_fmt("%s was heard on %s, you send %s - hold Speed (page 6) to match", who, js8_speed_name(theirs),
+    msg_update_text_fmt("%s was heard on %s, you send %s - Settings... (page 3), Speed: theirs, to match", who, js8_speed_name(theirs),
                         js8_speed_name(ours));
 }
 
@@ -5919,11 +7267,7 @@ static void map_close(void) {
     if (!map_obj) return;
     lv_obj_del_async(map_obj);
     map_obj = NULL;
-    if (table && !composing) {
-        lv_group_add_obj(keyboard_group, table);
-        lv_group_focus_obj(table);
-        lv_group_set_editing(keyboard_group, true);
-    }
+    if (table && !composing) table_takes_keys();
 }
 
 static void map_key_cb(lv_event_t *e) {
@@ -5979,14 +7323,14 @@ static void map_cb(button_data_t *btn) {
         return;
     }
     lv_obj_set_pos(map_obj, 13, 13);
-    lv_group_remove_obj(table);
+    keys_leave_main();
     lv_obj_add_event_cb(map_obj, map_key_cb, LV_EVENT_KEY, NULL);
     lv_group_add_obj(keyboard_group, map_obj);
     lv_group_focus_obj(map_obj);
     lv_group_set_editing(keyboard_group, true); /* the MFK steps through the stations */
 }
 
-/* Translate (page 7): the message on the list's cursor into the GUI's language, from English (or Spanish), under it
+/* Translate (page 4): the message on the list's cursor into the GUI's language, from English (or Spanish), under it
  * on its row. Only on this press: the text goes to MyMemory over the internet */
 static void translate_cb(button_data_t *btn) {
     uint16_t r = 0, c = 0;
@@ -5994,8 +7338,8 @@ static void translate_cb(button_data_t *btn) {
     (void)btn;
     user_touch();
     if (popup_guard() || composing) return;
-    if (view_stations) {
-        msg_update_text_fmt("Translate: Show Messages first");
+    if (board_on || view_stations) { /* the list of messages is not in sight */
+        msg_update_text_fmt("View: Messages first");
         return;
     }
     lv_table_get_selected_cell(table, &r, &c);

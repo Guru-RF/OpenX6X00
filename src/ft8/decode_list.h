@@ -83,6 +83,9 @@ void table_view_add_msg_cb(void *data);
 /* Flag k of flags.h (flag_of[].flag) as an LVGL image, NULL for none */
 const lv_img_dsc_t *table_view_flag(int k);
 
+/* The flag of a cty.dat primary prefix (dxcc_lookup's), -1 for none */
+int table_view_flag_of(const char *prefix);
+
 #ifdef __cplusplus
 }
 #endif

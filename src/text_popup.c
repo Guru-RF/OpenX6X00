@@ -8,7 +8,9 @@
 
 /* A one-line text box in a popup, with the on-screen keyboard under it when no USB keyboard
  * is there. Enter (or F-INP, or the keyboard's tick) is OK, ESC cancels, VOL still sets the
- * volume. */
+ * volume. With a keyboard the MFK's hold cancels as well, and a line under the text says so:
+ * a keyboard without an Esc key, or a user who never thought of it, found no way out but OK,
+ * which sends, or closing the whole app (#280). */
 
 #include "text_popup.h"
 #include "gui_events.h"
@@ -72,6 +74,30 @@ static void field_key_cb(lv_event_t *e) {
     if (textarea_key_writes_nothing(key)) {
         lv_event_stop_processing(e);
     }
+}
+
+/* The MFK held on the text box, when no on-screen keyboard has it: the window closes as with ESC. LVGL's text box is
+ * no editable object: the knob's press there is a click, which does nothing, its hold a long press; a touch's hold
+ * stays a touch's */
+static void field_hold_cb(lv_event_t *e) {
+    lv_indev_t *indev = lv_event_get_indev(e);
+
+    if (indev && lv_indev_get_type(indev) == LV_INDEV_TYPE_ENCODER) {
+        dismiss();
+    }
+}
+
+/* Under the text, on the right: how to send and how to leave without sending */
+static void make_hint(void) {
+    lv_coord_t line = lv_font_get_line_height(&sony_16);
+    lv_obj_t  *hint = lv_label_create(window);
+
+    lv_obj_set_style_text_font(hint, &sony_16, 0);
+    lv_obj_set_style_text_color(hint, TC(text_mute), 0);
+    lv_label_set_text(hint, "Enter: OK    Esc, or hold the MFK: close");
+    /* in the box's bottom padding, made higher for it: the row with the text stays as it was */
+    lv_obj_set_style_pad_bottom(window, line + 10, 0);
+    lv_obj_align(hint, LV_ALIGN_BOTTOM_RIGHT, 0, line + 2);
 }
 
 static void kbd_cb(lv_event_t *e) {
@@ -171,6 +197,9 @@ lv_obj_t *textarea_window_open(textarea_window_cb_t ok_cb, textarea_window_cb_t 
     kbd = NULL;
     if (!keyboard_ready()) {
         make_kbd();
+    } else if (ok_cb || cancel_cb) {
+        lv_obj_add_event_cb(field, field_hold_cb, LV_EVENT_LONG_PRESSED, NULL);
+        make_hint();
     }
     lv_group_add_obj(keyboard_group, field);
     /* the focus here: opened from a list (JS8 APRS, status, saved messages) it stayed on the
@@ -195,6 +224,12 @@ void textarea_window_close() {
     if (window) {
         lv_obj_del(window);
         window = NULL;
+    }
+}
+
+void textarea_window_cancel(void) {
+    if (window) {
+        dismiss();
     }
 }
 

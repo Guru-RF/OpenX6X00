@@ -275,13 +275,20 @@ closes the grid. Four rows are in sight; the grid scrolls to the rows below
 as the MFK goes there (or by a swipe on the touch screen). "APP > CW Keyboard" in this manual is the tile, or the
 button on APP 3:6.
 
-- Each app has its own button pages, named like `(JS8 1:7)`. The first
+- Each app has its own button pages, named like `(JS8 1:4)`. The first
   button goes to the next page.
 - The MFK walks the items of an app or a list; a press chooses.
 - ESC closes popups and apps.
 - A press of VOL does not close menus or apps, and in a text field it types
   nothing; on the main screen it still works as ESC. Held, it is still one
   press.
+- A text box (a call, a message, a password) takes Enter as OK. Without a
+  keyboard the on-screen keyboard is under it: its tick is OK, its keyboard
+  key (bottom left) closes the box and nothing is taken or sent. With a
+  keyboard a line under the text says it: Enter OK, Esc or the MFK held
+  closes the box, nothing taken or sent. Up to v0.3.12 the MFK's hold did
+  nothing there, and a keyboard without an Esc key had no way out but OK
+  (issue #280).
 
 Knobs. On the main screen the main knob tunes, and VOL and the MFK each turn
 one control of their own list. The two lines over the buttons say which
@@ -3056,7 +3063,7 @@ Starting and stopping it:
 
 - A key: give "TUNE ext. tuner on/off" to a front key's long press or to a
   hand mic F key (Settings > Keys). It works with an app open.
-- The Ext tune button of the digital apps: FT8/FT4/FT2 page 5, JS8 page 7,
+- The Ext tune button of the digital apps: FT8/FT4/FT2 page 5, JS8 page 3,
   WSPR page 2, SSTV page 3, PSK31/PSK63 and Olivia page 6, JTTY page 5. It
   shows the TUNE power, and Stop while it tunes.
 - The browser Panel's TUNE button (see
@@ -3610,11 +3617,13 @@ First steps:
    timing (a drift shown on the top line); hold the button to reset it.
 3. APP > Modes > JS8. The radio tunes the nearest JS8 frequency; the band
    keys step through JS8Call's (or GhostNet's) frequencies, or type your own
-   (Freq, page 6). While JS8 is open the RX filter is 200-3000 Hz, noise
+   (Settings..., Freq). While JS8 is open the RX filter is 200-3000 Hz, noise
    reduction, noise blanker and notch are off, and power is capped at 7 W;
    all go back when you leave.
-4. Turn the MFK onto a station's row, then HW CPY? (page 1), Reply (page 2)
-   or Query > (page 1).
+4. The board shows the stations of the band as cards. Heartbeat (page 1)
+   tells them you are here; those that hear you answer and come first, in
+   red, "heard you" with their report. Turn the MFK onto a card and press:
+   the conversations open on that station.
 5. ESC or the top knob stops sending; the next ESC leaves the app.
 
 Nothing sends by itself: AUTO (automatic replies), HB (heartbeats) and HB ACK
@@ -3624,24 +3633,78 @@ Buttons (the first one of each row turns the page, hold to go back):
 
 | Page | Buttons |
 |---|---|
-| 1 | CQ (hold: auto CQ), Heartbeat, Query >, HW CPY? |
-| 2 | Show: No HB / Directed / All, Reply, Send..., Clear |
-| 3 | Time Sync, Hold: Off / On, Show Stations / Messages, Inbox |
-| 4 | AUTO, HB, HB ACK, Settings... (INFO, STATUS, Relay, Groups) |
-| 5 | APRS >, Log QSO, Activ.: Off / POTA / SOTA, Log prompt |
-| 6 | Alerts >, Speed, Decode: All speeds / My speed, Freq: JS8 / GhostNet / kHz |
-| 7 | Power, Map, Ext tune, Translate |
+| 1 | Heartbeat (hold: HB in Settings), CQ (hold: auto CQ), Chat (the station chosen), Inbox (n new) |
+| 2 | Query > (HW CPY? first), Reply, Send..., View: Board / Messages / Stations |
+| 3 | Time Sync (hold: reset), Power, Ext tune, Settings... |
+| 4 | Translate, Map |
+
+The board, the main view: a card for each station of the band, nine a page,
+those that heard you first (a heartbeat answered, a call), then the others,
+newest first. A card shows the flag, the call, the signal as you hear it,
+the country and distance (from their locator, else from their country's
+middle, "~"), and a tag: "2 new" (messages for you not read), "heard you
+-12" (their report), else what they sent last (CQ, HB, X6100). The selected
+card is framed; the MFK goes from card to card, its press opens the
+conversations. On the right of the TX line: the stations heard and "HB:
+say you're here", then after a heartbeat its time and how many heard it,
+and the board's page. View (page 2) goes to the list of messages, then the
+table of stations, then back to the board.
+
+The conversations: on the left every station you are talking with (a
+message for you, one of yours to them, a heartbeat of yours they heard),
+newest first, their flag, last words and unread count; on the right the one
+chosen, theirs on the left, yours on the right in blue, their country,
+locator, distance and the reports on top. The MFK goes from one station to
+the next, its press opens Query > for it. Buttons: Board (back), Heartbeat,
+Reply, Query > and Write... (words for them; MSG first puts them in their
+Inbox). The lane and the TX line stay above it.
+
+The message window (Reply, Send..., Write...): Enter sends. ESC, the MFK
+held (with a keyboard), the on-screen keyboard's keyboard key, or the same
+button again closes it without sending; what you typed is kept ("Not sent:
+kept for Send... or Reply") and comes back in the next window that starts
+the same way (Send..., or Reply and Write... to that station), also after
+the app was closed (not after a restart). A message sent is forgotten, and
+so is one whose text you empty before closing. Up to v0.3.12 the button
+again did nothing and the words were lost (issue #280).
+
+Heartbeat (page 1) sends one at once; it reads "Heartbeat auto 10 min"
+while the automatic ones go out. Held, it opens Settings on HB to turn them
+on or off.
+
+Settings... is one list of the switches set once, each row doing what its
+button did: AUTO, HB (on, off) and its interval (the knob), HB ACK, Hold,
+Show: No HB / Directed / All, Speed and the selected station's speed,
+Decode: All speeds / My speed, Freq: JS8 / GhostNet / kHz (and
+GhostNet's nets, reminder and RTTY),
+Activation: Off / POTA / SOTA and its reference, Log prompt, Log QSO, a
+heartbeat now, Alerts, APRS, Groups / INFO / STATUS / Relay, and Clear the
+list. A switch shows its new value on its row; ESC or Settings... closes it.
+
+The screen: over the waterfall a lane of the calls heard in the last 3
+minutes, each over its offset (the one selected in the warning colour,
+those that called you in red, TX where you send); the newest rows of the
+waterfall; the TX line; the list. Each message shows its sender's flag,
+country and distance on the right where it fits (the distance from the
+locator they sent, else from their country's middle, "~"); the Stations view
+has the flag before the call and a country column.
+
+A message for you or your group comes in: besides the line in the list and
+the beep, a box says "Message from ..." with its text, their country and
+distance. The MFK's press opens it in the Inbox (Reply there); ESC or any
+button leaves it in the Inbox for later. It does not open over the keyboard
+or a list.
 
 What it does:
 
 - One-press messages (SNR?, GRID?, INFO?, STATUS?, HEARING?, AGN?, RR, 73),
   an Inbox for `MSG` messages, relays and store-and-forward like desktop
   JS8Call.
-- Log: the Log popup (page 5, or when a QSO ends with 73/SK) saves to
+- Log: the Log popup (Settings..., Log QSO, or when a QSO ends with 73/SK) saves to
   `js8call_log.adi` in desktop JS8Call's ADIF format, with POTA/SOTA
   activation fields. FT8 keeps its own `ft_log.adi`.
-- Map (page 7): the stations of the JS8 log on the same map as FT8.
-- Translate (page 7): the message on the list's cursor, translated into the
+- Map (page 4): the stations of the JS8 log on the same map as FT8.
+- Translate (page 4): the message on the list's cursor, translated into the
   GUI's language; see [GhostNet](#ghostnet), Translation.
 - Alerts: beeps for messages, CQs and new stations, and purple alert words.
 - APRS through JS8 gateways: grid and GPS position beacons (optionally with a
@@ -3659,10 +3722,10 @@ default, and everyone is free to take it out:
 - The radio never transmits to the group by itself: no automatic answers,
   heartbeat acks, ACKs or relays for @X6100 traffic, with AUTO on or off,
   in the group or not. Only what you send yourself goes out.
-- To leave it: page 4, Settings..., Groups: @X6100. Delete @X6100 from the
-  text and confirm; the radio shows "No groups" (or your other groups). It
-  stays out after that, also after a restart or an update. To join again,
-  type @X6100 there.
+- To leave it: Settings... (page 3), Groups, INFO, STATUS, Relay...,
+  Groups: @X6100. Delete @X6100 from the text and confirm; the radio shows
+  "No groups" (or your other groups). It stays out after that, also after a
+  restart or an update. To join again, type @X6100 there.
 
 Known limits: relays, store and forward, and most APRS items are not yet
 proven on the air (only the grid spot and SMS are). The main screen's
@@ -3672,16 +3735,16 @@ waterfall stands still while JS8 is open.
 
 GhostNet is a weekly JS8 net for emergency communication, with a net in
 each region on Thursday evening and data bridges between the regions on
-Saturday. Freq (page 6) has two GhostNet items:
+Saturday. Freq (Settings..., page 3) has two GhostNet items:
 
 - **GhostNet mode: 7.107 + its groups** tunes 7.107 MHz, the GhostNet
   frequency of the weekly nets (the band keys step through GhostNet's list:
   3.575, 7.107 and 14.107), and puts @GHOSTNET, @GSTFLASH and your regional group
-  in Groups (page 4, Settings...). The groups go in once; take any of them
-  out in Groups as you would @X6100. The row "GhostNet groups: ..." in the
-  list says what you are in. With AUTO on, JS8 answers the queries sent to
-  your groups (SNR?, GRID? ...) as desktop JS8Call does; AUTO is off every
-  time the app opens.
+  in Groups (Settings..., page 3: Groups, INFO, STATUS, Relay...). The
+  groups go in once; take any of them out in Groups as you would @X6100.
+  The row "GhostNet groups: ..." in the list says what you are in. With
+  AUTO on, JS8 answers the queries sent to your groups (SNR?, GRID? ...) as
+  desktop JS8Call does; AUTO is off every time the app opens.
 - **GhostNet: nets, reminder, RTTY...** opens GhostNet's popup:
   - Reminder N min before: On / Off (Off by default). On, a message comes
     up N minutes (10 by default) before each net you chose, over whatever
@@ -3723,12 +3786,13 @@ Translation, through MyMemory (mymemory.translated.net, Translated's free
 translation memory, used without a key and without an account). GhostNet's
 nets are held in English, and some in Spanish:
 
-- **Translate** (page 7): turn the MFK onto a message, press Translate. The
-  translation into the GUI's language (Settings > Display > INTERFACE >
-  Language) comes on a line of its own under the message, with the language
-  in front ("NL: ..."), and stays while the radio is on. It translates from
-  English, or from Spanish when the message reads as Spanish; with the GUI
-  in English, from Spanish.
+- **Translate** (page 4): in View: Messages (page 2) turn the MFK onto a
+  message, press Translate. The translation into the GUI's language
+  (Settings > Display > INTERFACE > Language) comes on a line of its own
+  under the message, with the language in front ("NL: ..."), and in its
+  bubble in the conversations, and stays while the radio is on. It
+  translates from English, or from Spanish when the message reads as
+  Spanish; with the GUI in English, from Spanish.
 - **Translate arriving messages** (GhostNet's popup, Off by default): each
   message that arrives in English (or Spanish) is translated the same way,
   on any frequency. Messages already in your language, heartbeats and SNR

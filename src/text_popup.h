@@ -33,6 +33,8 @@ lv_obj_t *textarea_window_open(textarea_window_cb_t ok_cb, textarea_window_cb_t 
 /* The same with a title in front of the text */
 lv_obj_t *textarea_window_open_w_label(textarea_window_cb_t ok_cb, textarea_window_cb_t cancel_cb, const char *text);
 void textarea_window_close();
+/* Closes it as ESC does: its cancel callback, nothing taken. For the button that opened it, pressed again */
+void textarea_window_cancel(void);
 
 /* A character (or LV_KEY_BACKSPACE) into the open window's text, wherever the focus is; false with no window.
  * The hand mic's digits: the window holds the group in edit mode, where they are mic keys, and with the
