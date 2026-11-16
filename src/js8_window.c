@@ -5762,8 +5762,9 @@ static void gn_item_cb(lv_event_t *ev) {
         break;
     case GN_RTTY:
         if (!p3_tx_idle()) return;
-        p3_popup_shut(&freq_list);
         ghostnet_rtty_open(); /* once this app has closed */
+        /* The popup is left to destruct_cb, which deletes it at once: shut here, its delete would come after
+         * dialog_destruct() has freed dialog.obj, its parent, and crash the GUI */
         dialog_destruct();
         return;
     default: p3_popup_shut(&freq_list); return;
