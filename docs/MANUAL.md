@@ -6509,7 +6509,11 @@ and knobs go as on the Screen page. The apps: the FT8 list's rows come as `ft8r 
 text, call, grid, audio Hz, SNR, to me, worked, distance, country), the app's
 state as `ft8 {...}` (open, proto, cq, tx, auto, hold, sending, txf, next),
 the CW decoder's text as `cw "..."`; `ft8 open|close|cq|stop|auto|hold|mode`,
-`ft8 txcall`, `ft8 txfreq HZ` and `ft8 reply ID` work the app; the state
+`ft8 txcall`, `ft8 txfreq HZ` and `ft8 reply ID` work the app; `wefax
+open|close|auto|cont|save|clear` works the WeFax app as its buttons do (RX
+Auto, RX Cont, Save, Clear; operate and control, `err wefax WHAT` for one it
+does not know), and the panel state's `app` names the digital app open
+(`"FT8"`, `"WeFax"`, `""` for none); the FT8 state
 carries the timeline too (`in` ms to our next slot, `slot` its length, `rep`
 the sends left, `qso`, `hound`, `nocall`, `logged` and `logged_s`), once a
 second while a countdown runs; `log CALL|RSTS|RSTR|NAME`

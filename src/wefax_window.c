@@ -1739,3 +1739,23 @@ static void done_cb(button_data_t *data)
     channel_overlay_show("Saving fax...");
     browser_save_timer = lv_timer_create(picture_save_timer_cb, 50, NULL);
 }
+
+bool wefax_window_remote(wefax_rc_t what)
+{
+    if (!dialog_type_is_run(dialog_wefax) || !decoder)
+        return false;
+    switch (what) {
+        case WEFAX_RC_AUTO:
+            if (!auto_mode())
+                rx_auto();
+            break;
+        case WEFAX_RC_CONT:
+            if (auto_mode())
+                rx_cont();
+            break;
+        case WEFAX_RC_SAVE:  save_cb(NULL); break;
+        case WEFAX_RC_CLEAR: clear_cb(NULL); break;
+    }
+    buttons_refresh(&btn_rx_mode);
+    return true;
+}
