@@ -1660,7 +1660,7 @@ base is too old.
 
 | Card | Options |
 |---|---|
-| STATION | First-start guide (Start runs the [first-start guide](#first-start-guide) again), callsign (an empty field clears it), QTH locator, Country (the country you operate from, "-" for none, the default; the names in the screen's language, from the Unicode CLDR; the band plan's Auto takes its region when the GPS and the locator do not tell, see [Band plan](#band-plan)), Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
+| STATION | First-start guide (Start runs the [first-start guide](#first-start-guide) again), callsign (an empty field clears it), QTH locator, Country (the country you operate from, "-" for none, the default; the names in the screen's language, from the Unicode CLDR; the band plan's Auto takes its region when the GPS and the locator do not tell, see [Band plan](#band-plan); the [CB](#cb) app takes its plan until one is chosen there), Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone, 12-hour clock (the clock at the top right as `1:05:30 PM`, off as `13:05:30`, the default; VISION shows `1:05 PM`, Ops Room's digits the hours 1 to 12 without AM or PM; Field Ops' clock and its QSO times and Walkie Talkie's clock follow it, `1:05 PM`; the logs, FT8 and the other digital modes stay on UTC; #54) |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off, the default on both radios (see [Amateur bands only](#amateur-bands-only) and [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
@@ -5494,8 +5494,11 @@ Channel 23 sits between 22 and 24 in frequency in every plan with the 40,
 as the plans number them.
 
 - Plan goes to the next plan; the choice is kept. Until one is chosen it is
-  the plan of the radio's IARU region: Region 1 Europe, Region 2 USA,
-  Region 3 Australia (see [Band plan](#band-plan)).
+  the plan of the country set in Settings > General > STATION > Country
+  when it has one here (Germany, United Kingdom, Poland, Australia, and the
+  USA's for the USA, Canada and Mexico), else the plan of the radio's IARU
+  region: Region 1 Europe, Region 2 USA, Region 3 Australia (see
+  [Band plan](#band-plan)).
 - Mode goes through the modes the plan allows, the plan's own first. A
   channel that allows only one (Germany's 41-80 FM, Australia's 11 AM and
   16 LSB) is tuned in that one whatever Mode says, and the screen says so

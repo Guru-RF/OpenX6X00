@@ -13,8 +13,10 @@
  *  outside ham bands is on, and then in the mode the plan allows on that channel, with the radio's power limit and
  *  SWR protection. Transmitting there is the operator's responsibility under their licence (MANUAL.md says so).
  *
- *  The plan starts as the radio's IARU region's (Europe CEPT, the Americas FCC, Asia-Pacific Australia's) until one is
- *  chosen. After condoruy's CX8ANM edition (its CB app); the plans and their modes are the regulators' now, see cb.c.
+ *  Until a plan is chosen it is the country's (Settings > General > STATION > Country: Germany, the UK, Poland and
+ *  Australia have their own, the USA, Canada and Mexico the FCC's), else the radio's IARU region's (Europe CEPT, the
+ *  Americas FCC, Asia-Pacific Australia's). After condoruy's CX8ANM edition (its CB app); the plans and their modes
+ *  are the regulators' now, see cb.c.
  */
 
 #include "dialog_cb.h"
@@ -24,6 +26,7 @@
 #include "buttons.h"
 #include "cfg/cfg_api.h"
 #include "channel_list.h"
+#include "countries.h"
 #include "dialog_scan.h"
 #include "events.h"
 #include "freq_strip.h"
@@ -76,10 +79,14 @@ static lv_obj_t   *table;
 static int         sel = -1;   /* row: channel - 1 */
 
 int dialog_cb_plan(void) {
-    int p = params.cb_plan.x;
+    int  p = params.cb_plan.x;
+    char cc[3];
 
-    /* A country setting would come first here: cb_plan_for_country() of it, when not -1 */
-    return p > 0 && p <= CB_PLANS ? p - 1 : cb_plan_for_region(band_plan_region());
+    if (p > 0 && p <= CB_PLANS) return p - 1;
+    /* None chosen yet: the plan of the country the radio is used in (Settings > General > STATION > Country) when it
+     * has one of its own here, else the plan of the band plan's IARU region */
+    p = cb_plan_for_country(country_code(cc));
+    return p >= 0 ? p : cb_plan_for_region(band_plan_region());
 }
 
 cb_mode_t dialog_cb_mode(void) {
