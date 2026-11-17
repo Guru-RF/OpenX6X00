@@ -14,7 +14,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Getting started](#getting-started): [first-start guide](#first-start-guide), [first steps](#first-steps), [setting up the transmitter](#setting-up-the-transmitter), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic), [keyboard](#keyboard) ([quick QSO log](#quick-qso-log))
 - [Updating the firmware](#updating-the-firmware): [the X6200's base firmware](#the-x6200s-base-firmware), [the X6100's base firmware](#the-x6100s-base-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
-- [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
+- [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver), [panel stripes fix](#panel-stripes-fix)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8) ([GhostNet](#ghostnet)), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
@@ -1782,7 +1782,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 
 | Card | Options |
 |---|---|
-| BACKLIGHT | Timeout (0 off), Brightness (see below), buttons brightness (Always Off, Always On, Temporarily On), Screensaver (None, Matrix rain), Screensaver (min) (with a screensaver: 1-120 minutes without use), Rain speed (Normal, Slow, Very slow), Screen off (min) (minutes without use, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser, no screensaver; POWER shows it for the blank time, a minute at least); see [Screensaver](#screensaver) |
+| BACKLIGHT | Timeout (0 off), Brightness (see below), buttons brightness (Always Off, Always On, Temporarily On), Screensaver (None, Matrix rain), Screensaver (min) (with a screensaver: 1-120 minutes without use), Rain speed (Normal, Slow, Very slow), Screen off (min) (minutes without use, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser, no screensaver; POWER shows it for the blank time, a minute at least); see [Screensaver](#screensaver); Panel stripes fix (off by default; see [Panel stripes fix](#panel-stripes-fix)) |
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Fill by level, Filter colour, Filter shade, Shaded part, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
 | MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
@@ -1956,6 +1956,29 @@ A radio with Screen always off on and Screen off never changed keeps Screen
 off 5: POWER shows the screen 5 minutes, as before (0 would be one), and
 with Screen always off cleared later it goes dark at 5 with the screensaver
 at 4, as it would have.
+
+#### Panel stripes fix
+
+Where: Settings > Display > BACKLIGHT (also on the web configurator's
+Display page). Off by default.
+
+For a screen that shows thin vertical coloured stripes in its darkest
+shades: in the dark bars and buttons, the frequency strip, the see-through
+panels over a dark waterfall. Some newer X6100s do this (issue #239). The
+picture the radio makes is clean; the stripes come where the panel is sent
+a colour of 8 to 31 out of 255. With the fix on, the radio's display engine
+sends each of those shades out as 32, in each of red, green and blue, on
+its way to the panel: the stripes go, and the darkest shades look a little
+lighter and greyer. Black (0 to 7) and everything from 32 up stay as they
+are. Leave it off on a screen without stripes.
+
+- It costs nothing: the panel controller in the processor does it for every
+  pixel, nothing is drawn differently.
+- It is set again when the screen comes back from dark and when the radio's
+  screen starts, and looked at every few seconds while on. Off takes it away
+  at once.
+- The X6200 has the same processor, so the setting is there too; no X6200
+  with stripes is known.
 
 ### Audio tab
 
@@ -5697,6 +5720,9 @@ what keeps it, what the FT8 decodes say of it, and a time station's minute
 marker. The clock part is F4OLI's (OlivLoze's fork), merged with FT8's Auto
 Sync.
 
+- Satellites, fix: the satellites the GPS sees and uses, and the fix ("25/8,
+  3D", "25/0, no fix"). It keeps the last count gpsd gave, as not all of
+  gpsd's reports carry one once there is a fix.
 - Clock: the time in UTC and what keeps it ("kept by NTP (12 ms)", "kept by
   GPS"), else the last move here ("RWM 9996 +0.031 s 3 min ago", "8
   stations -0.42 s 1 h ago"), else "clock chip".
@@ -6858,7 +6884,7 @@ them.
 | S-meter | S-meter type (Bars, Needle), Colours (Theme, Scale, Level), Needle lamp; with a preview |
 | Waterfall | Mode (Centered, Fixed), Jump at (40%, Passband, Line) and Jump to (Center, Other edge, Scroll), greyed unless Mode is Fixed (see [Waterfall](#waterfall)), Speed (1-5), Auto level, Auto level offset (-15 to +15 dB), Center line, Zoom, Smooth scroll, 3D, 3D colours (Strength, Waterfall, Blue), 3D depth, tilt, floor, range, peaks, glide (greyed unless 3D is on; under Amber Trey 3D off and greyed with them) |
 | On the waterfall | Band plan, Plan (Auto or a plan, with what Auto takes and from what; see [Band plan](#band-plan)), Cluster spots, Cluster column |
-| Backlight | Brightness, Brightness when idle (greyed with Idle after Off), Idle after (Off, 5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver) |
+| Backlight | Brightness, Brightness when idle (greyed with Idle after Off), Idle after (Off, 5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver); Panel stripes fix (see [Panel stripes fix](#panel-stripes-fix)) |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX ranges (Ham bands, South Korea, Own list), TX outside ham bands (Settings > TX Cal), and the own list as a text field: Save writes `tx_ranges.conf` and the radio reads it at once, the ranges it took and a line it could not read said under it (see [Amateur bands only](#amateur-bands-only)) |
 | Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
@@ -9381,6 +9407,15 @@ the battery reading work, that is a fault of base 1.0.7 itself (issue #14):
 #### The main screen's waterfall stands still
 
 That is normal while JS8 is open.
+
+#### Thin coloured stripes in the dark parts of the screen
+
+Some newer X6100s show thin vertical coloured stripes in the darkest
+shades: the dark bars and buttons, the frequency strip. Turn on Settings >
+Display > BACKLIGHT > Panel stripes fix (see
+[Panel stripes fix](#panel-stripes-fix)): the darkest shades then look a
+little lighter, and the stripes go. The radio's log has a line starting
+with `panel:` when it is turned on or off.
 
 #### The screen feels slow: measuring it
 

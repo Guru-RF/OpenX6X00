@@ -4347,6 +4347,8 @@ static void make_display_page() {
     grid_create();
     row = card_begin("BACKLIGHT");
     row = make_backlight(row);
+    /* For panels with stripes in the darkest shades: the display engine's gamma table sends 8..31 out as 32 (#239) */
+    row = make_param_switch(row, "Panel stripes fix", cfg_sm.p_panel_stripes);
     card_end(row);
 
     row = card_begin("SPECTRUM");

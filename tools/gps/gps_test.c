@@ -4,7 +4,9 @@
  *  Host test of src/gps.c, the GUI's gpsd client (#237), on its own thread with the radios' libgps (gpsd 3.25), against
  *  a stand-in gpsd on a port of this PC that greets as gpsd does (VERSION, then DEVICES and WATCH to the GUI's WATCH)
  *  and sends TPVs and SKYs as one with a GPS. In order: the GUI connects at the start and has the first TPV's
- *  position; a TPV and its SKY go to the GPS window in one copy, with the flags of both; 5000 TPVs at once are all
+ *  position; a TPV and its SKY go to the GPS window in one copy, with the flags of both; the window's satellites stay
+ *  the last count gpsd gave through its SKYs with only the DOPs (0 seen, 0 used in libgps; 0/0 up to v0.3.12 once a
+ *  fix was in), take a uSat that comes alone, and a count of none; 5000 TPVs at once are all
  *  read within 2 s, on the one connection, to the GPS window in a copy at most every 100 ms, the last one with the
  *  last position (up to v0.3.10 one line every 100 ms: gpsd's lines backed up until it let the GUI go, a copy for
  *  each); gpsd closes the connection: the GUI
@@ -142,6 +144,7 @@ static pthread_mutex_t window_lock = PTHREAD_MUTEX_INITIALIZER;
 static int             window_copies;
 static double          window_lat;
 static gps_mask_t      window_set;
+static int             window_seen, window_used;
 
 void event_send(lv_obj_t *obj, int event_code, void *param) {
     struct gps_data_t *g = param;
@@ -151,9 +154,22 @@ void event_send(lv_obj_t *obj, int event_code, void *param) {
         window_copies++;
         window_lat = g->fix.latitude;
         window_set = g->set;
+        window_seen = g->satellites_visible;
+        window_used = g->satellites_used;
         pthread_mutex_unlock(&window_lock);
     }
     free(param);
+}
+
+/* The last copy's satellites, "25/8", or "none" without SATELLITE_SET */
+static void window_sats(char *buf, size_t size) {
+    pthread_mutex_lock(&window_lock);
+    if (window_set & SATELLITE_SET) {
+        snprintf(buf, size, "%d/%d", window_seen, window_used);
+    } else {
+        snprintf(buf, size, "none");
+    }
+    pthread_mutex_unlock(&window_lock);
 }
 
 static int copies(double *lat, gps_mask_t *set) {
@@ -294,6 +310,35 @@ static bool sky(void) {
                "\"satellites\":[{\"PRN\":5,\"el\":45.0,\"az\":90.0,\"ss\":40.0,\"used\":true}]}\r\n", PORTFILE);
 }
 
+/* A SKY with a list of seen satellites, the first used of them used, as gpsd 3.25 sends it once a GSV cycle (or the
+ * receiver's satellite message) is in: nSat and uSat, then the list */
+static bool sky_list(int seen, int used) {
+    char buf[8192];
+    int  n;
+
+    n = snprintf(buf, sizeof(buf), "{\"class\":\"SKY\",\"device\":\"%s\",\"hdop\":0.90,\"pdop\":1.60,\"nSat\":%d,"
+                 "\"uSat\":%d", PORTFILE, seen, used);
+    if (seen > 0) {
+        n += snprintf(buf + n, sizeof(buf) - n, ",\"satellites\":[");
+        for (int i = 0; i < seen; i++) {
+            n += snprintf(buf + n, sizeof(buf) - n, "%s{\"PRN\":%d,\"az\":%d.0,\"el\":%d.0,\"ss\":30.0,\"used\":%s}",
+                          i ? "," : "", i + 1, (i * 37) % 360, 10 + i % 80, i < used ? "true" : "false");
+        }
+        n += snprintf(buf + n, sizeof(buf) - n, "]");
+    }
+    snprintf(buf + n, sizeof(buf) - n, "}\r\n");
+    return put_raw(buf, strlen(buf));
+}
+
+/* A TPV of the given mode, 1: no fix */
+static bool tpv_mode(int mode, double lat) {
+    if (mode < 2) {
+        return put("{\"class\":\"TPV\",\"device\":\"%s\",\"mode\":1,\"time\":\"2026-11-13T12:00:00.000Z\"}\r\n", PORTFILE);
+    }
+    return put("{\"class\":\"TPV\",\"device\":\"%s\",\"mode\":%d,\"time\":\"2026-11-13T12:00:00.000Z\",\"lat\":%.7f,"
+               "\"lon\":4.4000000}\r\n", PORTFILE, mode, lat);
+}
+
 /* ms until the GUI has this latitude, -1: not within ms */
 static int64_t wait_fix(double want, int ms) {
     int64_t t0 = now_ms();
@@ -385,6 +430,60 @@ int main(void) {
         check(n == 1 && fabs(lat - 50.2) < 1e-8 && (set & SATELLITE_SET) && (set & TIME_SET) && (set & MODE_SET),
               "the GPS window: a TPV and its SKY in one copy, both's flags (%zu, %.7f, %llx)", n, lat,
               (unsigned long long)set);
+    }
+
+    /* The GPS window's satellites (#237): gpsd's SKYs with only the DOPs, which libgps reads as 0 seen and 0 used, leave
+     * the last count; up to v0.3.12 the window showed 0/0 once a fix was in */
+    {
+        char got[32];
+
+        tpv_mode(1, 0);
+        sky_list(25, 0);
+        sleep_ms(150);
+        window_sats(got, sizeof(got));
+        check(!strcmp(got, "25/0"), "no fix, a SKY with 25 seen, none used: 25/0 (%s)", got);
+
+        tpv_mode(3, 50.25);
+        put("{\"class\":\"SKY\",\"device\":\"%s\",\"hdop\":0.90,\"pdop\":1.60,\"vdop\":1.30}\r\n", PORTFILE);
+        sleep_ms(150);
+        window_sats(got, sizeof(got));
+        check(!strcmp(got, "25/0"), "a fix and a SKY with only the DOPs: still 25/0 (%s)", got);
+
+        /* The case seen: the count and a SKY with only the DOPs in the same 100 ms, the window's copy after both */
+        sky_list(25, 8);
+        put("{\"class\":\"SKY\",\"device\":\"%s\",\"hdop\":0.80,\"pdop\":1.50}\r\n", PORTFILE);
+        tpv_mode(3, 50.26);
+        sleep_ms(150);
+        window_sats(got, sizeof(got));
+        check(!strcmp(got, "25/8"), "25 seen, 8 used, then a SKY with only the DOPs and a TPV in one copy: 25/8 (%s)", got);
+
+        for (int i = 0; i < 5; i++) {
+            tpv_mode(3, 50.27);
+            put("{\"class\":\"SKY\",\"device\":\"%s\",\"hdop\":0.80}\r\n", PORTFILE);
+            sleep_ms(120);
+        }
+        window_sats(got, sizeof(got));
+        check(!strcmp(got, "25/8"), "five seconds of TPVs and SKYs with only the DOPs: 25/8 (%s)", got);
+
+        put("{\"class\":\"SKY\",\"device\":\"%s\",\"hdop\":0.80,\"uSat\":9}\r\n", PORTFILE);
+        tpv_mode(3, 50.28);
+        sleep_ms(150);
+        window_sats(got, sizeof(got));
+        check(!strcmp(got, "25/9"), "a SKY with uSat and no list: the used count from it, 25/9 (%s)", got);
+
+        sky_list(0, 0);
+        tpv_mode(1, 0);
+        sleep_ms(150);
+        window_sats(got, sizeof(got));
+        check(!strcmp(got, "0/0"), "a SKY that counts none (nSat 0): 0/0 (%s)", got);
+
+        sky_list(12, 7);
+        tpv_mode(3, 50.29);
+        sleep_ms(150);
+        window_sats(got, sizeof(got));
+        check(!strcmp(got, "12/7"), "the next count: 12/7 (%s)", got);
+        tpv(50.2);
+        wait_fix(50.2, 1000);
     }
 
     /* Lines faster than ten a second */

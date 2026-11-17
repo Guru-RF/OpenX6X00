@@ -57,6 +57,7 @@
 #include "btaudio.h"
 #include "rtty.h"
 #include "screen_light.h"
+#include "panel_stripes.h"
 #include "gui_events.h"
 #include "gps.h"
 #include "mfk_control.h"
@@ -335,6 +336,7 @@ static void services_start(void) {
     bt_dev_init();
     start_trace("services: Bluetooth set up");
     backlight_init();
+    panel_stripes_init();   /* Settings > Display: the gamma table for panels that stripe in dark shades */
     cat_init();
     cfg_socket_init();
     ctl_init();

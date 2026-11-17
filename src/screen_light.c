@@ -20,6 +20,7 @@
 
 #include "screen_light.h"
 #include "cfg/cfg_api.h"
+#include "panel_stripes.h"
 #include "screen_idle.h"
 #include "screen_rec.h"
 #include "screen_saver.h"
@@ -117,6 +118,7 @@ static void panel_dark(void) {
 
 static void panel_lit(void) {
     write_power(true);
+    panel_stripes_again();      /* the display engine may have been reset meanwhile */
     write_level(params.brightness_normal);
     shown = params.brightness_normal;
     keys_light(params.brightness_buttons != BUTTONS_DARK);

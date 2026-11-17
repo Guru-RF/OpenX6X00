@@ -17,7 +17,7 @@
  *  GUI drawn under the screensaver as it goes dark (not the rain shown at the next wake), the waterfall and the
  *  spectrum asked to draw when seen again, the top layer hidden under it, the SWR scan (no TX event) and a screen
  *  recording holding it off, TX and the low battery's notice ending it, the knob turn that ends it swallowed for
- *  half a second, a hand mic key not.
+ *  half a second, a hand mic key not; a wake from dark puts the panel stripes fix on again (#239).
  *
  *  The dim (#271): after its seconds to the idle level, the key lights with it; Off never, before, under and after
  *  the screensaver, Off chosen on a dimmed screen, after the screen dark by the time; the brightness set from a knob
@@ -63,6 +63,7 @@ static uint64_t      clock_ms = 1000;
 static radio_state_t state    = RADIO_RX;
 static bool          recording, onebit;
 static int           wf_redraws, sp_redraws;
+static int           stripes_again;         /* the panel stripes fix put on again (panel_stripes.c, #239) */
 static bool          keys_lit;              /* the front keys' light as last set */
 static int32_t       told = -100;           /* the brightness the knob line and its button were told */
 
@@ -114,6 +115,10 @@ void waterfall_redraw() {
 
 void spectrum_redraw() {
     sp_redraws++;
+}
+
+void panel_stripes_again(void) {
+    stripes_again++;
 }
 
 /* The default theme's screensaver, 1bit's paper on the ink; the rest of the GUI red */
@@ -338,7 +343,9 @@ static void stages(bool transp) {
           "dark, a viewer come and gone three times: nothing drawn (count %d)", inv_count());
 
     wf = wf_redraws, sp = sp_redraws;
+    stripes_again = 0;
     check(backlight_tick(), "a key on the dark screen: for waking");
+    check(stripes_again == 1, "woken: the panel stripes fix put on again (%d)", stripes_again);
     check(lv_disp_is_invalidation_enabled(NULL) && inv_count() == 1, "woken: the GUI drawn (count %d)", inv_count());
     check(wf_redraws == wf + 1 && sp_redraws == sp + 1, "woken: the waterfall and the spectrum asked to draw now");
     run(SEC);

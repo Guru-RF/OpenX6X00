@@ -65,6 +65,7 @@ extern ParamFloat       *cfg_auto_level_offset;  // p_auto_level_offset
 extern ParamInt         *cfg_knob_info;          // p_knob_info
 extern ParamInt         *cfg_buttons_hide;       // p_buttons_hide
 extern ParamInt         *cfg_knob_press_next;    // p_knob_press_next
+extern ParamInt         *cfg_panel_stripes;      // p_panel_stripes
 extern ParamInt         *cfg_mode_from_plan;     // p_mode_from_plan
 extern ParamInt         *cfg_band_region;        // p_band_region
 extern ParamInt         *cfg_birdie_marks;       // p_birdie_marks
