@@ -1722,7 +1722,7 @@ base is too old.
 
 | Card | Options |
 |---|---|
-| STATION | First-start guide (Start runs the [first-start guide](#first-start-guide) again), callsign (an empty field clears it), QTH locator, Country (the country you operate from, "-" for none, the default; the names in the screen's language, from the Unicode CLDR; the band plan's Auto takes its region when the GPS and the locator do not tell, see [Band plan](#band-plan); the [CB](#cb) app takes its plan until one is chosen there), Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
+| STATION | First-start guide (Start runs the [first-start guide](#first-start-guide) again), callsign (an empty field clears it), QTH locator, Country (the country you operate from, "-" for none, the default; the names in the screen's language, from the Unicode CLDR; the band plan's Auto takes its region when the GPS and the locator do not tell, see [Band plan](#band-plan); the [CB](#cb) app takes its plan until one is chosen there), Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Weather from (where APP > Weather, its notices and the web Weather page ask the weather for: Auto, the default, where the radio is; Locator, the QTH locator whatever the GPS says; Typed, the Weather place below), Weather place (degrees, "50.85, 4.35" or "34.9S 56.16W", or a locator, typed with the keyboard; typing one sets Weather from to Typed, an empty field clears it and Weather from goes back to Auto; see [Weather](#weather)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone, 12-hour clock (the clock at the top right as `1:05:30 PM`, off as `13:05:30`, the default; VISION shows `1:05 PM`, Ops Room's digits the hours 1 to 12 without AM or PM; Field Ops' clock and its QSO times and Walkie Talkie's clock follow it, `1:05 PM`; the logs, FT8 and the other digital modes stay on UTC; #54) |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off, the default on both radios (see [Amateur bands only](#amateur-bands-only) and [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
@@ -6410,9 +6410,21 @@ nothing keys it; ESC closes.
   locator, else the capital (or largest city) of the country set in
   Settings > General > STATION > Country. A GPS or phone position older than
   10 minutes is not taken. The header says which: *GPS*, *Phone*, *Locator*
-  and the locator, *Country* and its name. The country's place is only where
-  the weather is asked for: the QTH locator is never set from it. With none
-  of these, the app says what to set and fetches nothing.
+  and the locator, *Country* and its name, *Place* for a place typed. The
+  country's place is only where the weather is asked for: the QTH locator is
+  never set from it. With none of these, the app says what to set and
+  fetches nothing.
+- Another place: Settings > General > STATION > Weather from. *Auto* (the
+  default) is the order above. *Locator* takes the QTH locator's centre
+  whatever the GPS says (a radio by the window with a fix that wanders, a
+  mast elsewhere), else the country. *Typed* takes the place in Weather
+  place: degrees, latitude first ("50.85, 4.35", "-34.9 -56.16",
+  "34.9S 56.16W"; a point for the decimals, a comma, a semicolon or spaces
+  between) or a locator of 4, 6 or 8 characters. Typing a place there sets
+  Weather from to *Typed*; one that is not a place is refused with a note;
+  an empty field clears it and goes back to *Auto*. While no place is typed,
+  *Typed* works as *Auto*. The place is kept as typed; what leaves the radio
+  is rounded as below. The choice came from the CX8ANM edition (condoruy).
 - Times are the place's own (its time zone as Open-Meteo gives it), with the
   zone's abbreviation: "Mon 16 15:00 to Tue 17 09:00 CET". The units are
   °C, km/h, hPa, mm and km.

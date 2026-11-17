@@ -19,8 +19,8 @@ a stand-in that serves them by address. Nothing here goes to any service.
 4. The commands as the GUI runs them: what is written, an answer reused for 2 minutes, the warnings' check never
    asking Nominatim; run as a program with the saved answers (X6100_METEO_SAMPLES, as the PC screenshots run it).
 5. With bottle: the page's /api/meteo by the radio's position from the GUI's socket (pos_get: GPS, the country's
-   capital), by the QTH locator and the country of params.db when the GUI does not answer, by a locator typed, and
-   its refusals.
+   capital, the place typed in Settings > General > STATION), by the QTH locator and the country of params.db when
+   the GUI does not answer, by a locator typed, and its refusals.
 """
 import calendar
 import importlib.machinery
@@ -670,6 +670,15 @@ class Web(unittest.TestCase):
         self.assertEqual(json.loads(data)["where"], "Country Belgium")
         self.assertIs(json.loads(data)["notices"], False, "no notices in the GUI's answer: off")
         self.assertEqual(self.args()[0][3:5], ["BE", "Country"])
+
+    def test_the_place_typed_on_the_radio(self):
+        """Weather from: Typed, its place given by the GUI as it was typed"""
+        self.gui({"t": "pos", "lat": -34.9011, "lon": -56.1645, "src": "Typed", "place": "-34.9011, -56.1645",
+                  "cc": "UY", "country": "Uruguay", "lang": "es"})
+        st, data = self.get("/api/meteo")
+        self.assertEqual(st, 200, data)
+        self.assertEqual(json.loads(data)["where"], "Place -34.9011, -56.1645")
+        self.assertEqual(self.args()[0][1:6], ["-34.90110", "-56.16450", "UY", "Typed", "es"])
 
     def test_without_the_gui(self):
         self.param("meteo_alerts", 1)

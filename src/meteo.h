@@ -30,11 +30,24 @@ extern "C" {
 #define METEO_ALERTS_FILE "/tmp/x6100-meteo-alerts.json"   /* the notices' check */
 #endif
 
-/* Where the weather is asked for: where the radio is (station_position: its GPS, the phone's, the QTH locator), else
- * the place of the country set in Settings > General > STATION (its capital or largest city, as the time zone
- * database has it): the locator is never set from it. src: "GPS", "Phone", "Locator", "Country". False without any.
- * LVGL thread */
+/* Settings > General > STATION > Weather from (cfg_meteo_from): where the radio is (its GPS, the phone's, the QTH
+ * locator), the QTH locator whatever the GPS says (the weather at home while the radio is out), or the place typed in
+ * Weather place (cfg_meteo_place) */
+enum { METEO_FROM_RADIO, METEO_FROM_LOCATOR, METEO_FROM_TYPED };
+
+#define METEO_PLACE_MAX 41      /* Weather place's text, its end included */
+
+/* Where the weather is asked for, by Weather from: where the radio is (station_position: its GPS, the phone's, the QTH
+ * locator), the QTH locator alone, or the place typed; else the place of the country set in Settings > General >
+ * STATION (its capital or largest city, as the time zone database has it): the locator is never set from it. A place
+ * chosen but not typed counts as where the radio is. src: "GPS", "Phone", "Locator", "Typed", "Country". False
+ * without any. LVGL thread */
 bool meteo_position(double *lat, double *lon, const char **src);
+
+/* A place typed for the weather: two numbers, degrees north and east ("50.85, 4.35", "-34.9 -56.16"), a letter N, S,
+ * E or W after a number giving its side ("34.9S 56.16W"); or a locator of 4, 6 or 8 characters (JO20ft), its centre.
+ * False for anything else, a latitude beyond 90 or a longitude beyond 180 */
+bool meteo_place_parse(const char *s, double *lat, double *lon);
 
 /* The helper's arguments after its command for that position: "LAT LON CC SRC LANG", the country set ("-" none) and
  * the GUI's language ("en" English) */

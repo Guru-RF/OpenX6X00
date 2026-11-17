@@ -182,6 +182,8 @@ ParamInt         *cfg_textlog_mb          = nullptr;
 ParamInt         *cfg_first_start_done    = nullptr;
 ParamText        *cfg_country             = nullptr;
 ParamInt         *cfg_meteo_alerts        = nullptr;
+ParamInt         *cfg_meteo_from          = nullptr;
+ParamText        *cfg_meteo_place         = nullptr;
 ParamInt         *cfg_wf_fixed_jump       = nullptr;
 ParamInt         *cfg_wf_fixed_after      = nullptr;
 
@@ -416,6 +418,8 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_first_start_done = &cfg_sm.p_first_start_done;
     cfg_country          = &cfg_sm.p_country;
     cfg_meteo_alerts     = &cfg_sm.p_meteo_alerts;
+    cfg_meteo_from       = &cfg_sm.p_meteo_from;
+    cfg_meteo_place      = &cfg_sm.p_meteo_place;
     cfg_wf_fixed_jump    = &cfg_sm.p_wf_fixed_jump;
     cfg_wf_fixed_after   = &cfg_sm.p_wf_fixed_after;
 

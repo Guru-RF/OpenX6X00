@@ -1228,6 +1228,17 @@ std::string SettingsManager::country_validate(const std::string &val) {
             static_cast<char>(toupper(static_cast<unsigned char>(val[1])))};
 }
 
+/* The place typed for the weather as it is kept: printable ASCII (degrees and a locator need no more), the spaces at its
+ * ends gone, 40 characters at most; whether it is a place meteo_place_parse() tells where it is typed */
+std::string SettingsManager::meteo_place_validate(const std::string &val) {
+    std::string out;
+
+    for (char c : val)
+        if (c >= ' ' && c <= '~' && out.size() < 40) out += c;
+    size_t a = out.find_first_not_of(' '), b = out.find_last_not_of(' ');
+    return a == std::string::npos ? "" : out.substr(a, b - a + 1);
+}
+
 /* Where the base's spectrum is centred, Hz from the dial: the X6100's in CW and CW-R on the oscillator the tone is
  * heard from, the key tone below the dial in CW and above it in CW-R (its lo_freq); the X6200's on the dial in every
  * mode (HW_CAP_CW_SPECTRUM_ON_DIAL), where this offset drew a station on the dial a pitch off it (#115) */

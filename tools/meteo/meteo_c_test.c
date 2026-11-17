@@ -7,6 +7,10 @@
  *  - where the weather is asked for: the GPS, else the phone's fix (no coarser than 1 km), else the QTH locator's
  *    centre, else the country's place (its capital), else none; a fix 10 minutes old or more no longer counts; a
  *    locator that is not one is passed over; the country's place never written into the locator;
+ *  - Weather from (Settings > General > STATION): the QTH locator alone, the GPS left aside (then the country); the
+ *    place typed (Weather place), as where the radio is while none is typed or it is not one;
+ *  - a typed place: degrees with a comma, a semicolon or spaces between, the sides as letters, a locator; what is not
+ *    one (a decimal comma, a side twice, out of range, words, "nan");
  *  - the helper's arguments: the position to 5 decimals, the country ("-" none), the source, the language ("en");
  *  - the levels' names (the US weather service's severity words, the colours of the others) and colours;
  *  - the place's times as the screen shows them ("Mon 16 15:00"), the day's name in the GUI's language;
@@ -17,6 +21,7 @@
 #include "meteo.h"
 
 #include "cJSON.h"
+#include "cfg/cfg_api.h"
 #include "countries.h"
 #include "qth/qth.h"
 
@@ -71,6 +76,27 @@ bool gps_phone_fix(double *lat, double *lon, int *age, int *acc) {
 
 #include "build/station_position.c"
 
+/* Weather from and Weather place (meteo.c reads them through the settings' C handles) */
+struct ParamInt {
+    int32_t v;
+};
+struct ParamText {
+    char v[64];
+};
+static ParamInt  from;
+static ParamText place;
+ParamInt        *cfg_meteo_from  = &from;
+ParamText       *cfg_meteo_place = &place;
+
+int32_t param_i_get(const ParamInt *p) {
+    return p->v;
+}
+
+size_t param_t_get(const ParamText *p, char *out, size_t size) {
+    snprintf(out, size, "%s", p->v);
+    return strlen(p->v);
+}
+
 static const country_t  belgium = {"BE", 1, "CET-1CEST,M3.5.0,M10.5.0/3", 50.8333f, 4.3333f};
 static const country_t *country;
 static const char      *lang = "";
@@ -106,6 +132,8 @@ const char *i18n_tr(const char *s) {
 /* ---- the cases ---- */
 
 static void reset(void) {
+    from.v     = METEO_FROM_RADIO;
+    place.v[0] = 0;
     gps_ok = phone_ok = false;
     gps_age = phone_age = 5;
     phone_acc = 20;
@@ -160,6 +188,90 @@ static void test_position(void) {
     params.qth.x[0] = 0;
     phone_ok = false;
     check_pos("", 0, 0, "only an old GPS fix: none");
+}
+
+static void test_from(void) {
+    double jo20ft_lat, jo20ft_lon, gf15_lat, gf15_lon;
+
+    qth_str_to_pos("JO20ft", &jo20ft_lat, &jo20ft_lon);
+    qth_str_to_pos("GF15", &gf15_lat, &gf15_lon);
+
+    reset();
+    country = &belgium;
+    snprintf(params.qth.x, sizeof(params.qth.x), "JO20ft");
+    gps_ok = true;
+    check_pos("GPS", 50.8467, 4.3525, "Auto: the GPS first");
+    from.v = METEO_FROM_LOCATOR;
+    check_pos("Locator", jo20ft_lat, jo20ft_lon, "Locator: the locator, the GPS left aside");
+    params.qth.x[0] = 0;
+    check_pos("Country", 50.8333, 4.3333, "Locator without one: the country, not the GPS");
+    snprintf(params.qth.x, sizeof(params.qth.x), "JO20ft");
+
+    from.v = METEO_FROM_TYPED;
+    check_pos("GPS", 50.8467, 4.3525, "Typed with none typed: as Auto");
+    snprintf(place.v, sizeof(place.v), "-34.9011, -56.1645");
+    check_pos("Typed", -34.9011, -56.1645, "Typed: the degrees typed, before the GPS");
+    snprintf(place.v, sizeof(place.v), "GF15");
+    check_pos("Typed", gf15_lat, gf15_lon, "Typed: a locator typed");
+    snprintf(place.v, sizeof(place.v), "somewhere");
+    check_pos("GPS", 50.8467, 4.3525, "Typed, not a place: as Auto");
+    from.v = METEO_FROM_RADIO;
+    snprintf(place.v, sizeof(place.v), "-34.9011, -56.1645");
+    check_pos("GPS", 50.8467, 4.3525, "Auto: a place typed is left aside");
+    reset();
+}
+
+static void check_place(const char *s, bool want, double want_lat, double want_lon) {
+    double lat = -99, lon = -99;
+    bool   ok  = meteo_place_parse(s, &lat, &lon);
+    char   b[200];
+
+    snprintf(b, sizeof(b), "\"%s\": %s %.4f %.4f, wanted %s %.4f %.4f", s, ok ? "true" : "false", lat, lon,
+             want ? "true" : "false", want_lat, want_lon);
+    if (want)
+        check(ok && fabs(lat - want_lat) < 1e-4 && fabs(lon - want_lon) < 1e-4, "a typed place", b);
+    else
+        check(!ok && lat == -99 && lon == -99, "not a place, nothing written", b);
+}
+
+static void test_place(void) {
+    double lat, lon;
+
+    check_place("50.85, 4.35", true, 50.85, 4.35);
+    check_place("50.85,4.35", true, 50.85, 4.35);
+    check_place("  -34.9011   -56.1645 ", true, -34.9011, -56.1645);
+    check_place("-34.9; -56.16", true, -34.9, -56.16);
+    check_place("+51 -0.1", true, 51, -0.1);
+    check_place(".5 .25", true, 0.5, 0.25);
+    check_place("34.9S 56.16W", true, -34.9, -56.16);
+    check_place("34.9 s, 56.16 w", true, -34.9, -56.16);
+    check_place("50.85N, 4.35E", true, 50.85, 4.35);
+    check_place("90 180", true, 90, 180);
+    check_place("-90, -180", true, -90, -180);
+    qth_str_to_pos("JO20ft", &lat, &lon);
+    check_place("JO20ft", true, lat, lon);
+    check_place(" jo20FT ", true, lat, lon);
+    qth_str_to_pos("JO20ft12", &lat, &lon);
+    check_place("JO20ft12", true, lat, lon);
+    qth_str_to_pos("GF15", &lat, &lon);
+    check_place("GF15", true, lat, lon);
+
+    check_place("", false, 0, 0);
+    check_place("   ", false, 0, 0);
+    check_place("50.85", false, 0, 0);
+    check_place("50,85 4,35", false, 0, 0);
+    check_place("50.85, 4.35, 7", false, 0, 0);
+    check_place("50.85,, 4.35", false, 0, 0);
+    check_place("91 4.35", false, 0, 0);
+    check_place("50.85 181", false, 0, 0);
+    check_place("-34.9S 56.16W", false, 0, 0);
+    check_place("34.9E 56.16N", false, 0, 0);
+    check_place("nan nan", false, 0, 0);
+    check_place("inf 4", false, 0, 0);
+    check_place("JO2", false, 0, 0);
+    check_place("ZZ99", false, 0, 0);
+    check_place("Brussels", false, 0, 0);
+    check(!meteo_place_parse(NULL, &lat, &lon), "no text", NULL);
 }
 
 static void test_args(void) {
@@ -259,6 +371,8 @@ static void test_warnings(void) {
 
 int main(void) {
     test_position();
+    test_from();
+    test_place();
     test_args();
     test_levels();
     test_times();

@@ -11,19 +11,39 @@
 #include "meteo.h"
 
 #include "cJSON.h"
+#include "cfg/cfg_api.h"
 #include "countries.h"
 #include "i18n.h"
+#include "qth/qth.h"
 #include "station.h"
 
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
 bool meteo_position(double *lat, double *lon, const char **src) {
     const country_t *c;
+    char             place[METEO_PLACE_MAX];
+    int              from = cfg_meteo_from ? param_i_get(cfg_meteo_from) : METEO_FROM_RADIO;
 
-    if (station_position(lat, lon, src)) return true;
+    if (from == METEO_FROM_TYPED && cfg_meteo_place) {
+        param_t_get(cfg_meteo_place, place, sizeof(place));
+        if (meteo_place_parse(place, lat, lon)) {
+            *src = "Typed";
+            return true;
+        }
+    }
+    if (from == METEO_FROM_LOCATOR) {
+        if (station_locator_position(lat, lon)) {   /* not the GPS: the weather at home */
+            *src = "Locator";
+            return true;
+        }
+    } else if (station_position(lat, lon, src)) {
+        return true;
+    }
     c = country_now();
     if (c && (c->lat != 0 || c->lon != 0)) {
         *lat = c->lat;
@@ -33,6 +53,55 @@ bool meteo_position(double *lat, double *lon, const char **src) {
     }
     *src = "";
     return false;
+}
+
+/* One number of a typed place and the letter of its side after it: N or S (lat), E or W; s moves past them */
+static bool place_number(const char **s, bool lat, double *v) {
+    const char *p = *s;
+    char       *end;
+    char        side;
+
+    while (*p == ' ') p++;
+    if (!isdigit((unsigned char)*p) && *p != '-' && *p != '+' && *p != '.') return false;   /* no "nan", no "inf" */
+    *v = strtod(p, &end);
+    if (end == p || !isfinite(*v)) return false;
+    p = end;
+    while (*p == ' ') p++;
+    side = (char)toupper((unsigned char)*p);
+    if (side == (lat ? 'N' : 'E') || side == (lat ? 'S' : 'W')) {
+        if (*v < 0) return false;   /* "-34.9S": which side? */
+        if (side == 'S' || side == 'W') *v = -*v;
+        p++;
+    }
+    *s = p;
+    return true;
+}
+
+bool meteo_place_parse(const char *s, double *lat, double *lon) {
+    char   grid[9];
+    size_t n;
+    double la, lo;
+
+    if (!s) return false;
+    while (*s == ' ') s++;
+    n = strlen(s);
+    while (n && s[n - 1] == ' ') n--;
+    if (n >= 4 && n <= 8) {     /* a locator: its centre */
+        snprintf(grid, sizeof(grid), "%.*s", (int)n, s);
+        if (qth_grid_check(grid)) {
+            qth_str_to_pos(grid, lat, lon);
+            return true;
+        }
+    }
+    if (!place_number(&s, true, &la)) return false;
+    while (*s == ' ') s++;
+    if (*s == ',' || *s == ';') s++;
+    if (!place_number(&s, false, &lo)) return false;
+    while (*s == ' ') s++;
+    if (*s || la < -90 || la > 90 || lo < -180 || lo > 180) return false;
+    *lat = la;
+    *lon = lo;
+    return true;
 }
 
 void meteo_args(char *buf, size_t size, double lat, double lon, const char *src) {
