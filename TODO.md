@@ -264,8 +264,7 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
   (tools/winlink, make mail; the GUI driven headless): lists, reading, a message typed and sent into the outbox,
   the gateways, Pat's questions answered on the buttons, a connection that fails without a modem. Still to do: a
   session with a gateway on the air from the app, on the X6200 (the issue's reporter offers it) and the X6100;
-  the app's texts made with snprintf marked for the translations (src/i18n.h); attachments and forms stay in the
-  web mailbox, P2P is not offered (Pat listens for no P2P call on the radio).
+  attachments and forms stay in the web mailbox, P2P is not offered (Pat listens for no P2P call on the radio).
 
 ## X6200: the H-22 hand mic's keys (#56)
 

@@ -73,7 +73,7 @@ extern char **environ;
 typedef enum { V_LIST, V_READ, V_COMPOSE, V_GATEWAYS, V_SESSION } view_t;
 
 static const char *const boxes[]      = {"in", "out", "sent"};
-static const char *const box_names[]  = {"Inbox", "Outbox", "Sent"};
+static const char *const box_names[]  = {N_("Inbox"), N_("Outbox"), N_("Sent")};
 #define BOXES ((int)(sizeof(boxes) / sizeof(boxes[0])))
 
 /* The bands of Pat's gateway list (app/freq.go), All first */
@@ -415,13 +415,14 @@ static double jnum(const cJSON *o, const char *key) {
     return cJSON_IsNumber(v) ? v->valuedouble : 0;
 }
 
-/* A message for the status line, for a while; the error of a helper's answer when there is one */
+/* A message for the status line, for a while; the error of a helper's answer when there is one. The format in the
+ * language chosen, as msg_box.c's (a translation whose conversions differ is not taken, i18n.h) */
 static void say(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void say(const char *fmt, ...) {
     va_list ap;
 
     va_start(ap, fmt);
-    vsnprintf(note, sizeof(note), fmt, ap);
+    vsnprintf(note, sizeof(note), i18n_tr(fmt), ap);
     va_end(ap);
     note_until = time(NULL) + 8;
     show();
@@ -437,11 +438,11 @@ static bool failed(int rc, const cJSON *out, const char *what) {
         char e[200];
 
         plain(e, sizeof(e), jstr(out, "error"));
-        say("#%06x %s:# %s", theme_hex(TC_err), what, e);
+        say("#%06x %s:# %s", theme_hex(TC_err), _(what), e);
     } else if (rc < 0 || rc == 127) {
-        say("#%06x %s:# " HELPER " did not run", theme_hex(TC_err), what);
+        say("#%06x %s:# %s did not run", theme_hex(TC_err), _(what), HELPER);
     } else {
-        say("#%06x %s:# no answer", theme_hex(TC_err), what);
+        say("#%06x %s:# no answer", theme_hex(TC_err), _(what));
     }
     return true;
 }
@@ -784,18 +785,17 @@ static void build_read(void) {
     lv_label_set_long_mode(text, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_pad_top(text, 8, 0);
     {
-        const char *b = jstr(message, "body");
-        size_t      n = strlen(b);
-        char       *t = malloc(n + 80);
+        const char *b    = jstr(message, "body");
+        const char *rest = jbool(message, "cut") ? _("\n\n[the rest is in the web mailbox]") : "";
+        size_t      n    = strlen(b);
+        char       *t    = malloc(n + strlen(rest) + 1);
 
         if (t) {
             /* tabs as spaces: the fonts have no tab */
             for (size_t i = 0; i <= n; i++) {
                 t[i] = b[i] == '\t' ? ' ' : b[i];
             }
-            if (jbool(message, "cut")) {
-                strcat(t, "\n\n[the rest is in the web mailbox]");
-            }
+            strcat(t, rest);
             (lv_label_set_text)(text, t);     /* the mail itself: past the language hook */
             free(t);
         }
@@ -919,19 +919,20 @@ static void show_session(void) {
             lv_label_set_text(l1, "");
         }
         if (!strcmp(prompt_kind, "pre-account-activation")) {
-            snprintf(buf, sizeof(buf), "Continue: the account is activated over the air, and a message brings a new "
-                                       "password. It is the only key to the account: write it down. Better: create "
-                                       "the account first (winlink.org), or set your password (page 2).");
+            snprintf(buf, sizeof(buf), "%s",
+                     _("Continue: the account is activated over the air, and a message brings a new password. It is "
+                       "the only key to the account: write it down. Better: create the account first (winlink.org), "
+                       "or set your password (page 2)."));
         } else if (!strcmp(prompt_kind, "account-activation")) {
-            snprintf(buf, sizeof(buf), "Download now: the message with the password comes in during this "
-                                       "connection. Write the password down and set it on the radio (Password, "
-                                       "page 2): it cannot be recovered.");
+            snprintf(buf, sizeof(buf), "%s",
+                     _("Download now: the message with the password comes in during this connection. Write the "
+                       "password down and set it on the radio (Password, page 2): it cannot be recovered."));
         } else if (!strcmp(prompt_kind, "multi-select")) {
             char p[sizeof(prompt_all)];
 
             plain(p, sizeof(p), prompt_all);
-            snprintf(buf, sizeof(buf), "All: every one now. Small: those under Pat's size limit. Later: none now. "
-                                       "Waiting: %s", p);
+            snprintf(buf, sizeof(buf),
+                     _("All: every one now. Small: those under Pat's size limit. Later: none now. Waiting: %s"), p);
         } else {
             buf[0] = 0;
         }
@@ -951,8 +952,8 @@ static void show_session(void) {
             char s[90];
 
             plain(s, sizeof(s), prog_subject);
-            lv_label_set_text_fmt(l1, "%s %s: %d of %d bytes", prog_rx ? "Receiving" : "Sending", s, prog_done,
-                                  prog_total);
+            lv_label_set_text_fmt(l1, prog_rx ? "Receiving %s: %d of %d bytes" : "Sending %s: %d of %d bytes", s,
+                                  prog_done, prog_total);
         } else {
             lv_label_set_text(l1, sess_connected ? "Exchanging mail..." : "The radio transmits when Pat calls.");
         }
@@ -963,7 +964,7 @@ static void show_session(void) {
         char r[sizeof(sess_result)];
 
         plain(r, sizeof(r), sess_result);
-        lv_label_set_text_fmt(l0, "#%06x %s#", COLOR_HEAD, sess_call[0] ? sess_call : "No connection");
+        lv_label_set_text_fmt(l0, "#%06x %s#", COLOR_HEAD, sess_call[0] ? sess_call : _("No connection"));
         lv_label_set_text(l1, r);
     }
     buf[0] = 0;
@@ -986,43 +987,44 @@ static void show(void) {
     }
     switch (view) {
         case V_LIST:
-            snprintf(left, sizeof(left), "WINLINK MAIL - #%06x %s#", theme_hex(TC_text), box_names[box_i]);
-            break;
         case V_READ:
-            snprintf(left, sizeof(left), "WINLINK MAIL - #%06x %s#", theme_hex(TC_text), box_names[box_i]);
+            snprintf(left, sizeof(left), "%s - #%06x %s#", _("WINLINK MAIL"), theme_hex(TC_text),
+                     _(box_names[box_i]));
             break;
         case V_COMPOSE:
-            snprintf(left, sizeof(left), "WINLINK MAIL - #%06x New message#", theme_hex(TC_text));
+            snprintf(left, sizeof(left), "%s - #%06x %s#", _("WINLINK MAIL"), theme_hex(TC_text), _("New message"));
             break;
         case V_GATEWAYS:
-            snprintf(left, sizeof(left), "CONNECT - #%06x %s, %s#", theme_hex(TC_text), modem_name(),
-                     bands[band_i][0] ? bands[band_i] : "all bands");
+            snprintf(left, sizeof(left), "%s - #%06x %s, %s#", _("CONNECT"), theme_hex(TC_text), modem_name(),
+                     bands[band_i][0] ? bands[band_i] : _("all bands"));
             break;
         case V_SESSION:
-            snprintf(left, sizeof(left), "CONNECTION");
+            snprintf(left, sizeof(left), "%s", _("CONNECTION"));
             break;
     }
     lv_label_set_text(frame.head_left, left);
 
     if (sess_on) {
         snprintf(right, sizeof(right), "#%06x %s %s#", theme_hex(sess_connected ? TC_ok : TC_warn),
-                 sess_connected ? "Connected" : "Calling", sess_call);
+                 sess_connected ? _("Connected") : _("Calling"), sess_call);
     } else if (status && pat_up()) {
         int unread = jint(status, "unread", 0), out = jint(status, "out", 0);
 
         if (unread) {
-            snprintf(right, sizeof(right), "#%06x %d unread#", theme_hex(TC_accent_soft), unread);
+            snprintf(right, sizeof(right), _("#%06x %d unread#"), theme_hex(TC_accent_soft), unread);
         }
         if (out) {
             size_t n = strlen(right);
 
-            snprintf(right + n, sizeof(right) - n, "%s%d to send", n ? "  " : "", out);
+            snprintf(right + n, sizeof(right) - n, "%s", n ? "  " : "");
+            n = strlen(right);
+            snprintf(right + n, sizeof(right) - n, _("%d to send"), out);
         }
         if (!right[0]) {
-            snprintf(right, sizeof(right), "%s", jstr(status, "mycall")[0] ? jstr(status, "mycall") : "Ready");
+            snprintf(right, sizeof(right), "%s", jstr(status, "mycall")[0] ? jstr(status, "mycall") : _("Ready"));
         }
     } else if (status) {
-        snprintf(right, sizeof(right), "#%06x %s#", COLOR_DIM, winlink_on() ? "Starting" : "Winlink off");
+        snprintf(right, sizeof(right), "#%06x %s#", COLOR_DIM, winlink_on() ? _("Starting") : _("Winlink off"));
     }
     lv_label_set_text(frame.head_right, right);
 
@@ -1090,9 +1092,9 @@ static void abort_cb(button_data_t *b);
 static void prompt_cb(button_data_t *b);
 
 static const char *box_label(void) {
-    static char s[32];
+    static char s[64];
 
-    snprintf(s, sizeof(s), "Box:\n%s", box_names[box_i]);
+    snprintf(s, sizeof(s), "%s:\n%s", _("Box"), _(box_names[box_i]));
     return s;
 }
 
@@ -1101,9 +1103,9 @@ static const char *onoff_label(void) {
 }
 
 static const char *band_label(void) {
-    static char s[24];
+    static char s[64];
 
-    snprintf(s, sizeof(s), "Band:\n%s", bands[band_i][0] ? bands[band_i] : "All");
+    snprintf(s, sizeof(s), "%s:\n%s", _("Band"), bands[band_i][0] ? bands[band_i] : _("All"));
     return s;
 }
 
@@ -1551,7 +1553,7 @@ static void type_cb(button_data_t *b) {
 static void onoff_done(int rc, cJSON *out) {
     (void)out;
     if (rc != 0) {
-        say("#%06x Winlink:# " SUPERVISOR " failed", theme_hex(TC_err));
+        say("#%06x Winlink:# %s failed", theme_hex(TC_err), SUPERVISOR);
     }
     next_poll = 0;
     refresh();
@@ -1966,14 +1968,16 @@ static void session_line_cb(void *arg) {
     } else if ((o = cJSON_GetObjectItemCaseSensitive(ev, "done"))) {
         int got = jint(o, "received", 0);
 
-        if (jbool(o, "ok")) {
-            snprintf(sess_result, sizeof(sess_result), "Done: %d message%s received", got, got == 1 ? "" : "s");
+        if (jbool(o, "ok") && got == 1) {
+            snprintf(sess_result, sizeof(sess_result), "%s", _("Done: 1 message received"));
+        } else if (jbool(o, "ok")) {
+            snprintf(sess_result, sizeof(sess_result), _("Done: %d messages received"), got);
         } else {
-            snprintf(sess_result, sizeof(sess_result), "Failed: %s", jstr(o, "error"));
+            snprintf(sess_result, sizeof(sess_result), _("Failed: %s"), jstr(o, "error"));
         }
         sess_result_status_at = time(NULL) + 3;   /* then the supervisor's reading of the logs */
     } else if ((o = cJSON_GetObjectItemCaseSensitive(ev, "error"))) {
-        snprintf(sess_result, sizeof(sess_result), "Failed: %s", cJSON_IsString(o) ? o->valuestring : "");
+        snprintf(sess_result, sizeof(sess_result), _("Failed: %s"), cJSON_IsString(o) ? o->valuestring : "");
     }
     cJSON_Delete(ev);
     show();
@@ -1995,7 +1999,7 @@ static void session_end_cb(void *arg) {
     sess_pid = 0;
     prompt_clear();
     if (!sess_result[0]) {
-        snprintf(sess_result, sizeof(sess_result), "Ended");
+        snprintf(sess_result, sizeof(sess_result), "%s", _("Ended"));
     }
     {
         char r[sizeof(sess_result)];
@@ -2044,7 +2048,7 @@ static void connect_cb(button_data_t *b) {
     argv[2]       = (char *)jstr(g, "url");
     pid           = spawn_helper(argv, &out_fd, &in_fd);
     if (pid < 0) {
-        say("#%06x Connect:# " HELPER " did not run", theme_hex(TC_err));
+        say("#%06x Connect:# %s did not run", theme_hex(TC_err), HELPER);
         return;
     }
     st = malloc(sizeof(*st));
