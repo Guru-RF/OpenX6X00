@@ -4,7 +4,7 @@ sandbox, driven by a script of x6drive.py's commands; every "shot NAME" lands as
 
   python3 tools/screenshots/host_shots.py <build dir> <script> <out dir> [--theme NAME]
                                           [--set name=value ...] [--data DIR] [--tmp DIR] [--image-note]
-                                          [--first-start] [--keep]
+                                          [--first-start] [--serve CMD] [--keep]
 
 <build dir> is a host build (host/build.sh, cmake -DHOST_BUILD=ON). <script> is a file, or the
 commands inline with ";" between them ("key APP; sleep 1; shot apps"). Each run starts from the
@@ -14,7 +14,8 @@ a cluster.conf, a wefax folder of charts); the GUI gets 10 s after its FIFOs app
 no callsign, so the first-start guide (src/first_start.c) would come up over every shot: it is
 marked done, unless --first-start leaves it to come up. The files of --tmp DIR go into the GUI's /tmp (S01multiboot's
 mark, x6100-multiboot). The build's image-required is hidden (no "new card image" note in the shots) unless
---image-note keeps it.
+--image-note keeps it. --serve CMD runs CMD (sh -c) in the sandbox before the GUI, in the background: a stand-in
+server on 127.0.0.1 for an app that needs one (the sandbox has no other network), as tools/dmr/fake_master.py --serve.
 
 The sandbox (bwrap): the whole system read-only, the GUI's data folder and /tmp private, no
 network (no cluster spots: the shots are the same each run), no D-Bus (NetworkManager and BlueZ on
@@ -46,6 +47,7 @@ sleep 1
 pipewire-pulse > /tmp/pwp.log 2>&1 &
 sleep 1
 pactl load-module module-null-sink sink_name=shots > /tmp/pactl.log 2>&1
+[ -n "$X6_SHOTS_SERVE" ] && { sh -c "$X6_SHOTS_SERVE" > /tmp/serve.log 2>&1 & }
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy exec "$@" > /tmp/gui.log 2>&1
 """
 
@@ -69,6 +71,7 @@ def main():
     ap.add_argument("--tmp", metavar="DIR", help="files copied into the GUI's /tmp before it starts")
     ap.add_argument("--image-note", action="store_true", help="keep the build's image-required: the card image notes")
     ap.add_argument("--first-start", action="store_true", help="the first-start guide comes up, as on a new card")
+    ap.add_argument("--serve", metavar="CMD", help="a stand-in server started in the sandbox before the GUI")
     ap.add_argument("--keep", action="store_true", help="keep the run folder (its gui.log)")
     a = ap.parse_args()
 
@@ -123,7 +126,8 @@ def main():
         cmd += ["--ro-bind", empty, notice]   # no "new card image" note in the shots
     cmd += ["--unshare-net", "--unshare-ipc", "--die-with-parent",
             "--info-fd", str(info_w), "/tmp/inside.sh", gui]
-    proc = subprocess.Popen(cmd, pass_fds=(info_w,))
+    env = dict(os.environ, X6_SHOTS_SERVE=a.serve or "")
+    proc = subprocess.Popen(cmd, pass_fds=(info_w,), env=env)
     os.close(info_w)
     info = b""
     while not info.rstrip().endswith(b"}"):
