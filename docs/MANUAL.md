@@ -4032,7 +4032,10 @@ frequency and the receiver state. Leaving the app gives the VFO back.
   the decoding progress in the thin bar under the header. The decoder is
   TheMurusTeam's 1KO125 beta8 one, with a tolerant VIS detection.
 
-WeFax buttons. WeFax opens in RX Auto: it waits for the start tone of a fax.
+WeFax buttons. WeFax opens in RX Auto: it waits for the start tone of a fax,
+and saves the fax at its stop tone (or at the next start, or when Auto Plan
+moves on). A fax of under 200 rows is a false start, noise taken for a start
+tone, and is not saved (a chart is about 1300 rows); Save does save it.
 
 | Page | Buttons |
 |---|---|
