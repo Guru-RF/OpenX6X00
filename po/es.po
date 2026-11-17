@@ -1,6 +1,7 @@
 # Español for the OpenX6X00 GUI.
 # The first texts from the CX8ANM edition of OpenX6X00 (condoruy, Cóndor Tecnológico), es.txt.
 # The texts the first lists lacked were drafted by an AI model (Claude) from the English and the sources, 16 Nov 2026: a speaker checks them; until then the language is marked draft.
+# The texts the first lists lacked were drafted by an AI model (Claude) from the English and the sources, 16-17 Nov 2026: a speaker checks them; until then the language is marked draft.
 msgid ""
 msgstr ""
 "Project-Id-Version: OpenX6X00\n"
@@ -718,11 +719,11 @@ msgstr "CW mientras escribe"
 
 #: src/apps_menu.c
 msgid "GPS / Clock"
-msgstr ""
+msgstr "GPS / Reloj"
 
 #: src/apps_menu.c
 msgid "Position, clock"
-msgstr ""
+msgstr "Posición, reloj"
 
 #: src/apps_menu.c
 msgid "Screen Rec"
@@ -1684,6 +1685,8 @@ msgid ""
 "GPS /\n"
 "Clock"
 msgstr ""
+"GPS /\n"
+"Reloj"
 
 #: src/button_bar.cpp
 msgid "Rate"
@@ -1879,15 +1882,15 @@ msgstr ""
 
 #: src/clock_rule.c
 msgid "time station"
-msgstr ""
+msgstr "emisora horaria"
 
 #: src/clock_rule.c src/ft8_window.c
 msgid "Time Sync"
-msgstr ""
+msgstr "Sincronizar hora"
 
 #: src/clock_rule.c
 msgid "clock chip"
-msgstr ""
+msgstr "chip de reloj"
 
 #: src/clock_sync.c
 msgid "hwclock -w -u -f "
@@ -2057,6 +2060,11 @@ msgstr "Todavía no hay mensajes: pulse Nuevo"
 #, c-format
 msgid "%i message%s"
 msgstr "%i mensaje%s"
+
+#. not in the list: a line or a word of a longer text
+#: src/cw_messages.c
+msgid " tomorrow"
+msgstr " mañana"
 
 #: src/cw_messages.c
 msgid " day after"
@@ -2945,7 +2953,7 @@ msgstr "Ponga su indicativo: Ajustes > General"
 
 #: src/dialog_cluster.c
 msgid "CB call: no amateur cluster login"
-msgstr ""
+msgstr "Indicativo CB: sin acceso a clusters de aficionado"
 
 #: src/dialog_cluster.c
 msgid "Cluster link off"
@@ -4068,7 +4076,7 @@ msgstr "NOTA: pulse primero la fila para abrirla en su programa"
 
 #: src/dialog_field.c
 msgid "No spot with a CB callsign: amateur programmes only"
-msgstr ""
+msgstr "Sin spot con un indicativo CB: solo programas de aficionado"
 
 #: src/dialog_field.c
 msgid "XOTA is a list of your own: no spot"
@@ -4415,9 +4423,24 @@ msgstr "Está allí: Start para activarlo"
 msgid "Update"
 msgstr "Actualizar"
 
+#. not in the list: a line or a word of a longer text
+#: src/dialog_flights.c
+msgid "ground"
+msgstr "en tierra"
+
 #: src/dialog_flights.c
 msgid "No aircraft in range just now: only those a volunteer's receiver nearby picks up are there"
 msgstr "Ningún avión al alcance ahora: solo aparecen los que capta algún receptor voluntario cercano"
+
+#: src/dialog_flights.c
+#, c-format
+msgid "track %s %d"
+msgstr "rumbo %s %d"
+
+#: src/dialog_flights.c
+#, c-format
+msgid "squawk %s"
+msgstr ""
 
 #: src/dialog_flights.c
 msgid "EMERGENCY"
@@ -4451,6 +4474,11 @@ msgstr "Buscando los aviones..."
 #: src/dialog_flights.c
 msgid "Data:"
 msgstr "Datos:"
+
+#. not in the list: a line or a word of a longer text
+#: src/dialog_flights.c
+msgid "updated"
+msgstr "actualizado"
 
 #: src/dialog_flights.c src/dialog_meteo.c
 msgid "No answer from the helper"
@@ -5115,9 +5143,29 @@ msgstr "Tormenta con granizo"
 msgid "Thunderstorm with heavy hail"
 msgstr "Tormenta con granizo fuerte"
 
+#. not in the list: a line or a word of a longer text
+#: src/dialog_meteo.c
+msgid "low"
+msgstr "bajo"
+
+#. not in the list: a line or a word of a longer text
+#: src/dialog_meteo.c
+msgid "moderate"
+msgstr "moderado"
+
+#. not in the list: a line or a word of a longer text
+#: src/dialog_meteo.c
+msgid "high"
+msgstr "alto"
+
 #: src/dialog_meteo.c
 msgid "very high"
 msgstr "muy alto"
+
+#. not in the list: a line or a word of a longer text
+#: src/dialog_meteo.c
+msgid "extreme"
+msgstr "extremo"
 
 #: src/dialog_meteo.c
 #, c-format
@@ -5209,6 +5257,10 @@ msgstr "(aquí)"
 #: src/dialog_meteo.c
 msgid "(nearby)"
 msgstr "(cerca)"
+
+#: src/dialog_meteo.c
+msgid "issued"
+msgstr "emitido"
 
 #: src/dialog_meteo.c
 #, c-format
@@ -6011,6 +6063,14 @@ msgid "Connect: the talkgroups come from the web page"
 msgstr "Conectar: los TG vienen de la página web"
 
 #: src/dialog_svx.c
+msgid "listen "
+msgstr "escucha "
+
+#: src/dialog_svx.c
+msgid "muted"
+msgstr "silenciado"
+
+#: src/dialog_svx.c
 msgid "Recent"
 msgstr "Recientes"
 
@@ -6079,6 +6139,18 @@ msgstr "Configure el reflector en la página web de la radio: SVXConnect"
 #: src/dialog_svx.c
 msgid "Not connected: press Connect"
 msgstr "Sin conexión: pulse Conectar"
+
+#: src/dialog_svx.c
+msgid " locked"
+msgstr " bloqueado"
+
+#: src/dialog_svx.c
+msgid "monitoring"
+msgstr "monitoreando"
+
+#: src/dialog_svx.c
+msgid "nodes"
+msgstr "nodos"
 
 #: src/dialog_svx.c
 msgid "Not connected"
@@ -6563,6 +6635,11 @@ msgstr ""
 msgid "Not connected: choose a channel and press the MFK"
 msgstr "Sin conexión: elija un canal y pulse la MFK"
 
+#. not in the list: a line or a word of a longer text
+#: src/dialog_zello.c
+msgid "online"
+msgstr "en línea"
+
 #: src/dialog_zello.c
 msgid "again in"
 msgstr "reintento en"
@@ -6743,7 +6820,7 @@ msgstr ""
 
 #: src/field/rbn.c
 msgid "not with a CB call"
-msgstr ""
+msgstr "no con un indicativo CB"
 
 #: src/field/refs.c
 msgid "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYTsaaaaaaaceeeeiiiidnooooo/ouuuuytyAaAaAaCcCcCcCcDdDdEeEeEeEeEeGgGgGgGgHhHhIiIiIiIiIiIiJjKkkLlLlLlLlLlNnNnNnnNnOoOoOoOoRrRrRrSsSsSsSsTtTtTtUuUuUuUuUuUuWwYyYZzZzZzs"
@@ -6985,6 +7062,16 @@ msgid "Clock"
 msgstr "Reloj"
 
 #: src/first_start.c
+#, c-format
+msgid "http://%s.local or http://%s, in a browser on the same network"
+msgstr "http://%s.local o http://%s, en un navegador de la misma red"
+
+#: src/first_start.c
+#, c-format
+msgid "http://%s.local, in a browser on the same network"
+msgstr "http://%s.local, en un navegador de la misma red"
+
+#: src/first_start.c
 msgid "Web configurator"
 msgstr "Configurador web"
 
@@ -7217,10 +7304,18 @@ msgstr "Reloj movido %+.2f s al inicio del turno"
 msgid "Auto Sync: by the decodes the clock is %.1f s %s, too far: press Time Sync as a slot starts"
 msgstr "Sinc. auto: según las decodificaciones el reloj está %.1f s %s, demasiado: pulse Sincronizar hora al empezar un turno"
 
+#: src/ft8_window.c src/gps_window.c
+msgid "ahead"
+msgstr "adelantado"
+
+#: src/ft8_window.c src/gps_window.c
+msgid "behind"
+msgstr "atrasado"
+
 #: src/ft8_window.c
 #, c-format
 msgid "%d stations"
-msgstr ""
+msgstr "%d estaciones"
 
 #: src/ft8_window.c
 #, c-format
@@ -7443,99 +7538,99 @@ msgstr "GhostNet RTTY: 7.077 MHz, 45,45 baudios, 170 Hz"
 
 #: src/gps_window.c
 msgid "Satellites, fix:"
-msgstr ""
+msgstr "Satélites, posición:"
 
 #: src/gps_window.c
 msgid "GPS date, time:"
-msgstr ""
+msgstr "Fecha, hora GPS:"
 
 #: src/gps_window.c
 msgid "Position:"
-msgstr ""
+msgstr "Posición:"
 
 #: src/gps_window.c
 msgid "Grid, gpsd:"
-msgstr ""
+msgstr "Cuadrícula, gpsd:"
 
 #: src/gps_window.c
 msgid "Clock:"
-msgstr ""
+msgstr "Reloj:"
 
 #: src/gps_window.c
 msgid "FT8 says:"
-msgstr ""
+msgstr "Según FT8:"
 
 #: src/gps_window.c
 msgid "Time station:"
-msgstr ""
+msgstr "Emisora horaria:"
 
 #: src/gps_window.c
 msgid "no fix"
-msgstr ""
+msgstr "sin posición"
 
 #: src/gps_window.c
 #, c-format
 msgid "%ld s ago"
-msgstr ""
+msgstr "hace %ld s"
 
 #: src/gps_window.c
 #, c-format
 msgid "%ld min ago"
-msgstr ""
+msgstr "hace %ld min"
 
 #: src/gps_window.c
 #, c-format
 msgid "%ld h ago"
-msgstr ""
+msgstr "hace %ld h"
 
 #: src/gps_window.c
 #, c-format
 msgid "%02d:%02d:%02d UTC, kept by NTP (%d ms)"
-msgstr ""
+msgstr "%02d:%02d:%02d UTC, mantenido por NTP (%d ms)"
 
 #: src/gps_window.c
 #, c-format
 msgid "%02d:%02d:%02d UTC, kept by %s"
-msgstr ""
+msgstr "%02d:%02d:%02d UTC, mantenido por %s"
 
 #: src/gps_window.c
 #, c-format
 msgid "%02d:%02d:%02d UTC, clock chip"
-msgstr ""
+msgstr "%02d:%02d:%02d UTC, chip de reloj"
 
 #: src/gps_window.c
 msgid "no word: FT8 or FT4 open on a busy band"
-msgstr ""
+msgstr "sin datos: FT8 o FT4 abierto en una banda con actividad"
 
 #: src/gps_window.c
 #, c-format
 msgid "on time (%+.2f s), %d stations, %s"
-msgstr ""
+msgstr "en hora (%+.2f s), %d estaciones, %s"
 
 #: src/gps_window.c
 #, c-format
 msgid "%.2f s %s, %d stations, %s"
-msgstr ""
+msgstr "%.2f s %s, %d estaciones, %s"
 
 #: src/gps_window.c
 #, c-format
 msgid "%.1f s %s: too far, Time Sync in FT8"
-msgstr ""
+msgstr "%.1f s %s: demasiado, Sincronizar hora en FT8"
 
 #: src/gps_window.c
 #, c-format
 msgid "the stations disagree (%d), %s"
-msgstr ""
+msgstr "las estaciones no coinciden (%d), %s"
 
 #: src/gps_window.c
 #, c-format
 msgid "listening: %d stations, %d slots"
-msgstr ""
+msgstr "escuchando: %d estaciones, %d turnos"
 
 #: src/gps_window.c
 #, c-format
 msgid "%s: off"
-msgstr ""
+msgstr "%s: sin escuchar"
 
 #: src/gps_window.c
 #, c-format
@@ -7543,6 +7638,8 @@ msgid ""
 "%s keeps the clock\n"
 "The marker's delay learned: %.3f s"
 msgstr ""
+"%s mantiene la hora\n"
+"Retardo del marcador aprendido: %.3f s"
 
 #: src/gps_window.c
 #, c-format
@@ -7550,6 +7647,8 @@ msgid ""
 "Clock right by %s\n"
 "%+.3f s"
 msgstr ""
+"Reloj correcto según %s\n"
+"%+.3f s"
 
 #: src/gps_window.c
 #, c-format
@@ -7557,21 +7656,43 @@ msgid ""
 "Clock moved %+.3f s\n"
 "by %s"
 msgstr ""
+"Reloj movido %+.3f s\n"
+"por %s"
 
 #: src/gps_window.c
 #, c-format
 msgid "%s: no markers until :%02d"
-msgstr ""
+msgstr "%s: sin marcadores hasta :%02d"
 
 #: src/gps_window.c
 #, c-format
 msgid "%s: listening"
-msgstr ""
+msgstr "%s: escuchando"
 
 #: src/gps_window.c
 #, c-format
 msgid "%s: marker %s, %.0f dB"
-msgstr ""
+msgstr "%s: marcador %s, %.0f dB"
+
+#. not in the list: a line or a word of a longer text
+#: src/gps_window.c
+msgid "waiting"
+msgstr "esperando"
+
+#. not in the list: a line or a word of a longer text
+#: src/gps_window.c
+msgid "working"
+msgstr "funcionando"
+
+#. not in the list: a line or a word of a longer text
+#: src/gps_window.c
+msgid "restarting"
+msgstr "reiniciando"
+
+#. not in the list: a line or a word of a longer text
+#: src/gps_window.c
+msgid "exited"
+msgstr "terminado"
 
 #: src/gps_window.c
 #, c-format
@@ -7579,12 +7700,16 @@ msgid ""
 "Station:\n"
 "%s"
 msgstr ""
+"Emisora:\n"
+"%s"
 
 #: src/gps_window.c
 msgid ""
 "Stop\n"
 "listening"
 msgstr ""
+"Dejar de\n"
+"escuchar"
 
 #: src/gps_window.c src/voice_messages.c
 msgid "Listen"
@@ -7595,18 +7720,24 @@ msgid ""
 "Auto Sync:\n"
 "On"
 msgstr ""
+"Sinc. auto:\n"
+"On"
 
 #: src/gps_window.c
 msgid ""
 "Auto Sync:\n"
 "Off"
 msgstr ""
+"Sinc. auto:\n"
+"Off"
 
 #: src/gps_window.c
 msgid ""
 "Auto Sync off\n"
 "FT8 only measures the clock"
 msgstr ""
+"Sinc. auto apagada\n"
+"FT8 solo mide el reloj"
 
 #: src/gps_window.c
 #, c-format
@@ -7614,12 +7745,16 @@ msgid ""
 "Auto Sync on\n"
 "%s keeps the clock for now"
 msgstr ""
+"Sinc. auto encendida\n"
+"%s mantiene la hora por ahora"
 
 #: src/gps_window.c
 msgid ""
 "Auto Sync on\n"
 "FT8 and FT4 set the clock"
 msgstr ""
+"Sinc. auto encendida\n"
+"FT8 y FT4 ponen el reloj en hora"
 
 #: src/gui_main.c
 msgid ""
@@ -8080,7 +8215,7 @@ msgstr ""
 
 #: src/js8_window.c
 msgid "Write..."
-msgstr ""
+msgstr "Escribir..."
 
 #: src/js8_window.c
 msgid ""
@@ -8293,7 +8428,7 @@ msgstr "Mensaje guardado %d borrado"
 
 #: src/js8_window.c
 msgid "Not sent: kept for Send... or Reply"
-msgstr ""
+msgstr "No enviado: guardado para Enviar... o Responder"
 
 #: src/js8_window.c
 msgid " INFO, e.g. X6100 5W EFHW"
@@ -8369,7 +8504,7 @@ msgstr ""
 
 #: src/js8_window.c
 msgid "Your message not sent yet: Enter sends it"
-msgstr ""
+msgstr "Su mensaje aún no se envió: Intro lo envía"
 
 #: src/js8_window.c
 msgid "band changed"
@@ -8383,30 +8518,30 @@ msgstr "Fin de la lista %s"
 #: src/js8_window.c
 #, c-format
 msgid "HB %02d:%02d - %d heard you"
-msgstr ""
+msgstr "HB %02d:%02d - %d lo escucharon"
 
 #: src/js8_window.c
 #, c-format
 msgid "%d station%s - HB: say you're here"
-msgstr ""
+msgstr "%d indicativo%s - HB: avise que está aquí"
 
 #: src/js8_window.c
 #, c-format
 msgid "%d new"
-msgstr ""
+msgstr "%d nuevos"
 
 #: src/js8_window.c
 #, c-format
 msgid "heard you %+d"
-msgstr ""
+msgstr "lo escuchó %+d"
 
 #: src/js8_window.c
 msgid "heard you"
-msgstr ""
+msgstr "lo escuchó"
 
 #: src/js8_window.c
 msgid "Listening... the stations heard come here. HB tells them you are here."
-msgstr ""
+msgstr "Escuchando... aquí aparecen las estaciones escuchadas. HB les avisa que usted está aquí."
 
 #: src/js8_window.c
 msgid ""
@@ -8686,62 +8821,62 @@ msgstr "Pregunte a %s si escucha una estación: escriba el indicativo y ?"
 
 #: src/js8_window.c
 msgid "Heartbeat interval (knob)..."
-msgstr ""
+msgstr "Intervalo de latido (perilla)..."
 
 #: src/js8_window.c
 msgid "Speed: the selected station's"
-msgstr ""
+msgstr "Velocidad: la de la estación elegida"
 
 #: src/js8_window.c
 msgid "Activation reference..."
-msgstr ""
+msgstr "Referencia de la activación..."
 
 #: src/js8_window.c
 msgid "Log QSO..."
-msgstr ""
+msgstr "Anotar QSO..."
 
 #: src/js8_window.c
 msgid "Send a heartbeat now"
-msgstr ""
+msgstr "Enviar un latido ahora"
 
 #: src/js8_window.c
 msgid "Groups, INFO, STATUS, Relay..."
-msgstr ""
+msgstr "Grupos, INFO, ESTADO, Retransmitir..."
 
 #: src/js8_window.c
 msgid "Clear the list"
-msgstr ""
+msgstr "Borrar la lista"
 
 #: src/js8_window.c
 msgid "JS8 Settings"
-msgstr ""
+msgstr "Ajustes de JS8"
 
 #: src/js8_window.c
 msgid "heard your HB"
-msgstr ""
+msgstr "escuchó su HB"
 
 #: src/js8_window.c
 msgid "nothing said yet"
-msgstr ""
+msgstr "nada dicho aún"
 
 #: src/js8_window.c
 #, c-format
 msgid ", they hear you %+d"
-msgstr ""
+msgstr ", lo escuchan %+d"
 
 #: src/js8_window.c
 #, c-format
 msgid "Nothing with %s yet: Reply, Query > or Write..."
-msgstr ""
+msgstr "Nada con %s todavía: Responder, Consultar > o Escribir..."
 
 #: src/js8_window.c
 msgid "(Board)"
-msgstr ""
+msgstr "(Tablero)"
 
 #: src/js8_window.c
 #, c-format
 msgid "To %s: type it and press Enter (MSG first for their Inbox)"
-msgstr ""
+msgstr "Para %s: escríbalo y pulse Intro (MSG primero para su Bandeja)"
 
 #: src/js8_window.c
 msgid "Chat"
@@ -8756,25 +8891,31 @@ msgstr ""
 
 #: src/js8_window.c
 msgid "Choose a station first (MFK)"
-msgstr ""
+msgstr "Primero elija una estación (MFK)"
 
 #: src/js8_window.c
 msgid ""
 "View:\n"
 "Board"
 msgstr ""
+"Vista:\n"
+"Tablero"
 
 #: src/js8_window.c
 msgid ""
 "View:\n"
 "Stations"
 msgstr ""
+"Vista:\n"
+"Estaciones"
 
 #: src/js8_window.c
 msgid ""
 "View:\n"
 "Messages"
 msgstr ""
+"Vista:\n"
+"Mensajes"
 
 #: src/js8_window.c
 #, c-format
@@ -8782,6 +8923,8 @@ msgid ""
 "Heartbeat\n"
 "auto %u min"
 msgstr ""
+"Latido\n"
+"auto %u min"
 
 #: src/js8_window.c
 msgid "Reply"
@@ -8793,6 +8936,8 @@ msgid ""
 "Reply\n"
 "%s"
 msgstr ""
+"Responder\n"
+"%s"
 
 #: src/js8_window.c
 #, c-format
@@ -9245,6 +9390,16 @@ msgstr ""
 msgid "Type the %s first"
 msgstr "Primero escriba %s"
 
+#. not in the list: a line or a word of a longer text
+#: src/js8_window.c
+msgid "summit"
+msgstr "la cumbre"
+
+#. not in the list: a line or a word of a longer text
+#: src/js8_window.c
+msgid "park"
+msgstr "el parque"
+
 #: src/js8_window.c
 #, c-format
 msgid "%s spot: %s. A JS8Call APRS gateway must hear it; the reply goes to APRS, not here"
@@ -9339,7 +9494,7 @@ msgstr "QSO con %s terminado: ¿guardar en el log?"
 #: src/js8_window.c
 #, c-format
 msgid "QSO with %s ended: Settings... (page 3), Log QSO, to log it"
-msgstr ""
+msgstr "QSO con %s terminado: Ajustes... (página 3), Anotar QSO, para anotarlo"
 
 #: src/js8_window.c
 msgid ""
@@ -9411,16 +9566,16 @@ msgstr ""
 #: src/js8_window.c
 #, c-format
 msgid "Message to %s from %s"
-msgstr ""
+msgstr "Mensaje para %s de %s"
 
 #: src/js8_window.c
 #, c-format
 msgid "Message from %s"
-msgstr ""
+msgstr "Mensaje de %s"
 
 #: src/js8_window.c
 msgid "MFK press: read it and reply      ESC or a button: later (Inbox)"
-msgstr ""
+msgstr "Pulsar MFK: leer y responder      ESC o un botón: después (Bandeja)"
 
 #: src/js8_window.c
 #, c-format
@@ -9445,12 +9600,12 @@ msgstr "Mensaje de %s: no se puede guardar %s"
 #: src/js8_window.c
 #, c-format
 msgid "New message to %s from %s - Inbox on page 1"
-msgstr ""
+msgstr "Mensaje nuevo para %s de %s - Bandeja en la página 1"
 
 #: src/js8_window.c
 #, c-format
 msgid "New message from %s - Inbox on page 1"
-msgstr ""
+msgstr "Mensaje nuevo de %s - Bandeja en la página 1"
 
 #: src/js8_window.c
 #, c-format
@@ -9652,7 +9807,7 @@ msgstr "Probar pitido"
 #: src/js8_window.c
 #, c-format
 msgid "%s was heard on %s, you send %s - Settings... (page 3), Speed: theirs, to match"
-msgstr ""
+msgstr "%s se escuchó en %s, usted envía en %s - Ajustes... (página 3), Velocidad: la de la estación elegida, para igualar"
 
 #: src/js8_window.c
 #, c-format
@@ -9836,7 +9991,7 @@ msgstr "%s: no se escuchó en esta banda"
 
 #: src/js8_window.c
 msgid "View: Messages first"
-msgstr ""
+msgstr "Primero Vista: Mensajes"
 
 #: src/js8_window.c
 msgid "Turn the MFK onto a message"
@@ -9864,25 +10019,25 @@ msgstr "Traduciendo..."
 
 #: src/js8_window.c
 msgid "The JS8 app is closed on the radio"
-msgstr ""
+msgstr "La app JS8 está cerrada en la radio"
 
 #: src/js8_window.c
 msgid "Already sending: Stop first"
-msgstr ""
+msgstr "Ya está transmitiendo: primero Parar"
 
 #: src/js8_window.c
 msgid "Not sent: the radio's screen says why"
-msgstr ""
+msgstr "No enviado: la pantalla de la radio dice por qué"
 
 #: src/js8_window.c
 #, c-format
 msgid "Not sent: %s"
-msgstr ""
+msgstr "No enviado: %s"
 
 #: src/js8_window.c
 #, c-format
 msgid "Queued: %d frame%s, %.0f s"
-msgstr ""
+msgstr "En cola: %d trama%s, %.0f s"
 
 #: src/jtty.c
 msgid "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ +-./?!\"#$%,&*()_'=[]{}<>|:;"
@@ -10239,6 +10394,10 @@ msgid "%d mm of rain"
 msgstr "%d mm de lluvia"
 
 #: src/meteo.c
+msgid "thunderstorms"
+msgstr "tormentas"
+
+#: src/meteo.c
 msgid "thunderstorms with hail"
 msgstr "tormentas con granizo"
 
@@ -10263,9 +10422,27 @@ msgid "%s: %s, from the forecast"
 msgstr "%s: %s, según el pronóstico"
 
 #: src/meteo.c
+msgid "today"
+msgstr "hoy"
+
+#: src/meteo.c
+msgid "tomorrow"
+msgstr "mañana"
+
+#: src/meteo.c
 #, c-format
 msgid "%s to %s %s"
 msgstr "%s a %s %s"
+
+#: src/meteo.c
+#, c-format
+msgid "until %s %s"
+msgstr "hasta %s %s"
+
+#: src/meteo.c
+#, c-format
+msgid "from %s %s"
+msgstr "desde %s %s"
 
 #: src/meteo_alerts.c
 #, c-format
@@ -11071,6 +11248,11 @@ msgstr ""
 #, c-format
 msgid "clk ok %lld"
 msgstr ""
+
+#. not in the list: a line or a word of a longer text
+#: src/remote_server.c
+msgid "phone"
+msgstr "teléfono"
 
 #: src/remote_server.c
 #, c-format
@@ -12463,6 +12645,10 @@ msgid "outside the bands"
 msgstr "fuera de las bandas"
 
 #: src/settings_window.cpp
+msgid "on "
+msgstr "en "
+
+#: src/settings_window.cpp
 msgid "on battery"
 msgstr "con batería"
 
@@ -12558,6 +12744,11 @@ msgstr " (y más)"
 #: src/settings_window.cpp
 msgid "No TX anywhere:"
 msgstr "Sin TX en ninguna parte:"
+
+#: src/settings_window.cpp
+#, c-format
+msgid " no %s%s"
+msgstr " sin %s%s"
 
 #: src/settings_window.cpp
 msgid "range in "
@@ -12830,7 +13021,7 @@ msgstr "Mantener líneas de perillas"
 
 #: src/settings_window.cpp
 msgid "Knob press: next control"
-msgstr ""
+msgstr "Pulsar perilla: control siguiente"
 
 #: src/settings_window.cpp
 msgid "Decoder text"
@@ -13395,7 +13586,7 @@ msgstr "Indicativo no soportado (muy largo)"
 
 #: src/station.c
 msgid "CB callsign: FT8 sends no QTH with it; no DX cluster, RBN or Wavelog"
-msgstr ""
+msgstr "Indicativo CB: FT8 no envía QTH con él; sin cluster DX, RBN ni Wavelog"
 
 #: src/station.c
 msgid "Callsign is long, QTH will be omitted"
@@ -13597,7 +13788,7 @@ msgstr " por Bluetooth"
 
 #: src/text_popup.c
 msgid "Enter: OK    Esc, or hold the MFK: close"
-msgstr ""
+msgstr "Intro: OK    Esc, o mantener la MFK: cerrar"
 
 #: src/time_station.c
 msgid "WWVH 5000"
@@ -13870,6 +14061,16 @@ msgstr "(banda no afic.)"
 msgid "(outside bands)"
 msgstr "(fuera de bandas)"
 
+#. not in the list: a line or a word of a longer text
+#: src/voice_net.c
+msgid "off"
+msgstr "apagado"
+
+#. not in the list: a line or a word of a longer text
+#: src/voice_net.c
+msgid "on"
+msgstr "encendido"
+
 #: src/voice_net.c
 msgid "Simplex repeater on"
 msgstr "Repetidor simplex encendido"
@@ -13985,70 +14186,94 @@ msgstr ""
 #: src/wefax_bulletin.c
 #, c-format
 msgid "%ld days"
-msgstr ""
+msgstr "%ld días"
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "next %02d:%02d, now"
+msgstr "próxima %02d:%02d, ahora"
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "next %02d:%02d, in %d min"
+msgstr "próxima %02d:%02d, en %d min"
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "next %02d:%02d"
+msgstr "próxima %02d:%02d"
 
 #: src/wefax_bulletin.c
 msgid "no preview"
-msgstr ""
+msgstr "sin miniatura"
 
 #: src/wefax_bulletin.c
 msgid "not in the plan"
-msgstr ""
+msgstr "no está en el plan"
 
 #: src/wefax_bulletin.c
 msgid "a copy, unreadable"
-msgstr ""
+msgstr "una copia, ilegible"
 
 #: src/wefax_bulletin.c
 msgid "none yet"
-msgstr ""
+msgstr "ninguna aún"
 
 #: src/wefax_bulletin.c
 #, c-format
 msgid "%s ago, q%d"
-msgstr ""
+msgstr "hace %s, q%d"
 
 #: src/wefax_bulletin.c
 #, c-format
 msgid "%s ago"
-msgstr ""
+msgstr "hace %s"
 
 #: src/wefax_bulletin.c
 msgid "the last copy after it"
-msgstr ""
+msgstr "la última copia, al terminar"
 
 #: src/wefax_bulletin.c
 msgid "MFK: kind"
-msgstr ""
+msgstr "MFK: tipo"
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "taken %02d:%02d UTC, %02d/%02d"
+msgstr "recibida %02d:%02d UTC, %02d/%02d"
 
 #: src/wefax_bulletin.c
 #, c-format
 msgid "mark q%d"
-msgstr ""
+msgstr "nota q%d"
 
 #: src/wefax_bulletin.c
 msgid "MFK: kind   press: full screen"
-msgstr ""
+msgstr "MFK: tipo   pulsar: pantalla completa"
 
 #: src/wefax_bulletin.c
 msgid "The plan has no Bulletin"
-msgstr ""
+msgstr "El plan no tiene Boletín"
+
+#: src/wefax_viewer.c
+msgid "whole"
+msgstr "completa"
 
 #: src/wefax_viewer.c
 msgid "MFK press: zoom   any button: back"
-msgstr ""
+msgstr "Pulsar MFK: zoom   cualquier botón: volver"
 
 #: src/wefax_viewer.c
 msgid "MFK: up, down   VOL: left, right   press: zoom"
-msgstr ""
+msgstr "MFK: arriba, abajo   VOL: izquierda, derecha   pulsar: zoom"
 
 #: src/wefax_viewer.c
 msgid "MFK: up, down   VOL: left, right   press: whole chart"
-msgstr ""
+msgstr "MFK: arriba, abajo   VOL: izquierda, derecha   pulsar: carta entera"
 
 #: src/wefax_window.c
 msgid "Bulletin"
-msgstr ""
+msgstr "Boletín"
 
 #: src/wefax_window.c
 msgid ""
@@ -14068,13 +14293,15 @@ msgstr ""
 
 #: src/wefax_window.c
 msgid "(Browser)"
-msgstr ""
+msgstr "(Visor)"
 
 #: src/wefax_window.c
 msgid ""
 "Back to\n"
 "List"
 msgstr ""
+"Volver a\n"
+"la lista"
 
 #: src/wefax_window.c
 msgid ""
@@ -14094,13 +14321,15 @@ msgstr ""
 
 #: src/wefax_window.c
 msgid "(Bulletin)"
-msgstr ""
+msgstr "(Boletín)"
 
 #: src/wefax_window.c
 msgid ""
 "Close\n"
 "Bulletin"
 msgstr ""
+"Cerrar\n"
+"boletín"
 
 #: src/wefax_window.c
 msgid "day and night"
@@ -14137,12 +14366,12 @@ msgstr ""
 #: src/wefax_window.c
 #, c-format
 msgid "Fax saved, quality %d"
-msgstr ""
+msgstr "Fax guardado, calidad %d"
 
 #: src/wefax_window.c
 #, c-format
 msgid "Fax dropped: quality %d, a copy has %d"
-msgstr ""
+msgstr "Fax descartado: calidad %d, una copia tiene %d"
 
 #: src/wefax_window.c
 msgid "Saving fax..."
@@ -14178,6 +14407,8 @@ msgid ""
 "Auto\n"
 "Plan"
 msgstr ""
+"Plan\n"
+"auto"
 
 #: src/wefax_window.c
 msgid ""
@@ -14194,23 +14425,23 @@ msgstr ""
 
 #: src/wefax_window.c
 msgid "Auto Plan off: tuned by hand"
-msgstr ""
+msgstr "Plan auto apagado: sintonía a mano"
 
 #: src/wefax_window.c
 msgid "Auto Plan: no plan"
-msgstr ""
+msgstr "Plan auto: sin plan"
 
 #: src/wefax_window.c
 msgid "Auto Plan on (plan.json)"
-msgstr ""
+msgstr "Plan auto encendido (plan.json)"
 
 #: src/wefax_window.c
 msgid "Auto Plan on"
-msgstr ""
+msgstr "Plan auto encendido"
 
 #: src/wefax_window.c
 msgid "Auto Plan off"
-msgstr ""
+msgstr "Plan auto apagado"
 
 #: src/wefax_window.c
 msgid "RX Cont"
@@ -14222,7 +14453,7 @@ msgstr "RX auto"
 
 #: src/wefax_window.c
 msgid "Taking the fax going on"
-msgstr ""
+msgstr "Tomando el fax en curso"
 
 #: src/wefax_window.c
 msgid "Fax Started"
@@ -14230,33 +14461,33 @@ msgstr "Fax iniciado"
 
 #: src/wefax_window.c
 msgid "No fax going on, waiting for the next"
-msgstr ""
+msgstr "Ningún fax en curso, esperando el siguiente"
 
 #: src/wefax_window.c
 msgid "Fax going on: taken from here"
-msgstr ""
+msgstr "Fax en curso: tomado desde aquí"
 
 #: src/wefax_window.c
 msgid "Page 2: Freq., View   Page 3: Align, Tilt (MFK)"
-msgstr ""
+msgstr "Página 2: Frec., Ver   Página 3: Alinear, Inclinar (MFK)"
 
 #: src/wefax_window.c
 msgid "MFK: choose a fax   press: open it"
-msgstr ""
+msgstr "MFK: elegir un fax   pulsar: abrirlo"
 
 #: src/wefax_window.c
 msgid "Fix Align, Fix Tilt, then the MFK   Done saves"
-msgstr ""
+msgstr "Corregir alineación, Corregir inclinación, luego la MFK   Listo guarda"
 
 #: src/wefax_window.c
 #, c-format
 msgid "Align %+d"
-msgstr ""
+msgstr "Alinear %+d"
 
 #: src/wefax_window.c
 #, c-format
 msgid "Tilt %+d"
-msgstr ""
+msgstr "Inclinar %+d"
 
 #: src/wefax_window.c
 msgid ""
@@ -14291,24 +14522,32 @@ msgid ""
 "Fix\n"
 "Chart"
 msgstr ""
+"Corregir\n"
+"carta"
 
 #: src/wefax_window.c
 msgid ""
 "Open\n"
 "Chart"
 msgstr ""
+"Abrir\n"
+"carta"
 
 #: src/wefax_window.c
 msgid ""
 "All\n"
 "Kinds"
 msgstr ""
+"Todos\n"
+"los tipos"
 
 #: src/wefax_window.c
 msgid ""
 "All\n"
 "Faxes"
 msgstr ""
+"Todos\n"
+"los faxes"
 
 #: src/wefax_window.c
 msgid "WEFAX - stations"
@@ -14374,16 +14613,16 @@ msgstr ""
 
 #: src/wefax_window.c
 msgid "Auto Tilt: no clear tilt, MFK to set it"
-msgstr ""
+msgstr "Inclinación auto: no es clara, MFK para ajustarla"
 
 #: src/wefax_window.c
 #, c-format
 msgid "Auto Tilt %+d, MFK to adjust"
-msgstr ""
+msgstr "Inclinación auto %+d, MFK para ajustar"
 
 #: src/wefax_window.c
 msgid "Auto Tilt..."
-msgstr ""
+msgstr "Inclinación auto..."
 
 #: src/wifi.cpp
 #, c-format
@@ -15370,20 +15609,8 @@ msgid "headphones"
 msgstr "auriculares"
 
 #. not in the list: a line or a word of a longer text
-msgid "phone"
-msgstr "teléfono"
-
-#. not in the list: a line or a word of a longer text
 msgid "new"
 msgstr "nuevo"
-
-#. not in the list: a line or a word of a longer text
-msgid "off"
-msgstr "apagado"
-
-#. not in the list: a line or a word of a longer text
-msgid "on"
-msgstr "encendido"
 
 #. not in the list: a line or a word of a longer text
 msgid "starting"
@@ -15466,14 +15693,6 @@ msgid "typed"
 msgstr "escrita"
 
 #. not in the list: a line or a word of a longer text
-msgid "summit"
-msgstr "la cumbre"
-
-#. not in the list: a line or a word of a longer text
-msgid "park"
-msgstr "el parque"
-
-#. not in the list: a line or a word of a longer text
 msgid "Save to log"
 msgstr "Guardar en el log"
 
@@ -15534,22 +15753,6 @@ msgid "me"
 msgstr "yo"
 
 #. not in the list: a line or a word of a longer text
-msgid "waiting"
-msgstr "esperando"
-
-#. not in the list: a line or a word of a longer text
-msgid "working"
-msgstr "funcionando"
-
-#. not in the list: a line or a word of a longer text
-msgid "restarting"
-msgstr "reiniciando"
-
-#. not in the list: a line or a word of a longer text
-msgid "exited"
-msgstr "terminado"
-
-#. not in the list: a line or a word of a longer text
 msgid "searching..."
 msgstr "buscando..."
 
@@ -15586,10 +15789,6 @@ msgid "to"
 msgstr "hasta"
 
 #. not in the list: a line or a word of a longer text
-msgid "updated"
-msgstr "actualizado"
-
-#. not in the list: a line or a word of a longer text
 msgid "channels"
 msgstr "canales"
 
@@ -15608,10 +15807,6 @@ msgstr " = no es un carácter. Bien: +1 PPM, mal: -1 PPM."
 #. not in the list: a line or a word of a longer text
 msgid " and "
 msgstr " y "
-
-#. not in the list: a line or a word of a longer text
-msgid " tomorrow"
-msgstr " mañana"
 
 #. not in the list: a line or a word of a longer text
 msgid ", Birdie Cal off the dial"
@@ -15802,32 +15997,12 @@ msgid "from"
 msgstr "desde"
 
 #. not in the list: a line or a word of a longer text
-msgid "low"
-msgstr "bajo"
-
-#. not in the list: a line or a word of a longer text
-msgid "moderate"
-msgstr "moderado"
-
-#. not in the list: a line or a word of a longer text
-msgid "high"
-msgstr "alto"
-
-#. not in the list: a line or a word of a longer text
-msgid "extreme"
-msgstr "extremo"
-
-#. not in the list: a line or a word of a longer text
 msgid "forecast"
 msgstr "pronóstico"
 
 #. not in the list: a line or a word of a longer text
 msgid "Reload"
 msgstr "Recargar"
-
-#. not in the list: a line or a word of a longer text
-msgid "online"
-msgstr "en línea"
 
 #. not in the list: a line or a word of a longer text
 msgid "Zello channels"
@@ -15840,10 +16015,6 @@ msgstr "APP Zello"
 #. not in the list: a line or a word of a longer text
 msgid "Range"
 msgstr "Radio"
-
-#. not in the list: a line or a word of a longer text
-msgid "ground"
-msgstr "en tierra"
 
 #. not in the list: a line or a word of a longer text
 msgid "squawk"

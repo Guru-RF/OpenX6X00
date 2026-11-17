@@ -1895,6 +1895,10 @@ msgid "%i message%s"
 msgstr ""
 
 #: src/cw_messages.c
+msgid " tomorrow"
+msgstr ""
+
+#: src/cw_messages.c
 msgid " day after"
 msgstr ""
 
@@ -4114,7 +4118,21 @@ msgid "Update"
 msgstr ""
 
 #: src/dialog_flights.c
+msgid "ground"
+msgstr ""
+
+#: src/dialog_flights.c
 msgid "No aircraft in range just now: only those a volunteer's receiver nearby picks up are there"
+msgstr ""
+
+#: src/dialog_flights.c
+#, c-format
+msgid "track %s %d"
+msgstr ""
+
+#: src/dialog_flights.c
+#, c-format
+msgid "squawk %s"
 msgstr ""
 
 #: src/dialog_flights.c
@@ -4148,6 +4166,10 @@ msgstr ""
 
 #: src/dialog_flights.c
 msgid "Data:"
+msgstr ""
+
+#: src/dialog_flights.c
+msgid "updated"
 msgstr ""
 
 #: src/dialog_flights.c src/dialog_meteo.c
@@ -4796,7 +4818,23 @@ msgid "Thunderstorm with heavy hail"
 msgstr ""
 
 #: src/dialog_meteo.c
+msgid "low"
+msgstr ""
+
+#: src/dialog_meteo.c
+msgid "moderate"
+msgstr ""
+
+#: src/dialog_meteo.c
+msgid "high"
+msgstr ""
+
+#: src/dialog_meteo.c
 msgid "very high"
+msgstr ""
+
+#: src/dialog_meteo.c
+msgid "extreme"
 msgstr ""
 
 #: src/dialog_meteo.c
@@ -4888,6 +4926,10 @@ msgstr ""
 
 #: src/dialog_meteo.c
 msgid "(nearby)"
+msgstr ""
+
+#: src/dialog_meteo.c
+msgid "issued"
 msgstr ""
 
 #: src/dialog_meteo.c
@@ -5615,6 +5657,14 @@ msgid "Connect: the talkgroups come from the web page"
 msgstr ""
 
 #: src/dialog_svx.c
+msgid "listen "
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "muted"
+msgstr ""
+
+#: src/dialog_svx.c
 msgid "Recent"
 msgstr ""
 
@@ -5682,6 +5732,18 @@ msgstr ""
 
 #: src/dialog_svx.c
 msgid "Not connected: press Connect"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid " locked"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "monitoring"
+msgstr ""
+
+#: src/dialog_svx.c
+msgid "nodes"
 msgstr ""
 
 #: src/dialog_svx.c
@@ -6133,6 +6195,10 @@ msgid "Not connected: choose a channel and press the MFK"
 msgstr ""
 
 #: src/dialog_zello.c
+msgid "online"
+msgstr ""
+
+#: src/dialog_zello.c
 msgid "again in"
 msgstr ""
 
@@ -6554,6 +6620,16 @@ msgid "Clock"
 msgstr ""
 
 #: src/first_start.c
+#, c-format
+msgid "http://%s.local or http://%s, in a browser on the same network"
+msgstr ""
+
+#: src/first_start.c
+#, c-format
+msgid "http://%s.local, in a browser on the same network"
+msgstr ""
+
+#: src/first_start.c
 msgid "Web configurator"
 msgstr ""
 
@@ -6768,6 +6844,14 @@ msgstr ""
 #: src/ft8_window.c
 #, c-format
 msgid "Auto Sync: by the decodes the clock is %.1f s %s, too far: press Time Sync as a slot starts"
+msgstr ""
+
+#: src/ft8_window.c src/gps_window.c
+msgid "ahead"
+msgstr ""
+
+#: src/ft8_window.c src/gps_window.c
+msgid "behind"
 msgstr ""
 
 #: src/ft8_window.c
@@ -7114,6 +7198,22 @@ msgstr ""
 #: src/gps_window.c
 #, c-format
 msgid "%s: marker %s, %.0f dB"
+msgstr ""
+
+#: src/gps_window.c
+msgid "waiting"
+msgstr ""
+
+#: src/gps_window.c
+msgid "working"
+msgstr ""
+
+#: src/gps_window.c
+msgid "restarting"
+msgstr ""
+
+#: src/gps_window.c
+msgid "exited"
 msgstr ""
 
 #: src/gps_window.c
@@ -8748,6 +8848,14 @@ msgid "Type the %s first"
 msgstr ""
 
 #: src/js8_window.c
+msgid "summit"
+msgstr ""
+
+#: src/js8_window.c
+msgid "park"
+msgstr ""
+
+#: src/js8_window.c
 #, c-format
 msgid "%s spot: %s. A JS8Call APRS gateway must hear it; the reply goes to APRS, not here"
 msgstr ""
@@ -9722,6 +9830,10 @@ msgid "%d mm of rain"
 msgstr ""
 
 #: src/meteo.c
+msgid "thunderstorms"
+msgstr ""
+
+#: src/meteo.c
 msgid "thunderstorms with hail"
 msgstr ""
 
@@ -9746,8 +9858,26 @@ msgid "%s: %s, from the forecast"
 msgstr ""
 
 #: src/meteo.c
+msgid "today"
+msgstr ""
+
+#: src/meteo.c
+msgid "tomorrow"
+msgstr ""
+
+#: src/meteo.c
 #, c-format
 msgid "%s to %s %s"
+msgstr ""
+
+#: src/meteo.c
+#, c-format
+msgid "until %s %s"
+msgstr ""
+
+#: src/meteo.c
+#, c-format
+msgid "from %s %s"
 msgstr ""
 
 #: src/meteo_alerts.c
@@ -10545,6 +10675,10 @@ msgstr ""
 #: src/remote_server.c
 #, c-format
 msgid "clk ok %lld"
+msgstr ""
+
+#: src/remote_server.c
+msgid "phone"
 msgstr ""
 
 #: src/remote_server.c
@@ -11886,6 +12020,10 @@ msgid "outside the bands"
 msgstr ""
 
 #: src/settings_window.cpp
+msgid "on "
+msgstr ""
+
+#: src/settings_window.cpp
 msgid "on battery"
 msgstr ""
 
@@ -11980,6 +12118,11 @@ msgstr ""
 
 #: src/settings_window.cpp
 msgid "No TX anywhere:"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid " no %s%s"
 msgstr ""
 
 #: src/settings_window.cpp
@@ -13222,6 +13365,14 @@ msgid "(outside bands)"
 msgstr ""
 
 #: src/voice_net.c
+msgid "off"
+msgstr ""
+
+#: src/voice_net.c
+msgid "on"
+msgstr ""
+
+#: src/voice_net.c
 msgid "Simplex repeater on"
 msgstr ""
 
@@ -13333,6 +13484,21 @@ msgid "%ld days"
 msgstr ""
 
 #: src/wefax_bulletin.c
+#, c-format
+msgid "next %02d:%02d, now"
+msgstr ""
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "next %02d:%02d, in %d min"
+msgstr ""
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "next %02d:%02d"
+msgstr ""
+
+#: src/wefax_bulletin.c
 msgid "no preview"
 msgstr ""
 
@@ -13368,6 +13534,11 @@ msgstr ""
 
 #: src/wefax_bulletin.c
 #, c-format
+msgid "taken %02d:%02d UTC, %02d/%02d"
+msgstr ""
+
+#: src/wefax_bulletin.c
+#, c-format
 msgid "mark q%d"
 msgstr ""
 
@@ -13377,6 +13548,10 @@ msgstr ""
 
 #: src/wefax_bulletin.c
 msgid "The plan has no Bulletin"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid "whole"
 msgstr ""
 
 #: src/wefax_viewer.c
