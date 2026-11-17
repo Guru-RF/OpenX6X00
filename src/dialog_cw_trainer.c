@@ -7,8 +7,14 @@
  *  if it was right. Practice: the keyed text is shown large.
  *  Calls (RufzXP style): the radio keys a callsign, the user keys it back;
  *  right: speed +1 WPM, wrong: -1 WPM. 50 calls make a run.
- *  Learn keeps the last results of every character (Stats view), saved in
- *  CWT_STATS_FILE together with today's totals and the Calls records.
+ *  Copy (#290): the radio keys a group, the user types it on a USB or
+ *  Bluetooth keyboard (or picks it with the MFK from keys on screen). Learn
+ *  could be passed by keying back the dits and dahs heard, the character
+ *  never recognised; here the group is not shown until the answer is in.
+ *  Copy has its own level, group length and stats: copying a character is
+ *  not keying it back.
+ *  Learn and Copy keep the last results of every character (Stats view), saved
+ *  in CWT_STATS_FILE together with today's totals and the Calls records.
  *
  *  Safety: key train is forced on while the app is open and restored when
  *  it closes, whatever closes it (destruct_cb runs for the close button,
@@ -34,6 +40,7 @@
 #include "cw_decoder.h"
 #include "cw_encoder.h"
 #include "cw_trainer_answer.h"
+#include "cw_trainer_score.h"
 #include "dialog.h"
 #include "events.h"
 #include "keyboard.h"
@@ -58,12 +65,12 @@
 #define NEXT_OK_MS  1000    /* auto mode: pause before the next group */
 #define NEXT_BAD_MS 2500    /* longer after a wrong answer, to read it */
 #define PRESS_MS    1000    /* Start, Replay: a breath between the press and the group or call (#202) */
-#define WINDOW      10      /* results the accuracy is measured over */
-#define PASS_PCT    90
+#define WINDOW      CWT_WINDOW  /* results the accuracy is measured over */
+#define PASS_PCT    CWT_PASS
 #define HEARD_MAX   32
 #define TEXT_MAX    400
 #define TARGET_MAX  16
-#define HIST_N      20      /* tries kept per character */
+#define HIST_N      CWT_HIST    /* tries kept per character */
 #define CALLS_RUN   50
 #define CALLS_MIN   10      /* WPM */
 #define CALLS_MAX   50
@@ -86,6 +93,13 @@
 #define TILE_W      64
 #define TILE_H      52
 #define TILE_GAP    10
+#define COPY_LINE1  54      /* Copy: Sent and Typed above the keys */
+#define COPY_LINE2  88
+#define KEYS_Y      128     /* Copy: the keys on screen, two rows of up to 21 */
+#define KEYS_ROW    21
+#define KEY_W       32
+#define KEY_H       28
+#define KEY_GAP     3
 
 #define COLOR_HEAD  theme_hex(TC_text_head)
 #define COLOR_DIM   theme_hex(TC_text_dim)
@@ -107,9 +121,10 @@ static const struct {
     {'C', "-.-."},  {'1', ".----"}, {'D', "-.."},   {'6', "-...."},  {'X', "-..-"},
 };
 #define KOCH_N ((int)(sizeof(koch) / sizeof(koch[0])))
-_Static_assert(sizeof(koch) / sizeof(koch[0]) == 40, "stats arrays are sized for 40 characters");
+_Static_assert(sizeof(koch) / sizeof(koch[0]) == CWT_CHARS, "stats arrays are sized for 40 characters");
 
-typedef enum { MODE_LEARN, MODE_PRACTICE, MODE_CALLS } tmode_t;
+/* Copy, last: Mode goes through the others as before */
+typedef enum { MODE_LEARN, MODE_PRACTICE, MODE_CALLS, MODE_COPY } tmode_t;
 typedef enum { ST_READY, ST_PLAYING, ST_LISTEN, ST_RESULT } state_t;
 
 static tmode_t mode;
@@ -135,18 +150,14 @@ static bool     play_due;       /* Start or Replay pressed: played once PRESS_MS
 static bool     due_start;      /* the one due is Start's: refused, back to Ready rather than to the answer */
 static uint32_t play_t;
 static uint32_t result_t;
-static uint8_t  hist[WINDOW];   /* 1 = right, newest overwrites the oldest */
-static int      hist_n, hist_pos;
-static int      tried, right;
+static cwt_session_t ses_learn, ses_copy;  /* this session's groups, the last WINDOW of them for the level */
 
-/* Stats: last HIST_N results of every Koch character (bit 0 = newest), today */
+/* Stats: last HIST_N results of every Koch character, today; Learn's and Copy's */
 static struct {
-    uint32_t mask[40];
-    uint8_t  n[40];
-    int      date;              /* yyyymmdd of the today fields */
-    uint32_t tries, right, ms;
-    uint32_t best_score;
-    int      best_wpm;
+    cwt_stats_t learn, copy;
+    int         date;           /* yyyymmdd of the today fields */
+    uint32_t    best_score;
+    int         best_wpm;
 } stats;
 static uint32_t round_t;        /* start of the round, for the minutes */
 static bool     stats_view;
@@ -168,9 +179,17 @@ static bool     run_done;
 static char text[TEXT_MAX];
 static int  wpm_seen;       /* the decoder's speed, also for the end of an answer (cwt_answer_ms) */
 
+/* Copy: the answer typed is heard[] (heard_n places, heard_end: Enter or OK ended it) */
+static char koch_set[KOCH_N + 1];  /* the 40 characters, in the Koch order */
+static bool sent_ok[TARGET_MAX];    /* the result, each place of the group: copied */
+static bool typed_ok[HEARD_MAX];    /* each place of the answer: right */
+static int  key_sel;                /* the key on screen the MFK is on */
+static bool kbd_seen;               /* a keyboard there at the last look */
+
 static lv_obj_t   *head, *head_right, *box, *big, *line1, *line2, *side_score, *side_chars, *hint, *text_lbl;
 static lv_obj_t   *box_r, *calls_cont, *c_sent_cap, *c_call, *c_key_cap, *c_keyed, *c_res, *c_score, *c_stats;
 static lv_obj_t   *stats_cont, *tile[HIST_N], *tile_c[HIST_N], *tile_p[HIST_N], *st_next_c, *st_today;
+static lv_obj_t   *keys_cont, *key_o[KOCH_N + 2], *key_l[KOCH_N + 2];     /* Copy: the characters, Del, OK */
 static lv_timer_t *timer;
 
 static void construct_cb(lv_obj_t *parent);
@@ -313,7 +332,7 @@ static void on_wpm(void *arg) {
 
 static void on_text(void *arg) {
     const char *t = arg;
-    if (!active) return;
+    if (!active || mode == MODE_COPY) return;   /* Copy: the answer is typed, keying is none */
 
     if (mode == MODE_PRACTICE) {
         size_t n = strlen(text), l = strlen(t);
@@ -345,13 +364,6 @@ static void on_text(void *arg) {
 
 /* Stats */
 
-static int koch_idx(char c) {
-    for (int i = 0; i < KOCH_N; i++) {
-        if (koch[i].c == c) return i;
-    }
-    return -1;
-}
-
 static int today_key(void) {
     time_t    t = time(NULL);
     struct tm tm;
@@ -359,37 +371,61 @@ static int today_key(void) {
     return (tm.tm_year + 1900) * 10000 + (tm.tm_mon + 1) * 100 + tm.tm_mday;
 }
 
+/* The stats and the session of the mode: Copy's own, Learn's for the others (Calls' minutes count in Learn's
+ * today, as before) */
+static cwt_stats_t *cur(void) {
+    return mode == MODE_COPY ? &stats.copy : &stats.learn;
+}
+
+static cwt_session_t *ses(void) {
+    return mode == MODE_COPY ? &ses_copy : &ses_learn;
+}
+
 /* The today fields start again when the local date changes */
 static void roll_today(void) {
     int d = today_key();
     if (stats.date != d) {
         stats.date = d;
-        stats.tries = stats.right = stats.ms = 0;
+        stats.learn.tries = stats.learn.right = stats.learn.ms = 0;
+        stats.copy.tries = stats.copy.right = stats.copy.ms = 0;
     }
 }
 
 /* Accuracy of the last tries of a character, -1 when untried */
 static int stat_pct(int i) {
-    int n = stats.n[i];
-    if (!n) return -1;
-    return __builtin_popcount(stats.mask[i] & ((1u << n) - 1)) * 100 / n;
-}
-
-static void stat_add(int i, bool ok) {
-    stats.mask[i] = ((stats.mask[i] << 1) | (ok ? 1 : 0)) & ((1u << HIST_N) - 1);
-    if (stats.n[i] < HIST_N) stats.n[i]++;
+    return cwt_stats_pct(cur(), i);
 }
 
 /* Time of the round that just ended (capped: the user may have walked away) */
 static void stat_time(void) {
     uint32_t d = lv_tick_elaps(round_t);
-    stats.ms += d > 60000 ? 60000 : d;
+    cur()->ms += d > 60000 ? 60000 : d;
 }
 
 static uint32_t json_u(const cJSON *o, const char *key, double max) {
     const cJSON *v = cJSON_GetObjectItemCaseSensitive(o, key);
     if (!cJSON_IsNumber(v) || v->valuedouble < 0) return 0;
     return (uint32_t)(v->valuedouble > max ? max : v->valuedouble);
+}
+
+/* Today's totals and the characters of Learn (the file's top level, as up to v0.3.12) or of Copy (its "copy") */
+static void set_load(const cJSON *o, cwt_stats_t *s) {
+    s->tries = json_u(o, "tries", 1e9);
+    s->right = json_u(o, "right", 1e9);
+    s->ms    = json_u(o, "sec", 1e6) * 1000;
+    if (s->right > s->tries) s->right = s->tries;
+
+    const cJSON *chars = cJSON_GetObjectItemCaseSensitive(o, "chars");
+    for (int i = 0; i < KOCH_N; i++) {
+        char         k[2] = {koch[i].c, 0};
+        const cJSON *a    = cJSON_GetObjectItemCaseSensitive(chars, k);
+        if (!cJSON_IsArray(a) || cJSON_GetArraySize(a) != 2) continue;
+        const cJSON *vn = cJSON_GetArrayItem(a, 0), *vm = cJSON_GetArrayItem(a, 1);
+        if (!cJSON_IsNumber(vn) || !cJSON_IsNumber(vm)) continue;
+        double n_  = vn->valuedouble, m_ = vm->valuedouble;
+        s->n[i]    = n_ < 0 ? 0 : (n_ > HIST_N ? HIST_N : (int)n_);
+        s->mask[i] = m_ < 0 ? 0 : ((uint32_t)(m_ > 4e9 ? 4e9 : m_) & ((1u << HIST_N) - 1));
+    }
 }
 
 /* Missing or corrupt file: start empty */
@@ -406,51 +442,46 @@ static void stats_load(void) {
         cJSON *root = cJSON_Parse(buf);
         if (cJSON_IsObject(root)) {
             stats.date       = json_u(root, "date", 99991231);
-            stats.tries      = json_u(root, "tries", 1e9);
-            stats.right      = json_u(root, "right", 1e9);
-            stats.ms         = json_u(root, "sec", 1e6) * 1000;
             stats.best_score = json_u(root, "best_score", 1e9);
             stats.best_wpm   = json_u(root, "best_wpm", 99);
-            if (stats.right > stats.tries) stats.right = stats.tries;
+            set_load(root, &stats.learn);
 
-            const cJSON *chars = cJSON_GetObjectItemCaseSensitive(root, "chars");
-            for (int i = 0; i < KOCH_N; i++) {
-                char         k[2] = {koch[i].c, 0};
-                const cJSON *a    = cJSON_GetObjectItemCaseSensitive(chars, k);
-                if (!cJSON_IsArray(a) || cJSON_GetArraySize(a) != 2) continue;
-                const cJSON *vn = cJSON_GetArrayItem(a, 0), *vm = cJSON_GetArrayItem(a, 1);
-                if (!cJSON_IsNumber(vn) || !cJSON_IsNumber(vm)) continue;
-                double n_     = vn->valuedouble, m_ = vm->valuedouble;
-                stats.n[i]    = n_ < 0 ? 0 : (n_ > HIST_N ? HIST_N : (int)n_);
-                stats.mask[i] = m_ < 0 ? 0 : ((uint32_t)(m_ > 4e9 ? 4e9 : m_) & ((1u << HIST_N) - 1));
-            }
+            const cJSON *copy = cJSON_GetObjectItemCaseSensitive(root, "copy");
+            if (cJSON_IsObject(copy)) set_load(copy, &stats.copy);
         }
         cJSON_Delete(root);
     }
     roll_today();
 }
 
+/* False: out of memory */
+static bool set_save(cJSON *o, const cwt_stats_t *s) {
+    cJSON *chars = cJSON_AddObjectToObject(o, "chars");
+    if (!chars) return false;
+    cJSON_AddNumberToObject(o, "tries", s->tries);
+    cJSON_AddNumberToObject(o, "right", s->right);
+    cJSON_AddNumberToObject(o, "sec", s->ms / 1000);
+    for (int i = 0; i < KOCH_N; i++) {
+        char   k[2] = {koch[i].c, 0};
+        cJSON *a    = s->n[i] ? cJSON_AddArrayToObject(chars, k) : NULL;
+        if (!a) continue;
+        cJSON_AddItemToArray(a, cJSON_CreateNumber(s->n[i]));
+        cJSON_AddItemToArray(a, cJSON_CreateNumber(s->mask[i]));
+    }
+    return true;
+}
+
 /* Atomic: a power loss leaves the old file or the new one */
 static void stats_save(void) {
-    cJSON *root  = cJSON_CreateObject();
-    cJSON *chars = root ? cJSON_AddObjectToObject(root, "chars") : NULL;
-    if (!chars) {
+    cJSON *root = cJSON_CreateObject();
+    cJSON *copy = root ? cJSON_AddObjectToObject(root, "copy") : NULL;
+    if (!copy || !set_save(root, &stats.learn) || !set_save(copy, &stats.copy)) {
         cJSON_Delete(root);
         return;
     }
     cJSON_AddNumberToObject(root, "date", stats.date);
-    cJSON_AddNumberToObject(root, "tries", stats.tries);
-    cJSON_AddNumberToObject(root, "right", stats.right);
-    cJSON_AddNumberToObject(root, "sec", stats.ms / 1000);
     cJSON_AddNumberToObject(root, "best_score", stats.best_score);
     cJSON_AddNumberToObject(root, "best_wpm", stats.best_wpm);
-    for (int i = 0; i < KOCH_N; i++) {
-        char   k[2] = {koch[i].c, 0};
-        cJSON *a    = stats.n[i] ? cJSON_AddArrayToObject(chars, k) : NULL;
-        if (!a) continue;
-        cJSON_AddItemToArray(a, cJSON_CreateNumber(stats.n[i]));
-        cJSON_AddItemToArray(a, cJSON_CreateNumber(stats.mask[i]));
-    }
     char *out = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     if (!out) return;
@@ -470,7 +501,7 @@ static void stats_save(void) {
 
 /* Weak or little tried characters come up more often */
 static int char_weight(int i) {
-    int n = stats.n[i];
+    int n = cur()->n[i];
     if (!n) return 60;
     return 10 + (100 - stat_pct(i)) * 2 + (HIST_N - n);
 }
@@ -488,19 +519,24 @@ static int pick_char(int l) {
 
 /* Learn */
 
-static int level(void) {
-    int l = param_i_get(cfg_cwt_level);
-    return l < 2 ? 2 : (l > KOCH_N ? KOCH_N : l);
+/* Copy has its own level and group length */
+static ParamInt *level_param(void) {
+    return mode == MODE_COPY ? cfg_cwt_copy_level : cfg_cwt_level;
 }
 
-static void reset_score(void) {
-    hist_n = hist_pos = 0;
+static ParamInt *group_param(void) {
+    return mode == MODE_COPY ? cfg_cwt_copy_group : cfg_cwt_group;
+}
+
+static int level(void) {
+    int l = param_i_get(level_param());
+    return l < 2 ? 2 : (l > KOCH_N ? KOCH_N : l);
 }
 
 static void set_level(int l) {
     if (l < 2 || l > KOCH_N) return;
-    param_i_set(cfg_cwt_level, l);
-    reset_score();
+    param_i_set(level_param(), l);
+    cwt_session_level(ses());
 }
 
 /* The newest character of the level comes up in one place of three while it is new, less and
@@ -508,13 +544,13 @@ static void set_level(int l) {
  * A fixed one in three for good put X, the last of the 40, on every third place at the top
  * level however well it was known */
 static bool newest_extra(int l) {
-    int n = stats.n[l - 1];
+    int n = cur()->n[l - 1];
 
     return n < HIST_N && rand() % (3 * HIST_N) < HIST_N - n;
 }
 
 static void new_target(void) {
-    int len = param_i_get(cfg_cwt_group);
+    int len = param_i_get(group_param());
     int l   = level();
     for (int i = 0; i < len; i++) {
         /* the newest character comes up more often while it is new, then the weak ones */
@@ -578,36 +614,32 @@ static void start_refused(void) {
     st = ST_READY;
 }
 
+/* Learn and Copy: the answer against the group. Copy's typed answer is lined up with the group where a character
+ * was missed or typed twice (cwt_copy_check), and the result shows which places were right */
 static void evaluate(void) {
+    size_t tl = strlen(target), hl = strlen(heard);
+
     last_ok = strcmp(heard, target) == 0;
-    tried++;
-    right += last_ok;
-    hist[hist_pos] = last_ok;
-    hist_pos       = (hist_pos + 1) % WINDOW;
-    if (hist_n < WINDOW) hist_n++;
+    if (mode == MODE_COPY) {
+        cwt_copy_check(target, heard, sent_ok, typed_ok);
+    } else {
+        for (size_t i = 0; i < tl; i++) {
+            /* a dropped or extra character shifts the rest: then only count what was heard */
+            sent_ok[i] = last_ok || (hl == tl ? heard[i] == target[i] : strchr(heard, target[i]) != NULL);
+        }
+    }
+    cwt_session_add(ses(), last_ok);
     st = ST_RESULT;
     result_t = lv_tick_get();
 
     roll_today();
-    stats.tries++;
-    stats.right += last_ok;
     stat_time();
-    size_t tl = strlen(target), hl = strlen(heard);
-    for (size_t i = 0; i < tl; i++) {
-        int k = koch_idx(target[i]);
-        if (k < 0) continue;
-        /* a dropped or extra character shifts the rest: then only count what was heard */
-        stat_add(k, last_ok || (hl == tl ? heard[i] == target[i] : strchr(heard, target[i]) != NULL));
-    }
+    cwt_stats_group(cur(), koch_set, target, sent_ok, last_ok);
     stats_save();
 
-    if (hist_n == WINDOW) {
-        int good = 0;
-        for (int i = 0; i < WINDOW; i++) good += hist[i];
-        if (good * 100 >= PASS_PCT * WINDOW && level() < KOCH_N) {
-            set_level(level() + 1);
-            msg_update_text_fmt("Level %i: new character %c", level(), koch[level() - 1].c);
-        }
+    if (cwt_session_pass(ses()) && level() < KOCH_N) {
+        set_level(level() + 1);
+        msg_update_text_fmt("Level %i: new character %c", level(), koch[level() - 1].c);
     }
 }
 
@@ -733,6 +765,10 @@ static void tick_cb(lv_timer_t *t) {
         reset_armed = false;
         refresh_btn(&btn_reset);
     }
+    /* Copy: a keyboard plugged in or taken out, the hint line says so */
+    if (mode == MODE_COPY && keyboard_ready() != kbd_seen) {
+        refresh_ui();
+    }
 
     if (mode == MODE_PRACTICE) return;
     if (play_due) {
@@ -756,6 +792,19 @@ static void tick_cb(lv_timer_t *t) {
         last_rx_t = listen_t;
         tell_speed(param_i_get(cfg_key_speed));     /* the answer, at the key speed (TX speed Fixed: not the call's) */
         refresh_ui();
+    } else if (mode == MODE_COPY) {
+        /* The answer ends at the group's length, or with Enter or OK: no silence ends it, the user may think it over.
+         * After a right one the next group follows; after a wrong one the trainer waits (Next), the right one on
+         * screen, to be heard again (Replay) */
+        if (st == ST_LISTEN && (heard_end || heard_n >= (int)strlen(target))) {
+            evaluate();
+            refresh_ui();
+        } else if (st == ST_RESULT && autoplay && last_ok && cw_encoder_state() == CW_ENCODER_IDLE &&
+                   lv_tick_elaps(result_t) > NEXT_OK_MS) {
+            new_target();
+            play();
+            refresh_ui();
+        }
     } else if (st == ST_LISTEN && heard_n > 0 &&
                (heard_n >= (int)strlen(target) || heard_end ||
                 lv_tick_elaps(last_rx_t) > cwt_answer_ms(param_i_get(cfg_key_speed), wpm_seen,
@@ -772,6 +821,98 @@ static void tick_cb(lv_timer_t *t) {
         }
         refresh_ui();
     }
+}
+
+/* Copy */
+
+/* Learn and Copy: Koch groups, a level, Stats */
+static bool koch_mode(void) {
+    return mode == MODE_LEARN || mode == MODE_COPY;
+}
+
+/* Copy's answer is being typed: the group playing (not in the second before it) or played, the answer not ended */
+static bool answering(void) {
+    return mode == MODE_COPY && !stats_view && !play_due && (st == ST_PLAYING || st == ST_LISTEN) && !heard_end;
+}
+
+/* A character of the answer, typed or picked on screen; the answer ends at the group's length (tick_cb) */
+static void copy_type(char c) {
+    in_use();
+    if (cwt_copy_add(heard, (int)strlen(target), c)) heard_n++;
+    refresh_ui();
+}
+
+static void copy_rub_out(void) {
+    if (cwt_copy_del(heard)) heard_n--;
+    refresh_ui();
+}
+
+/* Start, Next: a new group PRESS_MS after the press, as Learn's first; the ones after a right answer follow it */
+static void copy_next(void) {
+    autoplay = true;
+    new_target();
+    play_after_press(true);
+}
+
+/* Enter (OK on screen): the answer ends, the places not typed missed; else the next group */
+static void copy_enter(void) {
+    if (answering()) {
+        heard_end = true;
+    } else if (!play_due && (st == ST_READY || st == ST_RESULT)) {
+        copy_next();
+    }
+    refresh_ui();
+}
+
+/* The group again with its result on screen: after a wrong answer, the right one to hear. A right one's next group
+ * follows NEXT_OK_MS after it */
+static void review(void) {
+    if (!force_train()) {
+        msg_update_text_fmt("Key train is off: not playing");
+        return;
+    }
+    in_use();
+    cw_trainer_own(elements_of(target));
+    cw_encoder_send_wpm(target, param_i_get(cfg_key_speed));
+    result_t = lv_tick_get();
+}
+
+/* MFK press while the answer is due: the key on screen it is on, a character, Del or OK */
+static void copy_press_key(void) {
+    int l = level();
+
+    key_sel = cwt_copy_sel(key_sel, l + 2, 0);
+    if (key_sel < l) copy_type(koch[key_sel].c);
+    else if (key_sel == l) copy_rub_out();
+    else copy_enter();
+}
+
+/* The keyboard types the answer (Backspace rubs out, Enter ends it), and the MFK turns over the keys on screen while
+ * it is due. Otherwise the MFK and the arrow keys set the speed, as in the other modes (key_cb). True: taken */
+static bool copy_key(uint32_t key) {
+    lv_indev_t *indev = lv_indev_get_act();
+    bool        knob  = indev && lv_indev_get_type(indev) == LV_INDEV_TYPE_ENCODER;
+    char        c     = cwt_copy_char(key, koch_set);
+
+    if (stats_view) return false;
+    if (knob && answering() && (key == LV_KEY_LEFT || key == LV_KEY_RIGHT || key == LV_KEY_UP || key == LV_KEY_DOWN)) {
+        key_sel = cwt_copy_sel(key_sel, level() + 2, key == LV_KEY_LEFT || key == LV_KEY_DOWN ? -1 : 1);
+        refresh_ui();
+        return true;
+    }
+    if (key == LV_KEY_ENTER || key == '\r') {
+        copy_enter();
+        return true;
+    }
+    if (key == LV_KEY_BACKSPACE) {
+        if (answering()) copy_rub_out();
+        return true;
+    }
+    if (c) {                        /* out of an answer a character does nothing */
+        if (answering()) copy_type(c);
+        return true;
+    }
+    return false;
 }
 
 /* Buttons */
@@ -791,7 +932,13 @@ static void stop_round(void) {
 static void play_cb(button_data_t *b) {
     (void)b;
     if (mode == MODE_PRACTICE || stats_view) return;
-    if (mode == MODE_LEARN && st == ST_LISTEN) {    /* Replay */
+    if (mode == MODE_COPY) {
+        if (st == ST_READY || (st == ST_RESULT && (!last_ok || !autoplay))) {
+            copy_next();            /* Start, Next */
+        } else {
+            autoplay = !autoplay;   /* Pause: the current group still ends; Start: the next ones follow it */
+        }
+    } else if (mode == MODE_LEARN && st == ST_LISTEN) {    /* Replay */
         replay();
     } else if (autoplay) {          /* Pause: the current group still ends */
         autoplay = false;
@@ -813,6 +960,9 @@ static void skip_cb(button_data_t *b) {
     if (mode == MODE_PRACTICE || stats_view) return;
     if (mode == MODE_CALLS) {       /* Replay */
         if (st == ST_LISTEN) replay();
+    } else if (mode == MODE_COPY) { /* Replay: the group to answer (the answer starts again), or the one checked */
+        if (st == ST_LISTEN) replay();
+        else if (st == ST_RESULT) review();
     } else {
         cw_encoder_stop();
         play_due = false;           /* played now: a Start or Replay still due played the new group again */
@@ -826,7 +976,7 @@ static void mode_cb(button_data_t *b) {
     (void)b;
     stop_round();
     calls_leave();
-    mode       = (tmode_t)((mode + 1) % 3);
+    mode       = (tmode_t)((mode + 1) % 4);
     stats_view = false;
     reset_armed = false;
     text[0]    = 0;
@@ -841,23 +991,23 @@ static void close_cb(button_data_t *b) {
 
 static void level_up_cb(button_data_t *b) {
     (void)b;
-    if (mode != MODE_LEARN) return;
+    if (!koch_mode()) return;
     set_level(level() + 1);
     refresh_ui();
 }
 
 static void level_down_cb(button_data_t *b) {
     (void)b;
-    if (mode != MODE_LEARN) return;
+    if (!koch_mode()) return;
     set_level(level() - 1);
     refresh_ui();
 }
 
-/* Learn: the group's length. Calls: TX speed */
+/* Learn, Copy: the group's length. Calls: TX speed */
 static void group_cb(button_data_t *b) {
     (void)b;
     if (mode == MODE_CALLS) tx_speed_toggle();
-    else if (mode == MODE_LEARN) param_i_set(cfg_cwt_group, param_i_get(cfg_cwt_group) % 5 + 1);
+    else if (koch_mode()) param_i_set(group_param(), param_i_get(group_param()) % 5 + 1);
     else return;
     refresh_ui();
 }
@@ -876,22 +1026,24 @@ static void change_speed(int d) {
 /* Stats view: nothing is playing while it is open */
 static void stats_cb(button_data_t *b) {
     (void)b;
-    if (mode != MODE_LEARN) return;
+    if (!koch_mode()) return;
     stop_round();
     stats_view  = !stats_view;
     reset_armed = false;
     refresh_ui();
 }
 
-/* Two presses within RESET_MS */
+/* Two presses within RESET_MS. The mode's stats only: Learn's, or Copy's */
 static void reset_cb(button_data_t *b) {
     (void)b;
-    if (mode != MODE_LEARN) return;
+    if (!koch_mode()) return;
     if (reset_armed && lv_tick_elaps(reset_t) <= RESET_MS) {
+        cwt_stats_t *c = cur();
+
         reset_armed = false;
-        memset(stats.mask, 0, sizeof(stats.mask));
-        memset(stats.n, 0, sizeof(stats.n));
-        stats.tries = stats.right = stats.ms = 0;
+        memset(c->mask, 0, sizeof(c->mask));
+        memset(c->n, 0, sizeof(c->n));
+        c->tries = c->right = c->ms = 0;
         stats_save();
         msg_update_text_fmt("Stats reset");
     } else {
@@ -909,15 +1061,18 @@ static void clear_cb(button_data_t *b) {
 
 static const char *play_label(void) {
     if (st == ST_LISTEN && mode == MODE_LEARN) return "Replay";
+    if (st == ST_RESULT && mode == MODE_COPY && (!last_ok || !autoplay)) return last_ok ? "Start" : "Next";
     return autoplay ? "Pause" : "Start";
 }
 
 static const char *mode_label(void) {
-    return mode == MODE_LEARN ? "Mode:\nLearn" : (mode == MODE_PRACTICE ? "Mode:\nPractice" : "Mode:\nCalls");
+    static const char *const names[] = {"Mode:\nLearn", "Mode:\nPractice", "Mode:\nCalls", "Mode:\nCopy"};
+
+    return names[mode];
 }
 
 static const char *skip_label(void) {
-    return mode == MODE_CALLS ? "Replay" : "Skip";
+    return mode == MODE_CALLS || mode == MODE_COPY ? "Replay" : "Skip";
 }
 
 static const char *stats_label(void) {
@@ -942,7 +1097,7 @@ static const char *level_down_label(void) {
 
 static const char *group_label(void) {
     if (mode == MODE_CALLS) return tx_fixed() ? "TX speed:\nFixed" : "TX speed:\nFollows";
-    snprintf(label_buf[2], sizeof(label_buf[2]), "Group\n%i", (int)param_i_get(cfg_cwt_group));
+    snprintf(label_buf[2], sizeof(label_buf[2]), "Group\n%i", (int)param_i_get(group_param()));
     return label_buf[2];
 }
 
@@ -1028,7 +1183,8 @@ static void refresh_stats(void) {
     int  end = l + 3 > KOCH_N ? KOCH_N : l + 3;
     int  beg = end > HIST_N ? end - HIST_N : 0;
 
-    lv_label_set_text_fmt(head, "CW TRAINER - #%06x Stats#", theme_hex(TC_text));
+    if (mode == MODE_COPY) lv_label_set_text_fmt(head, "CW TRAINER - #%06x Copy stats#", theme_hex(TC_text));
+    else lv_label_set_text_fmt(head, "CW TRAINER - #%06x Stats#", theme_hex(TC_text));
     snprintf(buf, sizeof(buf), "Level %i - %i WPM", l, (int)param_i_get(cfg_key_speed));
     lv_label_set_text(head_right, buf);
 
@@ -1051,44 +1207,132 @@ static void refresh_stats(void) {
     lv_label_set_text(st_next_c, buf);
 
     roll_today();
-    snprintf(buf, sizeof(buf), "Today: %u tries, %u%% right, %u min", (unsigned)stats.tries,
-             stats.tries ? (unsigned)(stats.right * 100 / stats.tries) : 0u, (unsigned)((stats.ms + 30000) / 60000));
+    const cwt_stats_t *c = cur();
+    snprintf(buf, sizeof(buf), "Today: %u tries, %u%% right, %u min", (unsigned)c->tries,
+             c->tries ? (unsigned)(c->right * 100 / c->tries) : 0u, (unsigned)((c->ms + 30000) / 60000));
     lv_label_set_text(st_today, buf);
-    lv_label_set_text(hint, "Last 20 tries per character. Weak ones (red, yellow) come up more often in Learn.");
+    if (mode == MODE_COPY)
+        lv_label_set_text(hint, "Last 20 tries per character. Weak ones (red, yellow) come up more often in Copy.");
+    else lv_label_set_text(hint, "Last 20 tries per character. Weak ones (red, yellow) come up more often in Learn.");
 }
 
 /* A line of Learn into the label l, Sent or Heard: its head, the characters as shown in color, then the dits and dahs
  * of as many of the places as fit before the side panel, whole places only. A "<?>" takes three characters' room in
  * the answer and again in the dits and dahs: two of them in a group of 5 could run into the side panel, and so could
  * long characters on either line (five ? in the default font, a third to half of the groups of 5 at level 40 in the
- * 1bit theme's). Cut at the label's edge instead, half a place stayed: a lone "<", or a dah that looked like a dit */
-static void group_line(lv_obj_t *l, const char *head, uint32_t color, const char *shown, const char *places) {
+ * 1bit theme's). Cut at the label's edge instead, half a place stayed: a lone "<", or a dah that looked like a dit.
+ * Copy's lines (ok not NULL): each place in color where ok says, else in red; shown is the places then */
+static void group_line(lv_obj_t *l, const char *head, uint32_t color, const char *shown, const char *places,
+                       const bool *ok) {
     const lv_font_t *font = lv_obj_get_style_text_font(l, 0);
     lv_coord_t       ls   = lv_obj_get_style_text_letter_space(l, 0);
-    char             buf[160], part[HEARD_MAX], m[48];
+    char             buf[200], part[HEARD_MAX], m[48], col[TARGET_MAX * 12 + 1];
+    size_t           k = 0;
 
+    col[0] = 0;
+    for (size_t i = 0; ok && places[i] && i < TARGET_MAX; i++) {
+        k += snprintf(col + k, sizeof(col) - k, "#%06x %c#", ok[i] ? color : COLOR_BAD, places[i]);
+    }
     for (size_t n = strlen(places);; n--) {
         memcpy(part, places, n);
         part[n] = 0;
         morse_line(part, m, sizeof(m));
-        snprintf(buf, sizeof(buf), "%s#%06x %s#   %s", head, color, shown, m);
+        if (ok) snprintf(buf, sizeof(buf), "%s%s   %s", head, col, m);
+        else snprintf(buf, sizeof(buf), "%s#%06x %s#   %s", head, color, shown, m);
         if (n == 0 || lv_txt_get_width(buf, strlen(buf), font, ls, LV_TEXT_FLAG_RECOLOR) <= LINE_W) break;
     }
     lv_label_set_text(l, buf);
 }
 
+/* Copy: the group hidden until the answer is in, the places typed so far and one _ for each still to type; then the
+ * group and the answer with their dits and dahs, each place in red where it was missed or wrong. Under them the keys
+ * on screen, the one the MFK is on lit while an answer is due */
+static void refresh_copy(void) {
+    cwt_session_t *s   = ses();
+    int            l   = level(), len = (int)strlen(target);
+    bool           kbd = keyboard_ready();
+    char           buf[200];
+
+    kbd_seen = kbd;
+    key_sel  = cwt_copy_sel(key_sel, l + 2, 0);     /* the level went down under it */
+    lv_label_set_text_fmt(head, "CW TRAINER - #%06x Copy#", theme_hex(TC_text));
+    snprintf(buf, sizeof(buf), _("%i WPM - group %i"), (int)param_i_get(cfg_key_speed), (int)param_i_get(group_param()));
+    lv_label_set_text(head_right, buf);
+    lv_label_set_text(line1, "");
+    lv_label_set_text(line2, "");
+
+    if (st == ST_READY) {
+        lv_label_set_text(big, "Press Start");
+        lv_obj_set_style_text_color(big, lv_color_hex(COLOR_HEAD), 0);
+        lv_label_set_text(hint, kbd ? "Start: groups follow each other, type each one on the keyboard"
+                                    : "No keyboard found: plug in a USB or Bluetooth one, or use the MFK on the keys");
+    } else if (play_due) {
+        lv_label_set_text(big, "Listen...");
+        lv_obj_set_style_text_color(big, lv_color_hex(COLOR_NEW), 0);
+        lv_label_set_text(hint, "The radio keys the group (sidetone only)");
+    } else if (st == ST_PLAYING || st == ST_LISTEN) {
+        size_t k = 0;
+
+        buf[0] = 0;
+        for (int i = 0; i < len && k < sizeof(buf); i++) {
+            if (i < heard_n) k += snprintf(buf + k, sizeof(buf) - k, "%s%c", i ? " " : "", heard[i]);
+            else k += snprintf(buf + k, sizeof(buf) - k, "%s#%06x _#", i ? " " : "", COLOR_DIM);
+        }
+        lv_label_set_text(big, buf);
+        lv_obj_set_style_text_color(big, TC(text), 0);
+        lv_label_set_text(hint, kbd ? "Type what you hear. Enter: done, Backspace: rub out. Replay: hear it again"
+                                    : "No keyboard: turn the MFK to a key, press it to enter. Replay: hear it again");
+    } else {
+        lv_label_set_text(big, last_ok ? "OK" : "WRONG");
+        lv_obj_set_style_text_color(big, lv_color_hex(last_ok ? COLOR_OK : COLOR_BAD), 0);
+        group_line(line1, _("Sent:   "), theme_hex(TC_accent), target, target, sent_ok);
+        if (heard[0]) group_line(line2, _("Typed: "), COLOR_OK, heard, heard, typed_ok);
+        else lv_label_set_text_fmt(line2, "%s#%06x -#", _("Typed: "), COLOR_BAD);
+        if (!last_ok)
+            lv_label_set_text(hint, kbd ? "Replay: hear the right one again. Next or Enter: another group"
+                                        : "Replay: hear the right one again. Next or MFK press: another group");
+        else if (autoplay) lv_label_set_text(hint, "Next group follows. Pause: stop after this one");
+        else lv_label_set_text(hint, kbd ? "Start or Enter: the next group" : "Start or MFK press: the next group");
+    }
+
+    snprintf(buf, sizeof(buf), _("Level %i\nScore  %i / %i\nLast %i: %i / %i\nNext level at %i%%"), l, s->right,
+             s->tried, WINDOW, cwt_session_good(s), s->n, PASS_PCT);
+    lv_label_set_text(side_score, buf);
+
+    for (int i = 0; i < KOCH_N + 2; i++) {
+        bool on = i < l + 2, lit = answering() && i == key_sel;
+
+        show(key_o[i], on);
+        if (!on) continue;
+        if (i < l) {
+            char c[2] = {koch[i].c, 0};
+
+            lv_label_set_text(key_l[i], c);
+            lv_obj_set_style_text_font(key_l[i], &sony_22, 0);
+        } else {
+            lv_label_set_text(key_l[i], i == l ? "Del" : "OK");
+            lv_obj_set_style_text_font(key_l[i], &sony_16, 0);
+        }
+        lv_obj_set_style_bg_color(key_o[i], lit ? TC(focus) : TC(panel), 0);
+        lv_obj_set_style_border_color(key_o[i], lit ? TC(focus) : TC(panel_border), 0);
+        /* the level's newest character as in Learn's list */
+        lv_obj_set_style_text_color(key_l[i], lit ? TC(focus_text) : (i == l - 1 ? TC(accent) : TC(text)), 0);
+    }
+}
+
 static void refresh_ui(void) {
-    bool learn = mode == MODE_LEARN, calls = mode == MODE_CALLS, sv = learn && stats_view;
+    bool learn = mode == MODE_LEARN, calls = mode == MODE_CALLS, copy = mode == MODE_COPY, koch_m = koch_mode();
+    bool sv    = koch_m && stats_view;
     int  wpm   = param_i_get(cfg_key_speed);
     char buf[160], shown[HEARD_MAX * 3];
 
     set_btn(&btn_play, mode == MODE_PRACTICE || sv);
     set_btn(&btn_skip, mode == MODE_PRACTICE || sv);
-    set_btn(&btn_lvl_u, !learn);
-    set_btn(&btn_lvl_d, !learn);
-    set_btn(&btn_group, !learn && !calls);     /* Calls: TX speed */
-    set_btn(&btn_stats, !learn);
-    set_btn(&btn_reset, !learn);
+    set_btn(&btn_lvl_u, !koch_m);
+    set_btn(&btn_lvl_d, !koch_m);
+    set_btn(&btn_group, !koch_m && !calls);    /* Calls: TX speed */
+    set_btn(&btn_stats, !koch_m);
+    set_btn(&btn_reset, !koch_m);
     set_btn(&btn_clear, mode != MODE_PRACTICE);
     refresh_btn(&btn_play);
     refresh_btn(&btn_skip);
@@ -1106,12 +1350,16 @@ static void refresh_ui(void) {
     show(box_r, calls);
     show(calls_cont, calls);
     show(stats_cont, sv);
-    show(big, learn && !sv);
-    show(line1, learn && !sv);
-    show(line2, learn && !sv);
+    show(big, koch_m && !sv);
+    show(line1, koch_m && !sv);
+    show(line2, koch_m && !sv);
     show(text_lbl, mode == MODE_PRACTICE);
-    show(side_score, learn && !sv);
+    show(side_score, koch_m && !sv);
     show(side_chars, learn && !sv);
+    show(keys_cont, copy && !sv);
+    /* Copy: Sent and Typed higher up, the keys under them */
+    lv_obj_set_y(line1, copy ? COPY_LINE1 : 90);
+    lv_obj_set_y(line2, copy ? COPY_LINE2 : 140);
 
     if (calls) {
         refresh_calls();
@@ -1119,6 +1367,10 @@ static void refresh_ui(void) {
     }
     if (sv) {
         refresh_stats();
+        return;
+    }
+    if (copy) {
+        refresh_copy();
         return;
     }
     if (mode == MODE_PRACTICE) {
@@ -1134,7 +1386,7 @@ static void refresh_ui(void) {
     }
 
     lv_label_set_text_fmt(head, "CW TRAINER - #%06x Learn (Koch)#", theme_hex(TC_text));
-    snprintf(buf, sizeof(buf), "%i WPM - group %i", wpm, (int)param_i_get(cfg_cwt_group));
+    snprintf(buf, sizeof(buf), "%i WPM - group %i", wpm, (int)param_i_get(group_param()));
     lv_label_set_text(head_right, buf);
 
     lv_label_set_text(line1, "");
@@ -1151,30 +1403,30 @@ static void refresh_ui(void) {
             lv_obj_set_style_text_color(big, lv_color_hex(COLOR_NEW), 0);
             lv_label_set_text(hint, "The radio keys the group (sidetone only)");
             /* The group stays on screen while playing and answering, to memorise it */
-            group_line(line1, "Sent:   ", theme_hex(TC_accent), target, target);
+            group_line(line1, "Sent:   ", theme_hex(TC_accent), target, target, NULL);
             lv_label_set_text(line2, "");
             break;
         case ST_LISTEN:
             lv_label_set_text(big, heard[0] ? shown : "Your turn");
             lv_obj_set_style_text_color(big, lv_color_hex(heard[0] ? theme_hex(TC_text) : COLOR_NEW), 0);
             lv_label_set_text(hint, "Key the group with the paddle. Replay: hear it again");
-            group_line(line1, "Sent:   ", theme_hex(TC_accent), target, target);
-            if (heard[0]) group_line(line2, "Heard: ", theme_hex(TC_text), shown, heard);
+            group_line(line1, "Sent:   ", theme_hex(TC_accent), target, target, NULL);
+            if (heard[0]) group_line(line2, "Heard: ", theme_hex(TC_text), shown, heard, NULL);
             break;
         case ST_RESULT:
             lv_label_set_text(big, last_ok ? "OK" : "WRONG");
             lv_obj_set_style_text_color(big, lv_color_hex(last_ok ? COLOR_OK : COLOR_BAD), 0);
-            group_line(line1, "Sent:   ", theme_hex(TC_accent), target, target);
-            group_line(line2, "Heard: ", last_ok ? COLOR_OK : COLOR_BAD, shown, heard);
+            group_line(line1, "Sent:   ", theme_hex(TC_accent), target, target, NULL);
+            group_line(line2, "Heard: ", last_ok ? COLOR_OK : COLOR_BAD, shown, heard, NULL);
             snprintf(buf, sizeof(buf), "%s%s", strchr(heard, CWT_NO_CHAR) ? CWT_NO_CHAR_SHOWN " = not a character. " : "",
                      autoplay ? "Next group follows. Pause: stop after this one" : "Start: resume. Skip: another group");
             lv_label_set_text(hint, buf);
             break;
     }
 
-    int good = 0;
-    for (int i = 0; i < hist_n; i++) good += hist[i];
-    snprintf(buf, sizeof(buf), "Score  %i / %i\nLast %i: %i / %i\nNext level at %i%%", right, tried, WINDOW, good, hist_n, PASS_PCT);
+    cwt_session_t *s = ses();
+    snprintf(buf, sizeof(buf), "Score  %i / %i\nLast %i: %i / %i\nNext level at %i%%", s->right, s->tried, WINDOW,
+             cwt_session_good(s), s->n, PASS_PCT);
     lv_label_set_text(side_score, buf);
 
     /* Characters in use, the newest highlighted */
@@ -1191,7 +1443,10 @@ static void refresh_ui(void) {
 }
 
 static void key_cb(lv_event_t *e) {
-    switch (*((uint32_t *)lv_event_get_param(e))) {
+    uint32_t key = *((uint32_t *)lv_event_get_param(e));
+
+    if (mode == MODE_COPY && copy_key(key)) return;
+    switch (key) {
         case LV_KEY_LEFT:
         case LV_KEY_DOWN:
             change_speed(-1);
@@ -1219,11 +1474,15 @@ static void key_cb(lv_event_t *e) {
     }
 }
 
-/* MFK press: the encoder sends a click, not ENTER. */
+/* MFK press: the encoder sends a click, not ENTER. In Copy it enters the key on screen it is on while an answer is
+ * due, and is Enter otherwise (Start, Next) */
 static void click_cb(lv_event_t *e) {
     (void)e;
     lv_indev_t *indev = lv_indev_get_act();
-    if (indev && lv_indev_get_type(indev) == LV_INDEV_TYPE_ENCODER) play_cb(NULL);
+    if (!indev || lv_indev_get_type(indev) != LV_INDEV_TYPE_ENCODER) return;
+    if (mode != MODE_COPY || stats_view) play_cb(NULL);
+    else if (answering()) copy_press_key();
+    else copy_enter();
 }
 
 static lv_obj_t *label(lv_obj_t *parent, const lv_font_t *font, uint32_t color) {
@@ -1282,9 +1541,12 @@ static void construct_cb(lv_obj_t *parent) {
     play_due = false;
     told_wpm = 0;
     target[0] = heard[0] = text[0] = 0;
-    heard_n = tried = right = wpm_seen = 0;
-    reset_score();
+    heard_n = wpm_seen = key_sel = 0;
+    memset(&ses_learn, 0, sizeof(ses_learn));
+    memset(&ses_copy, 0, sizeof(ses_copy));
     stats_view = reset_armed = speed_saved = run_done = false;
+    for (int i = 0; i < KOCH_N; i++) koch_set[i] = koch[i].c;
+    koch_set[KOCH_N] = 0;
     stats_load();
 
     btn_p1.next = &page_2;
@@ -1357,6 +1619,22 @@ static void construct_cb(lv_obj_t *parent) {
     lv_label_set_text(label(row, &sony_20, COLOR_DIM), tail);
     st_today = label(stats_cont, &sony_22, theme_hex(TC_text_value));
     lv_obj_set_pos(st_today, 0, 2 * TILE_H + TILE_GAP + 52);
+
+    /* Copy: the level's characters, then Del and OK, under the lines; the MFK picks one without a keyboard */
+    keys_cont = cont(box, KEYS_ROW * (KEY_W + KEY_GAP), 2 * KEY_H + KEY_GAP);
+    lv_obj_set_pos(keys_cont, 0, KEYS_Y);
+    for (int i = 0; i < KOCH_N + 2; i++) {
+        key_o[i] = lv_obj_create(keys_cont);
+        lv_obj_remove_style_all(key_o[i]);
+        lv_obj_clear_flag(key_o[i], LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_size(key_o[i], KEY_W, KEY_H);
+        lv_obj_set_pos(key_o[i], (i % KEYS_ROW) * (KEY_W + KEY_GAP), (i / KEYS_ROW) * (KEY_H + KEY_GAP));
+        lv_obj_set_style_bg_opa(key_o[i], LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(key_o[i], 1, 0);
+        lv_obj_set_style_radius(key_o[i], 4, 0);
+        key_l[i] = label(key_o[i], &sony_22, theme_hex(TC_text));
+        lv_obj_center(key_l[i]);
+    }
 
     /* Calls: the callsign on the left, the score on the right */
     calls_cont = cont(box, CALLS_W - 26, BOX_H - 26);

@@ -149,6 +149,8 @@ ParamInt         *cfg_cw_peak_on          = nullptr;
 ParamInt         *cfg_cwt_level           = nullptr;
 ParamInt         *cfg_cwt_group           = nullptr;
 ParamInt         *cfg_cwt_tx_fixed        = nullptr;
+ParamInt         *cfg_cwt_copy_level      = nullptr;
+ParamInt         *cfg_cwt_copy_group      = nullptr;
 ParamInt         *cfg_cw_peak_q           = nullptr;
 ParamInt         *cfg_paddle_map[4]       = {};
 ParamInt         *cfg_paddle_swap         = nullptr;
@@ -381,6 +383,8 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_cwt_level        = &cfg_sm.p_cwt_level;
     cfg_cwt_group        = &cfg_sm.p_cwt_group;
     cfg_cwt_tx_fixed     = &cfg_sm.p_cwt_tx_fixed;
+    cfg_cwt_copy_level   = &cfg_sm.p_cwt_copy_level;
+    cfg_cwt_copy_group   = &cfg_sm.p_cwt_copy_group;
     cfg_cw_peak_q        = &cfg_sm.p_cw_peak_q;
     cfg_paddle_map[0]    = &cfg_sm.p_paddle_kbd;
     cfg_paddle_map[1]    = &cfg_sm.p_paddle_btn;

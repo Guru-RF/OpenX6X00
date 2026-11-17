@@ -4975,6 +4975,8 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
 - With a paddle, set Mode to Auto-L or Auto-R before opening the trainer, for
   the keyer's dits and dahs. On Manual the paddle is a straight key (on an
   X6200, from the KEY jack, a sideswiper).
+- Mode (page 1) goes Learn, Practice, Calls, [Copy](#copy-type-what-you-hear),
+  and back to Learn.
 - Learn (Koch) plays groups of the characters of your level. The level's
   newest character comes up in about one place of three while it is new,
   less and less over its first 20 tries; after that it comes up as often as
@@ -5052,6 +5054,51 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
   Up to v0.3.8 it showed as "?", which is itself a character (from level
   32): a garbled answer to a "?" counted right. A prosign took four places,
   and its letters counted for the group's in Stats.
+
+#### Copy: type what you hear
+
+Learn can be passed by keying back the dits and dahs you heard without ever
+knowing the character. Copy (Mode, after Calls; issue #290) trains copying:
+the radio keys a group, you type it on a USB or Bluetooth keyboard, and the
+group is not shown until your answer is in.
+
+- Copy has its own level, group length and Stats, apart from Learn's:
+  copying a character is not keying it back. Level +, Level - and Group
+  (page 2) and Stats and Reset stats (page 3) are Copy's while you are in
+  Copy. It starts at level 2 (K M) with groups of 1; Level + takes it up to
+  where you are. As in Learn, 9 of the last 10 groups right brings the next
+  character, the level's newest comes up more often while it is new, and
+  weak and little tried characters come up more often.
+- Start keys the first group a second after the press. Type as you hear it,
+  while it plays or after: a `_` stands for each place still to type, and
+  Backspace rubs out the last one. The answer is checked when it is as long
+  as the group, or at Enter: the places not typed then count as missed
+  (Enter with nothing typed gives the group up). No pause ends it: take
+  your time.
+- Lower case is the same as capitals. Keys that are no character of the
+  trainer's 40 (Space, =, a letter such as Å) type nothing.
+- The answer is checked place by place, but a character missed or typed
+  twice costs that one place, not the rest of the group: KMRSU typed KRSU
+  has only M wrong. Two characters swapped are both wrong.
+- The result shows the group (Sent) and your answer (Typed), each with its
+  dits and dahs. Red: a character of the group you missed or got wrong, and
+  a character you typed wrong. Each character of the group counts right or
+  wrong in Copy's Stats.
+- Right: the next group follows a second later (Pause: stop after this
+  one). Wrong: the trainer waits with the right group on screen. Replay
+  keys it again, as often as you like; Next, Enter or an MFK press brings
+  the next group.
+- Replay while your answer is due keys the group again, and your answer
+  starts again.
+- The groups are keyed at KEY Speed, as in Learn. The arrow keys of the
+  keyboard set it at any time, the MFK while no answer is due. There is no
+  separate character speed (Farnsworth spacing) yet.
+- Without a keyboard: under the lines are keys with the level's characters,
+  Del and OK. While an answer is due, turn the MFK to one (the one it is on
+  is lit) and press it. The hint line says when no keyboard is found, and
+  changes when one comes while the trainer is open.
+- The paddle does nothing in Copy: it sounds the sidetone, and nothing of it
+  is checked. Esc closes the trainer, as in the other modes.
 
 
 ## Apps

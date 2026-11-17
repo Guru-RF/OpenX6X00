@@ -566,6 +566,11 @@ class SettingsManager {
     // Calls: the KEY Speed stays the user's, the calls at their own speed (#270); off, it follows the calls
     Parameter<int32_t> p_cwt_tx_fixed{"cwt_tx_fixed", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Copy (#290): its own level and group length, copying is not keying back
+    Parameter<int32_t> p_cwt_copy_level{"cwt_copy_level", 2, 2, 40,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_cwt_copy_group{"cwt_copy_group", 1, 1, 5,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // CW decoder
     Parameter<int32_t> p_cw_decoder{"cw_decoder", true, 0, 1,
