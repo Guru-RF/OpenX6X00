@@ -11,10 +11,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
+#ifndef IMAGE_STAMP                                  /* tools/multiboot: its own */
 #define IMAGE_STAMP    "/etc/openx6x00-image"
+#endif
 #define IMAGE_REQUIRED BOARD_SHARE "/image-required"
 #define NOTICE_SEEN    BOARD_DATA "/.image-notice"   /* the version it was said for */
+#ifndef MULTIBOOT
+#define MULTIBOOT      "/tmp/x6100-multiboot"         /* S01multiboot: there on a multiboot card */
+#define CMDLINE        "/proc/cmdline"
+#endif
 
 static int stamped_level(void) {
     FILE *f = fopen(IMAGE_STAMP, "r");
@@ -26,6 +33,22 @@ static int stamped_level(void) {
     }
     if (f) fclose(f);
     return level > 0 ? level : 1;
+}
+
+bool card_is_multiboot(void) {
+    FILE *f;
+    char  args[1024];
+    bool  yes = false;
+
+    if (access(MULTIBOOT, F_OK) == 0) return true;
+    /* S01multiboot did not run (started by hand, an image before it): the menu's own mark on the kernel's command
+       line at least */
+    if ((f = fopen(CMDLINE, "r"))) {
+        args[0] = ' ';
+        if (fgets(args + 1, sizeof(args) - 1, f)) yes = strstr(args, " x6100mb=") != NULL;
+        fclose(f);
+    }
+    return yes;
 }
 
 bool image_newer_wanted(char *note, size_t size) {
@@ -61,8 +84,13 @@ static void notice_cb(lv_timer_t *t) {
         seen[strcspn(seen, "\r\n")] = '\0';
     }
     if (strcmp(seen, VERSION) == 0) return;
-    /* the message box takes one short line: what the image brings is on Settings > Info > Update */
-    msg_schedule_long_text_fmt("New card image out: Settings > Info");
+    /* the message box takes one short line (a longer one scrolls out of its 4 s): what the image brings is on
+       Settings > Info > Update. On a multiboot card the image goes through Xiegu Multi-Boot: written onto the card, it
+       would erase the menu and the other systems */
+    if (card_is_multiboot())
+        msg_schedule_long_text_fmt("New card image: use Multi-Boot");
+    else
+        msg_schedule_long_text_fmt("New card image out: Settings > Info");
     if ((f = fopen(NOTICE_SEEN, "w"))) {
         fprintf(f, "%s\n", VERSION);
         fclose(f);

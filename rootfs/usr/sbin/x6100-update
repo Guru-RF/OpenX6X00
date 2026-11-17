@@ -10,7 +10,9 @@
 # The card image: what an update cannot carry (the kernel, its modules, U-Boot) comes with a card image. Each
 # version says which image level it wants per radio (/usr/share/x6100/image-required); the image build stamps
 # its level into /etc/openx6x00-image. "check" reads the newer release's file and says whether it also wants a
-# newer card image; "status" says whether the running software does.
+# newer card image; "status" says whether the running software does. Both say "multiboot": true when this system is
+# one of a multiboot card's (Xiegu Multi-Boot, /etc/init.d/S01multiboot): its card image then goes through that app,
+# which keeps the boot menu and the other systems; written onto the card it would erase them.
 #   download <url>           the bundle into /mnt/update, progress in /mnt/update/.progress
 #   install <file>           verify, stage, swap in, restart the GUI and the web server
 #   upgrade                  check, download and install the newer release
@@ -53,6 +55,9 @@ VERSION_FILE = "/usr/share/x6100/app-version"
 IMAGE_STAMP = "/etc/openx6x00-image"                 # written by the image build only, never by an update
 IMAGE_REQUIRED = "/usr/share/x6100/image-required"   # comes with each version
 RAW = f"https://raw.githubusercontent.com/{REPO}/v{{tag}}/rootfs/usr/share/x6100/image-required"
+MULTIBOOT = "/tmp/x6100-multiboot"    # S01multiboot: there when this system is one of a multiboot card's
+CMDLINE = "/proc/cmdline"
+MULTIBOOT_APP = "https://github.com/TomekR1/Xiegu6x00-Multi-Boot/releases/latest"   # the app (SQ6RT), for the pages
 STATE = "/var/lib/x6100-update"       # the journal and the previous files: on the root filesystem
 PREV = os.path.join(STATE, "prev")
 JOURNAL = os.path.join(STATE, "journal.json")
@@ -124,6 +129,21 @@ def image_level():
     return 1
 
 
+def multiboot():
+    """How S01multiboot was told this system is one of a multiboot card's (Xiegu Multi-Boot), "" for a card of its
+    own. The update works the same there (files of this system only); a new card image goes through the app"""
+    try:
+        with open(MULTIBOOT) as f:
+            return f.read().strip() or "yes"
+    except OSError:
+        pass
+    try:      # S01multiboot did not run (started by hand, an image before it): the menu's own mark at least
+        with open(CMDLINE) as f:
+            return "boot menu" if " x6100mb=" in " " + f.read() else ""
+    except OSError:
+        return ""
+
+
 def image_state():
     try:
         with open(IMAGE_REQUIRED) as f:
@@ -131,7 +151,9 @@ def image_state():
     except OSError:
         need, note = 1, ""
     have = image_level()
-    return {"level": have, "required": need, "needed": have < need, "note": note if have < need else ""}
+    mb = multiboot()
+    return {"level": have, "required": need, "needed": have < need, "note": note if have < need else "",
+            "multiboot": bool(mb), "multiboot_how": mb, "multiboot_app": MULTIBOOT_APP if mb else None}
 
 
 def bundle_for_this_radio(name):
@@ -369,6 +391,8 @@ def cmd_check(args):
     out["notes"] = (rel.get("body") or "")[:2000]
     out["newer"] = bool(tag and asset and vtuple(tag) > vtuple(out["running"]))
     out["image_needed"], out["image_note"], out["image_url"] = False, "", None
+    out["multiboot"] = bool(multiboot())    # the image through Xiegu Multi-Boot, not onto the card
+    out["multiboot_app"] = MULTIBOOT_APP if out["multiboot"] else None
     if out["newer"]:
         # Does the newer release also want a newer card image for this radio? Its own image-required file, at
         # its tag; no answer is no warning

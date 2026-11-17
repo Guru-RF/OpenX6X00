@@ -727,6 +727,27 @@ web configurator (System > Update).
     `/etc/openx6x00-image`, which no update touches, and each version lists the
     level it wants in `/usr/share/x6100/image-required`. Images up to v0.3.3
     have no stamp and count as level 1.
+- On a multiboot card (several systems behind a boot menu, made with SQ6RT's
+  [Xiegu Multi-Boot](https://github.com/TomekR1/Xiegu6x00-Multi-Boot) app):
+  - The update above works as on a card of its own: it replaces files of
+    this system only, never a partition, the menu or the other systems.
+  - A new card image does not go onto the card: written there, it erases the
+    boot menu and the other systems. Rebuild the card in the app instead,
+    with the new version and "Carry the settings over from the old card"
+    ticked.
+  - The radio says so itself: the message at the start ("New card image: use
+    Multi-Boot"), Settings > Info > Update ("New card image for this
+    version, rebuild the card with Multi-Boot: ...", after Check "vX is out;
+    for its card image rebuild the card with Multi-Boot: ..."), and the web
+    Update page, in a Multiboot card line with the app's link.
+  - How it knows, at each start (`/etc/init.d/S01multiboot`, into
+    `/tmp/x6100-multiboot`): `x6100mb=` on the kernel's command line (the
+    menu of the CX8ANM edition's fork of the app), the system on another
+    partition of the card than its second, or `bootmenu.env` on the card's
+    first partition. Our own card has none of these. `x6100-update status`
+    over SSH shows it in "image" ("multiboot", "multiboot_how").
+  - From the CX8ANM edition of OpenX6X00 (condoruy). Checked on a PC only
+    (`make -C tools/multiboot test`), not yet on a radio with such a card.
 
 ### The X6200's base firmware
 

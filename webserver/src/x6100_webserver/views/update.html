@@ -7,6 +7,7 @@
   <div class="dp-row"><div class="dp-lbl"><b>Running</b></div><div class="dp-ctl" id="running">-</div></div>
   <div class="dp-row"><div class="dp-lbl"><b>Latest release</b><span id="notes"></span></div><div class="dp-ctl" id="latest">-</div></div>
   <div class="dp-row"><div class="dp-lbl"><b>Card image</b><span id="imgnote">What the update cannot carry (the kernel, the WiFi driver) comes with a card image</span></div><div class="dp-ctl" id="image">-</div></div>
+  <div class="dp-row" id="mbrow" style="display:none"><div class="dp-lbl"><b>Multiboot card</b><span id="mbnote"></span></div><div class="dp-ctl"><a id="mbapp" target="_blank" rel="noopener">Xiegu Multi-Boot</a></div></div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
     <div class="actions" style="margin-top:0">
       <button type="button" id="check">Check</button>
@@ -50,11 +51,26 @@ var showStatus = function(sel, text, error=false) {
 var fail = function(xhr) { showStatus("#status", xhr.responseJSON ? xhr.responseJSON.msg : "Failed", true); }
 var poll = null;
 
+/* This system is one of a multiboot card's (Xiegu Multi-Boot, /etc/init.d/S01multiboot, as x6100-update tells): the
+   update works there as on any card; a card image goes through the app, which keeps the boot menu, the other systems
+   and their settings. Written onto the card, it would erase them */
+var multiboot = function(app, image) {
+  $("#mbrow").show();
+  $("#mbapp").attr("href", app);
+  $("#mbnote").text(image
+    ? "Do not write the new card image onto this card: that erases the boot menu and the other systems. Rebuild the card in the app with the new version, Carry the settings over from the old card ticked"
+    : "The update here works as on any card. A new card image goes through the app, not onto the card: that would erase the boot menu and the other systems");
+}
+
 var render = function(st, mine) {
   $("#running").text("v" + (st.running || "?"));
   if (st.image) {
+    var mb = st.image.multiboot;
     $("#image").text(st.image.needed ? "a newer one is out" : "up to date");
-    if (st.image.needed) $("#imgnote").text("This version's card image brings " + st.image.note + ": write it from the releases page; settings and logs stay on the card");
+    if (st.image.needed) $("#imgnote").text("This version's card image brings " + st.image.note + (mb
+      ? ": rebuild the card with Xiegu Multi-Boot; settings and logs come along"
+      : ": write it from the releases page; settings and logs stay on the card"));
+    if (mb) multiboot(st.image.multiboot_app, st.image.needed);
   }
   if (st.pending) $("#running").text("v" + st.running + " (installed, waiting for its first minute)");
   if (st.last) {
@@ -98,7 +114,10 @@ $("#check").on("click", function() {
     if (c.newer && c.image_needed) {
       /* the release also has a new card image for this radio: the update brings the rest */
       $("#image").empty().append($("<a>").attr("href", c.image_url || "https://github.com/Guru-RF/OpenX6X00/releases/latest").text("v" + c.latest + " image"));
-      $("#imgnote").text("v" + c.latest + " also has a new card image, bringing " + (c.image_note || "more") + ". Install updates the radio software now; write the image when convenient (settings and logs stay)");
+      $("#imgnote").text("v" + c.latest + " also has a new card image, bringing " + (c.image_note || "more") + (c.multiboot
+        ? ". Install updates the radio software now; rebuild the card with Xiegu Multi-Boot when convenient (settings and logs come along)"
+        : ". Install updates the radio software now; write the image when convenient (settings and logs stay)"));
+      if (c.multiboot) multiboot(c.multiboot_app, true);
     }
   }).fail(fail);
 });

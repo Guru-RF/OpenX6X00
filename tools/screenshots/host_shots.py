@@ -3,7 +3,8 @@
 sandbox, driven by a script of x6drive.py's commands; every "shot NAME" lands as NAME.png.
 
   python3 tools/screenshots/host_shots.py <build dir> <script> <out dir> [--theme NAME]
-                                          [--set name=value ...] [--data DIR] [--first-start] [--keep]
+                                          [--set name=value ...] [--data DIR] [--tmp DIR] [--image-note]
+                                          [--first-start] [--keep]
 
 <build dir> is a host build (host/build.sh, cmake -DHOST_BUILD=ON). <script> is a file, or the
 commands inline with ";" between them ("key APP; sleep 1; shot apps"). Each run starts from the
@@ -11,7 +12,9 @@ default settings (the build's params.db, or sql/params.sql) with the theme and t
 params, and the files and folders of --data DIR copied into the GUI's data folder (a ghostnet.conf,
 a cluster.conf, a wefax folder of charts); the GUI gets 10 s after its FIFOs appear before the script starts. The defaults have
 no callsign, so the first-start guide (src/first_start.c) would come up over every shot: it is
-marked done, unless --first-start leaves it to come up.
+marked done, unless --first-start leaves it to come up. The files of --tmp DIR go into the GUI's /tmp (S01multiboot's
+mark, x6100-multiboot). The build's image-required is hidden (no "new card image" note in the shots) unless
+--image-note keeps it.
 
 The sandbox (bwrap): the whole system read-only, the GUI's data folder and /tmp private, no
 network (no cluster spots: the shots are the same each run), no D-Bus (NetworkManager and BlueZ on
@@ -63,6 +66,8 @@ def main():
     ap.add_argument("--theme")
     ap.add_argument("--set", action="append", default=[], metavar="NAME=VALUE")
     ap.add_argument("--data", metavar="DIR", help="files copied into the GUI's data folder before it starts")
+    ap.add_argument("--tmp", metavar="DIR", help="files copied into the GUI's /tmp before it starts")
+    ap.add_argument("--image-note", action="store_true", help="keep the build's image-required: the card image notes")
     ap.add_argument("--first-start", action="store_true", help="the first-start guide comes up, as on a new card")
     ap.add_argument("--keep", action="store_true", help="keep the run folder (its gui.log)")
     a = ap.parse_args()
@@ -87,6 +92,10 @@ def main():
                 shutil.copy(os.path.join(a.data, n), os.path.join(data, n))
             elif os.path.isdir(os.path.join(a.data, n)):     # a folder of the app's files: wefax/ with charts
                 shutil.copytree(os.path.join(a.data, n), os.path.join(data, n))
+    if a.tmp:
+        for n in os.listdir(a.tmp):
+            if os.path.isfile(os.path.join(a.tmp, n)):
+                shutil.copy(os.path.join(a.tmp, n), os.path.join(tmp, n))
     db = os.path.join(data, "params.db")
     if os.path.exists(os.path.join(build, "params.db")):
         shutil.copy(os.path.join(build, "params.db"), db)
@@ -110,7 +119,7 @@ def main():
     cmd = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--bind", tmp, "/tmp",
            "--ro-bind", build, build, "--bind", data, data_dir, "--tmpfs", "/run/dbus"]
     notice = os.path.join(build, "share", "image-required")
-    if os.path.exists(notice):
+    if os.path.exists(notice) and not a.image_note:
         cmd += ["--ro-bind", empty, notice]   # no "new card image" note in the shots
     cmd += ["--unshare-net", "--unshare-ipc", "--die-with-parent",
             "--info-fd", str(info_w), "/tmp/inside.sh", gui]

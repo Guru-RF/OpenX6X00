@@ -5201,7 +5201,7 @@ static bool upd_json_str(const char *json, const char *key, char *out, size_t n)
 }
 
 static void upd_check_done(const char *out, int status, void *user) {
-    char latest[24] = "", s[200];
+    char latest[24] = "", s[280];
 
     upd_busy = false;
     upd_latest[0] = 0;
@@ -5212,8 +5212,13 @@ static void upd_check_done(const char *out, int status, void *user) {
 
         snprintf(upd_latest, sizeof(upd_latest), "%s", latest);
         if (strstr(out, "\"image_needed\": true") && upd_json_str(out, "image_note", note, sizeof(note))) {
-            /* the release also wants a newer card image for this radio (x6100-update reads its image-required) */
-            snprintf(s, sizeof(s), "v%s is out; its card image brings %s", latest, note[0] ? note : "more");
+            /* the release also wants a newer card image for this radio (x6100-update reads its image-required); on a
+               multiboot card through Xiegu Multi-Boot: written onto the card, it would erase the menu */
+            if (strstr(out, "\"multiboot\": true"))
+                snprintf(s, sizeof(s), _("v%s is out; for its card image rebuild the card with Multi-Boot: %s"), latest,
+                         note[0] ? note : _("more"));
+            else
+                snprintf(s, sizeof(s), _("v%s is out; its card image brings %s"), latest, note[0] ? note : _("more"));
         } else {
             snprintf(s, sizeof(s), "v%s is available. Install downloads it and restarts the radio software.", latest);
         }
@@ -5255,7 +5260,7 @@ static void upd_btn_cb(lv_event_t *e) {
 
 static uint8_t make_update(uint8_t row) {
     FILE *f = fopen("/var/lib/x6100-update/pending.json", "r");
-    char  s[96], note[160], t[240];
+    char  s[96], note[160], t[320];
 
     wl_row_label(row, "Update");
     upd_btn = wl_button(row, "Check", upd_btn_cb);
@@ -5271,8 +5276,12 @@ static uint8_t make_update(uint8_t row) {
         upd_say("Updating...");
         if (!upd_timer) upd_timer = lv_timer_create(upd_timer_cb, 500, NULL);
     } else if (image_newer_wanted(note, sizeof(note))) {
-        /* the running version wants a newer card image than the one on the card */
-        snprintf(t, sizeof(t), "New card image for this version: %s", note);
+        /* the running version wants a newer card image than the one on the card; on a multiboot card through Xiegu
+           Multi-Boot, which keeps the menu and the other systems (S01multiboot) */
+        if (card_is_multiboot())
+            snprintf(t, sizeof(t), _("New card image for this version, rebuild the card with Multi-Boot: %s"), note);
+        else
+            snprintf(t, sizeof(t), _("New card image for this version: %s"), note);
         upd_say(t);
     } else {
         snprintf(s, sizeof(s), "Check looks for a newer release on GitHub; installing takes a minute.");
