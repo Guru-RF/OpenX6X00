@@ -15,7 +15,7 @@ tests, the packaging. `mbelib.h` still declares their functions; nothing calls t
 `CMakeLists.txt` and this file are ours.
 
 mbelib is an independent decoder, written by an unnamed author from the published P25 half-rate vocoder standard
-(TIA-102.BABA-1) and DVSI's patents, as its code comments and the accounts of it say; it is not DVSI's code.
+(TIA-102.BABA-1) and the vocoder's patents, as its code comments and the accounts of it say; it is not the vocoder maker's code.
 Upstream's README asks readers to check for patent restrictions before using it. The patents on AMBE+2's half-rate
 family (EP1465158B1, EP1748425B1) expired in Europe on 2024-03-26; US 8,359,197 may apply in the United States until
 2028-05-20. The radio decodes only, it never encodes.

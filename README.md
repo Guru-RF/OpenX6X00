@@ -521,9 +521,9 @@ the FARGAN vocoder (BSD-3-Clause), linked statically into the GUI; its reader of
 callsign in FreeDV's own form (`src/freedv_text.c`) is ported from freedv/freedv-backend
 (BSD-2-Clause, [src/LICENSE-freedv-backend.txt](src/LICENSE-freedv-backend.txt)). mbelib, the DMR app's
 voice decoder (vendored in `third-party/mbelib`, ISC, see its [UPSTREAM.md](third-party/mbelib/UPSTREAM.md)), is
-an independent decoder written from the published P25 half-rate vocoder standard (TIA-102.BABA-1) and DVSI's
-patents, receive only; the AMBE+2 patents have expired in Europe, a US patent (US 8,359,197) may apply there until
-May 2028. The web server is LGPL-2.1
+an independent decoder written from the published P25 half-rate vocoder standard (TIA-102.BABA-1) and the
+vocoder's patents, receive only; the AMBE+2 patents have expired in Europe, a US patent (US 8,359,197) may
+apply there until May 2028. The web server is LGPL-2.1
 ([webserver/LICENSE](webserver/LICENSE)). Every file keeps the copyright
 notice of its authors.
 
