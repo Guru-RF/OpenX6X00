@@ -1050,6 +1050,9 @@ static void show(void) {
         lv_label_set_text(frame.status, "Up / Down or MFK: scroll - R: reply - Esc: back");
     } else if (view == V_GATEWAYS) {
         lv_label_set_text(frame.status, "+ called lately - Connect twice: the radio transmits");
+    } else if (view == V_SESSION && prompt_on) {
+        /* the question's page has no Back, and its Abort is an answer to Pat */
+        lv_label_set_text(frame.status, "Pat waits for the answer: a button here, or the web mailbox");
     } else if (view == V_SESSION && sess_on) {
         lv_label_set_text(frame.status, "Abort ends the connection; Back leaves it running");
     } else if (view == V_LIST) {
