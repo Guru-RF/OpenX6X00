@@ -2052,7 +2052,7 @@ msgstr "呼号 [发 [收]]: "
 msgid "New"
 msgstr "新建"
 
-#: src/cw_messages.c src/dialog_channels.c
+#: src/cw_messages.c src/dialog_channels.c src/winlink_mail.c
 msgid "Edit"
 msgstr "编辑"
 
@@ -4606,7 +4606,7 @@ msgstr ""
 msgid "Flight"
 msgstr "航班"
 
-#: src/dialog_flights.c src/winlink_mail.c
+#: src/dialog_flights.c
 msgid "Type"
 msgstr "机型"
 
@@ -10925,10 +10925,6 @@ msgstr "%u / %u, 固定 (基带: %u / %u)"
 #, c-format
 msgid "%u / %u, fixed (not read)"
 msgstr "%u / %u, 固定 (未读取)"
-
-#: src/panel_stripes.c
-msgid "allwinner,sun8i-a33-tcon"
-msgstr ""
 
 #: src/perf_hud.c
 #, c-format

@@ -1884,7 +1884,7 @@ msgstr ""
 msgid "New"
 msgstr ""
 
-#: src/cw_messages.c src/dialog_channels.c
+#: src/cw_messages.c src/dialog_channels.c src/winlink_mail.c
 msgid "Edit"
 msgstr ""
 
@@ -4271,7 +4271,7 @@ msgstr ""
 msgid "Flight"
 msgstr ""
 
-#: src/dialog_flights.c src/winlink_mail.c
+#: src/dialog_flights.c
 msgid "Type"
 msgstr ""
 
@@ -10337,10 +10337,6 @@ msgstr ""
 #: src/pa_bias.c
 #, c-format
 msgid "%u / %u, fixed (not read)"
-msgstr ""
-
-#: src/panel_stripes.c
-msgid "allwinner,sun8i-a33-tcon"
 msgstr ""
 
 #: src/perf_hud.c

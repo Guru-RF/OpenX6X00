@@ -69,6 +69,8 @@ def not_shown(s):
         return True
     if re.match(r'^[a-z0-9_.\-]+$', t) and ('_' in t or '.' in t or '-' in t):   # theme_name, x6100.local, wf-mode
         return True
+    if re.match(r'^[a-z0-9\-]+,[a-z0-9.\-]+$', t):  # a device tree's "compatible" (vendor,device)
+        return True
     if re.match(r'^[a-z][a-z0-9]*$', t):            # a word in small letters alone: a key ("zoom", "digu", "sharp")
         return True
     if re.match(r'^[A-Za-z]+[a-z][A-Z]\w*$', t):    # NoInputNoOutput, GetManagedObjects, HamQTH

@@ -7512,7 +7512,7 @@ web mailbox.
 - New: To and Cc (callsigns or e-mail addresses, commas between them), the
   subject (at most 128 characters) and the text. On a keyboard type into the
   field; Enter or Down goes to the next field, and in the text Enter is a new
-  line. Without one, the MFK chooses the field and a press (or Type) opens the
+  line. Without one, the MFK chooses the field and a press (or Edit) opens the
   on-screen keys: a field takes the whole line typed, the text a line at a
   time. Send puts the message in the Outbox; Cancel twice drops it. Pat
   writes mail in Latin-1, as Winlink carries it: accents and umlauts go out

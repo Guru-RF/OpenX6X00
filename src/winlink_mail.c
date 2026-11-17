@@ -1143,7 +1143,7 @@ static buttons_page_t page_read   = {{&btn_rd, &btn_reply, &btn_delete, &btn_bac
 
 static button_data_t  btn_cp      = {.type = BTN_TEXT, .label = "(NEW 1:1)"};
 static button_data_t  btn_next    = {.type = BTN_TEXT, .label = "Next\nfield", .press = next_field_cb};
-static button_data_t  btn_type    = {.type = BTN_TEXT, .label = "Type", .press = type_cb};
+static button_data_t  btn_type    = {.type = BTN_TEXT, .label = "Edit", .press = type_cb};
 static button_data_t  btn_send    = {.type = BTN_TEXT, .label = "Send", .press = send_cb};
 static button_data_t  btn_cancel  = {.type = BTN_TEXT, .label = "Cancel", .press = back_cb};
 static buttons_page_t page_compose = {{&btn_cp, &btn_next, &btn_type, &btn_send, &btn_cancel}};

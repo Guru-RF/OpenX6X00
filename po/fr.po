@@ -2050,7 +2050,7 @@ msgstr "Indicatif [env. [reçu]] : "
 msgid "New"
 msgstr "Nouveau"
 
-#: src/cw_messages.c src/dialog_channels.c
+#: src/cw_messages.c src/dialog_channels.c src/winlink_mail.c
 msgid "Edit"
 msgstr "Modifier"
 
@@ -4571,7 +4571,7 @@ msgstr ""
 msgid "Flight"
 msgstr "Vol"
 
-#: src/dialog_flights.c src/winlink_mail.c
+#: src/dialog_flights.c
 msgid "Type"
 msgstr "Type"
 
@@ -10899,10 +10899,6 @@ msgstr "%u / %u, fixes (base : %u / %u)"
 #, c-format
 msgid "%u / %u, fixed (not read)"
 msgstr "%u / %u, fixes (non lus)"
-
-#: src/panel_stripes.c
-msgid "allwinner,sun8i-a33-tcon"
-msgstr ""
 
 #: src/perf_hud.c
 #, c-format
