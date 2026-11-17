@@ -4398,6 +4398,8 @@ static void make_display_page() {
     /* The box at the top right: the charge and the time left or to full, the voltages, the two in turn, or
      * the charge and the supply's voltage */
     row = make_param_choice(row, "Power display", " % + time \n Volts \n Alternate \n % + V ", cfg_sm.p_power_display);
+    /* The callsign of General > STATION small on the main screen (main_call.h) and on the boot logo (#292) */
+    row = make_param_switch(row, "Callsign", cfg_sm.p_callsign_show);
     card_end(row);
 
     row = card_begin("INTERFACE");

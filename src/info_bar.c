@@ -18,9 +18,11 @@
 #include "gps.h"
 #include "scheduler.h"
 #include "cluster/client.h"
+#include "main_call.h"
 
 #include <pthread.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 /* Written by btcat: the number of connected Bluetooth CAT clients. */
@@ -73,6 +75,7 @@ static void agc_update(Subject *subj, void *user_data);
 static void pill_update(Subject *subj, void *user_data);
 static void atu_update(Subject *subj, void *user_data);
 static void deck_init(void);
+static void deck_call_fit(void);
 
 lv_obj_t *info_init(lv_obj_t *parent) {
     /* The cells whose text never changes; VFO, mode and AGC come from their settings */
@@ -163,10 +166,11 @@ lv_obj_t *info_init(lv_obj_t *parent) {
 
 /* Deck (Black Metal, Total Black): the box is the two rows on top. First row: ATT PRE | NR NB DNF |
  * AGC | SPL ATU | RIT XIT, grey when off, white when on, then the status icons (the clock is over
- * the box at the right). Second row: the mode, the filter, BW IF STEP, the scope span at the right */
+ * the box at the right). Second row: the mode, the filter, BW IF STEP, the callsign (#292), the voltages (clock.c)
+ * and the scope span at the right */
 enum { D_ATT, D_PRE, D_NR, D_NB, D_DNF, D_AGC, D_SPL, D_ATU, D_RIT, D_XIT, D_NUM };
 
-static lv_obj_t *deck_ind[D_NUM], *deck_mode, *deck_info, *deck_scope;
+static lv_obj_t *deck_ind[D_NUM], *deck_mode, *deck_info, *deck_scope, *deck_call;
 static lv_font_t scope_font;     /* the plus-minus sign, the rest from sony_24 */
 
 static void deck_set(int i, bool on) {
@@ -211,6 +215,38 @@ static void deck_update(Subject *subj, void *user_data) {
     lv_label_set_text_fmt(deck_info, "BW %s   IF %+d   STEP %s", b, (int)param_i_get(cfg_band_if_shift), st);
     if (half % 1000) lv_label_set_text_fmt(deck_scope, "SCOPE \xC2\xB1%d.%dk", (int)(half / 1000), (int)(half % 1000 / 100));
     else lv_label_set_text_fmt(deck_scope, "SCOPE \xC2\xB1%dk", (int)(half / 1000));
+    deck_call_fit();
+}
+
+/* The callsign in the second row, after BW IF STEP and before the battery: clock.c puts the voltages at the left of
+ * its box, which is CLOCK_W wide 10 px from the right (gui_styles.c, deck_layout()). Not the box itself: on a theme
+ * change this row is built before the clock. Hidden while BW IF STEP leave it no room (a wide filter, a big step, a
+ * long callsign) */
+#define DECK_POWER_X    (BOARD_DISP_W - 10 - CLOCK_W)
+#define DECK_CALL_GAP   16      /* as between BW, IF and STEP */
+
+static void deck_call_fit(void) {
+    const char *call = main_call();
+
+    if (!theme_shape.deck || !deck_call) return;
+    if (strcmp(lv_label_get_text(deck_call), call)) (lv_label_set_text)(deck_call, call);   /* not translated */
+    if (!call[0]) {
+        lv_obj_add_flag(deck_call, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    lv_obj_clear_flag(deck_call, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_update_layout(obj);
+
+    lv_obj_t *row = lv_obj_get_parent(deck_info);
+    lv_coord_t x  = DECK_POWER_X - DECK_CALL_GAP - lv_obj_get_width(deck_call);
+
+    lv_obj_align_to(deck_call, deck_scope, LV_ALIGN_OUT_LEFT_MID, 0, 0);     /* its row's middle */
+    lv_obj_set_x(deck_call, x);
+    if (lv_obj_get_x(row) + lv_obj_get_width(row) + DECK_CALL_GAP > x) lv_obj_add_flag(deck_call, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void deck_call_cb(Subject *subj, void *user_data) {
+    deck_call_fit();
 }
 
 static lv_obj_t *deck_row(lv_coord_t y) {
@@ -284,6 +320,11 @@ static void deck_init(void) {
     lv_obj_set_style_text_font(deck_scope, &scope_font, 0);
     lv_obj_set_style_text_color(deck_scope, TC(text), 0);
     lv_obj_align(deck_scope, LV_ALIGN_TOP_RIGHT, -10, 30);
+    deck_call = lv_label_create(obj);
+    lv_obj_set_style_text_font(deck_call, &sony_20, 0);     /* as the voltages beside it */
+    lv_obj_set_style_text_color(deck_call, TC(text_dim), 0);
+    lv_label_set_text(deck_call, "");
+    lv_obj_add_flag(deck_call, LV_OBJ_FLAG_HIDDEN);
 
     Subject *subj[] = {(Subject *)cfg_cur_att, (Subject *)cfg_cur_pre, (Subject *)cfg_nr, (Subject *)cfg_nb,
                        (Subject *)cfg_dnf, (Subject *)cfg_cur_agc, (Subject *)cfg_band_split, (Subject *)cfg_rit,
@@ -293,6 +334,7 @@ static void deck_init(void) {
     subject_subscribe_delayed((Subject *)cfg_fg_freq, deck_atu_update, NULL);
     subject_subscribe_delayed((Subject *)cfg_atu_enabled, deck_atu_update, NULL);
     cfg_atu_loaded_subscribe_delayed(deck_atu_update, NULL);
+    subject_subscribe_delayed((Subject *)main_call_subject, deck_call_cb, NULL);
     deck_update(NULL, NULL);
     deck_atu_update(NULL, NULL);
 }

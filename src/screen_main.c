@@ -77,6 +77,7 @@
 #include "wefax_window.h"
 #include "dialog_js8.h"
 #include "freq_strip.h"
+#include "main_call.h"
 #include "lcd_panel.h"
 #include "freq_scale.h"
 #include "spot_marks.h"
@@ -1981,6 +1982,7 @@ lv_obj_t * main_screen() {
     msg_init(lv_layer_top());
     msg_tiny_init(lv_layer_top());
 
+    main_call_init();   /* the callsign the layouts show (#292) */
     build();
     buttons_load_page(&buttons_page_vol_1);
     lv_async_call(band_usable_check, NULL);     /* once the radio runs */

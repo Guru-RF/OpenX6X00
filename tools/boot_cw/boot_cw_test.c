@@ -1,7 +1,8 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  OpenX6X00 - host test of the boot sound's text (src/boot_cw.c, #289).
+ *  OpenX6X00 - host test of the boot sound's text (src/boot_cw.c, #289) and of the callsign on the boot logo
+ *  (bootanim/boot_call.c, #292).
  *
  *  The sound: Off plays nothing; CQ CQ keys the very code bootanim keyed up to v0.3.12, at 20 WPM; the callsign and
  *  the own text in their place, CQ CQ when there is none or nothing in it to key (a CB call is keyed as any). Letters,
@@ -10,14 +11,22 @@
  *  than bootanim's sound may be (its lead and the codec's buffer with it). The own text as Settings keeps it:
  *  capitals, one space between words, only what can be keyed, at most BOOT_CW_TEXT_MAX.
  *
+ *  The logo: nothing drawn without a callsign or with nothing the font has; a callsign centred over the ring (above
+ *  its first row), in the logo's gold where the font inks fully, the rest of the logo untouched; the longest
+ *  callsign Settings takes fits the screen.
+ *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 
+#include "boot_call.h"
 #include "boot_cw.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+#define W       800
+#define H       480
 #define LEAD_MS 1500    /* bootanim.c: the silence before the CW, */
 #define MAX_MS  5700    /* the most its sound may last, */
 #define BUF_MS  100     /* the codec's buffer after the last sample */
@@ -112,8 +121,82 @@ static void sound(void) {
     clean("", "");
 }
 
-int main(void) {
+static uint8_t logo[W * H * 3];
+
+static void ground(void) {
+    for (int i = 0; i < W * H; i++) {
+        logo[3 * i] = 8;    /* the logo's (tools/logo/mklogo.py) */
+        logo[3 * i + 1] = 9;
+        logo[3 * i + 2] = 12;
+    }
+}
+
+/* The box of what was drawn: false when nothing */
+static int drawn(int *x1, int *y1, int *x2, int *y2, int *full) {
+    int n = 0;
+
+    *x1 = W, *y1 = H, *x2 = -1, *y2 = -1, *full = 0;
+    for (int y = 0; y < H; y++) {
+        for (int x = 0; x < W; x++) {
+            const uint8_t *p = logo + (y * W + x) * 3;
+
+            if (p[0] == 8 && p[1] == 9 && p[2] == 12) continue;
+            n++;
+            if (x < *x1) *x1 = x;
+            if (x > *x2) *x2 = x;
+            if (y < *y1) *y1 = y;
+            if (y > *y2) *y2 = y;
+            if (p[0] == 229 && p[1] == 168 && p[2] == 35) (*full)++;
+        }
+    }
+    return n;
+}
+
+static void call(const char *c, bool want) {
+    int x1, y1, x2, y2, full;
+
+    ground();
+    CHECK(boot_call_draw(logo, W, H, c) == want, "\"%s\": drawn %d", c ? c : "(null)", !want);
+    int n = drawn(&x1, &y1, &x2, &y2, &full);
+
+    if (!want) {
+        CHECK(n == 0, "\"%s\": %d pixels", c ? c : "(null)", n);
+        return;
+    }
+    CHECK(y1 >= 4 && y2 < BOOT_CALL_BOTTOM, "\"%s\": rows %d to %d", c, y1, y2);
+    CHECK(x1 >= 20 && x2 < W - 20, "\"%s\": columns %d to %d", c, x1, x2);
+    CHECK(abs(x1 - (W - 1 - x2)) <= 4, "\"%s\": not centred, %d left, %d right", c, x1, W - 1 - x2);
+    CHECK(full > 100, "\"%s\": %d pixels in the gold", c, full);
+}
+
+static void logo_call(void) {
+    call(NULL, false);
+    call("", false);
+    call("#@!", false);
+    call("ON6URE", true);
+    call("on6ure", true);
+    call("26AT101", true);
+    call("EA8/ON6URE/P", true);
+    call("WWWWWWWWWWWW", true);     /* the widest of Settings' 12 */
+    CHECK(!boot_call_draw(logo, W, BOOT_CALL_BOTTOM - 1, "ON6URE"), "drawn on a logo too low");
+}
+
+/* --draw in.rgb out.rgb CALL: CALL on a logo, to look at */
+static int draw(const char *in, const char *out, const char *c) {
+    FILE *f = fopen(in, "rb");
+
+    if (!f || fread(logo, 1, sizeof(logo), f) != sizeof(logo)) return 1;
+    fclose(f);
+    boot_call_draw(logo, W, H, c);
+    f = fopen(out, "wb");
+    if (!f || fwrite(logo, 1, sizeof(logo), f) != sizeof(logo)) return 1;
+    return fclose(f) != 0;
+}
+
+int main(int argc, char **argv) {
+    if (argc == 5 && !strcmp(argv[1], "--draw")) return draw(argv[2], argv[3], argv[4]);
     sound();
+    logo_call();
     printf("%s\n", fails ? "boot_cw: FAILED" : "boot_cw: all passed");
     return fails != 0;
 }

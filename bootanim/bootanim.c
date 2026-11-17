@@ -19,6 +19,9 @@
  *  CW plays on the speaker with the animation: "CQ CQ", the callsign or the
  *  owner's own text (#289; src/boot_cw.h has how long and how fast).
  *
+ *  With Settings > Display > MAIN SCREEN > Callsign on, the callsign is drawn
+ *  over the ring, the last thing to fade in (boot_call.c, #292).
+ *
  *  Started in the background by /etc/init.d/S00bootanim. Any failure just
  *  skips that part: the boot never waits for it.
  */
@@ -54,6 +57,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "boot_call.h"
 #include "../src/boot_cw.h"     /* the GUI's: Settings shows what it will play */
 
 #define W        800    /* the logo, landscape */
@@ -304,6 +308,7 @@ static void sound_end(pthread_t th) {
  * top (y 48..238): its ring is gold, the signal through it blue (b > r); then the name (y 258..340),
  * the rule (y 352), the subtitle (y 372..400) and the maintainer's line at the foot (y 424..466). */
 static int start_ms(int x, int y, const uint8_t *p) {
+    if (y < BOOT_CALL_BOTTOM) return 1820 + abs(x - 400) * 120 / 200;   /* the callsign, last, from the centre */
     if (y >= 415) return 1760 + (x - 230) * 240 / 340;               /* the foot, left to right */
     if (y < 250) {
         double r = hypot(x - CX, y - CY);
@@ -361,6 +366,13 @@ int main(int argc, char **argv) {
     int own = logo_read(argc > 1 ? argv[1] : OWN_LOGO, logo);
     if (!own && !logo_read(OUR_LOGO, logo)) return 1;
     int fade = own ? OWN_FADE_MS : FADE_MS;
+
+    if (!own && saved("callsign_show", 0) == 1) {
+        char call[32];
+
+        saved_text("callsign", call, sizeof(call));
+        boot_call_draw(logo, W, H, call);
+    }
 
     /* The panel is 480x800 portrait: landscape (x, y) is fb (y, 799 - x), as the kernel logo */
     int fd = open("/dev/fb0", O_RDWR);

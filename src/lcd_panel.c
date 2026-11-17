@@ -6,7 +6,7 @@
  *  segments under it, the VFO and mode icons on the right; what is lit shows, the unlit digit
  *  segments as a faint outline. The layout (drawn in 1248 x 313 units) is stretched a little to fill
  *  the top of the screen. Under it, a spectrum strip (the spectrum itself, screen_main.c; in CW the
- *  decoded text beside it), power, IF, the time and the voltage.
+ *  decoded text beside it), power, IF, the callsign (#292), the time and the voltage.
  *
  *  Copyright (c) 2026 Pavol Calfa OM0WT
  */
@@ -18,6 +18,7 @@
 #include "cw_tune_view.h"
 #include "freq_scale.h"
 #include "info_bar.h"
+#include "main_call.h"
 #include "gui_styles.h"
 #include "radio.h"
 #include "radio_types.h"
@@ -58,6 +59,7 @@ typedef struct {
     bool    cwt, cwt_on;    /* CW with the tuning aid on; a tone locked in the last second */
     int16_t cwt_hz;         /* its offset from the pitch */
     int32_t bw;
+    char    call[16];       /* the callsign under the display, "" none (main_call.h) */
 } lcd_state_t;
 
 static lcd_state_t shown;
@@ -496,6 +498,8 @@ static void plus_info(const lcd_state_t *st) {
     x = text_r(770, 427, s, true, &sony_24);
     snprintf(s, sizeof(s), "%02d:%02dZ", st->minute / 60, st->minute % 60);
     text_r(x - 22, 427, s, true, &sony_24);
+    /* the callsign between them, in the middle */
+    if (st->call[0]) text_c(400, 427, st->call, true, &sony_24);
 }
 
 /* CW: the strip's right half, the newest text in fourteen segments, ending at the right */
@@ -591,6 +595,7 @@ static void read_state(lcd_state_t *st) {
     st->volts10 = (ext >= 3.0f ? ext : bat) * 10 + 0.5f;
     st->minute  = t.tm_hour * 60 + t.tm_min;
     st->bw      = cparam_i_get(cfg_cur_filter_bw);
+    snprintf(st->call, sizeof(st->call), "%s", main_call());
     pthread_mutex_lock(&cw_mux);
     st->cw_seq = cw_seq;
     st->cw     = (st->mode == radio_mode_cw || st->mode == radio_mode_cwr) &&

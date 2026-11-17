@@ -1769,7 +1769,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | BACKLIGHT | Timeout (0 off), Brightness (see below), buttons brightness (Always Off, Always On, Temporarily On), Screensaver (None, Matrix rain), Screensaver (min) (with a screensaver: 1-120 minutes without use), Rain speed (Normal, Slow, Very slow), Screen off (min) (minutes without use, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser, no screensaver; POWER shows it for the blank time, a minute at least); see [Screensaver](#screensaver) |
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Fill by level, Filter colour, Filter shade, Shaded part, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
-| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
+| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see below) |
 | INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Keep knob lines, Knob press: next control, Theme, Font, Language, Decoder text, FT8/FT4 info |
 
 - Timeout (0 off), Brightness: the seconds without a key or a knob before
@@ -1821,6 +1821,26 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
   the frequency strip shows "BC <station name>" in a light blue box instead
   of the band name. The names come from the broadcast list (see the
   [Info tab](#info-tab)).
+- Callsign (off by default, from v0.3.13; issue #292): your callsign
+  (Settings > General > STATION, a CB call too) small on the main screen,
+  in the theme's dim text colour: a reminder of the call you use, portable
+  or in a park, and for anyone looking at the radio or a photo of the
+  screen. It comes at once, and follows a new callsign within 2 seconds.
+  Where it sits:
+  - Most themes: in the frequency strip, on the right in front of the
+    locator. When the strip needs the room (a split, with its second
+    frequency) it hides until the room is back. VISION moves its big digits
+    a little left for it, as far as the band name keeps its room.
+  - Black Metal and Total Black: in the second row at the top, between
+    BW IF STEP and the battery; it hides while that row leaves it no room
+    (a wide filter, a big step, a long callsign).
+  - Amber Trey: under the display, in the middle of the bottom line.
+  - With it on, the built-in boot logo also shows the callsign over its
+    ring, the last thing to come in, from the next start (after the CX8ANM
+    edition, condoruy). A picture of your own (see
+    [Boot picture](#boot-picture)) is shown as it is.
+
+  No callsign set: nothing is shown.
 
 All these options are also on the web configurator's Display page.
 
@@ -6864,7 +6884,7 @@ them.
 | Backlight | Brightness, Brightness when idle (greyed with Idle after Off), Idle after (Off, 5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver) |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX ranges (Ham bands, South Korea, Own list), TX outside ham bands (Settings > TX Cal), and the own list as a text field: Save writes `tx_ranges.conf` and the radio reads it at once, the ranges it took and a line it could not read said under it (see [Amateur bands only](#amateur-bands-only)) |
-| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
+| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see [Display tab](#display-tab)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate
@@ -6915,7 +6935,9 @@ card. No SSH needed.
 - It fades in as a whole over about 3 seconds, from the colour of its
   top-left pixel; the built-in logo's steps are made for that logo alone.
   With the [boot sound](#audio-tab) on it ends with the sound's last
-  character, as the logo does. What is transparent in it shows black.
+  character, as the logo does. What is transparent in it shows black. The
+  callsign of Settings > Display > MAIN SCREEN > Callsign goes on the
+  built-in logo only, not on yours.
 - It is kept on the card's DATA partition (`/mnt/bootlogo.png`), so updates,
   which put the built-in logo back with the rest of the system, leave it as
   it is, and so does a new card image that keeps the DATA partition. The

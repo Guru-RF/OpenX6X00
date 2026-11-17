@@ -637,6 +637,10 @@ class SettingsManager {
     // charge and, on a supply, the supply's voltage, on battery as 0 (#119) (clock.c)
     Parameter<int32_t> p_power_display{"power_display", 0, 0, 3,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Callsign (Settings > Display > MAIN SCREEN, live, #292): the callsign of Settings > General > STATION small on
+    // the main screen (main_call.c), and on the boot logo from the next start (bootanim/bootanim.c reads it)
+    Parameter<int32_t> p_callsign_show{"callsign_show", 0, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // Text log of the keyboard modes (digi_textlog.c, #55): on by default, and the most the folder keeps, MB
     Parameter<int32_t> p_textlog{"textlog", true, 0, 1,
