@@ -1,4 +1,4 @@
-From 19ef7c7b2509d87057b7f136ae8ba59ff7c2c6fb Mon Sep 17 00:00:00 2001
+From 3aa829d99c87590da3de7a67bd345dc49f42a4f6 Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Wed, 4 Nov 2026 16:04:16 +0100
 Subject: [PATCH] Send the CW ID when the host asks for it with CWID ON
@@ -28,10 +28,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  5 files changed, 36 insertions(+), 1 deletion(-)
 
 diff --git a/crates/xara/src/station/fm.rs b/crates/xara/src/station/fm.rs
-index 030abf0..3decc3b 100644
+index 8ffd13a..2c0e858 100644
 --- a/crates/xara/src/station/fm.rs
 +++ b/crates/xara/src/station/fm.rs
-@@ -527,6 +527,10 @@ impl Modem for Station {
+@@ -528,6 +528,10 @@ impl Modem for Station {
  
      fn set_p2p(&mut self, _: bool) {}
  
@@ -43,7 +43,7 @@ index 030abf0..3decc3b 100644
          self.kiss_rx = on;
          self.refresh_listen();
 diff --git a/crates/xara/src/station/hf.rs b/crates/xara/src/station/hf.rs
-index cb0163b..21cd4b9 100644
+index 27f72f4..697d7bf 100644
 --- a/crates/xara/src/station/hf.rs
 +++ b/crates/xara/src/station/hf.rs
 @@ -523,6 +523,11 @@ impl Modem for Station {
@@ -59,7 +59,7 @@ index cb0163b..21cd4b9 100644
          self.un.bc.kiss_rx = on;
      }
 diff --git a/crates/xara/src/station/mod.rs b/crates/xara/src/station/mod.rs
-index 1cb6dd3..b8a1aad 100644
+index 0367528..61bd974 100644
 --- a/crates/xara/src/station/mod.rs
 +++ b/crates/xara/src/station/mod.rs
 @@ -135,6 +135,7 @@ pub trait Modem {
@@ -71,10 +71,10 @@ index 1cb6dd3..b8a1aad 100644
  
      fn drain(&mut self) {
 diff --git a/crates/xara/src/tnc.rs b/crates/xara/src/tnc.rs
-index a4dd89a..e1e01b6 100644
+index 8702808..907b74a 100644
 --- a/crates/xara/src/tnc.rs
 +++ b/crates/xara/src/tnc.rs
-@@ -446,7 +446,8 @@ impl<M: Modem> Tnc<M> {
+@@ -505,7 +505,8 @@ impl<M: Modem> Tnc<M> {
                  true
              }
              Command::Bw(b) => idle && self.station.set_bw(b),
@@ -85,10 +85,10 @@ index a4dd89a..e1e01b6 100644
              Command::TuneOff => {
                  self.stop_tune();
 diff --git a/crates/xara/tests/host_protocol.rs b/crates/xara/tests/host_protocol.rs
-index b4d0d59..33ce6fa 100644
+index 8f078d0..56beb9f 100644
 --- a/crates/xara/tests/host_protocol.rs
 +++ b/crates/xara/tests/host_protocol.rs
-@@ -232,6 +232,30 @@ fn failed_call_and_failed_incoming() {
+@@ -231,6 +231,30 @@ fn failed_call_and_failed_incoming() {
      assert!(!bt[i..].iter().any(|l| l.starts_with("PTT")), "{bt:?}");
  }
  

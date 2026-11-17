@@ -1,0 +1,249 @@
+From 0ea85e619dc7f3eb0c9859e34d19838f125f0b55 Mon Sep 17 00:00:00 2001
+From: x0rro <x0rroRF@proton.me>
+Date: Thu, 29 Oct 2026 17:16:26 +0000
+Subject: [PATCH] Resampler from xara 0.1.2 and 0.1.3: a kernel table in place
+ of a sinc and a Kaiser window per tap
+
+The resampler is still 0.1.1's: each output sample computes its taps'
+sinc and Kaiser window (a 30-term Bessel series) afresh. x0rro's xara
+0.1.2 (5ffffbb8) made it a table of the windowed sinc at 512 phases
+(fewer when going down), each normalised, with the taps between two
+phases interpolated; his 0.1.3 (09a92013) has it as is. This is his
+file, without the silent() his rate matcher used, which this fork does
+not have: taken for OpenX6X00 by Joeri Van Dooren ON6URE.
+
+The same Resampler, new(), identity(), process() and flush(); the
+(tr)uSDX path and xara-monitor take it as before. 12 kHz to 48 kHz,
+10 s of audio in 240-sample blocks, on an x86_64 PC: 523 ms before,
+12 ms after (48 kHz to 12 kHz: 497 ms, 11 ms). Its tests come with it:
+up and down at several rates, and chunking that does not change the
+output.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/xara/src/resample.rs | 173 +++++++++++++++++++++++++++---------
+ 1 file changed, 130 insertions(+), 43 deletions(-)
+
+diff --git a/crates/xara/src/resample.rs b/crates/xara/src/resample.rs
+index 5caed58..c460305 100644
+--- a/crates/xara/src/resample.rs
++++ b/crates/xara/src/resample.rs
+@@ -1,16 +1,7 @@
+ use std::f64::consts::PI;
+ 
+-const HALF: i64 = 24;
+-
+-pub struct Resampler {
+-    step: f64,
+-    cutoff: f64,
+-    half: i64,
+-    window_norm: f64,
+-    buf: Vec<f64>,
+-    base: i64,
+-    t: f64,
+-}
++const HALF: f64 = 24.0;
++const PHASES: f64 = 512.0;
+ 
+ const BETA: f64 = 8.0;
+ 
+@@ -27,6 +18,83 @@ fn kaiser(x: f64, norm: f64) -> f64 {
+     if x.abs() >= 1.0 { 0.0 } else { bessel(BETA * (1.0 - x * x).sqrt()) / norm }
+ }
+ 
++pub(crate) struct Kernel {
++    half: usize,
++    phases: usize,
++    table: Vec<f64>,
++}
++
++impl Kernel {
++    pub(crate) fn new(half: usize, phases: usize, cutoff: f64) -> Self {
++        let (n, norm) = (2 * half, bessel(BETA));
++        let mut table = vec![0.0; (phases + 1) * n];
++        for (p, h) in table.chunks_exact_mut(n).enumerate() {
++            let frac = p as f64 / phases as f64;
++            for (k, c) in h.iter_mut().enumerate() {
++                let u = frac + (half - 1) as f64 - k as f64;
++                let a = PI * cutoff * u;
++                let s = if a.abs() < 1e-12 { 1.0 } else { a.sin() / a };
++                *c = s * kaiser(u / half as f64, norm);
++            }
++            let sum: f64 = h.iter().sum();
++            h.iter_mut().for_each(|c| *c /= sum);
++        }
++        Self { half, phases, table }
++    }
++
++    fn apply(&self, x: &[f64], frac: f64) -> f64 {
++        let n = 2 * self.half;
++        debug_assert_eq!(x.len(), n);
++        let pos = frac * self.phases as f64;
++        let p = (pos as usize).min(self.phases - 1);
++        let w = pos - p as f64;
++        let (a, b) = self.table[p * n..(p + 2) * n].split_at(n);
++        x.iter().zip(a.iter().zip(b)).map(|(v, (c0, c1))| v * (c0 + w * (c1 - c0))).sum()
++    }
++}
++
++pub(crate) struct Stream {
++    kernel: Kernel,
++    buf: Vec<f64>,
++    i: usize,
++    frac: f64,
++}
++
++impl Stream {
++    pub(crate) fn new(kernel: Kernel, lag: usize) -> Self {
++        let i = kernel.half - 1;
++        Self { kernel, buf: vec![0.0; i + lag], i, frac: 0.0 }
++    }
++
++    pub(crate) fn half(&self) -> usize {
++        self.kernel.half
++    }
++
++    pub(crate) fn run(&mut self, x: &[f64], whole: usize, part: f64, out: &mut Vec<f64>) {
++        debug_assert!((0.0..1.0).contains(&part));
++        self.buf.extend_from_slice(x);
++        let half = self.kernel.half;
++        while self.i + half < self.buf.len() {
++            out.push(self.kernel.apply(&self.buf[self.i + 1 - half..=self.i + half], self.frac));
++            self.i += whole;
++            self.frac += part;
++            if self.frac >= 1.0 {
++                self.frac -= 1.0;
++                self.i += 1;
++            }
++        }
++        let used = self.i + 1 - half;
++        self.buf.drain(..used);
++        self.i -= used;
++    }
++}
++
++pub struct Resampler {
++    whole: usize,
++    part: f64,
++    stream: Stream,
++}
++
+ pub const MIN_RATE: f64 = 1000.0;
+ pub const MAX_RATE: f64 = 1_000_000.0;
+ 
+@@ -42,39 +110,23 @@ impl Resampler {
+     pub fn new(rate_in: f64, rate_out: f64) -> Result<Self, String> {
+         let (rate_in, rate_out) = (check_rate(rate_in)?, check_rate(rate_out)?);
+         let cutoff = 0.95 * (rate_out / rate_in).min(1.0);
+-        let half = (HALF as f64 / cutoff.min(1.0)).ceil() as i64;
+-        Ok(Self { step: rate_in / rate_out, cutoff, half, window_norm: bessel(BETA), buf: Vec::new(), base: 0, t: 0.0 })
++        let half = (HALF / cutoff).ceil() as usize;
++        let kernel = Kernel::new(half, (PHASES * cutoff).ceil() as usize, cutoff);
++        let step = rate_in / rate_out;
++        let whole = step.floor();
++        Ok(Self { whole: whole as usize, part: step - whole, stream: Stream::new(kernel, 0) })
+     }
+ 
+     pub fn identity(&self) -> bool {
+-        self.step == 1.0
++        self.whole == 1 && self.part == 0.0
+     }
+ 
+     pub fn process(&mut self, x: &[f64]) -> Vec<f64> {
+         if self.identity() {
+             return x.to_vec();
+         }
+-        self.buf.extend_from_slice(x);
+-        let end = self.base + self.buf.len() as i64;
+         let mut out = Vec::new();
+-        while (self.t.floor() as i64) + self.half < end {
+-            let c = self.t.floor() as i64;
+-            let mut acc = 0.0;
+-            for i in (c - self.half + 1).max(self.base)..=c + self.half {
+-                let u = self.t - i as f64;
+-                let a = PI * self.cutoff * u;
+-                let s = if a.abs() < 1e-12 { 1.0 } else { a.sin() / a };
+-                acc += self.buf[(i - self.base) as usize]
+-                    * self.cutoff
+-                    * s
+-                    * kaiser(u / self.half as f64, self.window_norm);
+-            }
+-            out.push(acc);
+-            self.t += self.step;
+-        }
+-        let keep_from = (self.t.floor() as i64 - self.half).max(self.base);
+-        self.buf.drain(..(keep_from - self.base) as usize);
+-        self.base = keep_from;
++        self.stream.run(x, self.whole, self.part, &mut out);
+         out
+     }
+ 
+@@ -82,7 +134,7 @@ impl Resampler {
+         if self.identity() {
+             return Vec::new();
+         }
+-        self.process(&vec![0.0; self.half as usize + 1])
++        self.process(&vec![0.0; self.stream.half() + 1])
+     }
+ }
+ 
+@@ -90,16 +142,51 @@ impl Resampler {
+ mod tests {
+     use super::*;
+ 
+-    #[test]
+-    fn upsampled_tone_keeps_frequency_and_level() {
+-        let tone = |fs: f64, n: usize| (0..n).map(|i| (2.0 * PI * 1500.0 * i as f64 / fs).sin()).collect::<Vec<_>>();
+-        let mut r = Resampler::new(12000.0, 48000.0).unwrap();
+-        let y = r.process(&tone(12000.0, 12000));
+-        let want = tone(48000.0, y.len());
++    fn tone(hz: f64, fs: f64, n: usize) -> Vec<f64> {
++        (0..n).map(|i| (2.0 * PI * hz * i as f64 / fs).sin()).collect()
++    }
++
++    fn run(r: &mut Resampler, x: &[f64], chunk: usize) -> Vec<f64> {
++        let mut y: Vec<f64> = x.chunks(chunk).flat_map(|c| r.process(c)).collect();
++        y.extend(r.flush());
++        y
++    }
++
++    fn check(rate_in: f64, rate_out: f64, hz: f64) {
++        let mut r = Resampler::new(rate_in, rate_out).unwrap();
++        let y: Vec<f64> = tone(hz, rate_in, rate_in as usize).chunks(4096).flat_map(|c| r.process(c)).collect();
++        let want = tone(hz, rate_out, y.len());
+         let err: f64 = y[400..y.len() - 400].iter().zip(&want[400..]).map(|(a, b)| (a - b).powi(2)).sum::<f64>()
+             / (y.len() - 800) as f64;
+-        assert!((y.len() as i64 - 48000).abs() < 200, "{}", y.len());
+-        assert!(err < 1e-6, "{err}");
++        let at = format!("{rate_in}->{rate_out} {hz} Hz");
++        assert!((y.len() as f64 - rate_out).abs() < 200.0, "{at}: {}", y.len());
++        assert!(err < 1e-6, "{at}: {err}");
++    }
++
++    #[test]
++    fn upsampled_tone_keeps_frequency_and_level() {
++        check(12000.0, 48000.0, 1500.0);
++        check(8000.0, 48000.0, 3000.0);
++    }
++
++    #[test]
++    fn downsampled_tone_keeps_frequency_and_level() {
++        for (rate_in, hz) in
++            [(96000.0, 1500.0), (96000.0, 20000.0), (44100.0, 1500.0), (44100.0, 15000.0), (1e6, 1500.0)]
++        {
++            check(rate_in, 48000.0, hz);
++        }
++    }
++
++    #[test]
++    fn chunking_does_not_change_output() {
++        for (rate_in, rate_out) in [(12000.0, 48000.0), (44100.0, 48000.0), (96000.0, 48000.0)] {
++            let x = tone(1500.0, rate_in, 5000);
++            let whole = run(&mut Resampler::new(rate_in, rate_out).unwrap(), &x, x.len());
++            for chunk in [1, 7, 1000] {
++                assert_eq!(run(&mut Resampler::new(rate_in, rate_out).unwrap(), &x, chunk), whole, "{rate_in} {chunk}");
++            }
++        }
+     }
+ 
+     #[test]

@@ -217,15 +217,19 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
     gateway (KO0OOO, K7EK-10) once the Winlink account works. Upstream reports to post: the VERSION reply (Pat's
     start race), the daemon build's two missing Android hooks, an option for the TNC ports' address, nanorq's and
     oblas's licence files, PUBLIC in TNC.md.
-- **XARA** (github.com/x0rro/xara, MIT, a VARA-compatible modem in Rust; #120): built, experimental, the third
-  Winlink modem (branch gh44-xara, 2026-11-04; the owner's decision of 4 November). v0.1.3 from its release
-  tarballs with a pinned Rust 1.99.1 (tools/xara, its UPSTREAM.md), our patch 0001 for the GUI's modem socket
-  (--audio x6x00, --ptt x6x00), 0002 for the CW ID with any callsign when Pat asks (CWID ON; the owner's decision
-  of 4 November: 0.1.3 identifies only with a US call) and 0003, a call Pat cancels given up at once, its ID on the
+- **XARA** (x0rro's, MIT, a VARA-compatible modem in Rust, discontinued by him on 8 November; NR5P's fork
+  github.com/NR5P/xara since, the owner's decision of 9 November; #120): built, experimental, the third Winlink
+  modem (branch gh44-xara, 2026-11-04; the owner's decision of 4 November), in v0.3.9 as x0rro's v0.1.3 from its
+  release tarballs. Since branch gh54-xara (2026-11-09) NR5P's main bd8300a, from GitHub's tarball of the commit and
+  crates.io, with a pinned Rust 1.99.1 (tools/xara, its UPSTREAM.md): 0001 NR5P's port of x0rro's 0.1.3 modem core
+  (its branch upstream-0.1.3-fixes, not merged), 0002 0.1.3's resampler, our 0003 for the GUI's modem socket
+  (--audio x6x00, --ptt x6x00), 0004 for the CW ID with any callsign when Pat asks (CWID ON; the owner's decision
+  of 4 November: XARA identifies only with a US call) and 0005, a call Pat cancels given up at once, its ID on the
   call's frequency before Pat tunes back. VARA's free speed by default; its `registered` feature is
   compiled in and used only with the Winlink page's VARA HF licence tick box, the user's own statement, which nothing
-  checks. Tested between two stations on a PC only (make modems, eight runs: free, levels 2 to 4; ticked, the
-  highest level 9 to 14).
+  checks. Tested between two stations on a PC (0.1.3: make modems, eight runs: free, levels 2 to 4; ticked, the
+  highest level 9 to 14; NR5P's: without Pat only, free level 4, ticked up to 11; make modems owed, it needs a Pat
+  for the PC); on the air with 0.1.3 (km4gkd, #120).
   - **Bench** (the owner; no air yet): `top -H` on the X6100 and the X6200 with XARA listening and in calls (48 kHz
     f64 DSP next to the GUI; "xara is falling behind real time" in xara.log). The audio path XARA times its
     replies by: path()'s 25/50/80 ms (capture, keying, out) are guesses; measure with XARA's `--record` (a FLAC
@@ -244,15 +248,17 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
     windows, 3 or 4 of them stepping up on the silence. The level before and after a whole session says nothing: on
     the X6100 every key's level is kept, and the session's data keys and the ID's audio move it too. A call
     cancelled in Pat (Dialing..., then the second click that forces it): the ID at once on the call's frequency,
-    Pat's tune back after it (0003; make modems tunes half a second after ABORT).
+    Pat's tune back after it (0005; make modems tunes half a second after ABORT). At many a key's start the first
+    read waits up to 70 ms for an R the GUI no longer sends (as in 0.1.3; NR5P's pump says "audio loop slow while
+    keyed"): listen for a gap at the start of a key in the dummy load's audio; Audio::keyed() could end that wait.
   - **Then on the air**: yo4cil against his own gateway (YO4CIL, VARA and ARDOP on 4 bands), free speed first; a
     test build announced on #120 first.
-  - **Upstream**: 0002 is prepared as a patch for x0rro/xara's main with a PR text (not sent yet); drop 0002 once
-    upstream acts on CWID ON. 0003 is not offered yet (0.1.3 waits the same way with a US call).
-  - **Watch**: 0.1.4, "a significant departure from 0.1.3 (libxara is coming)": 0001 then needs a rebase, or a
-    program of ours that links libxara as x6x00-mercury links Mercury. Its open PRs for slow audio paths (#39 the
-    extra answer lead, #40 the detector before a reply deadline, #38 the ACK margin), #37; any statement by EA5HVK
-    (VARA's author).
+  - **Upstream**: 0004 and 0005 apply to NR5P's main as they are (not offered yet; 0004 was prepared for x0rro
+    with a PR text); drop 0004 once NR5P acts on CWID ON, 0005 once a cancelled call gives up at once there, 0001
+    once NR5P merges upstream-0.1.3-fixes, 0002 once its resampler is 0.1.2's.
+  - **Watch**: NR5P's main (OpenSlot builds its modem from it too). x0rro's 0.1.4 ("libxara") will not come, and
+    his open PRs for slow audio paths (#39 the extra answer lead, #40 the detector before a reply deadline, #38 the
+    ACK margin, #37) went with his repository; any statement by EA5HVK (VARA's author).
 
 ## X6200: the H-22 hand mic's keys (#56)
 

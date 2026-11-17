@@ -1,11 +1,12 @@
 #!/bin/bash
-# OpenX6X00 - XARA (the VARA-compatible HF modem, https://github.com/x0rro/xara) for the radios: one ARMv7
-# binary for the X6100 and the X6200, built with the official Rust toolchain at the pinned version, from the
-# pinned release's source and vendored crates (their SHA-256 checked), with our patches (patches/*.patch, in
-# order) on top: the GUI's Winlink socket as its sound card and PTT (--audio x6x00, --ptt x6x00), its CW ID when
-# Pat asks for one (CWID ON) whatever the callsign, and a call its host cancels given up at once. Its
-# `registered` feature is built in; it does nothing until xara is started with `registered` (the Winlink page's
-# VARA licence tick box, off by default). See UPSTREAM.md.
+# OpenX6X00 - XARA (the VARA-compatible HF modem by x0rro, continued by NR5P: https://github.com/NR5P/xara) for the
+# radios: one ARMv7 binary for the X6100 and the X6200, built with the official Rust toolchain at the pinned version,
+# from the pinned commit's source (GitHub's tarball of it) and the crates its Cargo.lock names (from crates.io), each
+# checked against its SHA-256, with our patches (patches/*.patch, in order) on top: xara 0.1.3's modem core and
+# resampler, the GUI's Winlink socket as its sound card and PTT (--audio x6x00, --ptt x6x00), its CW ID when Pat asks
+# for one (CWID ON) whatever the callsign, and a call its host cancels given up at once. Its `registered` feature is
+# built in; it does nothing until xara is started with `registered` (the Winlink page's VARA licence tick box, off by
+# default). See UPSTREAM.md.
 #
 #   CC=<the radios' gcc> tools/xara/build.sh    prints the binary's path on stdout, and nothing else
 #   tools/xara/build.sh --host                  the same for this PC (x86_64 Linux), for tools/winlink's tests
@@ -14,24 +15,24 @@
 # tree's own cross gcc (glibc 2.36, the GUI's toolchain) and gives the path to the GUI's CMake (-DXARA_BINARY),
 # which installs it as /usr/bin/xara and the doc/ beside it (XARA's licence, the crates' and the Rust standard
 # library's notices) in /usr/share/x6100/licenses/xara. Everything is kept in $HOME/.cache/openx6x00: the toolchain
-# (downloaded once, each part's SHA-256 checked), the release's two tarballs and the binary, under a name made of
-# the XARA version, the Rust version, the target and the hash of the patches, of this script and of the linker. A
-# second run with nothing changed prints that path and downloads nothing.
+# (downloaded once, each part's SHA-256 checked), the source tarball, the crates (cargo's own cache) and the binary,
+# under a name made of the XARA version and commit, the Rust version, the target and the hash of the patches, of
+# this script and of the linker. A second run with nothing changed prints that path and downloads nothing.
 #
 # Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
 set -eo pipefail
 exec 3>&1 1>&2          # stdout is the binary's path only: everything else goes to stderr
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-XARA_VER=0.1.3
-# The signed tag v0.1.3 (e32422a9) is this commit; the tarballs below are the release's, built from it
-XARA_COMMIT=09a9201381b00499ada9d9c816bd05bb8f175705
-XARA_URL=https://github.com/x0rro/xara/releases/download/v$XARA_VER
-# The release's SHA256SUMS (2026-10-31)
-XARA_SRC_SHA256=34f6fce5af2c32eca07359301ba2f58a49d1cc534b2a25b14c9606dcf84fc4cb
-XARA_VENDOR_SHA256=dbac90dc109f2f6ab4d7840cf04e735f784fedd878d370f2d501b0fde8a8ae80
-# The Rust XARA's own releases are built with (its .rust-version), 2026-10-15; the hashes are
-# static.rust-lang.org's (<file>.sha256)
+# NR5P's main on 9 November 2026 (x0rro discontinued XARA on 8 November), the version its Cargo.toml says
+XARA_VER=0.1.2
+XARA_COMMIT=bd8300a36e4f76fae7d561335bf08649474bdc6d
+# GitHub's tarball of the commit (git archive). The SHA-256 is the tar's in it, which gzip's own bytes do not
+# change, and which any clone gives back: git archive --format=tar --prefix=xara-$XARA_COMMIT/ $XARA_COMMIT
+XARA_URL=https://codeload.github.com/NR5P/xara/tar.gz/$XARA_COMMIT
+XARA_TAR_SHA256=3aa6bc2cf8e175b373ded6bde1554b0adf98677bc2cd395c5df803c16c67b520
+# Rust 1.99.1 (2026-10-15), what x0rro's last release (0.1.3) was built with (its .rust-version); NR5P's needs 1.85
+# or newer. The hashes are static.rust-lang.org's (<file>.sha256)
 RUST_VER=1.99.1
 RUST_URL=https://static.rust-lang.org/dist
 RUST_PARTS=(
@@ -72,24 +73,28 @@ PATCHES=("$HERE"/patches/*.patch)
 # The linker is part of the result: its version and target, and its C library's
 KEY=$( (cat "${PATCHES[@]}" "$HERE/build.sh"; "$LINKER" --version | head -1; "$LINKER" -dumpmachine
         cat "$("$LINKER" -print-file-name=libc.so.6)" 2> /dev/null || true) | sha256sum | cut -c1-12)
-OUT=$CACHE/xara/xara-$XARA_VER-rust$RUST_VER-$TARGET-$KEY/xara
+OUT=$CACHE/xara/xara-$XARA_VER-${XARA_COMMIT:0:12}-rust$RUST_VER-$TARGET-$KEY/xara
 
 if [ -x "$OUT" ] && [ -f "$(dirname "$OUT")/doc/LICENSE" ]; then
-    echo "== XARA $XARA_VER (Rust $RUST_VER, $TARGET, patches $KEY): built already"
+    echo "== XARA $XARA_VER, NR5P's ${XARA_COMMIT:0:12} (Rust $RUST_VER, $TARGET, patches $KEY): built already"
     echo "$OUT" >&3
     exit 0
 fi
 mkdir -p "$DL"
 
-fetch() {   # URL FILE SHA256: downloaded once, kept only with the pinned hash
-    [ -f "$2" ] && echo "$3  $2" | sha256sum -c --quiet - 2> /dev/null && return 0
+sha() {     # FILE [tar]: its SHA-256, or with tar the SHA-256 of the tar in the gzip FILE
+    if [ "$2" = tar ]; then gunzip -c "$1" 2> /dev/null; else cat "$1"; fi | sha256sum | cut -d' ' -f1
+}
+
+fetch() {   # URL FILE SHA256 [tar]: downloaded once, kept only with the pinned hash (with tar: of the tar in it)
+    [ -f "$2" ] && [ "$(sha "$2" $4)" = "$3" ] && return 0
     echo "== $1"
     if command -v curl > /dev/null; then
         curl -fsSL --retry 3 -o "$2.tmp.$$" "$1"
     else
         wget -q -O "$2.tmp.$$" "$1"
     fi
-    echo "$3  $2.tmp.$$" | sha256sum -c --quiet - \
+    [ "$(sha "$2.tmp.$$" $4)" = "$3" ] \
         || { echo "tools/xara/build.sh: $1 does not have the pinned SHA-256"; rm -f "$2.tmp.$$"; exit 1; }
     mv -f "$2.tmp.$$" "$2"
 }
@@ -119,16 +124,13 @@ fi
     && [ -d "$RUST/lib/rustlib/$TARGET/lib" ] \
     || { echo "tools/xara/build.sh: $RUST is not Rust $RUST_VER with $TARGET"; exit 1; }
 
-fetch "$XARA_URL/xara-$XARA_VER.tar.xz" "$DL/xara-$XARA_VER.tar.xz" $XARA_SRC_SHA256
-fetch "$XARA_URL/xara-$XARA_VER-vendor.tar.xz" "$DL/xara-$XARA_VER-vendor.tar.xz" $XARA_VENDOR_SHA256
+fetch "$XARA_URL" "$DL/xara-$XARA_COMMIT.tar.gz" $XARA_TAR_SHA256 tar
 
 SRC=$(mktemp -d "$CACHE/xara/src.XXXXXX")
 trap 'rm -rf "$SRC"' EXIT
-echo "== XARA $XARA_VER ($XARA_COMMIT)"
-# The source, and the crates it depends on in vendor/ with the .cargo/config.toml that points cargo at them
-tar xJf "$DL/xara-$XARA_VER.tar.xz" -C "$SRC"
-tar xJf "$DL/xara-$XARA_VER-vendor.tar.xz" -C "$SRC"
-cd "$SRC/xara-$XARA_VER"
+echo "== XARA $XARA_VER, NR5P's commit $XARA_COMMIT"
+tar xzf "$DL/xara-$XARA_COMMIT.tar.gz" -C "$SRC"
+cd "$SRC/xara-$XARA_COMMIT"
 for p in "${PATCHES[@]}"; do
     echo "   $(basename "$p")"
     git apply "$p"
@@ -145,25 +147,46 @@ export "$T_VAR=$LINKER"
 # The binary names neither this build's directory nor the cache's; no symbols (6 MB less)
 export RUSTFLAGS="--remap-path-prefix=$SRC=/build --remap-path-prefix=$CARGO_HOME=/cargo"
 export CARGO_PROFILE_RELEASE_STRIP=symbols
+# Nor from a cargo config file: cargo reads one in each parent of the directory it runs in ($HOME/.cargo/config.toml
+# too, the cache being in $HOME; in the container /work/.brhome/.cargo and /work/.cargo) and in its CARGO_HOME, and
+# one there (a [source] mirror, [build] rustflags or a wrapper, [net] or [http]) would change what is fetched or
+# built. The source's own would be pinned with it; NR5P's has none
+CONFIGS=("$CARGO_HOME/config.toml" "$CARGO_HOME/config")
+d=$(cd .. && pwd -P)
+while :; do
+    CONFIGS+=("${d%/}/.cargo/config.toml" "${d%/}/.cargo/config")
+    [ "$d" = / ] && break
+    d=$(dirname "$d")
+done
+for f in "${CONFIGS[@]}"; do
+    [ ! -e "$f" ] \
+        || { echo "tools/xara/build.sh: cargo would read $f, which can change what it fetches or builds: move it aside"; exit 1; }
+done
 
-echo "== $TARGET binary (offline: the vendored crates, Cargo.lock as it is)"
+# The crates Cargo.lock names for this target, from crates.io into cargo's cache (once): cargo takes each one only
+# with the SHA-256 the lock gives it, and the lock is the pinned source's
+echo "== the crates (Cargo.lock as it is, each checked against its SHA-256 there)"
+cargo fetch --locked --target $TARGET
+
+echo "== $TARGET binary (offline: the crates fetched, Cargo.lock as it is)"
 # No PulseAudio or ALSA (the radio's audio is the GUI's); the socket backend (x6x00) and registered
 cargo build --frozen --release -p xara --bin xara --target $TARGET --no-default-features --features registered,x6x00
 BIN=$SRC/target/$TARGET/release/xara
 
-# The notices that go with the binary: XARA's licence, each crate compiled in (cargo tree, the vendored copy's MIT
-# text: they are all MIT, some also Apache-2.0, Zlib or 0BSD, at the user's choice) and the Rust standard library's
+# The notices that go with the binary: XARA's licence, each crate compiled in (cargo tree, the crate's own MIT text:
+# they are all MIT, some also Apache-2.0, Zlib or 0BSD, at the user's choice) and the Rust standard library's
 DOC=$SRC/doc
 mkdir "$DOC"
 cp LICENSE "$DOC/LICENSE"
 CRATES=$(cargo tree --frozen -e normal --target $TARGET -p xara --no-default-features --features registered,x6x00 \
              --prefix none | sed 's/ (\*)$//' | grep -v '^xara' | sort -u)
 {
-    echo "XARA $XARA_VER, as built for OpenX6X00 (tools/xara), contains these crates, each used here under its"
-    echo "MIT licence, and the Rust standard library of Rust $RUST_VER (Apache-2.0 OR MIT; its notices in"
-    echo "rust-std-COPYRIGHT.html.gz)."
+    echo "XARA $XARA_VER (NR5P's, commit ${XARA_COMMIT:0:12}), as built for OpenX6X00 (tools/xara), contains these"
+    echo "crates, each used here under its MIT licence, and the Rust standard library of Rust $RUST_VER (Apache-2.0"
+    echo "OR MIT; its notices in rust-std-COPYRIGHT.html.gz)."
     while read -r name ver; do
-        d=vendor/$name
+        d=$(ls -d "$CARGO_HOME"/registry/src/*/"$name-${ver#v}" 2> /dev/null | head -1 || true)
+        [ -n "$d" ] || { echo "tools/xara/build.sh: no source of $name $ver in $CARGO_HOME" >&2; exit 1; }
         lic=$(sed -n 's/^license = "\(.*\)"$/\1/p' "$d/Cargo.toml")
         f=""
         for c in LICENSE-MIT LICENSE-MIT.md LICENSE; do

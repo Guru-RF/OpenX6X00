@@ -1,6 +1,6 @@
-From 14d5d4f829e6498376b3592741cdc95b4af9f6a6 Mon Sep 17 00:00:00 2001
+From 031bafba400ae676a4f1d43fcc328ff06f25f8fd Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
-Date: Wed, 4 Nov 2026 14:00:00 +0100
+Date: Mon, 9 Nov 2026 14:01:12 +0100
 Subject: [PATCH] audio, ptt: the X6100/X6200 radio's own software as the sound
  card and PTT (OpenX6X00)
 
@@ -20,170 +20,199 @@ sends it as T only between a P 1 and its P 0, which the PTT sends under
 the same lock, so a transmission is exactly what the GUI was asked to
 key; what the pump writes in the moment before the PTT thread keys is
 held and sent right after the P 1. P 0 makes the GUI play out every T it
-has, then unkey. path() gives the capture (the GUI's 20 ms fragments and
+has, then unkey. The path is the capture (the GUI's 20 ms fragments and
 the resamplers), the key (the GUI's checks and the base) and the GUI's
-playback stream as constants, 25, 50 and 80 ms until they are measured on
-the radios; --x6x00-path-ms CAPTURE,KEYING,OUT sets them. No rate
-matching: queue false.
+playback stream, as constants, 25, 50 and 80 ms until they are measured
+on the radios; --x6x00-path-ms CAPTURE,KEYING,OUT sets them. latency()
+gives all three, the round trip the modem allows for, and the new
+capture_latency() the capture's, which goes to the scheduler's rx_lag:
+the PTT is held after a transmission for the keying and the playback
+only, as xara 0.1.3 held it. The capture waiting to be read is said in
+0.1.3's words past 100 ms and at each doubling ("xara is falling behind
+real time"), which this fork's pump does not say.
 
-main.rs checks the options together, as upstream does for its
-serial-radio backend (one socket for both, --ptt x6x00 with --audio
-x6x00 and the other way round, no --tx-buffer-ms) and gives the PTT from
-the backend. With --audio x6x00 the station starts with listening off:
-it answers no call until its host sends LISTEN ON, which Pat does only
-to listen. XARA runs from the radio's start and has no host until Pat
-calls out, so an answer would key the radio with nobody there. With unit
-tests on a fake GUI (the hello, R paced and resampled, zeros while keyed
-and without the GUI, T only between P 1 and P 0, the held first block, a
-GUI that goes and comes back, one that closes at once tried once a
-second, the stop's P 0) and main.rs's own (a call to a station made for
-the radio is not answered, the same station with another backend answers
-it). One upstream test assumed the default backend is built, which in a
-build with x6x00 alone it is not.
+daemon.rs checks the options together, as for the (tr)uSDX (one socket
+for both, --ptt x6x00 with --audio x6x00 and the other way round) and
+takes the PTT from the backend, through the new Audio::ptt(). With
+--audio x6x00 the station starts with listening off: it answers no call
+until its host sends LISTEN ON, which Pat does only to listen. XARA runs
+from the radio's start and has no host until Pat calls out, so an answer
+would key the radio with nobody there. With unit tests on a fake GUI
+(the hello, R paced and resampled, zeros while keyed and without the
+GUI, T only between P 1 and P 0, the held first block, a GUI that goes
+and comes back, one that closes at once tried once a second, the stop's
+P 0, the latency, the backlog said) and daemon.rs's own (a call to a
+station made for the radio is not answered, the same station with
+another backend answers it).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
- README.md                      |   4 +
- crates/xara/Cargo.toml         |   1 +
- crates/xara/src/audio/mod.rs   |  18 +-
- crates/xara/src/audio/x6x00.rs | 710 +++++++++++++++++++++++++++++++++
- crates/xara/src/main.rs        | 114 +++++-
- crates/xara/src/ptt.rs         |   7 +
- 6 files changed, 850 insertions(+), 4 deletions(-)
+ README.md                      |   6 +-
+ crates/xara/Cargo.toml         |   2 +
+ crates/xara/src/audio/mod.rs   |  33 +-
+ crates/xara/src/audio/x6x00.rs | 788 +++++++++++++++++++++++++++++++++
+ crates/xara/src/daemon.rs      | 114 ++++-
+ crates/xara/src/ptt.rs         |   8 +-
+ 6 files changed, 944 insertions(+), 7 deletions(-)
  create mode 100644 crates/xara/src/audio/x6x00.rs
 
 diff --git a/README.md b/README.md
-index d41b358..c1b8fcd 100644
+index 101362c..e68eaaf 100644
 --- a/README.md
 +++ b/README.md
-@@ -62,6 +62,8 @@ container on x86_64:
+@@ -159,7 +159,9 @@ see [android/README.md](android/README.md) for the details.
      --call CALL             your callsign (required)
  
-     --audio BACKEND         pulse, alsa or coreaudio; default pulse on linux/bsd and coreaudio on macOS
-+                            (x6x00: the X6100/X6200 radio's own software, OpenX6X00's build only;
-+                            it answers no call until its host sends LISTEN ON)
-     --list-devices          list capture and playback devices for --audio
+     --audio pulse|alsa|coreaudio|wasapi|trusdx  audio path (coreaudio on macOS,
+-                            wasapi on Windows)
++                            wasapi on Windows; x6x00: the X6100/X6200 radio's
++                            own software, OpenX6X00's build only; it answers
++                            no call until its host sends LISTEN ON)
+     --list-devices          list capture and playback devices, then exit
      --capture SOURCE        audio source
      --playback SINK         audio sink
-@@ -117,6 +119,8 @@ summary of settings:
-     --ptt cm108:DEV[:GPIO]      cm108/cm119 HID GPIO (default GPIO: 3)
-     --ptt cm108:VID:PID[:GPIO]  cm108/cm119 by hex USB id (stable across boots)
-     --ptt rigctld[:HOST:PORT]   hamlib rigctld CAT on HOST:PORT
+@@ -227,6 +229,8 @@ summary of settings:
+     --ptt tone[:HZ]             a tone on the right channel (default 1000 Hz), for
+                                 interfaces that key from audio (Digirig Lite);
+                                 macOS, iOS and Android
 +    --ptt x6x00                 the X6100/X6200 radio's own software, with --audio x6x00
 +    --x6x00-path-ms C,K,O       --audio x6x00's capture, keying and output latency (default 25,50,80)
  
      --ptt-lead-ms N             PTT held for N ms before xmit (default: 0)
      --ptt-tail-ms N             PTT held for N ms after xmit (default: 100)
 diff --git a/crates/xara/Cargo.toml b/crates/xara/Cargo.toml
-index 02bf173..ae1ead6 100644
+index 29fe432..7843e54 100644
 --- a/crates/xara/Cargo.toml
 +++ b/crates/xara/Cargo.toml
-@@ -28,5 +28,6 @@ pulse = []
+@@ -32,5 +32,7 @@ pulse = []
  alsa = ["dep:alsa-sys"]
+ # Registered VARA speeds, built in as in the apps; on only with --registered, for a user with a VARA licence.
  registered = []
- trusdx = []
++# The X6100/X6200 radio's own software as the sound card and PTT (--audio x6x00, --ptt x6x00): OpenX6X00's build.
 +x6x00 = []
  fixed-turbo = ["xara-phy/fixed-turbo"]
  float-turbo = ["xara-phy/float-turbo"]
 diff --git a/crates/xara/src/audio/mod.rs b/crates/xara/src/audio/mod.rs
-index 2defe71..44d5cec 100644
+index 912f1c5..b2eb0a6 100644
 --- a/crates/xara/src/audio/mod.rs
 +++ b/crates/xara/src/audio/mod.rs
-@@ -14,8 +14,10 @@ pub mod ratematch;
- #[cfg(feature = "trusdx")]
+@@ -16,8 +16,10 @@ pub mod tone;
  pub mod trusdx;
- pub mod txpath;
+ #[cfg(wasapi)]
+ pub mod wasapi;
 +#[cfg(feature = "x6x00")]
 +pub mod x6x00;
  
--#[cfg(not(any(pulse, alsa, coreaudio, feature = "trusdx")))]
-+#[cfg(not(any(pulse, alsa, coreaudio, feature = "trusdx", feature = "x6x00")))]
- compile_error!("xara needs an audio backend: enable the pulse or alsa feature, or build on macOS for CoreAudio");
+-#[cfg(not(any(pulse, alsa, coreaudio, aaudio, wasapi)))]
++#[cfg(not(any(pulse, alsa, coreaudio, aaudio, wasapi, feature = "x6x00")))]
+ compile_error!(
+     "xara needs an audio backend: enable the pulse or alsa feature (Linux), or build for macOS, iOS, Android or Windows"
+ );
+@@ -28,6 +30,7 @@ use std::time::Duration;
  
- use std::collections::VecDeque;
-@@ -171,6 +173,7 @@ pub enum Backend {
-     Alsa,
-     CoreAudio,
+ pub const RATE: u32 = 48000;
+ pub const BLOCK: usize = 480;
++#[cfg_attr(not(any(pulse, alsa, coreaudio, aaudio, wasapi)), allow(dead_code))]
+ pub(crate) const STALL: Duration = Duration::from_secs(1);
+ 
+ pub type DeviceList = Vec<(String, String)>;
+@@ -60,6 +63,17 @@ pub trait Audio {
+         0
+     }
+ 
++    /// Of latency(), the capture side: what the modem hears happened that much earlier, so the PTT
++    /// is held after a transmission only for the rest. 0 when the backend knows the round trip only.
++    fn capture_latency(&self) -> usize {
++        0
++    }
++
++    /// The PTT of a backend that keys the radio itself (--ptt x6x00 with --audio x6x00).
++    fn ptt(&self) -> Option<Box<dyn crate::ptt::Ptt>> {
++        None
++    }
++
+     /// Whether the block about to be written goes out keyed (the modem is transmitting, so
+     /// what capture hears doesn't matter). Said before each write.
+     fn keyed(&mut self, _on: bool) {}
+@@ -158,6 +172,8 @@ pub enum Backend {
+     Wasapi,
+     /// A (tr)uSDX's audio inside its CAT serial stream, on any platform.
      Trusdx,
++    /// The X6100/X6200 radio's own software, through its GUI's Winlink modem socket (OpenX6X00).
 +    X6x00,
  }
  
  impl Default for Backend {
-@@ -194,6 +197,7 @@ impl std::str::FromStr for Backend {
-             "alsa" => Self::Alsa,
-             "coreaudio" => Self::CoreAudio,
+@@ -187,7 +203,10 @@ impl std::str::FromStr for Backend {
+             "aaudio" => Self::AAudio,
+             "wasapi" => Self::Wasapi,
              "trusdx" => Self::Trusdx,
+-            _ => return Err(format!("--audio {s:?}: expected pulse, alsa, coreaudio, aaudio, wasapi or trusdx")),
 +            "x6x00" => Self::X6x00,
-             _ => {
-                 let built: Vec<_> = Self::ALL.into_iter().filter(|b| b.built()).map(Self::name).collect();
-                 return Err(format!("--audio {s:?}: expected {}", crate::cli::either(&built)));
-@@ -204,7 +208,7 @@ impl std::str::FromStr for Backend {
- }
- 
- impl Backend {
--    const ALL: [Self; 4] = [Self::Pulse, Self::Alsa, Self::CoreAudio, Self::Trusdx];
-+    const ALL: [Self; 5] = [Self::Pulse, Self::Alsa, Self::CoreAudio, Self::Trusdx, Self::X6x00];
- 
-     pub fn built(self) -> bool {
-         match self {
-@@ -212,6 +216,7 @@ impl Backend {
-             Self::Alsa => cfg!(alsa),
-             Self::CoreAudio => cfg!(coreaudio),
-             Self::Trusdx => cfg!(feature = "trusdx"),
++            _ => {
++                return Err(format!("--audio {s:?}: expected pulse, alsa, coreaudio, aaudio, wasapi, trusdx or x6x00"));
++            }
+         };
+         if b.built() { Ok(b) } else { Err(format!("--audio {s}: {}", unbuilt_why(b))) }
+     }
+@@ -202,6 +221,7 @@ impl Backend {
+             Self::AAudio => cfg!(aaudio),
+             Self::Wasapi => cfg!(wasapi),
+             Self::Trusdx => true,
 +            Self::X6x00 => cfg!(feature = "x6x00"),
          }
      }
  
-@@ -221,6 +226,7 @@ impl Backend {
-             Self::Alsa => "alsa",
-             Self::CoreAudio => "coreaudio",
+@@ -213,6 +233,7 @@ impl Backend {
+             Self::AAudio => "aaudio",
+             Self::Wasapi => "wasapi",
              Self::Trusdx => "trusdx",
 +            Self::X6x00 => "x6x00",
          }
      }
  }
-@@ -257,6 +263,8 @@ pub fn open(
-         Backend::CoreAudio => Ok(Box::new(coreaudio::CoreAudioIo::open(capture, playback, radio, tx)?)),
-         #[cfg(feature = "trusdx")]
-         Backend::Trusdx => Ok(Box::new(trusdx::TrusdxIo::open(capture, playback, radio, speaker)?)),
+@@ -245,6 +266,8 @@ pub fn open(b: Backend, capture: &str, playback: &str, radio: bool) -> io::Resul
+         #[cfg(wasapi)]
+         Backend::Wasapi => Ok(Box::new(wasapi::WasapiIo::open(capture, playback, radio)?)),
+         Backend::Trusdx => Ok(Box::new(trusdx::TrusdxIo::open(capture, playback, radio)?)),
 +        #[cfg(feature = "x6x00")]
 +        Backend::X6x00 => Ok(Box::new(x6x00::X6x00Io::open(capture, playback, radio)?)),
+         #[cfg(not(all(pulse, alsa, coreaudio, aaudio, wasapi)))]
          _ => Err(unbuilt(b)),
      }
- }
-@@ -272,6 +280,8 @@ pub fn check_playback(b: Backend, playback: &str, radio: bool) -> io::Result<()>
-         Backend::CoreAudio => coreaudio::check(playback, radio),
-         #[cfg(feature = "trusdx")]
-         Backend::Trusdx => trusdx::check(playback),
+@@ -263,6 +286,8 @@ pub fn check_playback(b: Backend, playback: &str, radio: bool) -> io::Result<()>
+         #[cfg(wasapi)]
+         Backend::Wasapi => wasapi::check(playback, radio),
+         Backend::Trusdx => trusdx::check(playback, radio),
 +        #[cfg(feature = "x6x00")]
 +        Backend::X6x00 => x6x00::check(playback),
+         #[cfg(not(all(pulse, alsa, coreaudio, aaudio, wasapi)))]
          _ => Err(unbuilt(b)),
      }
- }
-@@ -286,6 +296,8 @@ pub fn list(b: Backend) -> io::Result<(DeviceList, DeviceList)> {
-         Backend::CoreAudio => coreaudio::list(),
-         #[cfg(feature = "trusdx")]
+@@ -281,6 +306,8 @@ pub fn list(b: Backend) -> io::Result<(DeviceList, DeviceList)> {
+         #[cfg(wasapi)]
+         Backend::Wasapi => wasapi::list(),
          Backend::Trusdx => trusdx::list(),
 +        #[cfg(feature = "x6x00")]
 +        Backend::X6x00 => x6x00::list(),
+         #[cfg(not(all(pulse, alsa, coreaudio, aaudio, wasapi)))]
          _ => Err(unbuilt(b)),
      }
- }
-@@ -300,6 +312,8 @@ pub fn open_capture(b: Backend, capture: &str) -> io::Result<Box<dyn Audio>> {
-         Backend::CoreAudio => Ok(Box::new(coreaudio::CoreAudioIo::open_capture(capture)?)),
-         #[cfg(feature = "trusdx")]
+@@ -299,6 +326,8 @@ pub fn open_capture(b: Backend, capture: &str) -> io::Result<Box<dyn Audio>> {
+         #[cfg(wasapi)]
+         Backend::Wasapi => Ok(Box::new(wasapi::WasapiIo::open_capture(capture)?)),
          Backend::Trusdx => Ok(Box::new(trusdx::TrusdxIo::open_capture(capture)?)),
 +        #[cfg(feature = "x6x00")]
 +        Backend::X6x00 => Ok(Box::new(x6x00::X6x00Io::open_capture(capture)?)),
+         #[cfg(not(all(pulse, alsa, coreaudio, aaudio, wasapi)))]
          _ => Err(unbuilt(b)),
      }
- }
 diff --git a/crates/xara/src/audio/x6x00.rs b/crates/xara/src/audio/x6x00.rs
 new file mode 100644
-index 0000000..c15ebe7
+index 0000000..197f877
 --- /dev/null
 +++ b/crates/xara/src/audio/x6x00.rs
-@@ -0,0 +1,710 @@
+@@ -0,0 +1,788 @@
 +//! OpenX6X00: the radio's own software (the GUI) as the sound card and the PTT, on the X6100 and the X6200
 +//! (`--audio x6x00 --ptt x6x00`). A patch of OpenX6X00's, under XARA's MIT licence.
 +//!
@@ -201,19 +230,21 @@ index 0000000..c15ebe7
 +//! and its P 0, sent under one lock with them; what XARA writes in the moment before its PTT thread keys is held
 +//! and sent right after the P 1. A thread connects, and again every second while the GUI is not there; XARA runs
 +//! on meanwhile and a key goes nowhere (the GUI cuts a transmission whose client goes).
++//!
++//! XARA allows for the path by latency(), the round trip, and capture_latency(), its capture side, which the PTT
++//! is not held for (PATH_MS until they are measured on the radios). A capture waiting to be read past 100 ms is
++//! said, and again at each doubling, as xara 0.1.3 did for every backend: the radio's processor short for XARA.
 +
 +use std::collections::VecDeque;
 +use std::io;
 +use std::mem::size_of;
 +use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 +use std::sync::atomic::{AtomicBool, Ordering};
-+use std::sync::{Arc, Condvar, Mutex, PoisonError};
++use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 +use std::thread::{self, JoinHandle};
 +use std::time::{Duration, Instant};
 +
-+use super::ratematch::Queue;
-+use super::{Audio, DeviceList, Path, RATE, capture_only, quantize, sample};
-+use crate::lock;
++use super::{Audio, DeviceList, RATE, capture_only, quantize, sample};
 +use crate::ptt::Ptt;
 +use crate::resample::Resampler;
 +
@@ -238,9 +269,46 @@ index 0000000..c15ebe7
 +pub const PATH_MS: [usize; 3] = [25, 50, 80];
 +static PATH: Mutex<[usize; 3]> = Mutex::new(PATH_MS);
 +
-+/// capture, keying and out of path(), in ms: `--x6x00-path-ms`
++// The capture waiting to be read that is said first (then at each doubling): xara 0.1.3's audio::Behind
++const BEHIND: usize = RATE as usize / 10;
++
++/// capture, keying and out of the path, in ms: `--x6x00-path-ms`
 +pub fn set_path_ms(ms: [usize; 3]) {
 +    *lock(&PATH) = ms;
++}
++
++fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
++    m.lock().unwrap_or_else(PoisonError::into_inner)
++}
++
++fn ms(n: usize) -> usize {
++    n * (RATE / 1000) as usize
++}
++
++/// The capture backlog's reports, as xara 0.1.3's pump made them for every backend: past 100 ms, then each time
++/// it doubles; a backlog there at the start only once it has drained or grown by 100 ms
++struct Behind {
++    report: usize,
++    start: Option<usize>,
++    armed: bool,
++}
++
++impl Behind {
++    fn new() -> Self {
++        Self { report: BEHIND, start: None, armed: false }
++    }
++
++    fn over(&mut self, n: usize) -> Option<usize> {
++        let start = *self.start.get_or_insert(n);
++        self.armed |= n < BEHIND || n >= start + BEHIND;
++        if !self.armed || n < self.report {
++            return None;
++        }
++        while self.report <= n {
++            self.report *= 2;
++        }
++        Some(n)
++    }
 +}
 +
 +fn message(kind: u8, arg: u8, s: &[i16]) -> Vec<u8> {
@@ -500,6 +568,7 @@ index 0000000..c15ebe7
 +    down: Resampler,
 +    last: Option<Instant>,
 +    x: Vec<f64>,
++    behind: Behind,
 +}
 +
 +impl X6x00Io {
@@ -520,7 +589,12 @@ index 0000000..c15ebe7
 +        let l = link.clone();
 +        let reader = Some(thread::Builder::new().name("x6x00".into()).spawn(move || l.run())?);
 +        let down = Resampler::new(f64::from(RATE), f64::from(GUI_RATE)).expect("the GUI's rate");
-+        Ok(Self { link, playback, radio, reader, down, last: None, x: Vec::new() })
++        Ok(Self { link, playback, radio, reader, down, last: None, x: Vec::new(), behind: Behind::new() })
++    }
++
++    /// The capture waiting to be read, at 48 kHz
++    pub fn backlog(&self) -> usize {
++        lock(&self.link.rx).pcm.len()
 +    }
 +}
 +
@@ -544,9 +618,16 @@ index 0000000..c15ebe7
 +        for (o, s) in x.iter_mut().zip(rx.pcm.drain(..n).chain(std::iter::repeat(0))) {
 +            *o = s;
 +        }
++        let left = rx.pcm.len();
 +        drop(rx);
 +        let now = Instant::now();
 +        self.last = Some(if n == x.len() || now > due + STREAMING { now } else { due });
++        if let Some(n) = self.behind.over(left) {
++            say!(
++                "audio: {} ms of capture waiting to be read (xara is falling behind real time: CPU overload?)",
++                n * 1000 / RATE as usize
++            );
++        }
 +        Ok(())
 +    }
 +
@@ -572,22 +653,13 @@ index 0000000..c15ebe7
 +        Ok(())
 +    }
 +
-+    fn queued(&mut self) -> io::Result<Option<Queue>> {
-+        if !self.playback {
-+            return Err(capture_only());
-+        }
-+        Ok(None)
-+    }
-+
-+    fn backlog(&mut self) -> io::Result<Option<usize>> {
-+        Ok(Some(lock(&self.link.rx).pcm.len()))
-+    }
-+
-+    fn path(&mut self) -> io::Result<Path> {
++    fn latency(&self) -> usize {
 +        let [capture, keying, out] = *lock(&PATH);
-+        let ms = |n: usize| n * (RATE / 1000) as usize;
-+        let tx = |n: usize| if self.radio { ms(n) } else { 0 };
-+        Ok(Path { capture: Some(ms(capture)), keying: tx(keying), out: tx(out), queue: false })
++        ms(capture) + if self.radio { ms(keying) + ms(out) } else { 0 }
++    }
++
++    fn capture_latency(&self) -> usize {
++        ms(lock(&PATH)[0])
 +    }
 +
 +    fn ptt(&self) -> Option<Box<dyn Ptt>> {
@@ -732,7 +804,7 @@ index 0000000..c15ebe7
 +        for k in 0..25 {
 +            gui.rx(&tone(240, 1000.0, 12000.0, 240 * k));
 +            thread::sleep(Duration::from_millis(20));
-+            while io.backlog().unwrap().unwrap() >= BLOCK {
++            while io.backlog() >= BLOCK {
 +                io.read(&mut x).unwrap();
 +                got.extend_from_slice(&x);
 +            }
@@ -815,7 +887,7 @@ index 0000000..c15ebe7
 +        ptt.set(false).unwrap();
 +        ptt.set(true).unwrap();
 +        assert_eq!(gui.all(SOON), vec![(b'P', 1, vec![])]);
-+        ptt.release().unwrap();
++        ptt.set(false).unwrap();
 +        assert_eq!(gui.all(SOON), vec![(b'P', 0, vec![])]);
 +    }
 +
@@ -881,40 +953,75 @@ index 0000000..c15ebe7
 +    }
 +
 +    #[test]
-+    fn a_path_takes_the_constants_and_x6x00_needs_one_socket() {
++    fn the_latency_takes_the_constants_and_x6x00_needs_one_socket() {
 +        let gui = Gui::new("path");
-+        let mut io = X6x00Io::open(&gui.path, &gui.path, true).unwrap();
-+        let p = io.path().unwrap();
-+        let ms = |n: usize| n * 48;
-+        assert_eq!(p, Path { capture: Some(ms(25)), keying: ms(50), out: ms(80), queue: false });
++        let io = X6x00Io::open(&gui.path, &gui.path, true).unwrap();
++        assert_eq!((io.latency(), io.capture_latency()), (155 * 48, 25 * 48), "25 + 50 + 80 ms, the capture's 25");
 +        let mut rx = X6x00Io::open_capture(&gui.path).unwrap();
-+        assert_eq!(rx.path().unwrap(), Path { capture: Some(ms(25)), keying: 0, out: 0, queue: false });
++        assert_eq!((rx.latency(), rx.capture_latency()), (25 * 48, 25 * 48));
 +        assert!(rx.write(&[0; BLOCK]).is_err() && rx.ptt().is_none());
 +        assert!(X6x00Io::open(&gui.path, "/run/other.sock", true).is_err());
 +        assert!(X6x00Io::open("ardop.sock", "ardop.sock", true).is_err());
 +    }
++
++    fn reports(ms: &[usize]) -> Vec<usize> {
++        let (mut b, k) = (Behind::new(), RATE as usize / 1000);
++        ms.iter().filter_map(|&m| b.over(m * k)).map(|n| n / k).collect()
++    }
++
++    #[test]
++    fn a_capture_backlog_is_said_at_doubling_thresholds() {
++        assert_eq!(reports(&[0, 10, 21, 99, 0]), Vec::<usize>::new());
++        assert_eq!(
++            reports(&[0, 100, 150, 199, 0, 100, 200, 390, 400, 0, 1000, 1500, 1600]),
++            [100, 200, 400, 1000, 1600]
++        );
++        assert_eq!(reports(&[10, 180, 199]), [180]);
++        // one there at the start only once it has drained or grown
++        assert_eq!(reports(&[300, 250, 150, 100, 60, 0, 120]), [120]);
++        assert_eq!(reports(&[300, 250, 150, 99, 100]), [100]);
++        assert_eq!(reports(&[300, 320, 390, 400, 420, 800]), [400, 800]);
++    }
++
++    #[test]
++    fn a_reader_that_falls_behind_is_said() {
++        let (gui, mut io, _ptt) = connected("behind");
++        gui.take(WAIT);
++        let mut x = [0i16; BLOCK];
++        gui.rx(&tone(240, 1000.0, 12000.0, 0));
++        thread::sleep(SOON);
++        io.read(&mut x).unwrap();
++        assert_eq!(io.behind.report, BEHIND, "a 20 ms block waiting: nothing said");
++        for k in 1..9 {
++            gui.rx(&tone(240, 1000.0, 12000.0, 240 * k));
++        }
++        thread::sleep(SOON);
++        io.read(&mut x).unwrap();
++        assert!(io.backlog() > BEHIND && io.backlog() < 2 * BEHIND, "{}", io.backlog());
++        assert_eq!(io.behind.report, 2 * BEHIND, "past 100 ms waiting to be read: said, next at 200 ms");
++    }
 +}
-diff --git a/crates/xara/src/main.rs b/crates/xara/src/main.rs
-index 4512a32..9841b6b 100644
---- a/crates/xara/src/main.rs
-+++ b/crates/xara/src/main.rs
-@@ -62,6 +62,7 @@ struct Args {
-     ptt: Option<PttSpec>,
-     timing: PttTiming,
-     trusdx_speaker: bool,
+diff --git a/crates/xara/src/daemon.rs b/crates/xara/src/daemon.rs
+index 64b4722..4a997b7 100644
+--- a/crates/xara/src/daemon.rs
++++ b/crates/xara/src/daemon.rs
+@@ -59,6 +59,7 @@ struct Args {
+     /// Delay in the audio path that xara does not add itself (a phone's own speaker and mic,
+     /// a network audio link): allowed for in its timing, with nothing inserted.
+     audio_latency: Duration,
 +    x6x00_path_ms: Option<[usize; 3]>,
      record: Option<PathBuf>,
-     log: Option<PathBuf>,
-     hf_given: bool,
-@@ -99,6 +100,7 @@ fn defaults() -> Args {
+     /// A text log of everything xara logs, its frames and once a second the audio levels.
+     debug_log: Option<PathBuf>,
+@@ -98,6 +99,7 @@ fn defaults() -> Args {
          ptt: None,
          timing: PttTiming::default(),
-         trusdx_speaker: false,
+         audio_latency: Duration::ZERO,
 +        x6x00_path_ms: None,
          record: None,
-         log: None,
+         debug_log: None,
          hf_given: false,
-@@ -106,6 +108,22 @@ fn defaults() -> Args {
+@@ -107,6 +109,22 @@ fn defaults() -> Args {
      }
  }
  
@@ -937,26 +1044,26 @@ index 4512a32..9841b6b 100644
  fn take(a: &mut Args, k: &str, mut v: impl FnMut() -> Result<String, String>) -> Result<(), String> {
      if a.ui.take(k, &mut v)? {
          return Ok(());
-@@ -160,6 +178,8 @@ fn take(a: &mut Args, k: &str, mut v: impl FnMut() -> Result<String, String>) ->
+@@ -159,6 +177,8 @@ fn take(a: &mut Args, k: &str, mut v: impl FnMut() -> Result<String, String>) ->
+         "--ptt-tail-ms" => a.timing.tail = Duration::from_millis(num(k, &v()?)?),
          "--ptt-max-s" => a.timing.max_on = Duration::from_secs(num(k, &v()?)?),
-         #[cfg(feature = "trusdx")]
-         "--trusdx-speaker" => a.trusdx_speaker = true,
+         "--audio-latency-ms" => a.audio_latency = Duration::from_millis(num(k, &v()?)?),
 +        #[cfg(feature = "x6x00")]
 +        "--x6x00-path-ms" => a.x6x00_path_ms = Some(path_ms(k, &v()?)?),
          "--record" => a.record = Some(PathBuf::from(v()?)),
-         "--log" => a.log = Some(PathBuf::from(v()?)),
-         "--list-devices" => a.list_devices = true,
+         "--debug-log" => a.debug_log = Some(PathBuf::from(v()?)),
+         "--monitor" => a.monitor = true,
 @@ -170,6 +190,7 @@ fn take(a: &mut Args, k: &str, mut v: impl FnMut() -> Result<String, String>) ->
+         "--registered" => return Err("not built with registered features".into()),
          #[cfg(feature = "registered")]
          "--offer-level" => a.offer_level = Some(num(k, &v()?)?),
-         _ if k == "--trusdx-speaker" => return Err(format!("{k}: xara was built without the trusdx feature")),
 +        _ if k == "--x6x00-path-ms" => return Err(format!("{k}: xara was built without the x6x00 feature")),
          _ => return Err(format!("unknown option {k}")),
      }
      Ok(())
-@@ -252,6 +273,21 @@ fn check(a: &Args) -> Result<(), String> {
-     if trusdx && a.tx_buffer_ms.is_some() {
-         return Err("--tx-buffer-ms does not apply to --audio trusdx".into());
+@@ -282,6 +303,18 @@ fn check(a: &Args) -> Result<(), String> {
+     if matches!(a.ptt, Some(PttSpec::Tone(_))) && !matches!(a.audio, Backend::CoreAudio | Backend::AAudio) {
+         return Err("--ptt tone plays on Core Audio (macOS, iOS) or AAudio (Android) only".into());
      }
 +    let x6x00 = a.audio == Backend::X6x00;
 +    match (x6x00, a.ptt == Some(PttSpec::X6x00)) {
@@ -967,66 +1074,73 @@ index 4512a32..9841b6b 100644
 +    if x6x00 && a.capture != a.playback {
 +        return Err("--audio x6x00: --capture and --playback must be the same socket".into());
 +    }
-+    if x6x00 && a.tx_buffer_ms.is_some() {
-+        return Err("--tx-buffer-ms does not apply to --audio x6x00".into());
-+    }
 +    if a.x6x00_path_ms.is_some() && !x6x00 {
 +        return Err("--x6x00-path-ms needs --audio x6x00".into());
 +    }
      if a.timing.lead > Duration::from_secs(1) || a.timing.tail > Duration::from_secs(1) {
          return Err("--ptt-lead-ms and --ptt-tail-ms must be <= 1000".into());
      }
-@@ -502,6 +538,7 @@ fn run(
+@@ -523,7 +556,8 @@ fn run(
+ ) -> std::io::Result<Outcome> {
+     // The PTT lead is silence xara inserts and then allows for; the audio latency is only allowed for:
+     // the one given, what a sound server buffers, and what the audio backend adds itself (its queues
+-    // and device buffers). Pulse says the second, WASAPI the third.
++    // and device buffers). Pulse says the second, WASAPI the third. A backend that knows its capture
++    // side of that (x6x00) has the PTT held only for the rest.
+     let backend = io.latency();
+     if backend > 0 {
+         say!("audio path adds {} ms (allowed for)", backend * 1000 / audio::RATE as usize);
+@@ -533,7 +567,7 @@ fn run(
+     let opts = Options {
+         drive_db: a.drive_db,
+         tx_latency: (lead_samples(a) + latency) as i64,
+-        rx_lag: 0,
++        rx_lag: io.capture_latency() as i64,
+         ptt_tail: tail_samples(a),
+     };
+     let host = Host::bind(&a.addr, a.port)?;
+@@ -559,6 +593,7 @@ fn run(
              if !a.digi.is_empty() {
                  say!("FM digipeater {}", a.digi);
              }
 +            listen_at_start(a, &mut station);
-             serve(a, io, tx, Tnc::new(station, host), settings, stop, rec)
+             serve(a, io, Tnc::new(station, host), settings, stop, rec)
          }
          None => {
-@@ -512,6 +549,7 @@ fn run(
+@@ -569,6 +604,7 @@ fn run(
              cfg.host.registered = a.registered;
              let mut station = station::hf::Station::new(cfg, opts);
              station.set_persistence(a.persistence);
 +            listen_at_start(a, &mut station);
-             serve(a, io, tx, Tnc::new(station, host), settings, stop, rec)
+             serve(a, io, Tnc::new(station, host), settings, stop, rec)
          }
      }
-@@ -582,6 +620,7 @@ fn pump(
+@@ -645,7 +681,11 @@ fn pump(
+     let mut ptt_result = Ok(());
+     let mut ptt = match &a.ptt {
          Some(spec) => {
-             let dev = match spec {
-                 PttSpec::Trusdx => io.ptt().ok_or_else(|| std::io::Error::other("--ptt trusdx needs --audio trusdx")),
+-            let dev = match spec.open() {
++            let dev = match spec {
 +                PttSpec::X6x00 => io.ptt().ok_or_else(|| std::io::Error::other("--ptt x6x00 needs --audio x6x00")),
-                 s => s.open(),
++                s => s.open(),
++            };
++            let dev = match dev {
+                 Ok(d) => d,
+                 Err(e) => return Pumped { audio: Err(e), ptt: Ok(()) },
              };
-             let dev = match dev {
-@@ -769,6 +808,10 @@ fn real_main() -> Result<ExitCode, String> {
-         xara::ptt::wait_released(SECOND_SIGNAL_GRACE);
-     })
-     .map_err(|e| format!("signals: {e}"))?;
+@@ -927,6 +967,10 @@ fn session(cmdline: &[String], stop: &Arc<AtomicBool>, inherited: Option<String>
+     if let Some(e) = &error {
+         say!("{e}");
+     }
 +    #[cfg(feature = "x6x00")]
 +    if let Some(ms) = a.x6x00_path_ms {
-+        xara::audio::x6x00::set_path_ms(ms);
++        crate::audio::x6x00::set_path_ms(ms);
 +    }
      let (mut a, io) = open_audio(&argv, a, applied.then_some(&saved), &mut error).map_err(|e| e.to_string())?;
      if let Some(d) = &dir {
          say!("settings in {}", d.join(settings::FILE).display());
-@@ -910,9 +953,11 @@ mod tests {
-         let a = parse(&argv("--list-devices")).unwrap().unwrap();
-         assert!(a.list_devices);
-         assert_eq!(a.audio, Backend::default());
-+        let d = Backend::default();
-         assert!(
--            parse(&argv("--list-devices --audio jack"))
--                .is_err_and(|e| e.contains(&format!("expected {}", Backend::default().name())))
-+            parse(&argv("--list-devices --audio jack")).is_err_and(
-+                |e| e.contains("expected ") && (!d.built() || e.contains(&format!("expected {}", d.name())))
-+            )
-         );
-         for b in [Backend::Pulse, Backend::Alsa].into_iter().filter(|b| b.built()) {
-             let p = conf("conf-list", &format!("call = N1CALL\naudio = {}\n", b.name()));
-@@ -941,6 +986,71 @@ mod tests {
-         b("--audio trusdx --capture /dev/a --playback /dev/a --radio --ptt trusdx --trusdx-speaker").unwrap();
+@@ -1079,6 +1123,70 @@ mod tests {
+         assert_eq!(tail("--radio --ptt rigctld"), 100 * 48);
      }
  
 +    #[test]
@@ -1041,7 +1155,6 @@ index 4512a32..9841b6b 100644
 +        err(&format!("{sock} --radio --ptt vox"), "use --ptt x6x00");
 +        err("--capture a --playback a --radio --ptt x6x00", "--ptt x6x00 needs --audio x6x00");
 +        err("--audio x6x00 --capture /run/a.sock --playback /run/b.sock", "must be the same socket");
-+        err(&format!("{sock} --tx-buffer-ms 100"), "does not apply to --audio x6x00");
 +        err("--capture a --playback a --x6x00-path-ms 25,50,80", "--x6x00-path-ms needs --audio x6x00");
 +        for bad in ["25,50", "25,50,80,1", "25,x,80", "25,50,1001", ""] {
 +            err(&format!("{sock} --x6x00-path-ms {bad}"), "--x6x00-path-ms");
@@ -1095,43 +1208,39 @@ index 4512a32..9841b6b 100644
 +    }
 +
      #[test]
-     fn tx_buffer_sizes_the_queue_from_the_command_line_or_a_config() {
-         let a = parse(&argv("--call N2CALL --capture c --playback p")).unwrap().unwrap();
+     fn audio_latency_is_bounded_and_can_be_saved() {
+         let a = parse(&argv("--call N2CALL --capture c --playback p --audio-latency-ms 300")).unwrap().unwrap();
 diff --git a/crates/xara/src/ptt.rs b/crates/xara/src/ptt.rs
-index 1877313..ca9da4d 100644
+index 181e9e0..d9289b2 100644
 --- a/crates/xara/src/ptt.rs
 +++ b/crates/xara/src/ptt.rs
-@@ -32,6 +32,7 @@ pub enum PttSpec {
-     Cm108Usb { vendor: u16, product: u16, gpio: u8 },
-     Rigctld(String),
+@@ -30,6 +30,8 @@ pub enum PttSpec {
      Trusdx,
+     /// A tone on the right channel (Hz), for interfaces that key from audio (Digirig Lite)
+     Tone(u32),
++    /// The X6100/X6200 radio's own software, with --audio x6x00 (OpenX6X00)
 +    X6x00,
  }
  
  pub const RIGCTLD_DEFAULT: &str = "127.0.0.1:4532";
-@@ -61,6 +62,8 @@ impl PttSpec {
-                 Err("--ptt trusdx: xara was built without the trusdx feature".into())
+@@ -79,9 +81,12 @@ impl PttSpec {
+                 Ok(Self::Cm108 { path: p.into(), gpio: g })
              }
              "trusdx" if rest.is_empty() => Ok(Self::Trusdx),
 +            "x6x00" if !cfg!(feature = "x6x00") => Err("--ptt x6x00: xara was built without the x6x00 feature".into()),
 +            "x6x00" if rest.is_empty() => Ok(Self::X6x00),
              "rigctld" => Ok(Self::Rigctld(if rest.is_empty() { RIGCTLD_DEFAULT.into() } else { rest.into() })),
-             _ => {
-                 let cm108 = if cfg!(target_os = "macos") { "cm108:VID:PID[:GPIO]" } else { "cm108:DEV|VID:PID[:GPIO]" };
-@@ -68,6 +71,9 @@ impl PttSpec {
-                 if cfg!(feature = "trusdx") {
-                     all.push("trusdx");
-                 }
-+                if cfg!(feature = "x6x00") {
-+                    all.push("x6x00");
-+                }
-                 Err(format!("--ptt {s:?}: expected {}", crate::cli::either(&all)))
-             }
+             _ => Err(format!(
+-                "--ptt {s:?}: expected vox, rts:DEV, dtr:DEV, cm108:DEV[:GPIO], cm108:VID:PID[:GPIO] rigctld[:HOST:PORT], trusdx or tone[:HZ]"
++                "--ptt {s:?}: expected vox, rts:DEV, dtr:DEV, cm108:DEV[:GPIO], cm108:VID:PID[:GPIO] rigctld[:HOST:PORT], trusdx{} or tone[:HZ]",
++                if cfg!(feature = "x6x00") { ", x6x00" } else { "" }
+             )),
          }
-@@ -96,6 +102,7 @@ impl PttSpec {
-             Self::Cm108Usb { vendor, product, gpio } => cm108_usb(*vendor, *product, *gpio)?,
+     }
+@@ -107,6 +112,7 @@ impl PttSpec {
              Self::Rigctld(a) => Box::new(Rigctld::open(a)?),
-             Self::Trusdx => return Err(io::Error::other("--ptt trusdx comes with --audio trusdx")),
+             Self::Trusdx => Box::new(Trusdx),
+             Self::Tone(hz) => Box::new(Tone(*hz)),
 +            Self::X6x00 => return Err(io::Error::other("--ptt x6x00 comes with --audio x6x00")),
          })
      }

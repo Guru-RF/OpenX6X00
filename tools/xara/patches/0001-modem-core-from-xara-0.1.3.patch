@@ -1,0 +1,2097 @@
+From 0cb88b94b870466f54bd7de8a8c7c404b4529518 Mon Sep 17 00:00:00 2001
+From: Nathan <nathan@nr5p.com>
+Date: Thu, 5 Nov 2026 21:31:22 -0600
+Subject: [PATCH 1/2] Modem core from upstream xara 0.1.2 and 0.1.3: FM timing,
+ speedups
+
+Applies upstream's changes to xara-arq and xara-phy; with this the two
+crates match upstream 0.1.3 apart from this fork's own BUSY noise-shape
+fix and registered-level modulation names.
+
+- FM reply windows are taken from the last 8 exchanges instead of the
+  whole session, and widen by 38 ticks per missed reply (up to 4), so a
+  window left behind by drifting reply times catches up instead of
+  stalling the link (x0rro/xara#20)
+- sine tables, a shared FFT plan, in-place FFTs and a parallel FM OFDM
+  catch-up search; quantise without round_ties_even, tested bit-identical
+- warm() for the HF and FM tables, so the first frame doesn't pay for them
+---
+ crates/xara-arq/src/fm/session.rs        |   6 +-
+ crates/xara-arq/src/fm/timing.rs         | 102 ++-
+ crates/xara-arq/tests/golden/fm_link.txt | 838 +++++++++++------------
+ crates/xara-phy/src/cwid.rs              |   8 +-
+ crates/xara-phy/src/dsp.rs               |  49 +-
+ crates/xara-phy/src/fm/code.rs           |   7 +
+ crates/xara-phy/src/fm/rx/ofdm.rs        |  23 +-
+ crates/xara-phy/src/fm/tx.rs             |   6 +-
+ crates/xara-phy/src/hf/ctrl.rs           |   9 +-
+ crates/xara-phy/src/hf/fsk.rs            |   7 +-
+ crates/xara-phy/src/hf/mod.rs            |   7 +
+ crates/xara-phy/src/hf/ofdm.rs           |   2 +-
+ crates/xara-phy/src/hf/psk.rs            |  51 +-
+ crates/xara-phy/src/ofdm.rs              |  23 +-
+ crates/xara-phy/src/turbo/engine.rs      |   2 +
+ crates/xara/src/station/fm.rs            |  33 +-
+ crates/xara/src/station/hf.rs            |  18 +-
+ crates/xara/src/station/mod.rs           |  12 +-
+ crates/xara/src/station/scheduler.rs     |  26 +-
+ crates/xara/tests/station_tx.rs          |  59 +-
+ 20 files changed, 754 insertions(+), 534 deletions(-)
+
+diff --git a/crates/xara-arq/src/fm/session.rs b/crates/xara-arq/src/fm/session.rs
+index 3796fe5..e7667ab 100644
+--- a/crates/xara-arq/src/fm/session.rs
++++ b/crates/xara-arq/src/fm/session.rs
+@@ -601,10 +601,14 @@ impl Session {
+                     }
+                 }
+                 self.repeats += 1;
++                self.timing.miss();
+                 let a = self.ack_req();
+                 self.send_ctrl(a);
+             }
+-            State::IdleSent | State::AwaitGo => self.resend_last(),
++            State::IdleSent | State::AwaitGo => {
++                self.timing.miss();
++                self.resend_last();
++            }
+             State::FqWait => {
+                 self.core.host(HostEvent::Disconnected);
+                 self.core.host(HostEvent::CancelPending);
+diff --git a/crates/xara-arq/src/fm/timing.rs b/crates/xara-arq/src/fm/timing.rs
+index c466c93..0715e5c 100644
+--- a/crates/xara-arq/src/fm/timing.rs
++++ b/crates/xara-arq/src/fm/timing.rs
+@@ -1,6 +1,7 @@
+ use crate::fm::adapt::{decode_allow, frame_ticks};
+ use crate::num::rint;
+ use crate::time::{SECOND, Time};
++use std::collections::VecDeque;
+ use xara_phy::fm::level::{FmBandwidth, RECORDS, Record};
+ 
+ pub const TICK: Time = 128;
+@@ -18,6 +19,10 @@ const SYNC_SLACK: f64 = 520.0;
+ const ACTIVE_SCAN_SLACK: f64 = 60.0;
+ const BACKOFF: [f64; 3] = [846.5, 1499.5, 2152.5];
+ const WATCHDOG_MS: [i64; 3] = [16_400, 22_400, 31_400];
++// deviates from VARA behavior
++const RECENT: usize = 8;
++const MISS_TICKS: i64 = 38;
++const MISS_LIMIT: i64 = 4;
+ 
+ pub fn watchdog(vias: usize) -> Time {
+     WATCHDOG_MS[vias.min(2)] * SECOND / 1000
+@@ -52,19 +57,32 @@ pub fn receiver_sync_window(bw: FmBandwidth, record: Record, vias: usize, two: b
+     (lo, hi)
+ }
+ 
++#[derive(Clone, Debug, Default)]
++struct Recent(VecDeque<i64>);
++
++impl Recent {
++    fn push(&mut self, ticks: i64) -> i64 {
++        if self.0.len() == RECENT {
++            self.0.pop_front();
++        }
++        self.0.push_back(ticks);
++        rint(self.0.iter().sum::<i64>() as f64 / self.0.len() as f64)
++    }
++}
++
+ #[derive(Clone, Debug)]
+ pub struct Timing {
+     bw: FmBandwidth,
+     vias: usize,
+     pub count: [i64; RECORDS],
+-    pub sum: [i64; RECORDS],
++    recent: [Recent; RECORDS],
+     pub mean: [i64; RECORDS],
+     pub window: [i64; RECORDS],
+     pub ctrl_n: i64,
+-    ctrl_sum: i64,
+-    ctrl_first: i64,
++    ctrl_recent: Recent,
+     pub ctrl_mean: i64,
+     ctrl_win: i64,
++    misses: i64,
+ }
+ 
+ impl Timing {
+@@ -73,14 +91,14 @@ impl Timing {
+             bw,
+             vias: vias.min(2),
+             count: [0; RECORDS],
+-            sum: [0; RECORDS],
++            recent: Default::default(),
+             mean: [0; RECORDS],
+             window: [0; RECORDS],
+             ctrl_n: 0,
+-            ctrl_sum: 0,
+-            ctrl_first: 0,
++            ctrl_recent: Recent::default(),
+             ctrl_mean: 0,
+             ctrl_win: 0,
++            misses: 0,
+         }
+     }
+ 
+@@ -92,8 +110,8 @@ impl Timing {
+         let (bw, v, i) = (self.bw, self.vias, record.index());
+         let ticks = if record == Record::Connect && v > 0 { rint(ticks as f64 + 40.0 * v as f64) } else { ticks };
+         self.count[i] += 1;
+-        self.sum[i] += ticks;
+-        self.mean[i] = rint(self.sum[i] as f64 / self.count[i] as f64);
++        self.mean[i] = self.recent[i].push(ticks);
++        self.misses = 0;
+         let base = record.data_level().map_or(0, |l| l.get());
+         for l in bw.levels().skip(base) {
+             if self.count[l.get()] != 0 {
+@@ -125,13 +143,8 @@ impl Timing {
+     pub fn ctrl(&mut self, ticks: i64) {
+         let (bw, v) = (self.bw, self.vias);
+         self.ctrl_n += 1;
+-        self.ctrl_sum += ticks;
+-        if self.ctrl_n == 1 {
+-            self.ctrl_first = ticks;
+-            self.ctrl_mean = self.ctrl_sum;
+-        } else {
+-            self.ctrl_mean = rint((self.ctrl_sum - self.ctrl_first) as f64 / (self.ctrl_n - 1) as f64);
+-        }
++        self.ctrl_mean = if self.ctrl_n == 1 { ticks } else { self.ctrl_recent.push(ticks) };
++        self.misses = 0;
+         self.ctrl_win = if v == 0 { self.ctrl_mean + 75 } else { rint(self.ctrl_mean as f64 + VIA_CTRL_ADD[v]) };
+         if self.ctrl_n != 1 {
+             return;
+@@ -152,14 +165,67 @@ impl Timing {
+         }
+     }
+ 
++    pub fn miss(&mut self) {
++        self.misses = (self.misses + 1).min(MISS_LIMIT);
++    }
++
+     pub fn data_window(&self, record: Record) -> i64 {
+-        match self.window[record.index()] {
++        let w = match self.window[record.index()] {
+             0 => self.ack_window(decode_allow(self.bw, record.level().map_or(record, Record::Data)) + 300),
+             w => w,
+-        }
++        };
++        w + self.misses * MISS_TICKS
+     }
+ 
+     pub fn ctrl_window(&self) -> i64 {
+-        if self.ctrl_win == 0 { 500 } else { self.ctrl_win }
++        (if self.ctrl_win == 0 { 500 } else { self.ctrl_win }) + self.misses * MISS_TICKS
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn exchange(t: &mut Timing, reply: i64) -> bool {
++        let ok = reply <= t.ctrl_window();
++        if ok {
++            t.ctrl(reply);
++        } else {
++            t.miss();
++        }
++        ok
++    }
++
++    #[test]
++    fn drifting_control_replies_stay_inside_the_window() {
++        let mut t = Timing::new(FmBandwidth::Wide, 0);
++        t.ctrl(372);
++        let missed = (0..200).filter(|&k| !exchange(&mut t, 166 + 8 * k)).count();
++        assert!(missed <= 2, "{missed}");
++    }
++
++    #[test]
++    fn a_window_left_behind_widens_until_it_catches_up() {
++        let mut t = Timing::new(FmBandwidth::Wide, 0);
++        t.ctrl(372);
++        (0..20).for_each(|_| t.ctrl(200));
++        let tries = (0..10).position(|_| exchange(&mut t, 400)).unwrap();
++        assert_eq!(tries, 4);
++        let ok: Vec<bool> = (0..30).map(|_| exchange(&mut t, 400)).collect();
++        assert!(ok[15..].iter().all(|&o| o), "{ok:?}");
++    }
++
++    #[test]
++    fn a_measured_reply_clears_the_misses() {
++        let mut t = Timing::new(FmBandwidth::Wide, 0);
++        t.ctrl(372);
++        t.ctrl(200);
++        let base = t.ctrl_window();
++        t.miss();
++        t.miss();
++        assert_eq!(t.ctrl_window(), base + 2 * MISS_TICKS);
++        assert_eq!(t.data_window(Record::Start), t.window[Record::Start.index()] + 2 * MISS_TICKS);
++        t.ctrl(200);
++        assert_eq!(t.ctrl_window(), base);
+     }
+ }
+diff --git a/crates/xara-arq/tests/golden/fm_link.txt b/crates/xara-arq/tests/golden/fm_link.txt
+index 45a87fd..d5eec88 100644
+--- a/crates/xara-arq/tests/golden/fm_link.txt
++++ b/crates/xara-arq/tests/golden/fm_link.txt
+@@ -708,28 +708,28 @@
+ 1820192 1 Listen(Listen { bw: Wide, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+ 1866304 0 Tx(Ctrl { code: 13, lead: 1 })
+ 1878528 1 Tx(Ctrl { code: 1, lead: 1 })
+-2028704 0 Tx(Ctrl { code: 13, lead: 1 })
+-2040928 1 Tx(Ctrl { code: 1, lead: 1 })
+-2191104 0 Tx(Ctrl { code: 13, lead: 1 })
+-2203328 1 Tx(Ctrl { code: 1, lead: 1 })
+-2215552 0 Host(Buffer(194))
+-2215552 0 Tx(Data { record: 1, frames: [<338 bytes 6ee12048>], lead: 1 })
+-2446912 1 Host(Sn(36.5))
+-2446912 1 Host(RxFrame(1))
+-2446912 1 Host(Data(<194 bytes 9a15ce73>))
+-2446912 1 Tx(Ctrl { code: 4, lead: 1 })
+-2446912 1 Listen(Listen { bw: Wide, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
+-2459136 0 Host(Buffer(0))
+-2459136 0 Tx(Ctrl { code: 3, lead: 1 })
+-2459136 0 Listen(Listen { bw: Wide, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
+-2470400 0 Tx(Ctrl { code: 3, lead: 1 })
+-2471360 1 Host(Log("QRT Received"))
+-2471360 1 Host(Disconnected)
+-2471360 1 Host(CancelPending)
+-2471360 1 Listen(Listen { bw: Wide, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+-2481664 0 Host(Disconnected)
+-2481664 0 Host(CancelPending)
+-2481664 0 Listen(Listen { bw: Wide, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++2033568 0 Tx(Ctrl { code: 13, lead: 1 })
++2045792 1 Tx(Ctrl { code: 1, lead: 1 })
++2205696 0 Tx(Ctrl { code: 13, lead: 1 })
++2217920 1 Tx(Ctrl { code: 1, lead: 1 })
++2230144 0 Host(Buffer(194))
++2230144 0 Tx(Data { record: 1, frames: [<338 bytes 6ee12048>], lead: 1 })
++2461504 1 Host(Sn(36.5))
++2461504 1 Host(RxFrame(1))
++2461504 1 Host(Data(<194 bytes 9a15ce73>))
++2461504 1 Tx(Ctrl { code: 4, lead: 1 })
++2461504 1 Listen(Listen { bw: Wide, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
++2473728 0 Host(Buffer(0))
++2473728 0 Tx(Ctrl { code: 3, lead: 1 })
++2473728 0 Listen(Listen { bw: Wide, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
++2484992 0 Tx(Ctrl { code: 3, lead: 1 })
++2485952 1 Host(Log("QRT Received"))
++2485952 1 Host(Disconnected)
++2485952 1 Host(CancelPending)
++2485952 1 Listen(Listen { bw: Wide, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++2496256 0 Host(Disconnected)
++2496256 0 Host(CancelPending)
++2496256 0 Listen(Listen { bw: Wide, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ ## lossy off 3
+ 0 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ 0 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+@@ -1115,157 +1115,157 @@
+ 6052128 0 Host(Data(<334 bytes f3e75ad5>))
+ 6052128 0 Tx(Ctrl { code: 1, lead: 1 })
+ 6052128 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-6098240 1 Tx(Ctrl { code: 12, lead: 28 })
+-6138112 0 Tx(Ctrl { code: 1, lead: 1 })
+-6150336 1 Host(Buffer(324))
+-6150336 1 Tx(Data { record: 1, frames: [<338 bytes bb59fa29>], lead: 25 })
+-6409344 0 Host(Sn(11.5))
+-6409344 0 Host(RxFrame(1))
+-6409344 0 Host(Data(<324 bytes b99e026e>))
+-6409344 0 Tx(Ctrl { code: 4, lead: 1 })
+-6409344 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
+-6421568 1 Host(Buffer(0))
+-6421568 1 Tx(Ctrl { code: 14, lead: 28 })
+-6421568 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22, 23, 24], records: [1, 14, 15], nframes: 1, linked: true })
+-6461440 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 20], records: [], nframes: 1, linked: true })
+-6461440 0 Tx(Data { record: 15, frames: [<16 bytes 9cc1f783>], lead: 1 })
+-6483136 1 Tx(Ctrl { code: 2, lead: 28 })
+-6483136 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-6523008 0 Tx(Data { record: 1, frames: [<338 bytes 05ec2937>], lead: 1 })
+-6754368 1 Tx(Ctrl { code: 2, lead: 28 })
+-6754368 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-6828128 0 Tx(Ctrl { code: 13, lead: 1 })
+-6840352 1 Tx(Ctrl { code: 2, lead: 28 })
+-6880224 0 Tx(Data { record: 1, frames: [<338 bytes 05ec2937>], lead: 1 })
+-7111584 1 Host(Sn(11.5))
+-7111584 1 Host(RxFrame(1))
+-7111584 1 Host(Data(<334 bytes e11d3d6a>))
+-7111584 1 Tx(Ctrl { code: 1, lead: 1 })
+-7111584 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-7123808 0 Host(Buffer(4666))
+-7123808 0 Tx(Data { record: 1, frames: [<338 bytes bf4c84cd>], lead: 1 })
+-7355168 1 Host(Sn(11.5))
+-7355168 1 Host(RxFrame(1))
+-7355168 1 Host(Data(<334 bytes e545c317>))
+-7355168 1 Tx(Ctrl { code: 1, lead: 1 })
+-7355168 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 2, linked: true })
+-7367392 0 Host(Buffer(4332))
+-7367392 0 Tx(Data { record: 1, frames: [<338 bytes 6510e33b>, <338 bytes 3b99f411>], lead: 1 })
+-7828000 1 Host(RxFrame(1))
+-7828000 1 Host(Sn(11.5))
+-7828000 1 Host(RxFrame(1))
+-7828000 1 Host(Data(<334 bytes 31cf2e23>))
+-7828000 1 Host(Data(<334 bytes 073c6532>))
+-7828000 1 Tx(Ctrl { code: 1, lead: 1 })
+-7828000 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 2, linked: true })
+-7840224 0 Host(Buffer(3998))
+-7840224 0 Host(Buffer(3664))
+-7840224 0 Tx(Data { record: 1, frames: [<338 bytes 3421263a>, <338 bytes 8b083551>], lead: 1 })
+-8346944 0 Tx(Ctrl { code: 13, lead: 1 })
+-8359168 1 Tx(Ctrl { code: 2, lead: 1 })
+-8359168 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-8371392 0 Tx(Data { record: 1, frames: [<338 bytes 3421263a>], lead: 1 })
+-8602752 1 Tx(Ctrl { code: 2, lead: 1 })
+-8602752 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-8648864 0 Tx(Ctrl { code: 12, lead: 1 })
+-8661088 1 Tx(Ctrl { code: 2, lead: 1 })
+-8825472 0 Tx(Ctrl { code: 12, lead: 1 })
+-9002080 0 Tx(Ctrl { code: 12, lead: 1 })
+-9014304 1 Tx(Ctrl { code: 2, lead: 1 })
+-9026528 0 Tx(Data { record: 1, frames: [<338 bytes 3421263a>], lead: 1 })
+-9257888 1 Host(Sn(11.5))
+-9257888 1 Host(RxFrame(1))
+-9257888 1 Host(Data(<334 bytes 47334aaa>))
+-9257888 1 Tx(Ctrl { code: 1, lead: 1 })
+-9257888 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-9270112 0 Host(Buffer(3330))
+-9270112 0 Tx(Data { record: 1, frames: [<338 bytes 8b083551>], lead: 1 })
+-9501472 1 Tx(Ctrl { code: 2, lead: 1 })
+-9501472 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-9513696 0 Tx(Data { record: 1, frames: [<338 bytes 8b083551>], lead: 1 })
+-9745056 1 Tx(Ctrl { code: 2, lead: 1 })
+-9745056 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-9757280 0 Tx(Data { record: 1, frames: [<338 bytes 8b083551>], lead: 1 })
+-9988640 1 Tx(Ctrl { code: 2, lead: 1 })
+-9988640 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-10000864 0 Tx(Data { record: 1, frames: [<338 bytes 8b083551>], lead: 1 })
+-10232224 1 Host(Sn(11.5))
+-10232224 1 Host(RxFrame(1))
+-10232224 1 Host(Data(<334 bytes bf031f54>))
+-10232224 1 Tx(Ctrl { code: 1, lead: 1 })
+-10232224 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-10244448 0 Host(Buffer(2996))
+-10244448 0 Tx(Data { record: 1, frames: [<338 bytes 66b19adb>], lead: 1 })
+-10475808 1 Tx(Ctrl { code: 2, lead: 1 })
+-10475808 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-10488032 0 Tx(Data { record: 1, frames: [<338 bytes 66b19adb>], lead: 1 })
+-10719392 1 Tx(Ctrl { code: 2, lead: 1 })
+-10719392 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-10731616 0 Tx(Data { record: 1, frames: [<338 bytes 66b19adb>], lead: 1 })
+-10962976 1 Tx(Ctrl { code: 2, lead: 1 })
+-10962976 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-10975200 0 Tx(Data { record: 1, frames: [<338 bytes 66b19adb>], lead: 1 })
+-11206560 1 Host(Sn(11.5))
+-11206560 1 Host(RxFrame(1))
+-11206560 1 Host(Data(<334 bytes 216a0d08>))
+-11206560 1 Tx(Ctrl { code: 1, lead: 1 })
+-11206560 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-11252672 0 Tx(Ctrl { code: 13, lead: 1 })
+-11264896 1 Tx(Ctrl { code: 1, lead: 1 })
+-11277120 0 Host(Buffer(2662))
+-11277120 0 Tx(Data { record: 1, frames: [<338 bytes 670d8672>], lead: 1 })
+-11508480 1 Host(Sn(11.5))
+-11508480 1 Host(RxFrame(1))
+-11508480 1 Host(Data(<334 bytes aefedc16>))
+-11508480 1 Tx(Ctrl { code: 1, lead: 1 })
+-11508480 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 2, linked: true })
+-11520704 0 Host(Buffer(2328))
+-11520704 0 Tx(Data { record: 1, frames: [<338 bytes b77b69a2>, <338 bytes 080f9ee8>], lead: 1 })
+-11981312 1 Host(RxFrame(1))
+-11981312 1 Host(Sn(11.5))
+-11981312 1 Host(RxFrame(1))
+-11981312 1 Host(Data(<334 bytes 1090a986>))
+-11981312 1 Host(Data(<334 bytes c638af3c>))
+-11981312 1 Tx(Ctrl { code: 1, lead: 1 })
+-11981312 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 2, linked: true })
+-11993536 0 Host(Buffer(1994))
+-11993536 0 Host(Buffer(1660))
+-11993536 0 Tx(Data { record: 1, frames: [<338 bytes 70396335>, <338 bytes d17f3ea8>], lead: 1 })
+-12454144 1 Host(Sn(11.5))
+-12454144 1 Host(RxFrame(1))
+-12454144 1 Host(Data(<334 bytes d5747dcb>))
+-12454144 1 Tx(Ctrl { code: 11, lead: 1 })
+-12454144 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-12466368 0 Host(Buffer(1326))
+-12466368 0 Tx(Data { record: 1, frames: [<338 bytes d17f3ea8>], lead: 1 })
+-12743840 0 Tx(Ctrl { code: 13, lead: 1 })
+-12756064 1 Tx(Ctrl { code: 2, lead: 1 })
+-12756064 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-12768288 0 Tx(Data { record: 1, frames: [<338 bytes d17f3ea8>], lead: 1 })
+-12999648 1 Host(Sn(11.5))
+-12999648 1 Host(RxFrame(1))
+-12999648 1 Host(Data(<334 bytes 8ed04991>))
+-12999648 1 Tx(Ctrl { code: 1, lead: 1 })
+-12999648 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-13011872 0 Host(Buffer(992))
+-13011872 0 Tx(Data { record: 1, frames: [<338 bytes 58f491b0>], lead: 1 })
+-13243232 1 Host(Sn(11.5))
+-13243232 1 Host(RxFrame(1))
+-13243232 1 Host(Data(<334 bytes 55eef676>))
+-13243232 1 Tx(Ctrl { code: 1, lead: 1 })
+-13243232 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 2, linked: true })
+-13289344 0 Tx(Ctrl { code: 13, lead: 1 })
+-13465952 0 Tx(Ctrl { code: 13, lead: 1 })
+-13478176 1 Tx(Ctrl { code: 1, lead: 1 })
+-13642560 0 Tx(Ctrl { code: 13, lead: 1 })
+-13799072 0 Host(TimedOut)
+-13799072 0 Host(Disconnected)
+-13799072 0 Host(CancelPending)
+-13799072 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+-14265376 1 Host(TimedOut)
+-14265376 1 Host(Disconnected)
+-14265376 1 Host(CancelPending)
+-14265376 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++6103104 1 Tx(Ctrl { code: 12, lead: 28 })
++6142976 0 Tx(Ctrl { code: 1, lead: 1 })
++6155200 1 Host(Buffer(324))
++6155200 1 Tx(Data { record: 1, frames: [<338 bytes bb59fa29>], lead: 25 })
++6414208 0 Host(Sn(11.5))
++6414208 0 Host(RxFrame(1))
++6414208 0 Host(Data(<324 bytes b99e026e>))
++6414208 0 Tx(Ctrl { code: 4, lead: 1 })
++6414208 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
++6426432 1 Host(Buffer(0))
++6426432 1 Tx(Ctrl { code: 14, lead: 28 })
++6426432 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22, 23, 24], records: [1, 14, 15], nframes: 1, linked: true })
++6466304 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 20], records: [], nframes: 1, linked: true })
++6466304 0 Tx(Data { record: 15, frames: [<16 bytes 9cc1f783>], lead: 1 })
++6488000 1 Tx(Ctrl { code: 2, lead: 28 })
++6488000 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++6527872 0 Tx(Data { record: 1, frames: [<338 bytes 05ec2937>], lead: 1 })
++6759232 1 Tx(Ctrl { code: 2, lead: 28 })
++6759232 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++6832992 0 Tx(Ctrl { code: 13, lead: 1 })
++6845216 1 Tx(Ctrl { code: 2, lead: 28 })
++6885088 0 Tx(Data { record: 1, frames: [<338 bytes 05ec2937>], lead: 1 })
++7116448 1 Host(Sn(11.5))
++7116448 1 Host(RxFrame(1))
++7116448 1 Host(Data(<334 bytes e11d3d6a>))
++7116448 1 Tx(Ctrl { code: 1, lead: 1 })
++7116448 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++7128672 0 Host(Buffer(4666))
++7128672 0 Tx(Data { record: 1, frames: [<338 bytes bf4c84cd>], lead: 1 })
++7360032 1 Host(Sn(11.5))
++7360032 1 Host(RxFrame(1))
++7360032 1 Host(Data(<334 bytes e545c317>))
++7360032 1 Tx(Ctrl { code: 1, lead: 1 })
++7360032 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 2, linked: true })
++7372256 0 Host(Buffer(4332))
++7372256 0 Tx(Data { record: 1, frames: [<338 bytes 6510e33b>, <338 bytes 3b99f411>], lead: 1 })
++7832864 1 Host(RxFrame(1))
++7832864 1 Host(Sn(11.5))
++7832864 1 Host(RxFrame(1))
++7832864 1 Host(Data(<334 bytes 31cf2e23>))
++7832864 1 Host(Data(<334 bytes 073c6532>))
++7832864 1 Tx(Ctrl { code: 1, lead: 1 })
++7832864 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 2, linked: true })
++7845088 0 Host(Buffer(3998))
++7845088 0 Host(Buffer(3664))
++7845088 0 Tx(Data { record: 1, frames: [<338 bytes 3421263a>, <338 bytes 8b083551>], lead: 1 })
++8351808 0 Tx(Ctrl { code: 13, lead: 1 })
++8364032 1 Tx(Ctrl { code: 2, lead: 1 })
++8364032 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++8376256 0 Tx(Data { record: 1, frames: [<338 bytes 3421263a>], lead: 1 })
++8607616 1 Tx(Ctrl { code: 2, lead: 1 })
++8607616 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++8658592 0 Tx(Ctrl { code: 12, lead: 1 })
++8670816 1 Tx(Ctrl { code: 2, lead: 1 })
++8846592 0 Tx(Ctrl { code: 12, lead: 1 })
++9039456 0 Tx(Ctrl { code: 12, lead: 1 })
++9051680 1 Tx(Ctrl { code: 2, lead: 1 })
++9063904 0 Tx(Data { record: 1, frames: [<338 bytes 3421263a>], lead: 1 })
++9295264 1 Host(Sn(11.5))
++9295264 1 Host(RxFrame(1))
++9295264 1 Host(Data(<334 bytes 47334aaa>))
++9295264 1 Tx(Ctrl { code: 1, lead: 1 })
++9295264 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++9307488 0 Host(Buffer(3330))
++9307488 0 Tx(Data { record: 1, frames: [<338 bytes 8b083551>], lead: 1 })
++9538848 1 Tx(Ctrl { code: 2, lead: 1 })
++9538848 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++9551072 0 Tx(Data { record: 1, frames: [<338 bytes 8b083551>], lead: 1 })
++9782432 1 Tx(Ctrl { code: 2, lead: 1 })
++9782432 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++9794656 0 Tx(Data { record: 1, frames: [<338 bytes 8b083551>], lead: 1 })
++10026016 1 Tx(Ctrl { code: 2, lead: 1 })
++10026016 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++10038240 0 Tx(Data { record: 1, frames: [<338 bytes 8b083551>], lead: 1 })
++10269600 1 Host(Sn(11.5))
++10269600 1 Host(RxFrame(1))
++10269600 1 Host(Data(<334 bytes bf031f54>))
++10269600 1 Tx(Ctrl { code: 1, lead: 1 })
++10269600 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++10281824 0 Host(Buffer(2996))
++10281824 0 Tx(Data { record: 1, frames: [<338 bytes 66b19adb>], lead: 1 })
++10513184 1 Tx(Ctrl { code: 2, lead: 1 })
++10513184 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++10525408 0 Tx(Data { record: 1, frames: [<338 bytes 66b19adb>], lead: 1 })
++10756768 1 Tx(Ctrl { code: 2, lead: 1 })
++10756768 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++10768992 0 Tx(Data { record: 1, frames: [<338 bytes 66b19adb>], lead: 1 })
++11000352 1 Tx(Ctrl { code: 2, lead: 1 })
++11000352 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++11012576 0 Tx(Data { record: 1, frames: [<338 bytes 66b19adb>], lead: 1 })
++11243936 1 Host(Sn(11.5))
++11243936 1 Host(RxFrame(1))
++11243936 1 Host(Data(<334 bytes 216a0d08>))
++11243936 1 Tx(Ctrl { code: 1, lead: 1 })
++11243936 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++11290048 0 Tx(Ctrl { code: 13, lead: 1 })
++11302272 1 Tx(Ctrl { code: 1, lead: 1 })
++11314496 0 Host(Buffer(2662))
++11314496 0 Tx(Data { record: 1, frames: [<338 bytes 670d8672>], lead: 1 })
++11545856 1 Host(Sn(11.5))
++11545856 1 Host(RxFrame(1))
++11545856 1 Host(Data(<334 bytes aefedc16>))
++11545856 1 Tx(Ctrl { code: 1, lead: 1 })
++11545856 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 2, linked: true })
++11558080 0 Host(Buffer(2328))
++11558080 0 Tx(Data { record: 1, frames: [<338 bytes b77b69a2>, <338 bytes 080f9ee8>], lead: 1 })
++12018688 1 Host(RxFrame(1))
++12018688 1 Host(Sn(11.5))
++12018688 1 Host(RxFrame(1))
++12018688 1 Host(Data(<334 bytes 1090a986>))
++12018688 1 Host(Data(<334 bytes c638af3c>))
++12018688 1 Tx(Ctrl { code: 1, lead: 1 })
++12018688 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 2, linked: true })
++12030912 0 Host(Buffer(1994))
++12030912 0 Host(Buffer(1660))
++12030912 0 Tx(Data { record: 1, frames: [<338 bytes 70396335>, <338 bytes d17f3ea8>], lead: 1 })
++12491520 1 Host(Sn(11.5))
++12491520 1 Host(RxFrame(1))
++12491520 1 Host(Data(<334 bytes d5747dcb>))
++12491520 1 Tx(Ctrl { code: 11, lead: 1 })
++12491520 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++12503744 0 Host(Buffer(1326))
++12503744 0 Tx(Data { record: 1, frames: [<338 bytes d17f3ea8>], lead: 1 })
++12781216 0 Tx(Ctrl { code: 13, lead: 1 })
++12793440 1 Tx(Ctrl { code: 2, lead: 1 })
++12793440 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++12805664 0 Tx(Data { record: 1, frames: [<338 bytes d17f3ea8>], lead: 1 })
++13037024 1 Host(Sn(11.5))
++13037024 1 Host(RxFrame(1))
++13037024 1 Host(Data(<334 bytes 8ed04991>))
++13037024 1 Tx(Ctrl { code: 1, lead: 1 })
++13037024 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++13049248 0 Host(Buffer(992))
++13049248 0 Tx(Data { record: 1, frames: [<338 bytes 58f491b0>], lead: 1 })
++13280608 1 Host(Sn(11.5))
++13280608 1 Host(RxFrame(1))
++13280608 1 Host(Data(<334 bytes 55eef676>))
++13280608 1 Tx(Ctrl { code: 1, lead: 1 })
++13280608 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 2, linked: true })
++13326720 0 Tx(Ctrl { code: 13, lead: 1 })
++13509856 0 Tx(Ctrl { code: 13, lead: 1 })
++13522080 1 Tx(Ctrl { code: 1, lead: 1 })
++13697856 0 Tx(Ctrl { code: 13, lead: 1 })
++13836448 0 Host(TimedOut)
++13836448 0 Host(Disconnected)
++13836448 0 Host(CancelPending)
++13836448 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++14309280 1 Host(TimedOut)
++14309280 1 Host(Disconnected)
++14309280 1 Host(CancelPending)
++14309280 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ ## lossy off 8
+ 0 0 Listen(Listen { bw: Wide, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ 0 1 Listen(Listen { bw: Wide, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+@@ -1312,28 +1312,28 @@
+ 886464 1 Tx(Ctrl { code: 1, lead: 1 })
+ 898688 0 Host(Buffer(78))
+ 898688 0 Tx(Data { record: 14, frames: [<134 bytes 887304c4>], lead: 1 })
+-1069024 0 Tx(Ctrl { code: 13, lead: 1 })
+-1081248 1 Tx(Ctrl { code: 2, lead: 1 })
+-1081248 1 Listen(Listen { bw: Wide, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-1093472 0 Tx(Data { record: 1, frames: [<338 bytes e6b1a235>], lead: 1 })
+-1324832 1 Host(Sn(36.5))
+-1324832 1 Host(RxFrame(1))
+-1324832 1 Host(Data(<78 bytes 2f7dbed9>))
+-1324832 1 Tx(Ctrl { code: 4, lead: 1 })
+-1324832 1 Listen(Listen { bw: Wide, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
+-1398592 0 Tx(Ctrl { code: 12, lead: 1 })
+-1410816 1 Tx(Ctrl { code: 4, lead: 1 })
+-1423040 0 Host(Buffer(0))
+-1423040 0 Tx(Ctrl { code: 3, lead: 1 })
+-1423040 0 Listen(Listen { bw: Wide, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
+-1434304 0 Tx(Ctrl { code: 3, lead: 1 })
+-1435264 1 Host(Log("QRT Received"))
+-1435264 1 Host(Disconnected)
+-1435264 1 Host(CancelPending)
+-1435264 1 Listen(Listen { bw: Wide, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+-1445568 0 Host(Disconnected)
+-1445568 0 Host(CancelPending)
+-1445568 0 Listen(Listen { bw: Wide, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++1073888 0 Tx(Ctrl { code: 13, lead: 1 })
++1086112 1 Tx(Ctrl { code: 2, lead: 1 })
++1086112 1 Listen(Listen { bw: Wide, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++1098336 0 Tx(Data { record: 1, frames: [<338 bytes e6b1a235>], lead: 1 })
++1329696 1 Host(Sn(36.5))
++1329696 1 Host(RxFrame(1))
++1329696 1 Host(Data(<78 bytes 2f7dbed9>))
++1329696 1 Tx(Ctrl { code: 4, lead: 1 })
++1329696 1 Listen(Listen { bw: Wide, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
++1413184 0 Tx(Ctrl { code: 12, lead: 1 })
++1425408 1 Tx(Ctrl { code: 4, lead: 1 })
++1437632 0 Host(Buffer(0))
++1437632 0 Tx(Ctrl { code: 3, lead: 1 })
++1437632 0 Listen(Listen { bw: Wide, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
++1448896 0 Tx(Ctrl { code: 3, lead: 1 })
++1449856 1 Host(Log("QRT Received"))
++1449856 1 Host(Disconnected)
++1449856 1 Host(CancelPending)
++1449856 1 Listen(Listen { bw: Wide, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++1460160 0 Host(Disconnected)
++1460160 0 Host(CancelPending)
++1460160 0 Listen(Listen { bw: Wide, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ ## lossy Text 13
+ 0 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ 0 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+@@ -1363,37 +1363,37 @@
+ 546624 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
+ 633312 1 Tx(Ctrl { code: 12, lead: 28 })
+ 668576 0 Tx(Ctrl { code: 4, lead: 1 })
+-724544 1 Tx(Ctrl { code: 12, lead: 28 })
+-764416 0 Tx(Ctrl { code: 4, lead: 1 })
+-776640 1 Tx(Ctrl { code: 14, lead: 28 })
+-776640 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22, 23, 24], records: [1, 14, 15], nframes: 1, linked: true })
+-816512 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 20], records: [], nframes: 1, linked: true })
+-816512 0 Tx(Data { record: 15, frames: [<16 bytes 0ef58390>], lead: 1 })
+-838208 1 Host(Sn(11.5))
+-838208 1 Host(RxFrame(15))
+-838208 1 Host(Data(<14 bytes e7aa0410>))
+-838208 1 Tx(Ctrl { code: 5, lead: 1 })
+-838208 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 3, 14, 15], nframes: 1, linked: true })
+-850432 0 Host(Buffer(1322))
+-850432 0 Tx(Data { record: 3, frames: [<1427 bytes 1bce0a83>], lead: 1 })
+-1081792 1 Host(Sn(11.5))
+-1081792 1 Host(RxFrame(3))
+-1081792 1 Host(Data(<1322 bytes 6706f3fa>))
+-1081792 1 Tx(Ctrl { code: 4, lead: 1 })
+-1081792 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
+-1134048 0 Tx(Ctrl { code: 13, lead: 1 })
+-1146272 1 Tx(Ctrl { code: 4, lead: 1 })
+-1158496 0 Host(Buffer(0))
+-1158496 0 Tx(Ctrl { code: 3, lead: 1 })
+-1158496 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
+-1169760 0 Tx(Ctrl { code: 3, lead: 1 })
+-1170720 1 Host(Log("QRT Received"))
+-1170720 1 Host(Disconnected)
+-1170720 1 Host(CancelPending)
+-1170720 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+-1181024 0 Host(Disconnected)
+-1181024 0 Host(CancelPending)
+-1181024 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++729408 1 Tx(Ctrl { code: 12, lead: 28 })
++769280 0 Tx(Ctrl { code: 4, lead: 1 })
++781504 1 Tx(Ctrl { code: 14, lead: 28 })
++781504 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22, 23, 24], records: [1, 14, 15], nframes: 1, linked: true })
++821376 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 20], records: [], nframes: 1, linked: true })
++821376 0 Tx(Data { record: 15, frames: [<16 bytes 0ef58390>], lead: 1 })
++843072 1 Host(Sn(11.5))
++843072 1 Host(RxFrame(15))
++843072 1 Host(Data(<14 bytes e7aa0410>))
++843072 1 Tx(Ctrl { code: 5, lead: 1 })
++843072 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 3, 14, 15], nframes: 1, linked: true })
++855296 0 Host(Buffer(1322))
++855296 0 Tx(Data { record: 3, frames: [<1427 bytes 1bce0a83>], lead: 1 })
++1086656 1 Host(Sn(11.5))
++1086656 1 Host(RxFrame(3))
++1086656 1 Host(Data(<1322 bytes 6706f3fa>))
++1086656 1 Tx(Ctrl { code: 4, lead: 1 })
++1086656 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
++1138912 0 Tx(Ctrl { code: 13, lead: 1 })
++1151136 1 Tx(Ctrl { code: 4, lead: 1 })
++1163360 0 Host(Buffer(0))
++1163360 0 Tx(Ctrl { code: 3, lead: 1 })
++1163360 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
++1174624 0 Tx(Ctrl { code: 3, lead: 1 })
++1175584 1 Host(Log("QRT Received"))
++1175584 1 Host(Disconnected)
++1175584 1 Host(CancelPending)
++1175584 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++1185888 0 Host(Disconnected)
++1185888 0 Host(CancelPending)
++1185888 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ ## lossy Text 14
+ 0 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ 0 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+@@ -1559,41 +1559,41 @@
+ 1071712 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+ 1145472 0 Tx(Ctrl { code: 12, lead: 1 })
+ 1157696 1 Tx(Ctrl { code: 2, lead: 28 })
+-1209056 0 Tx(Ctrl { code: 12, lead: 1 })
+-1272640 0 Tx(Ctrl { code: 12, lead: 1 })
+-1284864 1 Tx(Ctrl { code: 2, lead: 28 })
+-1324736 0 Tx(Data { record: 1, frames: [<338 bytes b096c3f5>], lead: 1 })
+-1556096 1 Host(Sn(11.5))
+-1556096 1 Host(RxFrame(1))
+-1556096 1 Host(Data(<425 bytes d78b4d44>))
+-1556096 1 Tx(Ctrl { code: 1, lead: 1 })
+-1556096 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-1568320 0 Host(Buffer(210))
+-1568320 0 Tx(Data { record: 1, frames: [<338 bytes 2c340990>], lead: 1 })
+-1799680 1 Tx(Ctrl { code: 2, lead: 1 })
+-1799680 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-1845792 0 Tx(Ctrl { code: 12, lead: 1 })
+-1858016 1 Tx(Ctrl { code: 2, lead: 1 })
+-1870240 0 Tx(Data { record: 1, frames: [<338 bytes 2c340990>], lead: 1 })
+-2101600 1 Tx(Ctrl { code: 2, lead: 1 })
+-2101600 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-2113824 0 Tx(Data { record: 1, frames: [<338 bytes 2c340990>], lead: 1 })
+-2345184 1 Host(Sn(11.5))
+-2345184 1 Host(RxFrame(1))
+-2345184 1 Host(Data(<210 bytes aed27c78>))
+-2345184 1 Tx(Ctrl { code: 4, lead: 1 })
+-2345184 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
+-2357408 0 Host(Buffer(0))
+-2357408 0 Tx(Ctrl { code: 3, lead: 1 })
+-2357408 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
+-2368672 0 Tx(Ctrl { code: 3, lead: 1 })
+-2379936 0 Host(Disconnected)
+-2379936 0 Host(CancelPending)
+-2379936 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+-2380896 1 Host(Log("QRT Received"))
+-2380896 1 Host(Disconnected)
+-2380896 1 Host(CancelPending)
+-2380896 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++1213920 0 Tx(Ctrl { code: 12, lead: 1 })
++1287232 0 Tx(Ctrl { code: 12, lead: 1 })
++1299456 1 Tx(Ctrl { code: 2, lead: 28 })
++1339328 0 Tx(Data { record: 1, frames: [<338 bytes b096c3f5>], lead: 1 })
++1570688 1 Host(Sn(11.5))
++1570688 1 Host(RxFrame(1))
++1570688 1 Host(Data(<425 bytes d78b4d44>))
++1570688 1 Tx(Ctrl { code: 1, lead: 1 })
++1570688 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++1582912 0 Host(Buffer(210))
++1582912 0 Tx(Data { record: 1, frames: [<338 bytes 2c340990>], lead: 1 })
++1814272 1 Tx(Ctrl { code: 2, lead: 1 })
++1814272 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++1860384 0 Tx(Ctrl { code: 12, lead: 1 })
++1872608 1 Tx(Ctrl { code: 2, lead: 1 })
++1884832 0 Tx(Data { record: 1, frames: [<338 bytes 2c340990>], lead: 1 })
++2116192 1 Tx(Ctrl { code: 2, lead: 1 })
++2116192 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++2128416 0 Tx(Data { record: 1, frames: [<338 bytes 2c340990>], lead: 1 })
++2359776 1 Host(Sn(11.5))
++2359776 1 Host(RxFrame(1))
++2359776 1 Host(Data(<210 bytes aed27c78>))
++2359776 1 Tx(Ctrl { code: 4, lead: 1 })
++2359776 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
++2372000 0 Host(Buffer(0))
++2372000 0 Tx(Ctrl { code: 3, lead: 1 })
++2372000 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
++2383264 0 Tx(Ctrl { code: 3, lead: 1 })
++2394528 0 Host(Disconnected)
++2394528 0 Host(CancelPending)
++2394528 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++2395488 1 Host(Log("QRT Received"))
++2395488 1 Host(Disconnected)
++2395488 1 Host(CancelPending)
++2395488 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ ## lossy Files 17
+ 0 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ 0 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+@@ -1757,57 +1757,57 @@
+ 782912 1 Tx(Ctrl { code: 12, lead: 28 })
+ 822784 0 Tx(Ctrl { code: 2, lead: 28 })
+ 862656 1 Tx(Data { record: 1, frames: [<338 bytes c862d006>], lead: 25 })
+-1208352 1 Tx(Ctrl { code: 13, lead: 28 })
+-1248224 0 Tx(Ctrl { code: 2, lead: 28 })
+-1248224 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-1288096 1 Tx(Data { record: 1, frames: [<338 bytes c862d006>], lead: 25 })
+-1547104 0 Host(Sn(11.5))
+-1547104 0 Host(RxFrame(1))
+-1547104 0 Host(Data(<89 bytes 6c880377>))
+-1547104 0 Tx(Ctrl { code: 4, lead: 1 })
+-1547104 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
+-1559328 1 Host(Buffer(0))
+-1559328 1 Tx(Ctrl { code: 14, lead: 28 })
+-1559328 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22, 23, 24], records: [1, 14, 15], nframes: 1, linked: true })
+-1599200 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 20], records: [], nframes: 1, linked: true })
+-1599200 0 Tx(Data { record: 15, frames: [<16 bytes 6e7420de>], lead: 1 })
+-1694656 0 Tx(Ctrl { code: 12, lead: 1 })
+-1889056 0 Tx(Ctrl { code: 12, lead: 1 })
+-1901280 1 Tx(Ctrl { code: 2, lead: 28 })
+-1901280 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22, 23, 24], records: [1, 14, 15], nframes: 1, linked: true })
+-1941152 0 Tx(Data { record: 1, frames: [<338 bytes 1d9bb1b8>], lead: 1 })
+-2172512 1 Tx(Ctrl { code: 2, lead: 28 })
+-2172512 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-2212384 0 Tx(Data { record: 1, frames: [<338 bytes 1d9bb1b8>], lead: 1 })
+-2443744 1 Host(Sn(11.5))
+-2443744 1 Host(RxFrame(1))
+-2443744 1 Tx(Ctrl { code: 1, lead: 1 })
+-2443744 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-2517504 0 Tx(Ctrl { code: 12, lead: 1 })
+-2529728 1 Tx(Ctrl { code: 1, lead: 1 })
+-2711904 0 Tx(Ctrl { code: 12, lead: 1 })
+-2724128 1 Tx(Ctrl { code: 1, lead: 1 })
+-2736352 0 Host(Buffer(111))
+-2736352 0 Tx(Data { record: 1, frames: [<338 bytes 5197ca52>], lead: 1 })
+-2967712 1 Tx(Ctrl { code: 2, lead: 1 })
+-2967712 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+-2979936 0 Tx(Data { record: 1, frames: [<338 bytes 5197ca52>], lead: 1 })
+-3211296 1 Host(Sn(11.5))
+-3211296 1 Host(RxFrame(1))
+-3211296 1 Host(Data(<2873 bytes 885dad44>))
+-3211296 1 Tx(Ctrl { code: 4, lead: 1 })
+-3211296 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
+-3223520 0 Host(Buffer(0))
+-3223520 0 Tx(Ctrl { code: 3, lead: 1 })
+-3223520 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
+-3234784 0 Tx(Ctrl { code: 3, lead: 1 })
+-3235744 1 Host(Log("QRT Received"))
+-3235744 1 Host(Disconnected)
+-3235744 1 Host(CancelPending)
+-3235744 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+-3246048 0 Host(Disconnected)
+-3246048 0 Host(CancelPending)
+-3246048 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++1213216 1 Tx(Ctrl { code: 13, lead: 28 })
++1253088 0 Tx(Ctrl { code: 2, lead: 28 })
++1253088 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++1292960 1 Tx(Data { record: 1, frames: [<338 bytes c862d006>], lead: 25 })
++1551968 0 Host(Sn(11.5))
++1551968 0 Host(RxFrame(1))
++1551968 0 Host(Data(<89 bytes 6c880377>))
++1551968 0 Tx(Ctrl { code: 4, lead: 1 })
++1551968 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
++1564192 1 Host(Buffer(0))
++1564192 1 Tx(Ctrl { code: 14, lead: 28 })
++1564192 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22, 23, 24], records: [1, 14, 15], nframes: 1, linked: true })
++1604064 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 20], records: [], nframes: 1, linked: true })
++1604064 0 Tx(Data { record: 15, frames: [<16 bytes 6e7420de>], lead: 1 })
++1699520 0 Tx(Ctrl { code: 12, lead: 1 })
++1900448 0 Tx(Ctrl { code: 12, lead: 1 })
++1912672 1 Tx(Ctrl { code: 2, lead: 28 })
++1912672 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22, 23, 24], records: [1, 14, 15], nframes: 1, linked: true })
++1952544 0 Tx(Data { record: 1, frames: [<338 bytes 1d9bb1b8>], lead: 1 })
++2183904 1 Tx(Ctrl { code: 2, lead: 28 })
++2183904 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++2223776 0 Tx(Data { record: 1, frames: [<338 bytes 1d9bb1b8>], lead: 1 })
++2455136 1 Host(Sn(11.5))
++2455136 1 Host(RxFrame(1))
++2455136 1 Tx(Ctrl { code: 1, lead: 1 })
++2455136 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++2528896 0 Tx(Ctrl { code: 12, lead: 1 })
++2541120 1 Tx(Ctrl { code: 1, lead: 1 })
++2729824 0 Tx(Ctrl { code: 12, lead: 1 })
++2742048 1 Tx(Ctrl { code: 1, lead: 1 })
++2754272 0 Host(Buffer(111))
++2754272 0 Tx(Data { record: 1, frames: [<338 bytes 5197ca52>], lead: 1 })
++2985632 1 Tx(Ctrl { code: 2, lead: 1 })
++2985632 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
++2997856 0 Tx(Data { record: 1, frames: [<338 bytes 5197ca52>], lead: 1 })
++3229216 1 Host(Sn(11.5))
++3229216 1 Host(RxFrame(1))
++3229216 1 Host(Data(<2873 bytes 885dad44>))
++3229216 1 Tx(Ctrl { code: 4, lead: 1 })
++3229216 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
++3241440 0 Host(Buffer(0))
++3241440 0 Tx(Ctrl { code: 3, lead: 1 })
++3241440 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
++3252704 0 Tx(Ctrl { code: 3, lead: 1 })
++3253664 1 Host(Log("QRT Received"))
++3253664 1 Host(Disconnected)
++3253664 1 Host(CancelPending)
++3253664 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++3263968 0 Host(Disconnected)
++3263968 0 Host(CancelPending)
++3263968 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ ## lossy Files 20
+ 0 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ 0 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+@@ -1837,36 +1837,36 @@
+ 516160 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
+ 602848 1 Tx(Ctrl { code: 12, lead: 28 })
+ 638112 0 Tx(Ctrl { code: 4, lead: 1 })
+-694080 1 Tx(Ctrl { code: 12, lead: 28 })
+-785312 1 Tx(Ctrl { code: 12, lead: 28 })
+-876544 1 Tx(Ctrl { code: 12, lead: 28 })
+-916416 0 Tx(Ctrl { code: 4, lead: 1 })
+-928640 1 Tx(Ctrl { code: 14, lead: 28 })
+-928640 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22, 23, 24], records: [1, 14, 15], nframes: 1, linked: true })
+-968512 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 20], records: [], nframes: 1, linked: true })
+-968512 0 Tx(Data { record: 15, frames: [<16 bytes 65692172>], lead: 1 })
+-990208 1 Host(Sn(36.5))
+-990208 1 Host(RxFrame(15))
+-990208 1 Tx(Ctrl { code: 7, lead: 1 })
+-990208 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 2, 14, 15], nframes: 1, linked: true })
+-1002432 0 Host(Buffer(632))
+-1002432 0 Tx(Data { record: 2, frames: [<709 bytes 929470a8>], lead: 1 })
+-1233792 1 Host(Sn(36.5))
+-1233792 1 Host(RxFrame(2))
+-1233792 1 Host(Data(<1636 bytes 0b52a9ee>))
+-1233792 1 Tx(Ctrl { code: 4, lead: 1 })
+-1233792 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
+-1246016 0 Host(Buffer(0))
+-1246016 0 Tx(Ctrl { code: 3, lead: 1 })
+-1246016 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
+-1257280 0 Tx(Ctrl { code: 3, lead: 1 })
+-1258240 1 Host(Log("QRT Received"))
+-1258240 1 Host(Disconnected)
+-1258240 1 Host(CancelPending)
+-1258240 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+-1268544 0 Host(Disconnected)
+-1268544 0 Host(CancelPending)
+-1268544 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++698944 1 Tx(Ctrl { code: 12, lead: 28 })
++799904 1 Tx(Ctrl { code: 12, lead: 28 })
++905728 1 Tx(Ctrl { code: 12, lead: 28 })
++945600 0 Tx(Ctrl { code: 4, lead: 1 })
++957824 1 Tx(Ctrl { code: 14, lead: 28 })
++957824 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22, 23, 24], records: [1, 14, 15], nframes: 1, linked: true })
++997696 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 20], records: [], nframes: 1, linked: true })
++997696 0 Tx(Data { record: 15, frames: [<16 bytes 65692172>], lead: 1 })
++1019392 1 Host(Sn(36.5))
++1019392 1 Host(RxFrame(15))
++1019392 1 Tx(Ctrl { code: 7, lead: 1 })
++1019392 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 2, 14, 15], nframes: 1, linked: true })
++1031616 0 Host(Buffer(632))
++1031616 0 Tx(Data { record: 2, frames: [<709 bytes 929470a8>], lead: 1 })
++1262976 1 Host(Sn(36.5))
++1262976 1 Host(RxFrame(2))
++1262976 1 Host(Data(<1636 bytes 0b52a9ee>))
++1262976 1 Tx(Ctrl { code: 4, lead: 1 })
++1262976 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
++1275200 0 Host(Buffer(0))
++1275200 0 Tx(Ctrl { code: 3, lead: 1 })
++1275200 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
++1286464 0 Tx(Ctrl { code: 3, lead: 1 })
++1287424 1 Host(Log("QRT Received"))
++1287424 1 Host(Disconnected)
++1287424 1 Host(CancelPending)
++1287424 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++1297728 0 Host(Disconnected)
++1297728 0 Host(CancelPending)
++1297728 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ ## clean abort by 0 after 1 frames
+ 0 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ 0 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+@@ -2530,51 +2530,51 @@
+ 1261440 1 Tx(Ctrl { code: 20, lead: 1 })
+ 1273664 0 Tx(Ctrl { code: 21, lead: 1 })
+ 1273664 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-1297376 1 Tx(Ctrl { code: 20, lead: 1 })
+-1309600 0 Tx(Ctrl { code: 21, lead: 1 })
+-1309600 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-1321824 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-1801824 1 Tx(Ctrl { code: 20, lead: 1 })
+-1801824 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 21], records: [], nframes: 1, linked: true })
+-1814048 0 Tx(Ctrl { code: 21, lead: 1 })
+-1814048 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-1826272 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-2306272 1 Tx(Ctrl { code: 20, lead: 1 })
+-2306272 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 21], records: [], nframes: 1, linked: true })
+-2318496 0 Tx(Ctrl { code: 21, lead: 1 })
+-2318496 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-2330720 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-2810720 1 Tx(Ctrl { code: 20, lead: 1 })
+-2810720 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 21], records: [], nframes: 1, linked: true })
+-2822944 0 Tx(Ctrl { code: 21, lead: 1 })
+-2822944 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-2835168 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-3315168 1 Tx(Ctrl { code: 20, lead: 1 })
+-3315168 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 21], records: [], nframes: 1, linked: true })
+-3327392 0 Tx(Ctrl { code: 21, lead: 1 })
+-3327392 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-3339616 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-3819616 1 Tx(Ctrl { code: 20, lead: 1 })
+-3819616 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 21], records: [], nframes: 1, linked: true })
+-3831840 0 Tx(Ctrl { code: 21, lead: 1 })
+-3831840 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-3844064 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-4324064 1 Tx(Ctrl { code: 20, lead: 1 })
+-4324064 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 21], records: [], nframes: 1, linked: true })
+-4336288 0 Tx(Ctrl { code: 21, lead: 1 })
+-4336288 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-4348512 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
+-4828512 1 Host(Log("stopped sending due to CMS failure"))
+-4828512 1 Tx(Ctrl { code: 3, lead: 1 })
+-4828512 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
+-4839776 1 Tx(Ctrl { code: 3, lead: 1 })
+-4840736 0 Host(Log("QRT Received"))
+-4840736 0 Host(Disconnected)
+-4840736 0 Host(CancelPending)
+-4840736 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+-4851040 1 Host(Disconnected)
+-4851040 1 Host(CancelPending)
+-4851040 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++1302240 1 Tx(Ctrl { code: 20, lead: 1 })
++1314464 0 Tx(Ctrl { code: 21, lead: 1 })
++1314464 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++1326688 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++1806688 1 Tx(Ctrl { code: 20, lead: 1 })
++1806688 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 21], records: [], nframes: 1, linked: true })
++1818912 0 Tx(Ctrl { code: 21, lead: 1 })
++1818912 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++1831136 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++2311136 1 Tx(Ctrl { code: 20, lead: 1 })
++2311136 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 21], records: [], nframes: 1, linked: true })
++2323360 0 Tx(Ctrl { code: 21, lead: 1 })
++2323360 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++2335584 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++2815584 1 Tx(Ctrl { code: 20, lead: 1 })
++2815584 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 21], records: [], nframes: 1, linked: true })
++2827808 0 Tx(Ctrl { code: 21, lead: 1 })
++2827808 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++2840032 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++3320032 1 Tx(Ctrl { code: 20, lead: 1 })
++3320032 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 21], records: [], nframes: 1, linked: true })
++3332256 0 Tx(Ctrl { code: 21, lead: 1 })
++3332256 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++3344480 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++3824480 1 Tx(Ctrl { code: 20, lead: 1 })
++3824480 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 21], records: [], nframes: 1, linked: true })
++3836704 0 Tx(Ctrl { code: 21, lead: 1 })
++3836704 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++3848928 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++4328928 1 Tx(Ctrl { code: 20, lead: 1 })
++4328928 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 21], records: [], nframes: 1, linked: true })
++4341152 0 Tx(Ctrl { code: 21, lead: 1 })
++4341152 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++4353376 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 20], records: [], nframes: 1, linked: true })
++4833376 1 Host(Log("stopped sending due to CMS failure"))
++4833376 1 Tx(Ctrl { code: 3, lead: 1 })
++4833376 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
++4844640 1 Tx(Ctrl { code: 3, lead: 1 })
++4845600 0 Host(Log("QRT Received"))
++4845600 0 Host(Disconnected)
++4845600 0 Host(CancelPending)
++4845600 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++4855904 1 Host(Disconnected)
++4855904 1 Host(CancelPending)
++4855904 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ ## lossy Text abort Some((0, 7)) 34
+ 0 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ 0 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+@@ -2619,35 +2619,35 @@
+ 1479136 0 Tx(Ctrl { code: 2, lead: 1 })
+ 1479136 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 14, 15], nframes: 1, linked: true })
+ 1525248 1 Tx(Ctrl { code: 12, lead: 28 })
+-1616480 1 Tx(Ctrl { code: 12, lead: 28 })
+-1656352 0 Tx(Ctrl { code: 2, lead: 1 })
+-1668576 1 Tx(Data { record: 1, frames: [<338 bytes f14e2304>], lead: 25 })
+-1927584 0 Host(Sn(11.5))
+-1927584 0 Host(RxFrame(1))
+-1927584 0 Host(Data(<488 bytes b29bab13>))
+-1927584 0 Tx(Ctrl { code: 4, lead: 1 })
+-1927584 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
+-1939808 1 Host(Buffer(0))
+-1939808 1 Tx(Ctrl { code: 14, lead: 28 })
+-1939808 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22, 23, 24], records: [1, 14, 15], nframes: 1, linked: true })
+-1979680 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 20], records: [], nframes: 1, linked: true })
+-1979680 0 Tx(Data { record: 15, frames: [<16 bytes 9bae3236>], lead: 1 })
+-2001376 1 Host(Sn(11.5))
+-2001376 1 Host(RxFrame(15))
+-2001376 1 Host(Data(<15 bytes 31fc7a45>))
+-2001376 1 Tx(Ctrl { code: 8, lead: 1 })
+-2001376 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 4, 14, 15], nframes: 1, linked: true })
+-2013600 0 Host(Buffer(4985))
+-2013600 0 Tx(Ctrl { code: 3, lead: 1 })
+-2013600 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
+-2024864 0 Tx(Ctrl { code: 3, lead: 1 })
+-2025824 1 Host(Log("QRT Received"))
+-2025824 1 Host(Disconnected)
+-2025824 1 Host(CancelPending)
+-2025824 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+-2036128 0 Host(Disconnected)
+-2036128 0 Host(CancelPending)
+-2036128 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++1621344 1 Tx(Ctrl { code: 12, lead: 28 })
++1661216 0 Tx(Ctrl { code: 2, lead: 1 })
++1673440 1 Tx(Data { record: 1, frames: [<338 bytes f14e2304>], lead: 25 })
++1932448 0 Host(Sn(11.5))
++1932448 0 Host(RxFrame(1))
++1932448 0 Host(Data(<488 bytes b29bab13>))
++1932448 0 Tx(Ctrl { code: 4, lead: 1 })
++1932448 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 12, 13, 14, 20], records: [], nframes: 1, linked: true })
++1944672 1 Host(Buffer(0))
++1944672 1 Tx(Ctrl { code: 14, lead: 28 })
++1944672 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22, 23, 24], records: [1, 14, 15], nframes: 1, linked: true })
++1984544 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 20], records: [], nframes: 1, linked: true })
++1984544 0 Tx(Data { record: 15, frames: [<16 bytes 9bae3236>], lead: 1 })
++2006240 1 Host(Sn(11.5))
++2006240 1 Host(RxFrame(15))
++2006240 1 Host(Data(<15 bytes 31fc7a45>))
++2006240 1 Tx(Ctrl { code: 8, lead: 1 })
++2006240 1 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 20, 22], records: [1, 4, 14, 15], nframes: 1, linked: true })
++2018464 0 Host(Buffer(4985))
++2018464 0 Tx(Ctrl { code: 3, lead: 1 })
++2018464 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [], records: [], nframes: 1, linked: true })
++2029728 0 Tx(Ctrl { code: 3, lead: 1 })
++2030688 1 Host(Log("QRT Received"))
++2030688 1 Host(Disconnected)
++2030688 1 Host(CancelPending)
++2030688 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++2040992 0 Host(Disconnected)
++2040992 0 Host(CancelPending)
++2040992 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ ## lossy Files abort Some((1, 1)) 35
+ 0 0 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+ 0 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
+@@ -2987,13 +2987,13 @@
+ 770688 0 Tx(Ctrl { code: 20, lead: 1 })
+ 770688 0 Listen(Listen { bw: Narrow, key: 14197719, ctrl: Some((14197719, 14158214)), codes: [3, 4, 12, 13, 21], records: [], nframes: 1, linked: true })
+ 834272 0 Tx(Ctrl { code: 20, lead: 1 })
+-897856 0 Tx(Ctrl { code: 20, lead: 1 })
+-961440 0 Tx(Ctrl { code: 20, lead: 1 })
+-1025024 0 Tx(Ctrl { code: 20, lead: 1 })
++902720 0 Tx(Ctrl { code: 20, lead: 1 })
++976032 0 Tx(Ctrl { code: 20, lead: 1 })
+ 1038016 1 Host(TimedOut)
+ 1038016 1 Host(Disconnected)
+ 1038016 1 Host(CancelPending)
+ 1038016 1 Listen(Listen { bw: Narrow, key: 0, ctrl: None, codes: [], records: [0], nframes: 1, linked: false })
++1054208 0 Tx(Ctrl { code: 20, lead: 1 })
+ 1077888 0 Host(TimedOut)
+ 1077888 0 Host(Disconnected)
+ 1077888 0 Host(CancelPending)
+diff --git a/crates/xara-phy/src/cwid.rs b/crates/xara-phy/src/cwid.rs
+index 39dbbe0..ca02da7 100644
+--- a/crates/xara-phy/src/cwid.rs
++++ b/crates/xara-phy/src/cwid.rs
+@@ -1,4 +1,4 @@
+-use std::f64::consts::PI;
++use crate::dsp::sine;
+ 
+ pub const UNIT: usize = 2048;
+ 
+@@ -59,15 +59,13 @@ pub fn units(text: &str) -> Vec<bool> {
+ 
+ pub fn synth(call: &str, blanks: u32, ra_board: bool) -> Vec<f64> {
+     let text = " ".repeat(blanks as usize) + call;
+-    let tone = |k: f64, a: f64| (1..=UNIT).map(move |n| a * (2.0 * PI * k * n as f64 / UNIT as f64).sin());
++    let tone = |k: u32, a: f64| sine(k, UNIT)[1..].iter().map(move |&s| a * s);
+     let mut keyed = false;
+     let mut out = Vec::new();
+     for u in units(&text) {
+         keyed |= u;
+         let lo = keyed && !ra_board;
+-        out.extend(
+-            tone(64.0, if u { 1.6 } else { 0.0 }).zip(tone(32.0, if lo { 0.8 } else { 0.0 })).map(|(a, b)| a + b),
+-        );
++        out.extend(tone(64, if u { 1.6 } else { 0.0 }).zip(tone(32, if lo { 0.8 } else { 0.0 })).map(|(a, b)| a + b));
+     }
+     out
+ }
+diff --git a/crates/xara-phy/src/dsp.rs b/crates/xara-phy/src/dsp.rs
+index 9df179b..5b6a553 100644
+--- a/crates/xara-phy/src/dsp.rs
++++ b/crates/xara-phy/src/dsp.rs
+@@ -78,7 +78,21 @@ impl Window {
+ pub const CHI_MIN: f64 = 20.0;
+ 
+ pub fn quantise(x: f64) -> f64 {
+-    (x.clamp(-1.0, 1.0) * 32767.0).round_ties_even() / 32767.0
++    const ULP_ONE: f64 = 4_503_599_627_370_496.0;
++    let y = x.clamp(-1.0, 1.0) * 32767.0;
++    ((y.abs() + ULP_ONE) - ULP_ONE).copysign(y) / 32767.0
++}
++
++pub(crate) fn sine(k: u32, period: usize) -> &'static [f64] {
++    static TABLES: [[OnceLock<Vec<f64>>; 128]; 3] = [const { [const { OnceLock::new() }; 128] }; 3];
++    let p = match period {
++        512 => 0,
++        1024 => 1,
++        2048 => 2,
++        _ => panic!("no sine table for period {period}"),
++    };
++    TABLES[p][k as usize]
++        .get_or_init(|| (0..=period).map(|n| (2.0 * PI * f64::from(k) * n as f64 / period as f64).sin()).collect())
+ }
+ 
+ pub fn db_amp(db: f64) -> f64 {
+@@ -191,7 +205,40 @@ pub fn kaiser_lowpass(n: usize, cutoff: f64, fs: f64, beta: f64) -> Vec<f64> {
+     h.iter().map(|v| v / s).collect()
+ }
+ 
++pub(crate) fn par_map<T: Sync, R: Send + Default>(items: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R> {
++    let mut out: Vec<R> = items.iter().map(|_| R::default()).collect();
++    let per = items.len().div_ceil(cores()).max(1);
++    let f = &f;
++    std::thread::scope(|s| {
++        let mut parts = out.chunks_mut(per).zip(items.chunks(per));
++        let first = parts.next();
++        for (o, x) in parts {
++            s.spawn(move || o.iter_mut().zip(x).for_each(|(o, x)| *o = f(x)));
++        }
++        if let Some((o, x)) = first {
++            o.iter_mut().zip(x).for_each(|(o, x)| *o = f(x));
++        }
++    });
++    out
++}
++
+ pub(crate) fn cores() -> usize {
+     static N: OnceLock<usize> = OnceLock::new();
+     *N.get_or_init(|| std::thread::available_parallelism().map_or(1, |n| n.get()))
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn quantise_matches_round_ties_even() {
++        let edges = [0.0, -0.0, 1e-300, -1e-300, 1.0, -1.0, 3.0, -3.0, f64::MAX, f64::MIN];
++        let grid = (-140_000..=140_000)
++            .flat_map(|i| [0.0, 1e-9, 0.25, 0.499_999_999, 0.5, 0.75].map(|f| (f64::from(i) + f) / 65_534.0));
++        for x in edges.into_iter().chain(grid).flat_map(|x| [x, -x]) {
++            let want = (x.clamp(-1.0, 1.0) * 32767.0).round_ties_even() / 32767.0;
++            assert_eq!(quantise(x).to_bits(), want.to_bits(), "{x}");
++        }
++    }
++}
+diff --git a/crates/xara-phy/src/fm/code.rs b/crates/xara-phy/src/fm/code.rs
+index 3c4209a..88fc93c 100644
+--- a/crates/xara-phy/src/fm/code.rs
++++ b/crates/xara-phy/src/fm/code.rs
+@@ -30,6 +30,13 @@ pub fn whitening() -> &'static [u8] {
+     &WHITE
+ }
+ 
++pub fn warm() {
++    for bw in [FmBandwidth::Narrow, FmBandwidth::Wide] {
++        tables(bw);
++    }
++    whitening();
++}
++
+ pub fn phase_indices(key: Option<u32>) -> Vec<[u8; PHASOR_ROWS]> {
+     let mut r = match key {
+         None => VbRnd::stream(seq::FM_SEED),
+diff --git a/crates/xara-phy/src/fm/rx/ofdm.rs b/crates/xara-phy/src/fm/rx/ofdm.rs
+index 99893ce..1c09b65 100644
+--- a/crates/xara-phy/src/fm/rx/ofdm.rs
++++ b/crates/xara-phy/src/fm/rx/ofdm.rs
+@@ -2,7 +2,7 @@
+ 
+ use super::{NF, SYMLEN, to48};
+ use crate::demap::soft_bits;
+-use crate::dsp::{CHI_MIN, Hold, Track, Window, argmax, peak_mid, thin, unit};
++use crate::dsp::{CHI_MIN, Hold, Track, Window, argmax, par_map, peak_mid, thin, unit};
+ use crate::eq;
+ use crate::fm::code::{Codec, Phasors};
+ use crate::fm::constellation::constellation;
+@@ -10,7 +10,7 @@ use crate::fm::level::{Level, PILOT_PERIOD, Record, qam_pilot};
+ use crate::fm::tx::symbol_map;
+ use num_complex::{Complex32, Complex64};
+ use rustfft::{Fft, FftPlanner};
+-use std::sync::Arc;
++use std::sync::{Arc, LazyLock};
+ 
+ pub const HOP: i64 = 4;
+ pub const SYM: i64 = SYMLEN / HOP;
+@@ -21,6 +21,9 @@ const PP: usize = PILOT_PERIOD as usize;
+ const MAX_DAT: usize = 600;
+ const REFINE: i64 = 3;
+ const SN_BW_HZ: f64 = 2500.0;
++const CATCH_UP: i64 = 256;
++
++static FFT: LazyLock<Arc<dyn Fft<f64>>> = LazyLock::new(|| FftPlanner::new().plan_fft_forward(NF));
+ 
+ pub struct Stft {
+     win: Window,
+@@ -137,7 +140,7 @@ impl OfdmEngine {
+             markers,
+             data: thin(data, MAX_DAT),
+             span: l.nsym() as i64 * SYMLEN,
+-            fft: FftPlanner::new().plan_fft_forward(NF),
++            fft: FFT.clone(),
+             search_next: None,
+             hold: Hold::new(SYM / 2, SYM * (l.nsym() as i64 - 2)),
+         }
+@@ -170,8 +173,12 @@ impl OfdmEngine {
+             return out;
+         }
+         let marker_min = (MK_FRAC * self.markers.len() as f64).max(6.0);
+-        for j in lo..=hi {
+-            let (marker_chi, data_chi) = self.terms(st, j);
++        let terms = if hi - lo >= CATCH_UP {
++            par_map(&(lo..=hi).collect::<Vec<_>>(), |&j| self.terms(st, j))
++        } else {
++            (lo..=hi).map(|j| self.terms(st, j)).collect()
++        };
++        for (j, (marker_chi, data_chi)) in (lo..=hi).zip(terms) {
+             let chi = marker_chi + data_chi;
+             let candidate = (marker_chi >= marker_min && chi >= CHI_MIN).then_some((chi, ()));
+             if let Some((j, metric, ())) = self.hold.offer(j, candidate) {
+@@ -185,11 +192,13 @@ impl OfdmEngine {
+     fn cells(&self, buf: &Track<Complex64>, t: i64, rows: usize) -> Vec<Vec<Complex64>> {
+         let seg = buf.get(t, t + rows as i64 * SYMLEN);
+         let fb: Vec<usize> = self.l.bins().collect();
++        let mut w = vec![Complex64::default(); NF];
++        let mut scratch = vec![Complex64::default(); self.fft.get_inplace_scratch_len()];
+         seg.chunks(SYMLEN as usize)
+             .enumerate()
+             .map(|(r, ch)| {
+-                let mut w = ch[..NF].to_vec();
+-                self.fft.process(&mut w);
++                w.copy_from_slice(&ch[..NF]);
++                self.fft.process_with_scratch(&mut w, &mut scratch);
+                 fb.iter().zip(&self.phasors[r]).map(|(&b, &p)| w[b] * p).collect()
+             })
+             .collect()
+diff --git a/crates/xara-phy/src/fm/tx.rs b/crates/xara-phy/src/fm/tx.rs
+index 508bd4e..3ddd5c9 100644
+--- a/crates/xara-phy/src/fm/tx.rs
++++ b/crates/xara-phy/src/fm/tx.rs
+@@ -52,7 +52,7 @@ pub fn pre_signal_rows() -> Vec<Row> {
+ }
+ 
+ pub fn synth(rows: &[Row], scale: f64) -> Vec<f64> {
+-    ofdm::synth(rows.iter().map(|row| ofdm::idft(0, row).iter().map(|v| v * scale).collect()))
++    ofdm::synth(0, rows.iter().map(|row| &row[..]), scale)
+ }
+ 
+ pub fn tune_block(drive_db: f64) -> Vec<f64> {
+@@ -114,7 +114,9 @@ impl Modulator {
+         rows.extend(lead_rows(&l, lead, rand));
+         rows.extend(self.rows(record, key, frames));
+         let g = l.gain(opt.drive_db) / f64::from(l.amp_norm);
+-        synth(&rows, g).into_iter().map(|v| v.clamp(-1.0, 1.0)).collect()
++        let mut x = synth(&rows, g);
++        x.iter_mut().for_each(|v| *v = v.clamp(-1.0, 1.0));
++        x
+     }
+ }
+ 
+diff --git a/crates/xara-phy/src/hf/ctrl.rs b/crates/xara-phy/src/hf/ctrl.rs
+index c520d1d..da89e6d 100644
+--- a/crates/xara-phy/src/hf/ctrl.rs
++++ b/crates/xara-phy/src/hf/ctrl.rs
+@@ -1,9 +1,10 @@
+ pub mod code;
+ 
++use crate::dsp::sine;
+ use crate::hf::level::Bandwidth;
+ use crate::hf::tx;
+ use crate::rnd::VbRnd;
+-use std::f64::consts::{PI, SQRT_2};
++use std::f64::consts::SQRT_2;
+ 
+ pub const SYMBOL_SAMPLES: usize = 2048;
+ pub const NUM_CODES: usize = 58;
+@@ -320,10 +321,8 @@ pub fn synth(lead: &[Symbol], codeword: &[Symbol]) -> Vec<f64> {
+     lead.iter()
+         .chain(codeword)
+         .flat_map(|tones| {
+-            (0..SYMBOL_SAMPLES).map(move |n| {
+-                tones.iter().map(|&k| (2.0 * PI * f64::from(k) * n as f64 / SYMBOL_SAMPLES as f64).sin()).sum::<f64>()
+-                    / tones.len() as f64
+-            })
++            let rows: Vec<&[f64]> = tones.iter().map(|&k| sine(k, SYMBOL_SAMPLES)).collect();
++            (0..SYMBOL_SAMPLES).map(move |n| rows.iter().map(|r| r[n]).sum::<f64>() / tones.len() as f64)
+         })
+         .collect()
+ }
+diff --git a/crates/xara-phy/src/hf/fsk.rs b/crates/xara-phy/src/hf/fsk.rs
+index 52cd321..b9f5c4b 100644
+--- a/crates/xara-phy/src/hf/fsk.rs
++++ b/crates/xara-phy/src/hf/fsk.rs
+@@ -1,7 +1,7 @@
+ use crate::constellation::take_bits;
++use crate::dsp::sine;
+ use crate::hf::level::{FSK_PILOTS, Level, Waveform};
+ use crate::ofdm::fall;
+-use std::f64::consts::PI;
+ 
+ pub const GRAY: [u32; 16] = [0, 1, 3, 2, 7, 6, 4, 5, 15, 14, 12, 13, 8, 9, 11, 10];
+ 
+@@ -51,10 +51,7 @@ pub fn modulate(l: &Level, other: &[u16], txs: &[Vec<u8>], rand: &mut dyn FnMut(
+         bins.extend(rows(l, other, tx));
+     }
+     let nsamp = 16 * g.sps as usize;
+-    let mut x: Vec<f64> = bins
+-        .iter()
+-        .flat_map(|&k| (0..nsamp).map(move |n| 2.0 * (2.0 * PI * f64::from(k) * n as f64 / nsamp as f64).sin()))
+-        .collect();
++    let mut x: Vec<f64> = bins.iter().flat_map(|&k| sine(k, nsamp)[..nsamp].iter().map(|&s| 2.0 * s)).collect();
+     if let Some(tail) = x.len().checked_sub(nsamp / 32) {
+         for (v, f) in x[tail..].iter_mut().zip(fall(nsamp / 32)) {
+             *v *= f;
+diff --git a/crates/xara-phy/src/hf/mod.rs b/crates/xara-phy/src/hf/mod.rs
+index a2a0fe0..9303837 100644
+--- a/crates/xara-phy/src/hf/mod.rs
++++ b/crates/xara-phy/src/hf/mod.rs
+@@ -35,6 +35,13 @@ pub fn whitening() -> &'static [u8] {
+     &WHITE
+ }
+ 
++pub fn warm(bw: Bandwidth) {
++    tables(bw);
++    whitening();
++    psk_phasors();
++    ofdm_phasors();
++}
++
+ pub fn psk_phasors() -> &'static [Vec<Complex64>] {
+     &PSK_PHASORS
+ }
+diff --git a/crates/xara-phy/src/hf/ofdm.rs b/crates/xara-phy/src/hf/ofdm.rs
+index f8e6402..8c8409d 100644
+--- a/crates/xara-phy/src/hf/ofdm.rs
++++ b/crates/xara-phy/src/hf/ofdm.rs
+@@ -36,7 +36,7 @@ pub fn frame_rows(l: &Level, other: &[u16], phasors: &[Vec<Complex64>], tx: &[u8
+ }
+ 
+ pub fn synth(first: u32, rows: &[Vec<Complex64>]) -> Vec<f64> {
+-    ofdm::synth(rows.iter().map(|row| ofdm::idft(first as usize, row)))
++    ofdm::synth(first as usize, rows.iter().map(Vec::as_slice), 1.0)
+ }
+ 
+ pub fn modulate(
+diff --git a/crates/xara-phy/src/hf/psk.rs b/crates/xara-phy/src/hf/psk.rs
+index 4f6bf38..78707ef 100644
+--- a/crates/xara-phy/src/hf/psk.rs
++++ b/crates/xara-phy/src/hf/psk.rs
+@@ -1,5 +1,6 @@
+ use crate::constellation::{constellation, take_bits};
+ use crate::dat::marker_map;
++use crate::dsp::par_map;
+ use crate::hf::level::{Level, Pulse, Waveform};
+ use num_complex::Complex64;
+ use std::f32::consts::TAU;
+@@ -108,10 +109,20 @@ fn carrier_audio(symbols: &[Complex64], fc: u32, delay: usize, hp: &[f64], hi: &
+     let len3 = symbols.len() * SPS + delay;
+     let mut y3 = scatter(symbols, SPS, delay, hp);
+     y3.resize(len3 + hp.len() - 1, Complex64::default());
+-    let mut y = scatter(&y3, 16, 0, hi);
+-    y.resize(y3.len() * 16 + hi.len() - 1, Complex64::default());
+-    let ph = nco_phase(fc, y.len());
+-    y.iter().zip(ph).map(|(v, p)| v.re * f64::from(p).cos() - v.im * f64::from(p).sin()).collect()
++    let n = y3.len() * 16 + hi.len() - 1;
++    nco_phase(fc, n)
++        .into_iter()
++        .enumerate()
++        .map(|(t, p)| {
++            let mut v = Complex64::default();
++            for i in (t + 1).saturating_sub(hi.len()).div_ceil(16)..=(t / 16).min(y3.len() - 1) {
++                if y3[i] != Complex64::default() {
++                    v += y3[i] * hi[t - 16 * i];
++                }
++            }
++            v.re * f64::from(p).cos() - v.im * f64::from(p).sin()
++        })
++        .collect()
+ }
+ 
+ pub fn symbol_map(l: &Level, other: &[u16]) -> Vec<Vec<bool>> {
+@@ -136,21 +147,27 @@ pub fn modulate(
+     let lead: Vec<Vec<Complex64>> =
+         (0..l.lead_in()).map(|_| (0..nc).map(|_| cst[rand(m) as usize]).collect()).collect();
+     let mut ptrs = vec![0usize; txs.len()];
+-    let mut total: Vec<f64> = Vec::new();
+-    for (c, &fc) in carriers_hz.iter().enumerate() {
+-        let mut x: Vec<Complex64> = lead.iter().enumerate().map(|(k, v)| v[c] * phasors[c][k].conj() * SCALE).collect();
+-        for ((tx, ptr), d0) in txs.iter().zip(ptrs.iter_mut()).zip(&refs) {
+-            let mut d = d0[c];
+-            x.push(d * phasors[c][0].conj() * SCALE);
+-            for s in 1..nsym {
+-                if !(s >= 2 && map[c][s - 2]) {
+-                    d *= cst[take_bits(tx, ptr, l.bps)];
++    let xs: Vec<(usize, Vec<Complex64>)> = (0..nc)
++        .map(|c| {
++            let mut x: Vec<Complex64> =
++                lead.iter().enumerate().map(|(k, v)| v[c] * phasors[c][k].conj() * SCALE).collect();
++            for ((tx, ptr), d0) in txs.iter().zip(ptrs.iter_mut()).zip(&refs) {
++                let mut d = d0[c];
++                x.push(d * phasors[c][0].conj() * SCALE);
++                for s in 1..nsym {
++                    if !(s >= 2 && map[c][s - 2]) {
++                        d *= cst[take_bits(tx, ptr, l.bps)];
++                    }
++                    x.push(d * phasors[c][s].conj() * SCALE);
+                 }
+-                x.push(d * phasors[c][s].conj() * SCALE);
+             }
+-        }
+-        x.push(Complex64::default());
+-        let sig = carrier_audio(&x, fc, stagger(c, nc), &hp, &hi);
++            x.push(Complex64::default());
++            (c, x)
++        })
++        .collect();
++    let sigs = par_map(&xs, |(c, x)| carrier_audio(x, carriers_hz[*c], stagger(*c, nc), &hp, &hi));
++    let mut total: Vec<f64> = Vec::new();
++    for sig in sigs {
+         if sig.len() > total.len() {
+             total.resize(sig.len(), 0.0);
+         }
+diff --git a/crates/xara-phy/src/ofdm.rs b/crates/xara-phy/src/ofdm.rs
+index b596385..6d0a3f8 100644
+--- a/crates/xara-phy/src/ofdm.rs
++++ b/crates/xara-phy/src/ofdm.rs
+@@ -17,25 +17,22 @@ pub fn fall(n: usize) -> Vec<f64> {
+ 
+ static IFFT: LazyLock<Arc<dyn Fft<f64>>> = LazyLock::new(|| FftPlanner::new().plan_fft_inverse(NFFT));
+ 
+-pub(crate) fn idft(first: usize, row: &[Complex64]) -> Vec<f64> {
+-    let mut buf = vec![Complex64::default(); NFFT];
+-    buf[first..first + row.len()].copy_from_slice(row);
+-    IFFT.process(&mut buf);
+-    buf.iter().map(|z| 2.0 * z.re).collect()
+-}
+-
+-pub(crate) fn synth(blocks: impl ExactSizeIterator<Item = Vec<f64>>) -> Vec<f64> {
++pub(crate) fn synth<'a>(first: usize, rows: impl ExactSizeIterator<Item = &'a [Complex64]>, scale: f64) -> Vec<f64> {
+     let fall = fall(NWIN);
+-    let mut out = Vec::with_capacity(blocks.len() * (NFFT + NCP));
++    let mut out = Vec::with_capacity(rows.len() * (NFFT + NCP));
+     let mut saved = [0.0; NWIN];
+-    for x in blocks {
++    let mut buf = vec![Complex64::default(); NFFT];
++    let mut scratch = vec![Complex64::default(); IFFT.get_inplace_scratch_len()];
++    for row in rows {
++        buf.fill(Complex64::default());
++        buf[first..first + row.len()].copy_from_slice(row);
++        IFFT.process_with_scratch(&mut buf, &mut scratch);
+         let start = out.len();
+-        out.extend_from_slice(&x[NFFT - NCP..]);
+-        out.extend_from_slice(&x);
++        out.extend(buf[NFFT - NCP..].iter().chain(&buf).map(|z| 2.0 * z.re * scale));
+         for k in 0..NWIN {
+             out[start + k] = fall[NWIN - 1 - k] * out[start + k] + fall[k] * saved[k];
+         }
+-        saved.copy_from_slice(&x[..NWIN]);
++        saved.copy_from_slice(&out[start + NCP..start + NCP + NWIN]);
+     }
+     if let Some(tail) = out.len().checked_sub(NWIN) {
+         for (v, f) in out[tail..].iter_mut().zip(&fall) {
+diff --git a/crates/xara-phy/src/turbo/engine.rs b/crates/xara-phy/src/turbo/engine.rs
+index 92d814c..3bdf60d 100644
+--- a/crates/xara-phy/src/turbo/engine.rs
++++ b/crates/xara-phy/src/turbo/engine.rs
+@@ -32,12 +32,14 @@ impl<T> Sh<T> {
+     }
+ 
+     unsafe fn all(&self) -> &[T] {
++        // SAFETY: the caller keeps the slice alive and overlaps no part() it holds.
+         unsafe { std::slice::from_raw_parts(self.0, self.1) }
+     }
+ 
+     #[allow(clippy::mut_from_ref)]
+     unsafe fn part(&self, r: Range<usize>) -> &mut [T] {
+         assert!(r.start <= r.end && r.end <= self.1);
++        // SAFETY: r is in bounds and the caller keeps it unaliased for the borrow.
+         unsafe { std::slice::from_raw_parts_mut(self.0.add(r.start), r.len()) }
+     }
+ }
+diff --git a/crates/xara/src/station/fm.rs b/crates/xara/src/station/fm.rs
+index bda989b..8ffd13a 100644
+--- a/crates/xara/src/station/fm.rs
++++ b/crates/xara/src/station/fm.rs
+@@ -48,6 +48,7 @@ fn bitrate(bw: FmBandwidth, record: Record, tx: bool) -> Report {
+ 
+ impl Station {
+     pub fn new(cfg: fm::Config, opts: Options) -> Self {
++        xara_phy::fm::code::warm();
+         let bw = cfg.bw;
+         let mut s = Self {
+             rng: XorShift::new(cfg.seed.wrapping_mul(SEED_MIX)),
+@@ -109,8 +110,7 @@ impl Station {
+             let rng = &mut self.rng;
+             let mut r = |n: u32| rng.below(n);
+             let x = self.modm.transmission(Record::Broadcast, 0, &[f], IDLE_BEACON_LEAD_IN, opt, &mut r);
+-            let mut samples: Vec<f64> = x.iter().map(|&v| quantise(v)).collect();
+-            samples.resize(samples.len() + if i + 1 == n { DATA_OVERHANG } else { FRAGMENT_GAP }, 0.0);
++            let tail = if i + 1 == n { DATA_OVERHANG } else { FRAGMENT_GAP };
+             let mut keyed = vec![
+                 Report::Host(HostEvent::Pending),
+                 bitrate(bw, Record::Broadcast, true),
+@@ -119,7 +119,7 @@ impl Station {
+             if i == 0 {
+                 self.c.reports.extend(keyed.drain(..));
+             }
+-            self.c.tx.push(samples, self.c.now, keyed, Kind::Fragment { last: i + 1 == n });
++            self.c.tx.push(quantised(x), tail, self.c.now, keyed, Kind::Fragment { last: i + 1 == n });
+         }
+     }
+ 
+@@ -233,7 +233,7 @@ impl Station {
+         }
+     }
+ 
+-    fn render_digi(&mut self, t: &DigiTx) -> Vec<f64> {
++    fn render_digi(&mut self, t: &DigiTx) -> (Vec<f64>, usize) {
+         let d = self.c.opts.drive_db;
+         let (x, tail) = match t {
+             DigiTx::Ctrl { code, lead, side } => {
+@@ -252,9 +252,7 @@ impl Station {
+                 (self.modm.transmission(*record, key, &[frame.as_slice()], *lead, opt, &mut r), DATA_OVERHANG)
+             }
+         };
+-        let mut s: Vec<f64> = x.iter().map(|&v| quantise(v)).collect();
+-        s.resize(s.len() + tail, 0.0);
+-        s
++        (quantised(x), tail)
+     }
+ 
+     fn host(&mut self, h: HostEvent) {
+@@ -273,7 +271,7 @@ impl Station {
+         }
+     }
+ 
+-    fn render(&mut self, t: &fm::Tx) -> (Vec<f64>, Vec<Report>) {
++    fn render(&mut self, t: &fm::Tx) -> (Vec<f64>, usize, Vec<Report>) {
+         let d = self.c.opts.drive_db;
+         let mut keyed = Vec::new();
+         let (x, tail) = match t {
+@@ -296,9 +294,7 @@ impl Station {
+                 (self.modm.transmission(*record, key, &refs, *lead, opt, &mut r), DATA_OVERHANG)
+             }
+         };
+-        let mut s: Vec<f64> = x.iter().map(|&v| quantise(v)).collect();
+-        s.resize(s.len() + tail, 0.0);
+-        (s, keyed)
++        (quantised(x), tail, keyed)
+     }
+ }
+ 
+@@ -314,7 +310,7 @@ impl TxFront for Station {
+                 self.drain_at(end);
+             }
+             Kind::Session => {
+-                self.c.session.on_tx_done(heard);
++                self.c.session.on_tx_done(heard + self.c.opts.ptt_tail);
+                 self.drain_at(end);
+             }
+             Kind::Announce | Kind::Fragment { .. } => {}
+@@ -398,8 +394,8 @@ impl Modem for Station {
+             self.c.reports.push_back(Report::Trace(format!("{what} {:?}", self.c.session.state())));
+             self.c.tx.stop_tune();
+             let earliest = self.c.tx.next_start(now);
+-            let (samples, keyed) = self.render(&t);
+-            self.c.tx.push(samples, earliest, keyed, Kind::Session);
++            let (samples, tail, keyed) = self.render(&t);
++            self.c.tx.push(samples, tail, earliest, keyed, Kind::Session);
+         }
+         while let Some(o) = self.digi.pop() {
+             match o {
+@@ -413,8 +409,8 @@ impl Modem for Station {
+                     self.c.reports.push_back(Report::Trace(what));
+                     self.c.tx.stop_tune();
+                     let earliest = self.c.tx.next_start(now);
+-                    let samples = self.render_digi(&t);
+-                    self.c.tx.push(samples, earliest, Vec::new(), Kind::Digi);
++                    let (samples, tail) = self.render_digi(&t);
++                    self.c.tx.push(samples, tail, earliest, Vec::new(), Kind::Digi);
+                 }
+                 DigiOutput::Listen(l) => self.apply_digi(l),
+                 DigiOutput::Host(h) => self.host(h),
+@@ -571,6 +567,11 @@ impl Arq for fm::Session {
+     }
+ }
+ 
++fn quantised(mut x: Vec<f64>) -> Vec<f64> {
++    x.iter_mut().for_each(|v| *v = quantise(*v));
++    x
++}
++
+ fn level_note(record: Record, frame: &[u8], vias: bool) -> String {
+     match parse_data(record, frame, vias) {
+         Some(d) if record == Record::Start && d.trailer.level != 0 => format!(" lvl {}", d.trailer.level),
+diff --git a/crates/xara/src/station/hf.rs b/crates/xara/src/station/hf.rs
+index ec082a5..27f72f4 100644
+--- a/crates/xara/src/station/hf.rs
++++ b/crates/xara/src/station/hf.rs
+@@ -72,6 +72,7 @@ pub struct Station {
+ 
+ impl Station {
+     pub fn new(cfg: Config, opts: Options) -> Self {
++        xara_phy::hf::warm(cfg.bw);
+         let bw = cfg.bw;
+         let mut s = Self {
+             un: Unproto::new(cfg.seed),
+@@ -169,7 +170,7 @@ impl Station {
+         let g = ctrl::gain(Fmt::F0, d);
+         let ann = frame_audio(&self.grids, &self.un.cb, Fmt::F0, p.code, 0).iter().map(|v| quantise(v * g)).collect();
+         let earliest = self.c.tx.after_hold(now);
+-        self.c.tx.push(ann, earliest, Vec::new(), Kind::Announce);
++        self.c.tx.push(ann, 0, earliest, Vec::new(), Kind::Announce);
+         let g = self.un.modm.gain(p.level, d);
+         let n = p.frames.len();
+         for (k, f) in p.frames.iter().enumerate() {
+@@ -177,7 +178,7 @@ impl Station {
+             let x = self.un.modm.transmission(p.level, &[f], &mut |m| rnd.draw(m));
+             let samples = vec![0.0; FRAGMENT_GAP].into_iter().chain(x.iter().map(|v| quantise(v * g))).collect();
+             let keyed = vec![unproto_bitrate(p.level, true)];
+-            self.c.tx.push(samples, now, keyed, Kind::Fragment { last: k + 1 == n });
++            self.c.tx.push(samples, 0, now, keyed, Kind::Fragment { last: k + 1 == n });
+         }
+     }
+ 
+@@ -284,7 +285,7 @@ impl Station {
+     fn render(&mut self, t: &Tx) -> (Vec<f64>, Vec<Report>) {
+         let d = self.c.opts.drive_db;
+         let mut keyed = Vec::new();
+-        let (x, g) = match t {
++        let (mut x, g) = match t {
+             Tx::Ctrl { code, fmt, extra } => {
+                 if *code == BREAK {
+                     let r = self.tx_rnd.rand_int(2);
+@@ -301,12 +302,13 @@ impl Station {
+                 (self.modm.transmission(*level, &refs, &mut |m| rnd.draw(m)), self.modm.gain(*level, d))
+             }
+             Tx::CwId { call, blanks } => {
+-                let lead = if *blanks == 0 { vec![0.0; cwid::UNIT] } else { Vec::new() };
+-                let x = lead.into_iter().chain(cwid::synth(call, *blanks, false)).collect();
++                let mut x = if *blanks == 0 { vec![0.0; cwid::UNIT] } else { Vec::new() };
++                x.extend(cwid::synth(call, *blanks, false));
+                 (x, 10f64.powf((d - CWID_BACKOFF_DB) / 20.0))
+             }
+         };
+-        (x.iter().map(|v| quantise(v * g)).collect(), keyed)
++        x.iter_mut().for_each(|v| *v = quantise(*v * g));
++        (x, keyed)
+     }
+ 
+     fn bitrate(&self, level: Record, tx: bool) -> Report {
+@@ -332,7 +334,7 @@ impl TxFront for Station {
+         self.un.rx.mute(start, heard);
+         let mark = self.c.reports.len();
+         if kind == Kind::Session {
+-            self.c.session.on_tx_done(heard);
++            self.c.session.on_tx_done(heard + self.c.opts.ptt_tail);
+             self.drain_at(end);
+         }
+         self.c.tx.release(end, &mut self.c.reports, mark);
+@@ -413,7 +415,7 @@ impl Modem for Station {
+                 self.c.reports.push_back(Report::UnencryptedLink);
+             }
+             let (samples, keyed) = self.render(&t);
+-            self.c.tx.push(samples, earliest, keyed, Kind::Session);
++            self.c.tx.push(samples, 0, earliest, keyed, Kind::Session);
+         }
+     }
+ 
+diff --git a/crates/xara/src/station/mod.rs b/crates/xara/src/station/mod.rs
+index 4a4d71f..0367528 100644
+--- a/crates/xara/src/station/mod.rs
++++ b/crates/xara/src/station/mod.rs
+@@ -23,11 +23,13 @@ pub(crate) fn secs(t: Time) -> f64 {
+ pub struct Options {
+     pub drive_db: f64,
+     pub tx_latency: Time,
++    pub rx_lag: Time,
++    pub ptt_tail: Time,
+ }
+ 
+ impl Default for Options {
+     fn default() -> Self {
+-        Self { drive_db: DEFAULT_DRIVE_DB, tx_latency: 0 }
++        Self { drive_db: DEFAULT_DRIVE_DB, tx_latency: 0, rx_lag: 0, ptt_tail: 0 }
+     }
+ }
+ 
+@@ -97,7 +99,7 @@ impl<S: Arq> Common<S> {
+         Self {
+             session,
+             cfg,
+-            tx: TxScheduler::new(opts.tx_latency),
++            tx: TxScheduler::new(opts.tx_latency, opts.rx_lag),
+             opts,
+             listen_on: true,
+             listen: None,
+@@ -181,6 +183,12 @@ pub trait Modem {
+         c.tx.retune(|| Self::tune_tone(db));
+     }
+ 
++    fn set_tx_latency(&mut self, t: Time, lag: Time) {
++        let c = self.common_mut();
++        (c.opts.tx_latency, c.opts.rx_lag) = (t, lag);
++        c.tx.set_latency(t, lag);
++    }
++
+     fn options(&self) -> &Options {
+         &self.common().opts
+     }
+diff --git a/crates/xara/src/station/scheduler.rs b/crates/xara/src/station/scheduler.rs
+index 6bf4c37..6953cee 100644
+--- a/crates/xara/src/station/scheduler.rs
++++ b/crates/xara/src/station/scheduler.rs
+@@ -12,6 +12,7 @@ pub enum Kind {
+ 
+ struct Burst {
+     samples: Vec<f64>,
++    tail: usize,
+     pos: usize,
+     earliest: Time,
+     keyed: Vec<Report>,
+@@ -36,19 +37,24 @@ pub struct TxScheduler {
+     hold_until: Time,
+     ptt: bool,
+     latency: Time,
++    lag: Time,
+     unkey: Option<Unkey>,
+     tune: Option<(Vec<f64>, usize)>,
+ }
+ 
+ impl TxScheduler {
+-    pub fn new(latency: Time) -> Self {
+-        Self { latency, ..Self::default() }
++    pub fn new(latency: Time, lag: Time) -> Self {
++        Self { latency, lag, ..Self::default() }
+     }
+ 
+     pub fn latency(&self) -> Time {
+         self.latency
+     }
+ 
++    pub fn set_latency(&mut self, latency: Time, lag: Time) {
++        (self.latency, self.lag) = (latency, lag);
++    }
++
+     pub fn ptt(&self) -> bool {
+         self.ptt
+     }
+@@ -93,8 +99,8 @@ impl TxScheduler {
+         if !self.bursts.is_empty() || (self.ptt && self.unkey.is_none()) { now } else { self.after_hold(now) }
+     }
+ 
+-    pub fn push(&mut self, samples: Vec<f64>, earliest: Time, keyed: Vec<Report>, kind: Kind) {
+-        self.bursts.push_back(Burst { samples, pos: 0, earliest, keyed, kind });
++    pub fn push(&mut self, samples: Vec<f64>, tail: usize, earliest: Time, keyed: Vec<Report>, kind: Kind) {
++        self.bursts.push_back(Burst { samples, tail, pos: 0, earliest, keyed, kind });
+     }
+ 
+     pub fn key(&mut self, reports: &mut VecDeque<Report>) {
+@@ -113,11 +119,12 @@ impl TxScheduler {
+     }
+ 
+     fn unkey_at(&mut self, end: Time, reports: &mut VecDeque<Report>, mark: usize) {
+-        if self.latency == 0 {
++        let hold = self.latency - self.lag;
++        if hold <= 0 {
+             self.ptt = false;
+             reports.insert(mark, Report::Ptt(false));
+         } else {
+-            self.unkey = Some(Unkey { at: end + self.latency, ready: mark });
++            self.unkey = Some(Unkey { at: end + hold, ready: mark });
+         }
+     }
+ 
+@@ -153,14 +160,15 @@ impl TxScheduler {
+         if b.pos == 0 {
+             reports.extend(b.keyed.drain(..));
+         }
+-        let sample = b.samples[b.pos];
++        let sample = b.samples.get(b.pos).copied().unwrap_or(0.0);
++        let len = b.samples.len() + b.tail;
+         b.pos += 1;
+-        if b.pos < b.samples.len() {
++        if b.pos < len {
+             return Next::Sample(sample);
+         }
+         let b = self.bursts.pop_front().unwrap();
+         let end = t + 1;
+-        Next::Last { sample, kind: b.kind, start: end - b.samples.len() as Time, end }
++        Next::Last { sample, kind: b.kind, start: end - len as Time, end }
+     }
+ 
+     pub fn release(&mut self, end: Time, reports: &mut VecDeque<Report>, mark: usize) {
+diff --git a/crates/xara/tests/station_tx.rs b/crates/xara/tests/station_tx.rs
+index 95b4c9c..3e4e5ca 100644
+--- a/crates/xara/tests/station_tx.rs
++++ b/crates/xara/tests/station_tx.rs
+@@ -1,8 +1,10 @@
++use xara::station::fm::Station as FmStation;
+ use xara::station::hf::Station;
+ use xara::station::{Modem, Options, Report, TX_RING_BYTES};
+ use xara_arq::hf::session::{Config, State};
+ use xara_arq::kiss::Command;
+ use xara_phy::dsp::quantise;
++use xara_phy::fm::level::FmBandwidth;
+ use xara_phy::hf::ctrl::{self, Fmt};
+ use xara_phy::hf::level::Bandwidth;
+ 
+@@ -33,16 +35,63 @@ fn tune_tone_level_and_ptt() {
+ 
+ #[test]
+ fn a_ptt_lead_holds_the_ptt_report_until_the_audio_is_out() {
+-    let opts = Options { tx_latency: 4800, ..Options::default() };
++    for (start, now) in [(4800, None), (0, Some(4800)), (1000, Some(4800))] {
++        let opts = Options { tx_latency: start, ..Options::default() };
++        let mut st = Station::new(Config::new(Bandwidth::Hz2300, "N0CALL"), opts);
++        if let Some(t) = now {
++            st.set_tx_latency(t, 0);
++        }
++        assert_eq!(st.options().tx_latency, 4800);
++        assert!(st.tune(true));
++        assert!(run(&mut st, 4800).1.contains(&Report::Ptt(true)));
++        assert!(st.tune(false));
++        let (x, rep) = run(&mut st, 4800);
++        assert!(x.iter().all(|&v| v == 0.0));
++        assert!(!rep.contains(&Report::Ptt(false)) && st.ptt() && !st.idle());
++        assert_eq!(run(&mut st, 1).1, [Report::Ptt(false)]);
++        assert!(!st.ptt() && st.idle());
++    }
++}
++
++#[test]
++fn the_ptt_drops_when_the_audio_ends_not_a_capture_lag_later() {
++    let opts = Options { tx_latency: 4800, rx_lag: 1000, ..Options::default() };
+     let mut st = Station::new(Config::new(Bandwidth::Hz2300, "N0CALL"), opts);
+     assert!(st.tune(true));
+     assert!(run(&mut st, 4800).1.contains(&Report::Ptt(true)));
+     assert!(st.tune(false));
+-    let (x, rep) = run(&mut st, 4800);
+-    assert!(x.iter().all(|&v| v == 0.0));
+-    assert!(!rep.contains(&Report::Ptt(false)) && st.ptt() && !st.idle());
++    assert!(!run(&mut st, 3800).1.contains(&Report::Ptt(false)) && st.ptt());
+     assert_eq!(run(&mut st, 1).1, [Report::Ptt(false)]);
+-    assert!(!st.ptt() && st.idle());
++    st.set_tx_latency(4800, 4800);
++    assert!(st.tune(true));
++    run(&mut st, 480);
++    assert!(st.tune(false));
++    assert_eq!(run(&mut st, 1).1, [Report::Ptt(false)]);
++}
++
++fn second_call_at<M: Modem>(mut st: M) -> usize {
++    assert!(st.connect("N0CALL", "N1CALL", &[]));
++    let mut keyed = 0;
++    for t in 0..48_000 * 10 {
++        let mut out = [0.0];
++        st.process(&[0.0], &mut out);
++        if std::iter::from_fn(|| st.pop()).any(|r| r == Report::Ptt(true)) {
++            keyed += 1;
++            if keyed == 2 {
++                return t;
++            }
++        }
++    }
++    panic!("no retry");
++}
++
++#[test]
++fn the_reply_window_opens_when_the_ptt_tail_ends() {
++    let opts = |ptt_tail| Options { ptt_tail, ..Options::default() };
++    let hf = |t| Station::new(Config::new(Bandwidth::Hz2300, "N0CALL"), opts(t));
++    assert_eq!(second_call_at(hf(4800)) - second_call_at(hf(0)), 4800);
++    let fm = |t| FmStation::new(xara_arq::fm::Config::new(FmBandwidth::Narrow, "N0CALL"), opts(t));
++    assert_eq!(second_call_at(fm(4800)) - second_call_at(fm(0)), 4800);
+ }
+ 
+ #[test]
+
+From 3838b398d012b1ab6af4808d1d86c857670c0855 Mon Sep 17 00:00:00 2001
+From: Nathan <nathan@nr5p.com>
+Date: Thu, 5 Nov 2026 21:31:22 -0600
+Subject: [PATCH 2/2] Allow for the PTT tail in the reply window (from upstream
+ xara 0.1.3)
+
+With --ptt-tail-ms the transmitter stays keyed after the audio ends, so
+the peer answers that much later; the reply deadline was taken from the
+audio end, and on a rig with a 100 ms tail the connect reply arrived
+after xara had keyed again (x0rro/xara#28). The tail (none for VOX or
+no PTT) now goes to on_tx_done in both HF and FM.
+
+Also from upstream's station code: a burst's trailing silence is carried
+as a count rather than appended samples; the scheduler takes an rx_lag
+(capture lag) that shortens the PTT hold, left at 0 here since this
+fork's backends report their latency as a round trip; and
+set_tx_latency. Upstream's tests for these come along, and the
+1000 ms-lead FM test now accepts a slow link as well as a stalled one,
+as upstream's does, since the timing fix lets it finish.
+---
+ CHANGELOG.md                       |  7 +++++++
+ crates/xara/src/daemon.rs          | 27 ++++++++++++++++++++++++++-
+ crates/xara/tests/fm_audio_link.rs |  9 +++++++--
+ 3 files changed, 40 insertions(+), 3 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 4977c6e..88c4244 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,13 @@
+ 
+ ## 0.1.2
+ 
++- from upstream xara 0.1.2 and 0.1.3: FM reply windows follow the last
++  few exchanges and widen after a missed reply, so a long idle stretch
++  (CMS forwarding) no longer stalls the link (x0rro/xara#20); the reply
++  window allows for `--ptt-tail-ms`, so a rig with a PTT tail no longer
++  misses the connect reply (x0rro/xara#28); a burst's trailing silence is
++  kept apart from its audio; faster modulators and FM OFDM search (sine
++  tables, a shared FFT plan, parallel catch-up), with identical output
+ - BUSY no longer trips on plain noise when the radio's passband slopes: the
+   tone detector learns the receiver's noise shape while the channel is clear
+   and divides it out, so a strong bin on the loud side of the passband stops
+diff --git a/crates/xara/src/daemon.rs b/crates/xara/src/daemon.rs
+index f233b94..cba9163 100644
+--- a/crates/xara/src/daemon.rs
++++ b/crates/xara/src/daemon.rs
+@@ -352,6 +352,15 @@ fn lead_samples(a: &Args) -> usize {
+     a.timing.lead.as_millis() as usize * (audio::RATE / 1000) as usize
+ }
+ 
++/// How long the transmitter stays keyed after the audio ends: the peer's reply comes back that
++/// much later, so the reply window is widened to match. VOX, and no PTT at all, have no tail.
++fn tail_samples(a: &Args) -> i64 {
++    match a.ptt {
++        None | Some(PttSpec::Vox) => 0,
++        Some(_) => (a.timing.tail.as_millis() as usize * (audio::RATE / 1000) as usize) as i64,
++    }
++}
++
+ fn state_dir(a: &Args) -> Option<PathBuf> {
+     let env = std::env::var("STATE_DIRECTORY").ok();
+     let dir = a.state_dir.clone().or_else(|| env.and_then(|e| e.split(':').next().map(String::from)))?;
+@@ -518,7 +527,12 @@ fn run(
+     }
+     let latency =
+         (a.audio_latency + io.output_latency()).as_millis() as usize * (audio::RATE / 1000) as usize + backend;
+-    let opts = Options { drive_db: a.drive_db, tx_latency: (lead_samples(a) + latency) as i64 };
++    let opts = Options {
++        drive_db: a.drive_db,
++        tx_latency: (lead_samples(a) + latency) as i64,
++        rx_lag: 0,
++        ptt_tail: tail_samples(a),
++    };
+     let host = Host::bind(&a.addr, a.port)?;
+     let mode = match a.fm {
+         Some(bw) => format!("FM {bw:?}"),
+@@ -1045,6 +1059,17 @@ mod tests {
+         std::fs::remove_dir_all(p.parent().unwrap()).unwrap();
+     }
+ 
++    #[test]
++    fn the_ptt_tail_widens_the_reply_window_only_when_xara_keys_the_radio() {
++        let tail = |s: &str| {
++            tail_samples(&parse(&argv(&format!("--call N2CALL --capture c --playback p {s}"))).unwrap().unwrap())
++        };
++        assert_eq!(tail(""), 0);
++        assert_eq!(tail("--radio --ptt vox --ptt-tail-ms 250"), 0);
++        assert_eq!(tail("--radio --ptt rigctld --ptt-tail-ms 250"), 250 * 48);
++        assert_eq!(tail("--radio --ptt rigctld"), 100 * 48);
++    }
++
+     #[test]
+     fn audio_latency_is_bounded_and_can_be_saved() {
+         let a = parse(&argv("--call N2CALL --capture c --playback p --audio-latency-ms 300")).unwrap().unwrap();
+diff --git a/crates/xara/tests/fm_audio_link.rs b/crates/xara/tests/fm_audio_link.rs
+index 5ef801d..e1ada23 100644
+--- a/crates/xara/tests/fm_audio_link.rs
++++ b/crates/xara/tests/fm_audio_link.rs
+@@ -203,10 +203,15 @@ fn ptt_lead_700_ms_at_both_ends_no_longer_slows_the_link() {
+ 
+ #[test]
+ fn ptt_lead_1000_ms_at_both_ends() {
+-    let before = led([1000, 1000], false);
+-    assert!(matches!(before, Err(Failure::Stalled(_))), "unaware: {:?}", before.map(|a| a.secs()));
+     let after = led([1000, 1000], true).unwrap();
+     assert!(after.secs() < 50.0, "aware {:.1} s", after.secs());
++    let before = led([1000, 1000], false);
++    let slow = match &before {
++        Err(Failure::Stalled(_)) => true,
++        Ok(b) => b.secs() > 2.0 * after.secs(),
++        Err(_) => false,
++    };
++    assert!(slow, "unaware: {:?}, aware {:.1} s", before.map(|a| a.secs()), after.secs());
+ }
+ 
+ fn ptt_off_at(a: &Air, i: usize) -> f64 {
