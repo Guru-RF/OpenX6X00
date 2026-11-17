@@ -935,7 +935,7 @@ static void show_session(void) {
 
             plain(p, sizeof(p), prompt_all);
             snprintf(buf, sizeof(buf),
-                     _("All: every one now. Small: those under Pat's size limit. Later: none now. Waiting: %s"), p);
+                     _("Get all: every one now. Get small: those under Pat's size limit. Later: none now. Waiting: %s"), p);
         } else {
             buf[0] = 0;
         }
@@ -1910,8 +1910,8 @@ static void prompt_show(const cJSON *p) {
         prompt_values[0] = "accept";
         prompt_values[2] = "defer";
     } else if (!strcmp(prompt_kind, "multi-select")) {
-        snprintf(prompt_labels[0], sizeof(prompt_labels[0]), "All");
-        snprintf(prompt_labels[1], sizeof(prompt_labels[1]), "Small");
+        snprintf(prompt_labels[0], sizeof(prompt_labels[0]), "Get\nall");
+        snprintf(prompt_labels[1], sizeof(prompt_labels[1]), "Get\nsmall");
         snprintf(prompt_labels[2], sizeof(prompt_labels[2]), "Later");
         prompt_values[0] = prompt_all;
         prompt_values[1] = prompt_checked;

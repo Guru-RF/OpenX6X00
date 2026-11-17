@@ -7540,8 +7540,9 @@ web mailbox.
   an account Pat cannot confirm (Continue anyway: the account is activated
   over the air and a message brings its password, the only key to it, so
   write it down), a new account's password message (Download now or Later)
-  and messages waiting at the gateway over Pat's size limit (All, Small or
-  Later). A question answered in the web mailbox goes away on the radio.
+  and messages waiting at the gateway over Pat's size limit (Get all, Get
+  small or Later). A question answered in the web mailbox goes away on the
+  radio.
 - Page 2: Winlink On or Off (as the Winlink page's Enabled; Pat and the
   modem start with the radio from then on), the Winlink password (kept on
   the radio and never shown, as the Winlink page keeps it; Pat starts again
