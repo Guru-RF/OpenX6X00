@@ -4039,9 +4039,14 @@ tone, and is not saved (a chart is about 1300 rows); Save does save it.
 
 | Page | Buttons |
 |---|---|
-| 1 | Auto Plan, Bulletin, All Charts, Close |
+| 1 | Auto Plan (Plan next HH:MM), Bulletin, All Charts, Close |
 | 2 | Freq., RX Auto / Cont, View, Clear |
 | 3 | Align, Tilt, Save, Power |
+
+Waiting for a fax in Auto, the picture is dark and says what comes next: the
+chart Auto Plan takes, its station and frequency, when ("21:36 UTC, in 19
+min") and the two after it; with Auto Plan off, that a fax starts by itself
+at its start tone. The chart shows as soon as its first rows come in.
 
 The Bulletin, All Charts, a chart large, the full screen and Fix have their
 own buttons; wherever the app is, F5 goes one level up (ESC too), F1 back to
@@ -4077,9 +4082,9 @@ Auto Plan (page 1) leaves WeFax on its own for the day: the radio follows a
 plan of the DWD and Northwood charts (UTC), each on the frequency that comes
 in best at its hour (Northwood: 2618.5 kHz at night, 4610 from 06:00, 8040
 from 09:00, 4610 from 16:12; DWD: 7880 by day, 3855 at night), tuned in USB
-10 s before the chart starts. The button shows the next slot's time, the
-header too. The plan and the way it keeps the best copy are F4OLI's
-(OlivLoze's fork), from his own receiving station.
+10 s before the chart starts. The button shows the next slot's time ("Plan
+next 13:56"), the header too. The plan and the way it keeps the best copy are
+F4OLI's (OlivLoze's fork), from his own receiving station.
 
 - A chart coming in is not cut by the next slot; a filler slot of a plan (one
   of your own: the firmware's has none) gives way to a chart of the plan. A chart whose stop tone was missed gives

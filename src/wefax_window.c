@@ -105,6 +105,7 @@ static void fix_cancel_cb(button_data_t *data);
 static void fix_save_cb(button_data_t *data);
 
 static void draw_live(void);
+static void idle_update(void);
 static void plan_stop(const char *why);
 static void rx_auto(void);
 
@@ -166,10 +167,14 @@ static lv_timer_t *plan_timer;
 static bool        plan_on;
 static int32_t     plan_dial;       /* what the plan tuned: another dial is tuning by hand */
 static time_t      plan_done[WEFAX_PLAN_MAX];  /* when each slot was taken or skipped */
-static char        plan_btn[24];    /* the button's label: the next slot's time */
+static char        plan_btn[48];    /* the button's label: the next slot's time */
 static char        plan_next[48];   /* the next slot, for the header: "HH:MM station kHz" */
+static int         plan_next_i = -1;    /* and its index, for the view waiting */
 static int         fax_slot = -1;   /* the slot of the fax coming in */
 static time_t      fax_t0;          /* when it began */
+
+/* Auto waiting, the view says what comes next instead of an empty picture */
+static lv_obj_t   *idle, *idle_what, *idle_when, *idle_then;
 
 /* Auto Plan turned on during a chart: the decoder takes it from where it is (wefax_decoder_auto_join), and its first
  * JOIN_ROWS rows tell a chart from noise */
@@ -426,10 +431,11 @@ static void store_add(const uint8_t *row)
         store_n++;
 }
 
-/* Empty view, kept rows and the row in the box */
+/* Empty view, kept rows and the row in the box. The picture's empty part is the panel's colour: waiting it says what
+ * comes next in the theme's text, and a white page at night dazzles */
 static void clear_fax(void)
 {
-    fill_view(lv_color_make(255, 255, 255));
+    fill_view(TC(panel));
     shown_acc = shown_n = shown_head = 0;
     if (canvas)
         lv_obj_invalidate(canvas);
@@ -442,6 +448,7 @@ static void clear_fax(void)
     fax_rows = 0;
     fax_gen++;
     fax_slot = -1;
+    idle_update();
 }
 
 /* ---- drawing ---- */
@@ -452,7 +459,7 @@ static void draw_full(void)
     if (!canvas)
         return;
 
-    fill_view(lv_color_white());
+    fill_view(TC(panel));
     if (!store || !store_n) {
         lv_obj_invalidate(canvas);
         return;
@@ -505,7 +512,7 @@ static void draw_live(void)
     unsigned first = (shown_head + VIEW_H - shown_n) % VIEW_H;
     unsigned y0    = VIEW_H - shown_n;
 
-    fill_view(lv_color_make(255, 255, 255));
+    fill_view(TC(panel));
     for (unsigned r = 0; r < shown_n; r++) {
         const uint8_t *src   = shown[(first + r) % VIEW_H];
         int            shift = ((int)r - (int)(shown_n - 1)) * tilt / 1000;
@@ -889,7 +896,8 @@ static const char *plan_label(void)
     return plan_btn[0] ? plan_btn : "Auto\nPlan";
 }
 
-/* The button and the header name the next slot */
+/* The button, the header and the view waiting name the next slot. "Plan" over "next HH:MM": two lines in every
+ * theme ("Auto Plan" over it took three) */
 static void plan_show(int next)
 {
     const wefax_slot_t *s = wefax_plan_slot(next);
@@ -898,9 +906,10 @@ static void plan_show(int next)
     if (!plan_on)
         snprintf(l, sizeof(l), "%s", "Auto\nPlan");
     else if (!s)
-        snprintf(l, sizeof(l), "%s", "Plan\n--:--");
+        snprintf(l, sizeof(l), "%s", _("Plan\nnext --:--"));
     else
-        snprintf(l, sizeof(l), "Plan\n%02d:%02d", s->min / 60, s->min % 60);
+        snprintf(l, sizeof(l), _("Plan\nnext %02d:%02d"), s->min / 60, s->min % 60);
+    plan_next_i = plan_on && s ? next : -1;
     if (s && plan_on)
         snprintf(plan_next, sizeof(plan_next), "%02d:%02d %s %.1f", s->min / 60, s->min % 60, s->station,
                  s->freq_hz / 1000.0);
@@ -911,6 +920,7 @@ static void plan_show(int next)
         if (btn_plan.disp_btn)
             buttons_refresh(&btn_plan);
     }
+    idle_update();
 }
 
 /* The slot's station in USB and RX Auto: the plan's tuning; another dial from now on is tuning by hand */
@@ -960,6 +970,7 @@ static void plan_take(int i, time_t now)
 static void plan_timer_cb(lv_timer_t *t)
 {
     (void)t;
+    idle_update();          /* "in 19 min", a TX over */
     if (!plan_on || !decoder || tx_running)
         return;
     if (plan_dial && cparam_i_get(cfg_fg_freq) != plan_dial) {
@@ -1072,9 +1083,99 @@ static void header_update(void)
         lv_label_set_text(frame.head_right, r);
 }
 
+/* "in 19 min", "in 2 h 05", "now" */
+static void wait_text(char *out, size_t n, int wait)
+{
+    if (wait < 60)
+        snprintf(out, n, "%s", _("now"));
+    else if (wait < 3600)
+        snprintf(out, n, _("in %d min"), wait / 60);
+    else
+        snprintf(out, n, _("in %d h %02d"), wait / 3600, wait % 3600 / 60);
+}
+
+/* Auto waiting in the Big or Full view, the tiles away: the chart Auto Plan takes next, its station and frequency,
+ * when, and the two after it; Auto Plan off, how a fax comes in */
+static void idle_update(void)
+{
+    if (!idle)
+        return;
+
+    bool show = decoder && auto_mode() && !store_n && !tx_running && view != VIEW_SMALL && !wefax_bulletin_is_open();
+
+    if (!show) {
+        lv_obj_add_flag(idle, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    lv_obj_clear_flag(idle, LV_OBJ_FLAG_HIDDEN);
+
+    const wefax_slot_t *s = plan_on ? wefax_plan_slot(plan_next_i) : NULL;
+
+    if (!s) {
+        lv_label_set_text(idle_what, plan_on ? "No chart planned" : "Auto Plan is off");
+        lv_label_set_text(idle_when, "a fax starts by itself with its start tone");
+        lv_label_set_text(idle_then, plan_on ? "" : "Auto Plan (F2 of page 1) takes the day's charts by itself");
+        return;
+    }
+
+    char   name[48], when[32], then[160] = "", one[48];
+    int    sod  = wefax_plan_sod(time(NULL));
+    int    wait = ((s->min * 60 - sod) % 86400 + 86400) % 86400;
+    int    slot[6], waits[6], n = wefax_plan_coming(NULL, NULL, sod, slot, waits, 6), k = 0;
+
+    wefax_bulletin_product_name(s->product, name, sizeof(name));
+    lv_label_set_text_fmt(idle_what, "%s  -  %s %.1f kHz", name, s->station, s->freq_hz / 1000.0);
+    wait_text(when, sizeof(when), wait);
+    lv_label_set_text_fmt(idle_when, "%02d:%02d UTC, %s", s->min / 60, s->min % 60, when);
+
+    /* the two after it */
+    for (int i = 0; i < n && k < 2; i++) {
+        const wefax_slot_t *o = wefax_plan_slot(slot[i]);
+
+        if (waits[i] <= wait || !o)
+            continue;
+        wefax_bulletin_product_name(o->product, one, sizeof(one));
+        snprintf(then + strlen(then), sizeof(then) - strlen(then), k ? "   %02d:%02d %s (%s)" : _("then %02d:%02d %s (%s)"),
+                 o->min / 60, o->min % 60, one, o->station);
+        k++;
+    }
+    lv_label_set_text(idle_then, then);
+}
+
+static lv_obj_t *idle_label(const lv_font_t *font, lv_color_t color, int y)
+{
+    lv_obj_t *l = lv_label_create(idle);
+
+    lv_obj_set_style_text_font(l, font, LV_PART_MAIN);
+    lv_obj_set_style_text_color(l, color, LV_PART_MAIN);
+    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_width(l, VIEW_W - 40);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    lv_obj_align(l, LV_ALIGN_TOP_MID, 0, y);
+    lv_label_set_text(l, "");
+    return l;
+}
+
+static void idle_create(void)
+{
+    idle = lv_obj_create(viewport);
+    lv_obj_remove_style_all(idle);
+    lv_obj_set_size(idle, VIEW_W - 40, 200);
+    lv_obj_align(idle, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_clear_flag(idle, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(idle, LV_OBJ_FLAG_CLICKABLE);
+    lv_label_set_text(idle_label(&sony_22, TC(text_soft), 6), "Waiting for the next chart");
+    idle_what = idle_label(&sony_28, TC(text), 48);
+    idle_when = idle_label(&sony_24, TC(text_head), 94);
+    idle_then = idle_label(&sony_18, TC(text_soft), 150);
+    lv_obj_add_flag(idle, LV_OBJ_FLAG_HIDDEN);
+}
+
 static void view_timer_cb(lv_timer_t *t)
 {
     (void)t;
+    if (idle && store_n && !lv_obj_has_flag(idle, LV_OBJ_FLAG_HIDDEN))
+        lv_obj_add_flag(idle, LV_OBJ_FLAG_HIDDEN);      /* the chart coming in shows at once */
 
 
     if (frame.head_left)
@@ -1231,6 +1332,7 @@ static void apply_view(void)
         if (panel)
             lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN);
     }
+    idle_update();
 }
 
 /* The status line: what the buttons and the MFK do where the app is */
@@ -1290,6 +1392,7 @@ static void app_open(lv_obj_t *parent)
     lv_canvas_set_buffer(canvas, view_buf, VIEW_W, VIEW_H, LV_IMG_CF_TRUE_COLOR);
     lv_obj_set_size(canvas, VIEW_W, VIEW_H);
     lv_obj_align(canvas, LV_ALIGN_CENTER, 0, 0);
+    idle_create();                      /* over the canvas */
 
     /* the panel behind Small: panel colours flat (the panel image has its own outline), one border */
     panel = lv_obj_create(dialog.obj);
@@ -1362,6 +1465,8 @@ static void app_close(void)
     canvas          = NULL;
     viewport        = NULL;
     panel           = NULL;
+    idle            = NULL;     /* deleted with the dialog */
+    plan_next_i     = -1;
     frame.head_left = NULL;     /* deleted with the dialog */
 
     if (decoder) {
@@ -1433,6 +1538,7 @@ static void bulletin_hide(void)
     if (canvas)
         focus_canvas();
     draw_live();
+    idle_update();
 }
 
 static void page_1_cb(button_data_t *data)
