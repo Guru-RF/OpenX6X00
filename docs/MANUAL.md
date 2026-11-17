@@ -4096,7 +4096,7 @@ F4OLI's (OlivLoze's fork), from his own receiving station.
 - A chart coming in is not cut by the next slot; a filler slot of a plan (one
   of your own: the firmware's has none) gives way to a chart of the plan. A chart whose stop tone was missed gives
   way 30 s before its end.
-- A chart of fair quality (mark 60 or more) is saved straightened (Auto Tilt,
+- A clean chart (mark 60 or more) is saved straightened (Auto Tilt,
   as Fix finds it), and its tilt is kept for its station
   (`/mnt/wefax/tilt.conf`, the median of its last five): when the plan tunes
   the station again, Tilt is set to it and its charts come in straight. On

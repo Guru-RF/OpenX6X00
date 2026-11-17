@@ -448,7 +448,8 @@ bool wefax_plan_bulletin_prefers(const char *cand, const char *have)
     if (!have || !have[0])
         return true;
 
-    bool cand_fair = wefax_plan_name_mark(cand) >= WEFAX_MARK_FAIR, have_fair = wefax_plan_name_mark(have) >= WEFAX_MARK_FAIR;
+    bool cand_fair = wefax_plan_name_mark(cand) >= WEFAX_MARK_FAIR;
+    bool have_fair = wefax_plan_name_mark(have) >= WEFAX_MARK_FAIR;
 
     if (cand_fair != have_fair)
         return cand_fair;

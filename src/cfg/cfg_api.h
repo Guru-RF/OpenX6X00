@@ -54,7 +54,7 @@ extern ParamInt         *cfg_mic;               // p_mic
 extern ParamInt         *cfg_wefax_align;       // p_wefax_align, WEFAX picture shift
 extern ParamInt         *cfg_wefax_tilt;        // p_wefax_tilt, WEFAX picture slant
 extern ParamInt         *cfg_wefax_plan;        // p_wefax_plan, WEFAX Auto Plan on when the app opens
-extern ParamInt         *cfg_wefax_night;       // p_wefax_night, WEFAX charts dimmed: 0 Auto (the sun down), 1 On, 2 Off
+extern ParamInt         *cfg_wefax_night;       // p_wefax_night, WEFAX charts dimmed: 0 Auto (sun down), 1 On, 2 Off
 extern ParamInt         *cfg_hmic;              // p_hmic
 extern ParamInt         *cfg_imic;              // p_imic
 extern ParamInt         *cfg_moni;              // p_moni

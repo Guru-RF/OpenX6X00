@@ -605,7 +605,8 @@ static void *save_worker(void *arg)
     bool        same = job->product[0] && !wefax_plan_product_unique(job->product);
     int         best = same ? wefax_plan_copies(SAVE_DIR, job->product, job->when, NULL, false, NULL) : -1;
 
-    /* Auto Plan's chart straightened, its station's tilt learned: a fair copy only, noise has no lines to go by */
+    /* Auto Plan's chart straightened, its station's tilt learned: a clean copy only (60 and up), noise has no lines
+     * to go by */
     int t;
 
     if (job->product[0] && q >= 60 && best < q && wefax_auto_tilt(job->img, WEFAX_WIDTH, job->rows, &t)) {
