@@ -1432,7 +1432,16 @@ static void reply_cb(button_data_t *b) {
     } else {
         snprintf(subj, sizeof(subj), "%s", jstr(message, "subject"));
     }
-    subj[SUBJECT_MAX] = 0;
+    /* at most SUBJECT_MAX bytes, cut where a letter starts: an accented one is two bytes, and half of it would
+     * make the text that Send hands the helper no UTF-8 */
+    if (strlen(subj) > SUBJECT_MAX) {
+        size_t n = SUBJECT_MAX;
+
+        while (n && ((unsigned char)subj[n] & 0xC0) == 0x80) {
+            n--;
+        }
+        subj[n] = 0;
+    }
     view = V_COMPOSE;
     build_compose(jstr(message, "from"), subj);
     set_view(V_COMPOSE);
