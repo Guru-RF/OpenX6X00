@@ -2186,7 +2186,9 @@ static void compose_key(uint32_t key) {
             lv_textarea_set_cursor_pos(ta, LV_TEXTAREA_CURSOR_LAST);
             break;
         default:
-            if (key >= ' ' && key < 127) {
+            /* a character: ASCII, or a letter beyond it in UTF-8 as the keyboard's layout gives it (kbd_layout.c:
+             * ä, é, ß), which lv_textarea_add_char takes as it is. The radio's own keys are not here (key_cb) */
+            if (key >= ' ') {
                 lv_textarea_add_char(ta, key);
                 discard_armed = false;
             }
