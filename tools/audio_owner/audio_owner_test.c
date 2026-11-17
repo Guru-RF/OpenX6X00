@@ -4,8 +4,9 @@
  *  Host test of who has the speaker (src/audio_owner.c): the speaker's play mode and the headphones' receiver mute
  *  from the first claim to the last release, claims that nest, a key's release of all; a voice link's message over
  *  the Internet radio's station (the station's queue dropped once as the message starts, its audio dropped while the
- *  message plays, on again after), and a timeline of both writing that never alternates their pieces. `make` in
- *  tools/audio_owner.
+ *  message plays, on again after), and a timeline of both writing that never alternates their pieces; DMR, the other
+ *  listener, as the station: held by a link's message, its queue dropped as the message starts, a claim a call that
+ *  sets Play and gives it back after. `make` in tools/audio_owner.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -191,6 +192,53 @@ static void test_timeline(void) {
     CHECK(!strcmp(heard, "sssssssssszzzzzzzzzzssssssssss"));
 }
 
+/* DMR's talkgroups, a listener as the station: a claim a call, held by a voice link's message */
+static void test_dmr(void) {
+    audio_owner_t o = {0};
+
+    CHECK(audio_owner_is_listener(AUDIO_USER_DMR) && audio_owner_is_listener(AUDIO_USER_STATION));
+    CHECK(!audio_owner_is_listener(AUDIO_USER_ZELLO) && !audio_owner_is_listener(AUDIO_USER_SVX));
+    CHECK(!audio_owner_is_link(AUDIO_USER_DMR));
+
+    /* A call: Play from its claim to its release, the receiver's again between calls */
+    CHECK(!audio_owner_claim(&o, AUDIO_USER_DMR));
+    CHECK(mode(&o) == AUDIO_PLAY_ON);
+    CHECK(!audio_owner_held(&o, AUDIO_USER_DMR));
+    audio_owner_release_all(&o, AUDIO_USER_DMR);
+    CHECK(mode(&o) == AUDIO_PLAY_OFF);
+
+    /* A Zello message during a call: DMR's queue dropped once, its audio dropped meanwhile, on again after */
+    audio_owner_claim(&o, AUDIO_USER_DMR);
+    CHECK(audio_owner_claim(&o, AUDIO_USER_ZELLO));
+    CHECK(audio_owner_held(&o, AUDIO_USER_DMR));
+    CHECK(!audio_owner_held(&o, AUDIO_USER_ZELLO));
+    audio_owner_release(&o, AUDIO_USER_ZELLO);
+    CHECK(!audio_owner_held(&o, AUDIO_USER_DMR));
+    CHECK(mode(&o) == AUDIO_PLAY_ON);
+
+    /* The hand mic recorded for SVXConnect: held as well, and Rec covers DMR's claim */
+    CHECK(audio_owner_rec(&o, AUDIO_USER_SVX, true));
+    CHECK(audio_owner_held(&o, AUDIO_USER_DMR));
+    CHECK(mode(&o) == AUDIO_PLAY_VOICE_REC);
+    audio_owner_rec(&o, AUDIO_USER_SVX, false);
+
+    /* Two listeners never hold each other */
+    audio_owner_claim(&o, AUDIO_USER_STATION);
+    CHECK(!audio_owner_held(&o, AUDIO_USER_DMR) && !audio_owner_held(&o, AUDIO_USER_STATION));
+    audio_owner_release_all(&o, AUDIO_USER_STATION);
+
+    /* A key: all of DMR's claims at once */
+    audio_owner_claim(&o, AUDIO_USER_DMR);
+    audio_owner_release_all(&o, AUDIO_USER_DMR);
+    CHECK(o.claims[AUDIO_USER_DMR] == 0 && mode(&o) == AUDIO_PLAY_OFF);
+
+    /* Only DMR playing: a link's start drops its queue (the listeners'), as the station's */
+    audio_owner_claim(&o, AUDIO_USER_DMR);
+    CHECK(audio_owner_claim(&o, AUDIO_USER_SVX));
+    audio_owner_release_all(&o, AUDIO_USER_SVX);
+    audio_owner_release_all(&o, AUDIO_USER_DMR);
+}
+
 int main(void) {
     test_idle();
     test_counting();
@@ -198,6 +246,7 @@ int main(void) {
     test_priority();
     test_rec();
     test_timeline();
+    test_dmr();
     printf("audio_owner: %d checks, %d failed\n", checks, failed);
     return failed ? 1 : 0;
 }

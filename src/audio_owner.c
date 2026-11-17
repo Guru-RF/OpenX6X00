@@ -11,6 +11,10 @@ bool audio_owner_is_link(audio_user_t u) {
     return u == AUDIO_USER_ZELLO || u == AUDIO_USER_SVX;
 }
 
+bool audio_owner_is_listener(audio_user_t u) {
+    return u == AUDIO_USER_STATION || u == AUDIO_USER_DMR;
+}
+
 /* A voice link with a claim or Rec, other than u */
 static bool link_busy(const audio_owner_t *o, audio_user_t but) {
     for (int u = 0; u < AUDIO_USERS; u++) {
@@ -23,15 +27,22 @@ void audio_owner_place(audio_owner_t *o, audio_user_t u, bool phones) {
     if (u < AUDIO_USERS) o->phones[u] = phones;
 }
 
-/* The link u starting to hold the speaker while the station plays and no other link held it already */
-static bool station_gives_way(const audio_owner_t *o, audio_user_t u) {
-    return audio_owner_is_link(u) && !o->claims[u] && !o->rec[u] && !link_busy(o, u) &&
-           o->claims[AUDIO_USER_STATION];
+/* A listener holds the speaker */
+static bool listening(const audio_owner_t *o) {
+    for (int u = 0; u < AUDIO_USERS; u++) {
+        if (audio_owner_is_listener((audio_user_t)u) && o->claims[u]) return true;
+    }
+    return false;
+}
+
+/* The link u starting to hold the speaker while a listener plays and no other link held it already */
+static bool listeners_give_way(const audio_owner_t *o, audio_user_t u) {
+    return audio_owner_is_link(u) && !o->claims[u] && !o->rec[u] && !link_busy(o, u) && listening(o);
 }
 
 bool audio_owner_claim(audio_owner_t *o, audio_user_t u) {
     if (u >= AUDIO_USERS) return false;
-    bool drop = station_gives_way(o, u);
+    bool drop = listeners_give_way(o, u);
 
     if (o->claims[u] < UINT8_MAX) o->claims[u]++;
     return drop;
@@ -49,14 +60,14 @@ void audio_owner_release_all(audio_owner_t *o, audio_user_t u) {
 
 bool audio_owner_rec(audio_owner_t *o, audio_user_t u, bool on) {
     if (u >= AUDIO_USERS) return false;
-    bool drop = on && station_gives_way(o, u);
+    bool drop = on && listeners_give_way(o, u);
 
     o->rec[u] = on;
     return drop;
 }
 
 bool audio_owner_held(const audio_owner_t *o, audio_user_t u) {
-    return u == AUDIO_USER_STATION && link_busy(o, u);
+    return audio_owner_is_listener(u) && link_busy(o, u);
 }
 
 audio_owner_out_t audio_owner_out(const audio_owner_t *o) {

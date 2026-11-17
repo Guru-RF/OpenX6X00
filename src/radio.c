@@ -1230,8 +1230,9 @@ void radio_set_tx_prepare_fn(void (*fn)(void)) {
 }
 
 /* Before the GUI keys, on the thread that keys and with no lock held: the speaker's own audio stops, so none of it
- * goes out with the TX audio (the PTT, and the modem that sends the codec's audio): the Internet radio's station
- * (audio.h), then the voice link's network (voice_net.c: Zello's channel, SVXConnect's talkgroup) */
+ * goes out with the TX audio (the PTT, and the modem that sends the codec's audio): the listeners, the Internet
+ * radio's station and DMR's talkgroups (audio.h), then the voice link's network (voice_net.c: Zello's channel,
+ * SVXConnect's talkgroup) */
 static void tx_prepare(void) {
     void (*fn)(void) = atomic_load(&tx_prepare_fn);
 

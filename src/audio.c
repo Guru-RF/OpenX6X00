@@ -29,6 +29,7 @@
 #include "btaudio.h"
 #include "audio_owner.h"
 #include "radio.h"
+#include "util.h"
 
 #define AUDIO_RATE_MS   100
 #define PA_CONNECT_TRIES 20     /* a second apart: PulseAudio still coming up, or x6100_daemon restarting it */
@@ -59,7 +60,8 @@ static pthread_mutex_t      owner_lock = PTHREAD_MUTEX_INITIALIZER;
 static audio_owner_t        owner;
 static audio_owner_out_t    owner_now = {AUDIO_PLAY_OFF, false};    /* as applied */
 static pa_stream            *user_stm[AUDIO_USERS];
-static bool                 listen_cut;     /* a key cut the station since its begin */
+static bool                 listen_cut[AUDIO_USERS];    /* a key cut the listener since its begin */
+static uint64_t             cut_ms[AUDIO_USERS];        /* when the last cut came (get_time) */
 #define LISTEN_PIECE        1024    /* samples a write: a stream may never have room for a much bigger one */
 
 
@@ -481,6 +483,15 @@ static void stm_flush(pa_stream *s) {
     pa_threaded_mainloop_unlock(mloop);
 }
 
+/* With owner_lock held: what the listeners (the station, DMR) have queued dropped */
+static void listeners_flush(void) {
+    for (int u = 0; u < AUDIO_USERS; u++) {
+        if (audio_owner_is_listener((audio_user_t)u)) {
+            stm_flush(user_stm[u]);
+        }
+    }
+}
+
 /* With owner_lock held: the speaker's mode and the receiver in the headphones as the claims want them now */
 static void owner_apply(void) {
     audio_owner_out_t out = audio_owner_out(&owner);
@@ -510,7 +521,8 @@ static void owner_apply(void) {
 }
 
 int audio_user_open(audio_user_t u) {
-    static const char *const names[AUDIO_USERS] = {"X6100 GUI Station", "X6100 GUI Zello", "X6100 GUI SVXConnect"};
+    static const char *const names[AUDIO_USERS] = {"X6100 GUI Station", "X6100 GUI Zello", "X6100 GUI SVXConnect",
+                                                    "X6100 GUI DMR"};
     pa_sample_spec spec = { .format = PA_SAMPLE_S16NE, .rate = AUDIO_PLAY_RATE, .channels = 1 };
     pa_buffer_attr attr;
     char           sink[128];
@@ -564,7 +576,7 @@ void audio_user_claim(audio_user_t u) {
     }
     pthread_mutex_lock(&owner_lock);
     if (audio_owner_claim(&owner, u)) {
-        stm_flush(user_stm[AUDIO_USER_STATION]);   /* a voice link's message: the station's queue out at once */
+        listeners_flush();      /* a voice link's message: the listeners' queues out at once */
     }
     owner_apply();
     pthread_mutex_unlock(&owner_lock);
@@ -586,7 +598,7 @@ void audio_user_rec(audio_user_t u, bool on) {
     }
     pthread_mutex_lock(&owner_lock);
     if (audio_owner_rec(&owner, u, on)) {
-        stm_flush(user_stm[AUDIO_USER_STATION]);
+        listeners_flush();
     }
     owner_apply();
     pthread_mutex_unlock(&owner_lock);
@@ -626,29 +638,52 @@ void audio_user_flush(audio_user_t u) {
     pthread_mutex_unlock(&owner_lock);
 }
 
-/* The station */
+/* The listeners: the station, DMR */
 
-void audio_listen_begin(void) {
+void audio_listen_begin(audio_user_t u) {
+    if (u >= AUDIO_USERS) {
+        return;
+    }
     pthread_mutex_lock(&owner_lock);
-    listen_cut = false;
+    listen_cut[u] = false;
     pthread_mutex_unlock(&owner_lock);
 }
 
-int audio_listen_open(void) {
-    int r = audio_user_open(AUDIO_USER_STATION);
+int audio_listen_open(audio_user_t u) {
+    int r = audio_user_open(u);
 
     pthread_mutex_lock(&owner_lock);
-    if (r >= 0 && !listen_cut) {    /* a key that came meanwhile: no claim */
-        audio_owner_claim(&owner, AUDIO_USER_STATION);
+    if (r >= 0 && !listen_cut[u]) {     /* a key that came meanwhile: no claim */
+        audio_owner_claim(&owner, u);
         owner_apply();
     }
     pthread_mutex_unlock(&owner_lock);
     return r;
 }
 
+/* A cut that came less than quiet_ms ago may be a key on its way, which the radio's state does not show yet: the cut
+ * stays then */
+bool audio_listen_resume(audio_user_t u, int quiet_ms) {
+    bool ok;
+
+    if (u >= AUDIO_USERS) {
+        return false;
+    }
+    pthread_mutex_lock(&owner_lock);
+    if (listen_cut[u] && get_time() - cut_ms[u] >= (uint64_t)quiet_ms) {
+        listen_cut[u] = false;
+    }
+    ok = !listen_cut[u];
+    pthread_mutex_unlock(&owner_lock);
+    return ok;
+}
+
 /* Each piece written with owner_lock held from the check of the cut on, so a key's cut comes either before it (no
  * write) or after it (the piece flushed with the rest) */
-int audio_listen_play(const int16_t *buf, size_t samples, bool (*go_on)(void), int timeout_ms) {
+int audio_listen_play(audio_user_t u, const int16_t *buf, size_t samples, bool (*go_on)(void), int timeout_ms) {
+    if (u >= AUDIO_USERS) {
+        return -3;
+    }
     while (samples) {
         size_t n      = samples > LISTEN_PIECE ? LISTEN_PIECE : samples;
         int    waited = 0;
@@ -658,9 +693,9 @@ int audio_listen_play(const int16_t *buf, size_t samples, bool (*go_on)(void), i
                 return -1;
             }
             pthread_mutex_lock(&owner_lock);
-            pa_stream *s = user_stm[AUDIO_USER_STATION];
+            pa_stream *s = user_stm[u];
 
-            if (listen_cut) {
+            if (listen_cut[u]) {
                 pthread_mutex_unlock(&owner_lock);
                 return -1;
             }
@@ -668,9 +703,9 @@ int audio_listen_play(const int16_t *buf, size_t samples, bool (*go_on)(void), i
                 pthread_mutex_unlock(&owner_lock);
                 return -3;
             }
-            if (audio_owner_held(&owner, AUDIO_USER_STATION)) {
+            if (audio_owner_held(&owner, u)) {
                 pthread_mutex_unlock(&owner_lock);
-                usleep(n * 1000000 / AUDIO_PLAY_RATE);     /* a voice link's message: dropped, at the station's pace */
+                usleep(n * 1000000 / AUDIO_PLAY_RATE);     /* a voice link's message: dropped, at the listener's pace */
                 break;
             }
             pa_threaded_mainloop_lock(mloop);
@@ -701,8 +736,8 @@ int audio_listen_play(const int16_t *buf, size_t samples, bool (*go_on)(void), i
 }
 
 /* Its stream closes: what is still queued goes with it, so a stop is heard at once */
-void audio_listen_end(void) {
-    audio_user_close(AUDIO_USER_STATION);
+void audio_listen_end(audio_user_t u) {
+    audio_user_close(u);
 }
 
 void audio_listen_cut(void) {
@@ -710,9 +745,14 @@ void audio_listen_cut(void) {
         return;
     }
     pthread_mutex_lock(&owner_lock);
-    listen_cut = true;
-    stm_flush(user_stm[AUDIO_USER_STATION]);
-    audio_owner_release_all(&owner, AUDIO_USER_STATION);
+    for (int u = 0; u < AUDIO_USERS; u++) {
+        if (audio_owner_is_listener((audio_user_t)u)) {
+            listen_cut[u] = true;
+            cut_ms[u]     = get_time();
+            stm_flush(user_stm[u]);
+            audio_owner_release_all(&owner, (audio_user_t)u);
+        }
+    }
     owner_apply();      /* the speaker the receiver's again before the key, unless a voice link still has it */
     pthread_mutex_unlock(&owner_lock);
 }

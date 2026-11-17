@@ -408,7 +408,7 @@ static void *play_thread(void *arg) {
     bool        started = false;
 
     free(arg);
-    audio_listen_begin();
+    audio_listen_begin(AUDIO_USER_STATION);
 
     pid_t pid = spawn_helper(argv, &fd);
 
@@ -445,11 +445,11 @@ static void *play_thread(void *arg) {
                 continue;
             }
             if (!started) {
-                audio_listen_open();    /* its stream and the speaker (or the headphones): audio.h */
+                audio_listen_open(AUDIO_USER_STATION);    /* its stream and the speaker (or the headphones) */
                 started = true;
             }
 
-            int res = audio_listen_play(buf.s, have / 2, keep_playing, STALL_MS);
+            int res = audio_listen_play(AUDIO_USER_STATION, buf.s, have / 2, keep_playing, STALL_MS);
 
             if (res == -1) {    /* stopped, or a key cut it (audio_listen_cut) */
                 done.why = atomic_load(&play_on) ? END_TX : END_USER;
@@ -466,7 +466,7 @@ static void *play_thread(void *arg) {
         }
         close(fd);
     }
-    audio_listen_end();     /* the speaker given back, unless a voice link still has it */
+    audio_listen_end(AUDIO_USER_STATION);     /* the speaker given back, unless a voice link still has it */
     if (pid > 0) {
         end_child(pid);
     }
