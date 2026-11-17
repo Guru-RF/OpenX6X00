@@ -181,7 +181,7 @@ X6100-Baseband test release (its TESTING.md, with the way back to Xiegu's base).
 | **Bands** | A live picture of 160 to 6 m from the cluster and the Reverse Beacon Network, and a test beacon that shows who hears you from your own antenna. |
 | **Propagation** | [Solar data and the band forecast](docs/MANUAL.md#propagation) (N0NBH, kept for when there is no network) on a world map with your QTH, the night and the grey line, and the 18 NCDXF beacons followed through their 3-minute cycle: which you hear, how strong, on which band. |
 | **Scanner** | [Stops on activity](docs/MANUAL.md#scanner) through the memory channels, the airband (X6200), the 40 CB channels or the band plan segment you are in, the speaker quiet while it looks; a level learnt per frequency, lockouts, hang time. Receive only. |
-| **Voice links** | [Zello](docs/MANUAL.md#zello) and [SVXConnect](docs/MANUAL.md#svxconnect) (the talkgroups of an SvxLink reflector, with the certificate requested from the web page): talk from the hand mic or a Bluetooth headset, and a Simplex repeater between the network and the frequency you are on, which keys only inside the amateur bands, with a CW ID (every 60 minutes by default), a time limit and a pause; one link at a time. |
+| **Voice links** | [Zello](docs/MANUAL.md#zello) and [SVXConnect](docs/MANUAL.md#svxconnect) (the talkgroups of an SvxLink reflector, with the certificate requested from the web page): talk from the hand mic or a Bluetooth headset, and a Simplex repeater between the network and the frequency you are on, which keys only inside the amateur bands, with a CW ID (every 60 minutes by default), a time limit and a pause; one link at a time. [DMR](docs/MANUAL.md#dmr): a DMR network's talkgroups heard over the internet with your own DMR ID, listening only (FreeDMR or another network of the MMDVM hotspot protocol). |
 | **On the road** | [Internet radio](docs/MANUAL.md#internet-radio) (the radio-browser.info directory, favourites; AAC, Ogg, Opus, FLAC and HLS stations from a new card image), [Weather](docs/MANUAL.md#weather) (Open-Meteo's forecast and MeteoAlarm's warnings for where you are), [Flights](docs/MANUAL.md#flights) (the aircraft around you), [HF Air Band](docs/MANUAL.md#hf-air-band) (VOLMET and the oceanic air routes) and [CB](docs/MANUAL.md#cb) (your country's channel plan); the last two transmit only with TX outside the amateur bands on. In JS8, [GhostNet](docs/MANUAL.md#ghostnet): its groups, its net schedule with reminders, and messages translated. The first-start guide asks the language and the country. |
 | **Radio** | Band plan strip for IARU Region 1, 2 or 3, Auto from the GPS, the locator or the callsign, or the US sub-bands of your licence class with the rest in grey (60 m too, and a strip for each band you add; guidance only, it never stops the key or the microphone), 60 m on the band keys, which step over a band the radio cannot tune (4 m), a TX shift per band for FM repeaters and a QO-100 IF (split kept by itself, REV on the VFO key), Birdie Cal (the radio's own carriers found, marked, notched), S-meter in bars or a needle, long-press actions on every key, editable bands, memories and channels, the broadcast bands in AM, transverters (off by default), RX recorder, screen recording and screenshots, voice messages, SWR scan, Walkie Talkie portrait mode, PRE and ATT on the VOL 2:2 page, local time on screen with UTC in the logs. |
 | **X6200** | SAM and WFM on the AM key, zoom 1 to 4 over the base's 384 kHz, the two-ring MFK, FM broadcast (87.5-108 MHz) and the airband (118-137 MHz) to receive after 6 m on the band keys, Xiegu's WR12 54 MHz-1 GHz receiver on the HOST port, driven over its USB serial port when its switch is on (from 54 MHz up the radio listens through it, 2 m and 70 cm included, and transmits nothing meanwhile; gpsd leaves it alone; not yet tried with a WR12, [manual](docs/MANUAL.md#wr12-receiver-x6200)), the PA bias from its own base's factory calibration, as Xiegu's firmware does ([manual](docs/MANUAL.md#pa-bias-x6200)), PRE and ATT on the VOL 2:2 page since it has no PRE key, the volume over the base's whole range (0 to 100), the low-battery power-off at 7.0 V, minutes before the base cuts the power by itself, also on a supply the radio reads under 12.0 V (Xiegu's 12 V charger among them), which did not hold a flat battery up ([manual](docs/MANUAL.md#low-battery)). |
@@ -519,7 +519,11 @@ with the Rust standard library Apache-2.0 or MIT; their texts are in the image
 freedv/rade_c (BSD-2-Clause, with its kiss_fft, BSD-3-Clause) and the Opus fork that has
 the FARGAN vocoder (BSD-3-Clause), linked statically into the GUI; its reader of the
 callsign in FreeDV's own form (`src/freedv_text.c`) is ported from freedv/freedv-backend
-(BSD-2-Clause, [src/LICENSE-freedv-backend.txt](src/LICENSE-freedv-backend.txt)). The web server is LGPL-2.1
+(BSD-2-Clause, [src/LICENSE-freedv-backend.txt](src/LICENSE-freedv-backend.txt)). mbelib, the DMR app's
+voice decoder (vendored in `third-party/mbelib`, ISC, see its [UPSTREAM.md](third-party/mbelib/UPSTREAM.md)), is
+an independent decoder written from the published P25 half-rate vocoder standard (TIA-102.BABA-1) and DVSI's
+patents, receive only; the AMBE+2 patents have expired in Europe, a US patent (US 8,359,197) may apply there until
+May 2028. The web server is LGPL-2.1
 ([webserver/LICENSE](webserver/LICENSE)). Every file keeps the copyright
 notice of its authors.
 
@@ -572,8 +576,9 @@ the matching line by line, with the first Spanish, French, German and Italian
 lists, and the first-start guide's language and country, the Weather,
 Internet radio, Zello, Flights, HF Air Band and CB apps, GhostNet in JS8,
 the spectrum's fill by level, more German, Italian, French and Spanish from
-their v1.1.7 lists, the multiboot card's warning before a new card image and
-the weather from the locator or a place typed; OlivLoze NOTA, XOTA, the map of a reference's surroundings, the phone's
+their v1.1.7 lists, the multiboot card's warning before a new card image,
+the weather from the locator or a place typed and DMR heard over the internet
+with mbelib; OlivLoze NOTA, XOTA, the map of a reference's surroundings, the phone's
 position and clock from the Panel, the WeFax commands of the browser remote,
 WeFax's Auto Plan and its plan named from the charts received, Bulletin (the
 newest copy of fair quality), All Charts as tiles, full-screen viewer, Fix over

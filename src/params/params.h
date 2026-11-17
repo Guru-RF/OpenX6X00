@@ -91,6 +91,7 @@ typedef enum {
     ACTION_APP_AERO = 204,  /* HF Air Band */
     ACTION_APP_CB = 205,    /* CB */
     ACTION_APP_SVX = 206,   /* SVXConnect (dialog_svx.c) */
+    ACTION_APP_DMR = 207,   /* DMR (dialog_dmr.c); the CX8ANM edition's is 206, SVXConnect's here */
 } press_action_t;
 
 typedef enum {

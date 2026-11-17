@@ -276,6 +276,13 @@ def i_svx(p):        # a reflector: stations around a hub, each linked to it (th
         p.line([(x + dx * 0.2, y + dy * 0.2), (50 - dx * k, 50 - dy * k)], w=p.w // 2 + 1)
         p.dot(x, y, 7)
 
+def i_dmr(p):        # digital voice heard: a pulse train with the arcs of sound over it (the DMR app, listen only)
+    p.line([(6, 84), (6, 68), (24, 68), (24, 84), (42, 84), (42, 68), (60, 68), (60, 84), (78, 84), (78, 68),
+            (94, 68)], w=p.w // 2 + 1)
+    p.dot(50, 46, 7)
+    for r in (17, 31):
+        p.ring(50, 46, r, w=p.w // 2 + 1, start=205, end=335)
+
 
 def i_meteo(p):      # a sun behind a cloud: the Weather app
     p.ring(66, 30, 13)

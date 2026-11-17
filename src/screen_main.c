@@ -101,6 +101,7 @@
 #include "dialog_zello.h"
 #include "dialog_meteo.h"
 #include "dialog_svx.h"
+#include "dialog_dmr.h"
 #include "voice_net.h"
 #include "first_start.h"
 #include "control_owner.h"
@@ -514,6 +515,7 @@ static const char *app_name(press_action_t a) {
         case ACTION_APP_IRADIO:     return "Internet radio";
         case ACTION_APP_ZELLO:      return "Zello";
         case ACTION_APP_SVX:        return "SVXConnect";
+        case ACTION_APP_DMR:        return "DMR";
         case ACTION_APP_FLIGHTS:    return "Flights";
         case ACTION_APP_AERO:       return "HF Air Band";
         case ACTION_APP_CB:         return "CB";
@@ -626,6 +628,7 @@ void main_screen_start_app(press_action_t app_action) {
         {ACTION_APP_IRADIO, &dialog_iradio},
         {ACTION_APP_ZELLO, &dialog_zello},
         {ACTION_APP_SVX, &dialog_svx},
+        {ACTION_APP_DMR, &dialog_dmr},
         {ACTION_APP_FLIGHTS, &dialog_flights},
         {ACTION_APP_AERO, &dialog_aero},
         {ACTION_APP_CB, &dialog_cb},

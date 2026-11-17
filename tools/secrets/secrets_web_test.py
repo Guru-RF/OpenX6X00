@@ -7,8 +7,9 @@ bottle's WSGI app, every path of the radio it uses moved into a new temporary fo
 The secrets stored: the Wavelog key and the live link's token (the path Wavelog's page tunes the radio by, #245),
 three QRZ Logbook keys, the HOTA and WWFF keys, the Winlink page's password and
 one typed in Pat's own Settings, two WiFi passwords, the Zello account (its user name, password, Issuer and the
-developer key's Private Key), SVXConnect's private key. On the DATA partition the files that hold them: field/*.conf,
-zello/account.conf and zello/private_key.pem, svxconnect/pki/ (the key, the request, the certificate),
+developer key's Private Key), SVXConnect's private key, the DMR hotspot password. On the DATA partition the files
+that hold them: field/*.conf, zello/account.conf and zello/private_key.pem, svxconnect/pki/ (the key, the request, the
+certificate), dmr/password,
 backups/ (backup.tgz, bluetooth.tgz), an uploaded backup waiting in backup_work, the WiFi networks a restore replaced
 in backup_before_restore/wifi, and a second name for the Wavelog key's file (a hard link here; on the radio's FAT,
 WAVELOG.CONF or the short name WAVELO~1.CON).
@@ -17,11 +18,13 @@ WAVELOG.CONF or the short name WAVELO~1.CON).
    A GET route the test does not know fails it: add it to ROUTES.
 2. The Files page, followed link by link from /files/: no secret in any page or file, the files that hold them
    listed without a link and refused when asked for by name, the others still downloaded.
-3. The answers after a Save with the secret fields empty, and Clear (Wavelog, QRZ, HOTA, WWFF, Winlink, Zello);
-   Zello's files written for root alone. SVXConnect's settings checked as svxconnect reads them.
+3. The answers after a Save with the secret fields empty, and Clear (Wavelog, QRZ, HOTA, WWFF, Winlink, Zello, DMR);
+   Zello's files written for root alone. SVXConnect's settings checked as svxconnect reads them. The DMR hotspot
+   password handed to its helper on stdin, never on its command line; a BrandMeister server refused.
 4. The answers that pass on what a helper or a server said, with stand-in helpers that say the secrets: Wavelog's
    Test, Load and Sync (with the stored key, and with one typed and not saved), the reference list update, Winlink's
-   errors, its status and its logs download, Zello's Test, SVXConnect's certificate request and its log.
+   errors, its status and its logs download, Zello's Test, SVXConnect's certificate request and its log, DMR's
+   Test and its "On the air".
 5. The Backup download, which is the owner's own file: without its WiFi part no secret; with it the WiFi passwords,
    as before (said, not changed).
 
@@ -84,8 +87,9 @@ ZELLO_KEY_LINES = ("MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7", "ZeLL
 ZELLO_PEM = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(ZELLO_KEY_LINES) + "\n-----END PRIVATE KEY-----\n"
 SVX_KEY_LINES = ("MIIEowIBAAKCAQEAsvxSVXconnectKEYline1aaaabbbbccccdddd", "SvXcOnNeCtPrIvAtEkEyLiNeTwOeeeeffff00001111")
 SVX_KEY = "-----BEGIN RSA PRIVATE KEY-----\n" + "\n".join(SVX_KEY_LINES) + "\n-----END RSA PRIVATE KEY-----\n"
+DMR_PW = "dmr-Hotspot-pw-42"
 SECRETS = (WAVELOG_KEY, *QRZ_KEYS, HOTA_KEY, WWFF_KEY, WINLINK_PW, PAT_PW, *WIFI_PSKS, BT_KEY, TYPED_KEY, CAT_TOKEN,
-           ZELLO_USER, ZELLO_PW, ZELLO_ISSUER, *ZELLO_KEY_LINES, *SVX_KEY_LINES)
+           ZELLO_USER, ZELLO_PW, ZELLO_ISSUER, *ZELLO_KEY_LINES, *SVX_KEY_LINES, DMR_PW)
 HOST = "192.168.1.10"     # an address: one of the radio's own names, by which every page and answer is given
 
 # The GET routes with parameters, filled in; None: asked for elsewhere (the Files page, the Backup download)
@@ -202,6 +206,8 @@ class Secrets(unittest.TestCase):
         settings.ZELLO_CMD = r + "/bin/x6100-zello"
         if hasattr(settings, "SVX_CMD"):
             settings.SVX_CMD = r + "/bin/svxconnect"
+        if hasattr(settings, "DMR_CMD"):
+            settings.DMR_CMD = r + "/bin/x6100-dmr"
         os.makedirs(r + "/mnt")
         con = sqlite3.connect(DB.path)
         with open(os.path.join(TOP, "sql", "params.sql")) as f:
@@ -242,6 +248,15 @@ class Secrets(unittest.TestCase):
                                         "port = 5300\nswitchable = 8, 1745\nmonitored = 8++, 9990\ndefault_tg = 8\n")
         for name in ("ON6URE.key", "ON6URE.csr", "ON6URE.crt", "ca-bundle.crt"):
             write(svx + "/pki/" + name, SVX_KEY if name.endswith(".key") else "-----BEGIN CERTIFICATE-----\n", 0o600)
+        dmr = getattr(settings, "DMR_DIR", r + "/mnt/dmr")
+        write(dmr + "/dmr.conf", "NETWORK=freedmr\nHOST=master.example.org\nPORT=62031\nDMR_ID=9990001\nSSID=01\n"
+                                 "OPTIONS=\nTALKGROUPS=91 World|2062 Belgium\n")
+        cls.write_dmr_password()
+        # the helper's state while the app listens, a master's words in it with the password
+        write(getattr(settings, "DMR_STATUS", r + "/tmp/x6100-dmr.json"),
+              json.dumps({"state": "retry", "why": f"the master said {DMR_PW}", "network": "FreeDMR",
+                          "master": "master.example.org", "hotspot": 999000101, "tg": 91, "talker": None,
+                          "heard": [], "updated": 1}))
         write(m + "/ft_log.adi", "<call:6>ON4ABC <eor>\n")
         write(m + "/shot.png", b"\x89PNG\r\n\x1a\n")
         write(m + "/digi_text/2026-11-13.txt", "12:00 RX CQ ON4ABC\n")
@@ -262,12 +277,22 @@ class Secrets(unittest.TestCase):
                                     f'  --enroll) echo "12:00:00 [info] key {SVX_KEY_LINES[0]} {SVX_KEY_LINES[1]}" >&2;'
                                     f' exec sleep 30 ;;\n'
                                     f'esac\n')
+        # x6100-dmr: its command line kept (never the password), set-password's stdin kept; Test says the password
+        stub(r + "/bin/x6100-dmr", f'echo "dmr $*" >> {cls.calls}\n'
+                                   f'case "$1" in\n'
+                                   f'  set-password) cat > {r}/bin/dmr-stdin ;;\n'
+                                   f'  test) echo "error the master refused {DMR_PW}"; exit 1 ;;\n'
+                                   f'esac\n')
         stub(apps.WINLINK_CMD, f'echo "$*" >> {cls.calls}\n'
                                f'case "$1" in\n'
                                f'  logs) echo "Pat: login {WINLINK_PW} / {PAT_PW}; wifi {WIFI_PSKS[0]}" ;;\n'
                                f'  set-password) cat > /dev/null ;;\n'
                                f'  on) echo "error login {WINLINK_PW} refused" >&2; exit 1 ;;\n'
                                f'esac\n')
+
+    @staticmethod
+    def write_dmr_password():
+        write(getattr(settings, "DMR_DIR", "/nonexistent") + "/password", DMR_PW + "\n", 0o600)
 
     @staticmethod
     def write_zello():
@@ -332,6 +357,9 @@ class Secrets(unittest.TestCase):
                      "/api/wavelog", "/api/field", "/api/winlink", "/api/backup", "/api/cluster", "/api/tailscale",
                      "/api/zello", "/svxconnect", "/api/svxconnect"):
             self.get(path, 200)
+        if hasattr(settings, "DMR_DIR"):
+            for path in ("/dmr", "/api/dmr"):
+                self.get(path, 200)
 
     def test_says_only_whether_one_is_set(self):
         st, data = self.get("/api/wavelog", 200)
@@ -375,6 +403,10 @@ class Secrets(unittest.TestCase):
                      "/files/svxconnect/pki/ca-bundle.crt"):
             self.assertNotIn(path, files)
             self.get(path, 403)              # asked for by name
+        if hasattr(settings, "DMR_DIR"):
+            self.assertIn("/files/dmr/dmr.conf", files)
+            self.assertNotIn("/files/dmr/password", files)
+            self.get("/files/dmr/password", 403)
         st, data = self.get("/files/field/", 200)
         self.assertIn(b"wavelog.conf", data)     # listed, without a link
         self.assertNotIn(b'href="wavelog.conf"', data)
@@ -559,6 +591,58 @@ class Secrets(unittest.TestCase):
                 self.assertNoSecret(f"{path} with key {key!r}", data)
                 self.assertEqual(json.loads(data)["msg"], said)
 
+    def test_dmr(self):
+        """GET: Set or Not set only, the master's words in "On the air" hidden. Save with the password empty: kept, the
+        helper not run. A new one: to the helper on its stdin, never on its command line. A new one and Clear: refused.
+        Clear: the helper's clear-password. A BrandMeister server, a DMR ID not 7 digits: refused. Test: its line with
+        the password hidden"""
+        if not hasattr(settings, "DMR_DIR"):
+            self.skipTest("a web server from before DMR")
+        self.addCleanup(self.write_dmr_password)
+        conf = settings.DMR_DIR + "/dmr.conf"
+        d = json.loads(self.get("/api/dmr", 200)[1])
+        self.assertEqual((d["password_set"], d["hotspot"], d["radio_callsign"], d["network"]),
+                         (True, "999000101", "ON6URE", "freedmr"))
+        self.assertEqual(d["talkgroups"], [{"tg": 91, "name": "World"}, {"tg": 2062, "name": "Belgium"}])
+        self.assertEqual(d["on_air"]["why"], "the master said (hidden)")
+        open(self.calls, "w").close()
+        st, data = self.req("POST", "/api/dmr", {"password": "", "talkgroups": [{"tg": 91, "name": "World"},
+                                                                               {"tg": "9", "name": "Local"}]})
+        self.assertEqual(st, 200, data)
+        self.assertNoSecret("DMR Save", data)
+        with open(self.calls) as f:
+            self.assertEqual(f.read(), "")                  # the password kept: the helper not asked
+        with open(conf) as f:
+            self.assertIn("TALKGROUPS=91 World|9 Local\n", f.read())
+        for bad, why in (({"host": "4001.master.BrandMeister.network"}, b"BrandMeister"),
+                         ({"dmr_id": "12345"}, b"DMR ID"), ({"ssid": "00"}, b"two, 01 to 99"),
+                         ({"password": "new-one-1", "clear_password": True}, b"not both"),
+                         ({"options": "TS2=\x01"}, b"Options"), ({"talkgroups": [{"tg": 0}]}, b"Talkgroups"),
+                         ({"talkgroups": [{"tg": 91, "name": "a|b"}]}, b"without |")):
+            with self.subTest(bad=bad):
+                st, data = self.req("POST", "/api/dmr", bad)
+                self.assertEqual(st, 400, data)
+                self.assertIn(why, data)
+        with open(conf) as f:
+            self.assertNotIn("brandmeister", f.read().lower())
+        st, data = self.req("POST", "/api/dmr", {"password": "brand-new-dmr-pw"})
+        self.assertEqual(st, 200, data)
+        self.assertNotIn(b"brand-new-dmr-pw", data)
+        with open(self.calls) as f:
+            calls = f.read()
+        self.assertEqual(calls, "dmr set-password\n")        # on its stdin, not its command line
+        with open(self.root + "/bin/dmr-stdin") as f:
+            self.assertEqual(f.read(), "brand-new-dmr-pw\n")
+        st, data = self.req("POST", "/api/dmr", {"clear_password": True})
+        self.assertEqual(st, 200, data)
+        with open(self.calls) as f:
+            self.assertEqual(f.read().split("\n")[-2], "dmr clear-password")
+        self.write_dmr_password()
+        st, data = self.req("POST", "/api/dmr/test")
+        self.assertEqual(st, 200, data)
+        self.assertNoSecret("DMR Test", data)
+        self.assertEqual(json.loads(data), {"ok": False, "msg": "the master refused (hidden)"})
+
     def test_backup_download(self):
         st, data = self.get("/api/backup/download?parts=settings,memories,cluster,tci,qso,cw,voice,bootpic,apps", 200)
         with tarfile.open(fileobj=io.BytesIO(data)) as tf:   # the Zello channels in it, its account and key not
@@ -568,6 +652,9 @@ class Secrets(unittest.TestCase):
         if hasattr(settings, "SVX_DIR"):                      # SVXConnect's settings in it, its key and certificate not
             self.assertIn("svxconnect/svxconnect.conf", names)
             self.assertFalse([n for n in names if "pki" in n or n.endswith((".key", ".crt", ".csr"))], names)
+        if hasattr(settings, "DMR_DIR"):                      # DMR's settings in it, its hotspot password not
+            self.assertIn("dmr/dmr.conf", names)
+            self.assertFalse([n for n in names if "password" in n], names)
         st, data = self.req("GET", "/api/backup/download?parts=wifi")
         self.assertEqual(st, 200, data)
         found = [s for s in SECRETS if s.encode() in unpacked(data)]

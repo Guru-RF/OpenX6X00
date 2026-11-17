@@ -1,0 +1,4 @@
+dmr_ambe_test
+dmr_proto_test
+dmr_proto_dump
+*.o

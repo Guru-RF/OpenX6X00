@@ -1,0 +1,712 @@
+#!/usr/bin/env python3
+# DMR for the DMR app (APP > DMR, src/dialog_dmr.c): the radio listens to a DMR network's talkgroups over the
+# internet. It logs in to one of the network's masters as a hotspot does (the MMDVM "Homebrew" protocol over UDP) and
+# passes the voice the master sends on to the GUI, which decodes it (src/dmr_ambe.c, mbelib) and plays it. Nothing
+# here touches the radio, and it only listens: the packets it ever sends are these, all made and checked in send():
+#   RPTL     the login: the hotspot's ID              RPTK   the password's proof, SHA-256 of the salt and password
+#   RPTC     the hotspot's description                RPTO   the options: the talkgroup to hear (FreeDMR's TS2=...)
+#   RPTPING  the keepalive, every 10 s                RPTCL  the logout
+# Never DMRD (voice or data) and never a beacon (a master's RPTSBKN asks a hotspot for one on its RF: not answered).
+#
+# The GUI starts it when a talkgroup is chosen in the app and ends it when the app closes; nothing starts it at boot:
+#   x6100-dmr run [TG]        logs in and listens until its stdin ends; TG: the talkgroup the options ask for
+#   x6100-dmr test            logs in and out: one line, "ok <master>" or "error <reason>" (the web page's Test)
+#   x6100-dmr set-password    the hotspot password, from stdin (the web page): never on a command line
+#   x6100-dmr clear-password
+#
+# run: stdin and stdout are one SOCK_SEQPACKET socket from the GUI, a record each. A record that starts with a 0 byte
+# is a voice burst, DMRD's 33 bytes after the 0; any other is a line of text:
+#   state connecting                        logging in
+#   state online <master> <hotspot ID> <TG>  listening (TG 0: what the master sends of itself)
+#   state retry <s> <reason>                 lost or not reached: trying again in <s> s
+#   error <reason>                           given up (the settings, the password, the master said no): it exits
+#   call <ID> <TG> <group|private> <slot> [<name>]  a call starts: the station's DMR ID, where it goes, its time slot
+#   name <ID> <name>                         a name found after its call started (radioid.net)
+#   end <ID> <seconds>                       the call ended
+# The end of stdin (the app closed, or the GUI is gone) logs out, and it exits.
+#
+# The networks' own rules (manual, DMR): the DMR ID and the callsign are the user's own (the master checks them
+# against radioid.net); the hotspot's ID is that DMR ID and two digits. BrandMeister reserves this protocol for
+# repeaters and hotspots with a radio module of their own and asks programs without one to use another protocol
+# (its wiki, "Homebrew repeater protocol"): this listener has none, so it does not log in to BrandMeister's masters.
+# The description says what it is, a listener on the internet: its own software name, no frequency, no position.
+# Logins are few: a master that does not answer is tried again after 10 s, doubled up to 5 min (FreeDMR shuts out an
+# address that sends 20 logins in a minute); a master that refuses the login is not tried again.
+#
+# The settings: the web page's DMR page writes them on the DATA partition (webserver apps.py):
+#   /mnt/dmr/dmr.conf     NETWORK=freedmr|other, HOST=, PORT=62031, DMR_ID= (7 digits), SSID=01 (the hotspot's two
+#                         digits), OPTIONS= (with {tg} for the talkgroup chosen), TALKGROUPS=91 World|2061 Belgium
+#   /mnt/dmr/password     the hotspot password, for root alone, written here (set-password); never shown again,
+#                         never in the log, never sent: only its SHA-256 with the master's salt is
+#   /mnt/dmr/names.json   the names radioid.net gave for the DMR IDs heard
+# The callsign is the radio's (Settings > General, params.db).
+#
+# The log, for a report: /mnt/app_logs/dmr.txt (logins, their ends and why, the calls heard; never the password).
+# The web page's "On the air": /tmp/x6100-dmr.json while it runs.
+#
+# After the CX8ANM edition's x6100-dmr (condoruy/OpenX6X00-CX8ANM c6e7be19, 2cffbc0c): the login and the description,
+# the voice frames passed on to the GUI, the calls' start and end, the names, the web page's last heard.
+#
+# For tests and the bench only: X6100_DMR_DIR (the settings' folder), X6100_DMR_LOG, X6100_DMR_STATUS, X6100_PARAMS_DB,
+# X6100_DMR_RADIOID (the name lookup's URL with {} for the ID; empty: none), X6100_DMR_PING, X6100_DMR_DEAD,
+# X6100_DMR_RETRY, X6100_DMR_STEP (s).
+#
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
+
+import hashlib
+import json
+import os
+import re
+import socket
+import sqlite3
+import sys
+import threading
+import time
+import traceback
+import urllib.request
+
+
+def env_float(name, default):
+    try:
+        v = float(os.environ.get(name, ""))
+        return v if v > 0 else default
+    except ValueError:
+        return default
+
+
+DIR = os.environ.get("X6100_DMR_DIR") or "/mnt/dmr"
+CONF = os.path.join(DIR, "dmr.conf")
+PASSWORD = os.path.join(DIR, "password")
+NAMES = os.path.join(DIR, "names.json")
+LOG = os.environ.get("X6100_DMR_LOG") or "/mnt/app_logs/dmr.txt"
+LOG_MAX = 256 * 1024
+STATUS = os.environ.get("X6100_DMR_STATUS") or "/tmp/x6100-dmr.json"
+PARAMS_DB = os.environ.get("X6100_PARAMS_DB") or "/mnt/params.db"
+APP_VERSION = "/usr/share/x6100/app-version"
+RADIOID = os.environ.get("X6100_DMR_RADIOID", "https://radioid.net/api/dmr/user/?id={}")
+VERSION = os.environ.get("X6100_FW") or ""
+AGENT = "OpenX6X00/%s (+https://github.com/Guru-RF/OpenX6X00)"
+PORT = 62031
+PING = env_float("X6100_DMR_PING", 10.0)        # s: the keepalive (MMDVM's own is 10 s; FreeDMR drops after 30 s)
+DEAD = env_float("X6100_DMR_DEAD", 35.0)        # s with nothing from the master: lost
+RETRY = env_float("X6100_DMR_RETRY", 10.0)      # s: the first wait before a new login, doubled up to RETRY_MAX
+RETRY_MAX = 300.0
+STEP = env_float("X6100_DMR_STEP", 5.0)         # s: a login step not answered is sent again, three times in all
+STEP_SENDS = 3
+CALL_END = 1.0                  # s without voice: the call is over (its terminator lost)
+NAMES_MAX = 3000
+NAME_AGAIN = 3600.0             # s: a lookup that failed is not tried again sooner
+HEARD_MAX = 20
+OPTIONS_MAX = 255               # bytes: FreeDMR's limit
+HIDDEN = "(hidden)"
+
+# The networks: the options a talkgroup is asked for with, when the page sets none
+NETWORKS = {"freedmr": ("FreeDMR", "TS2={tg};DIAL=0;VOICE=0;"), "other": ("", "")}
+# BrandMeister's masters: its hotspot protocol is for hotspots with a radio module (the header)
+REFUSED_HOSTS = ("brandmeister.network",)
+
+# What send() lets out, with each one's length (the ID is the 4 bytes after the word); RPTO's options follow it
+ALLOWED = {b"RPTL": 8, b"RPTK": 40, b"RPTC": 302, b"RPTO": None, b"RPTPING": 11, b"RPTCL": 9}
+
+
+class Fail(Exception):
+    """A reason the app shows, in a few words: the settings, the network's refusal. Not tried again"""
+
+
+class Stopped(Exception):
+    """The app closed during a login"""
+
+
+class Lost(Exception):
+    """The master is not reached or stopped answering: tried again"""
+
+
+def clean(text, limit=120):
+    """One line of printable text"""
+    return " ".join("".join(c if c.isprintable() else " " for c in str(text)).split())[:limit]
+
+
+# ---------- the settings ----------
+
+def read_conf(path=CONF):
+    c = {"NETWORK": "freedmr", "HOST": "", "PORT": str(PORT), "DMR_ID": "", "SSID": "01", "OPTIONS": "",
+         "TALKGROUPS": ""}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                k, sep, v = line.rstrip("\r\n").partition("=")
+                if sep and k.strip() in c:
+                    c[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return c
+
+
+def read_password(path=PASSWORD):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read().rstrip("\r\n")
+    except OSError:
+        return ""
+
+
+def talkgroups(c):
+    """[(TG, name)] of the settings"""
+    out = []
+    for item in c.get("TALKGROUPS", "").split("|"):
+        m = re.match(r"\s*(\d{1,8})\s*(.*)$", item)
+        if m and int(m.group(1)) > 0:
+            out.append((int(m.group(1)), clean(m.group(2), 40)))
+    return out
+
+
+def radio_callsign(db=PARAMS_DB):
+    """The radio's callsign as a network knows it: ON6URE of ON6URE/P or PA/ON6URE; "" when none"""
+    try:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
+        try:
+            row = con.execute("SELECT val FROM params WHERE name = 'callsign'").fetchone()
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return ""
+    call = str(row[0] or "").strip().upper() if row else ""
+    return max(call.split("/"), key=len) if call else ""
+
+
+def version():
+    if VERSION:
+        return VERSION
+    try:
+        with open(APP_VERSION) as f:
+            return clean(f.read(), 20) or "unknown"
+    except OSError:
+        return "unknown"
+
+
+class Settings:
+    """What a login needs, checked: Fail says what is missing"""
+
+    def __init__(self, c, password, callsign):
+        name, options = NETWORKS.get(c["NETWORK"], NETWORKS["other"])
+        self.network = c["NETWORK"] if c["NETWORK"] in NETWORKS else "other"
+        self.host = c["HOST"].strip().rstrip(".").lower()
+        self.name = name or self.host
+        self.options = c["OPTIONS"] or options
+        self.password = password
+        self.callsign = callsign
+        if not re.fullmatch(r"[1-9]\d{6}", c["DMR_ID"]):
+            raise Fail("no DMR ID: set yours on the radio's web page (DMR)")
+        if not re.fullmatch(r"\d\d", c["SSID"]) or c["SSID"] == "00":
+            raise Fail("the hotspot's two digits are 01 to 99 (web page, DMR)")
+        self.dmr_id = int(c["DMR_ID"])
+        self.hid = int(c["DMR_ID"] + c["SSID"])
+        if not self.host:
+            raise Fail("no master: set the network's server on the radio's web page (DMR)")
+        if any(self.host == h or self.host.endswith("." + h) for h in REFUSED_HOSTS):
+            raise Fail("BrandMeister keeps its hotspot protocol for hotspots with a radio module: not for this listener")
+        try:
+            self.port = int(c["PORT"] or PORT)
+        except ValueError:
+            self.port = 0
+        if not 1 <= self.port <= 65535:
+            raise Fail("the master's port is 1 to 65535 (web page, DMR)")
+        if not password:
+            raise Fail("no hotspot password: set it on the radio's web page (DMR)")
+        if not re.fullmatch(r"[A-Z0-9]{3,8}", callsign):
+            raise Fail("no callsign: set yours in Settings > General (3 to 8 letters and digits)")
+
+    def options_for(self, tg):
+        """The RPTO text for talkgroup tg, None for none: no options, or {tg} in them and no talkgroup chosen"""
+        o = self.options.strip()
+        if not o or ("{tg}" in o and not tg):
+            return None
+        o = o.replace("{tg}", str(tg))
+        if len(o.encode()) > OPTIONS_MAX or not all(" " <= ch <= "~" for ch in o):
+            raise Fail("the options are up to 255 plain characters (web page, DMR)")
+        return o
+
+
+class Log:
+    """One dated line each in LOG (the DATA partition: the web page's Files > app_logs), the password taken out"""
+
+    def __init__(self, path=LOG):
+        self.path = path
+        self.hide = []
+
+    def __call__(self, msg):
+        for s in self.hide:
+            msg = msg.replace(s, HIDDEN)
+        try:
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            if os.path.exists(self.path) and os.path.getsize(self.path) > LOG_MAX:
+                os.replace(self.path, self.path + ".1")
+            with open(self.path, "a", encoding="utf-8") as f:
+                f.write(time.strftime("%Y-%m-%d %H:%M:%S ") + clean(msg, 400) + "\n")
+        except OSError:
+            pass
+
+
+log = Log()
+
+
+def write_private(path, text):
+    """A file for root alone, whole or not at all"""
+    os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+    tmp = path + ".tmp"         # the web page's Files hides it as it hides the file (config_pages.secret_places)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+# ---------- the master ----------
+
+class Link:
+    """The UDP link to the master. send() is the one place a packet leaves"""
+
+    def __init__(self, s, stop=None):
+        self.s = s
+        self.stop = stop        # an Event: the app closed, the login stops
+        self.idb = s.hid.to_bytes(4, "big")
+        self.sock = None
+        self.addr = None
+
+    def open(self):
+        try:
+            info = socket.getaddrinfo(self.s.host, self.s.port, socket.AF_INET, socket.SOCK_DGRAM)
+        except OSError:
+            raise Lost(f"{self.s.host} not found: is the radio on the internet?")
+        self.addr = info[0][4]
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.settimeout(0.2)
+
+    def send(self, pkt):
+        """Only the login, the options, the keepalive and the logout (ALLOWED), each with our own ID and its length:
+        a listener sends no voice and no data"""
+        word = next((w for w in sorted(ALLOWED, key=len, reverse=True) if pkt.startswith(w)), None)
+        if word is None or pkt[len(word):len(word) + 4] != self.idb:
+            raise AssertionError("x6100-dmr sends only RPTL, RPTK, RPTC, RPTO, RPTPING and RPTCL")
+        n = ALLOWED[word]
+        if (n is not None and len(pkt) != n) or (n is None and not 8 < len(pkt) <= 8 + OPTIONS_MAX):
+            raise AssertionError(f"x6100-dmr: {word.decode()} of {len(pkt)} bytes")
+        try:
+            self.sock.sendto(pkt, self.addr)
+        except OSError as e:
+            raise Lost(f"the network: {e.strerror or e}")
+
+    def recv(self):
+        """A packet from the master, None when nothing came for a moment (others' packets are dropped)"""
+        try:
+            d, a = self.sock.recvfrom(2048)
+        except socket.timeout:
+            return None
+        except OSError as e:
+            raise Lost(f"the network: {e.strerror or e}")
+        return d if a == self.addr else None
+
+    def config(self):
+        """RPTC: who and what the hotspot is, as MMDVM's hotspots describe themselves (302 bytes): the callsign, no
+        frequency (it has no radio for DMR), power 0, colour code 1, no position, simplex (4), our own software"""
+        fmt = "%-8.8s%09u%09u%02u%02u%8.8s%9.9s%03d%-20.20s%-19.19s%c%-124.124s%-40.40s%-40.40s"
+        text = fmt % (self.s.callsign, 0, 0, 0, 1, "%08f" % 0.0, "%09f" % 0.0, 0, "Internet", "Listen only", "4",
+                      "https://github.com/Guru-RF/OpenX6X00", f"OpenX6X00 {version()}", "OpenX6X00 DMR listener")
+        return b"RPTC" + self.idb + text.encode("ascii", "replace")
+
+    def step(self, pkt, what, deadline_s):
+        """Send pkt and wait for the master's RPTACK, sending it again every STEP s; the RPTACK's bytes. MSTNAK: Fail
+        with what was refused"""
+        sends, last = 0, 0.0
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < deadline_s:
+            if self.stop is not None and self.stop.is_set():
+                raise Stopped()
+            if sends < STEP_SENDS and (sends == 0 or time.monotonic() - last >= STEP):
+                self.send(pkt)
+                sends += 1
+                last = time.monotonic()
+            d = self.recv()
+            if d is None:
+                continue
+            if d.startswith(b"MSTNAK"):
+                raise Fail(what)
+            if d.startswith(b"RPTACK"):
+                return d
+        raise Lost("the master does not answer")
+
+    def login(self, tg):
+        """The four steps; the options only when there are some"""
+        deadline = STEP * STEP_SENDS + 1
+        ack = self.step(b"RPTL" + self.idb, f"the master refused hotspot ID {self.s.hid}: is the DMR ID registered?",
+                        deadline)
+        salt = ack[6:10]
+        if len(salt) != 4:
+            raise Lost("the master's answer to the login is too short")
+        proof = hashlib.sha256(salt + self.s.password.encode("utf-8")).digest()
+        self.step(b"RPTK" + self.idb + proof, "the master refused the hotspot password", deadline)
+        self.step(self.config(), "the master refused the hotspot's description (is the callsign the DMR ID's?)",
+                  deadline)
+        opts = self.s.options_for(tg)
+        if opts:
+            self.step(b"RPTO" + self.idb + opts.encode("ascii"), "the master refused the options", deadline)
+
+    def close(self, logout=True):
+        if self.sock:
+            if logout:
+                try:
+                    self.send(b"RPTCL" + self.idb)
+                except Lost:
+                    pass
+            self.sock.close()
+            self.sock = None
+
+
+# ---------- the names of the DMR IDs heard ----------
+
+class Names:
+    """radioid.net's callsign and first name for a DMR ID, kept in NAMES; one lookup at a time, in a thread. found(ID,
+    name) is told of one that came after its call started"""
+
+    def __init__(self, found):
+        self.found = found
+        self.lock = threading.Lock()
+        self.failed = {}
+        self.busy = False
+        try:
+            with open(NAMES, encoding="utf-8") as f:
+                self.db = json.load(f)
+        except (OSError, ValueError):
+            self.db = {}
+        if not isinstance(self.db, dict):
+            self.db = {}
+
+    def get(self, i):
+        with self.lock:
+            name = self.db.get(str(i))
+            if name is None and RADIOID and not self.busy and time.monotonic() - self.failed.get(i, -NAME_AGAIN) \
+                    >= NAME_AGAIN:
+                self.busy = True
+                threading.Thread(target=self.lookup, args=(i,), daemon=True).start()
+        return name or ""
+
+    def lookup(self, i):
+        name = None
+        try:
+            req = urllib.request.Request(RADIOID.format(i), headers={"User-Agent": AGENT % version(),
+                                                                       "Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                res = (json.loads(r.read(65536).decode("utf-8", "replace")) or {}).get("results") or []
+            u = res[0] if res and isinstance(res[0], dict) else {}
+            name = clean(" ".join(x for x in (str(u.get("callsign") or ""), str(u.get("fname") or "")) if x), 40)
+        except Exception as e:
+            log(f"radioid.net {i}: {e.__class__.__name__}")
+        with self.lock:
+            self.busy = False
+            if name is None:
+                self.failed[i] = time.monotonic()
+                return
+            self.db[str(i)] = name
+            while len(self.db) > NAMES_MAX:
+                del self.db[next(iter(self.db))]
+            try:
+                write_private(NAMES, json.dumps(self.db))
+            except OSError:
+                pass
+        if name:
+            self.found(i, name)
+
+
+# ---------- the GUI and the web page ----------
+
+class Gui:
+    """The GUI's socket: records out; its end (the app closed) sets gone"""
+
+    def __init__(self, sock):
+        self.sock = sock
+        self.lock = threading.Lock()
+        self.gone = threading.Event()
+        threading.Thread(target=self.watch, daemon=True).start()
+
+    def watch(self):
+        while True:
+            try:
+                if not self.sock.recv(4096):
+                    break
+            except OSError:
+                break
+        self.gone.set()
+
+    def send(self, rec):
+        with self.lock:
+            try:
+                self.sock.send(rec)
+            except OSError:
+                self.gone.set()
+
+    def line(self, text):
+        self.send(text.encode("utf-8", "replace"))
+
+    def voice(self, burst):
+        self.send(b"\0" + burst)
+
+
+class Status:
+    """/tmp/x6100-dmr.json for the web page: the state, the talker, the last heard"""
+
+    def __init__(self, s, tg):
+        self.d = {"state": "connecting", "why": "", "network": s.name, "master": s.host, "hotspot": s.hid, "tg": tg,
+                  "talker": None, "heard": []}
+
+    def set(self, **kw):
+        self.d.update(kw)
+        self.write()
+
+    def heard(self, src, name, dst, start, secs):
+        h = [x for x in self.d["heard"] if x["id"] != src][:HEARD_MAX - 1]
+        self.d["heard"] = [{"id": src, "name": name, "tg": dst, "start": int(start), "secs": int(round(secs))}] + h
+
+    def write(self):
+        self.d["updated"] = int(time.time())
+        try:
+            with open(STATUS + ".tmp", "w", encoding="utf-8") as f:
+                json.dump(self.d, f)
+            os.replace(STATUS + ".tmp", STATUS)
+        except OSError:
+            pass
+
+    @staticmethod
+    def remove():
+        try:
+            os.remove(STATUS)
+        except OSError:
+            pass
+
+
+# ---------- the calls ----------
+
+class Calls:
+    """The master's DMRD packets as calls: voice passed on, one call at a time. A call starts with its voice header or
+    its first voice frame (a late entry) and ends with its terminator or CALL_END s without voice. Another call while
+    one is on waits; a private call not to this hotspot, data and a frame seen twice are dropped"""
+
+    def __init__(self, s, gui, status, names):
+        self.s, self.gui, self.status, self.names = s, gui, status, names
+        self.call = None        # dict: stream, src, dst, private, slot, start, last, seq
+
+    def packet(self, d):
+        if len(d) < 53:
+            return
+        src = int.from_bytes(d[5:8], "big")
+        dst = int.from_bytes(d[8:11], "big")
+        flags = d[15]
+        slot = 2 if flags & 0x80 else 1
+        private = bool(flags & 0x40)
+        ftype = (flags >> 4) & 0x03         # 0 voice, 1 voice sync, 2 data sync
+        dtype = flags & 0x0F                # with data sync: 1 voice header, 2 terminator
+        stream = d[16:20]
+        if private and dst != self.s.dmr_id:
+            return                          # (a DMRD's addresses are 3 bytes: a private call is to the DMR ID)
+        if ftype == 3:
+            return
+        c = self.call
+        if c and c["stream"] != stream:
+            if time.monotonic() - c["last"] < CALL_END:
+                return                      # another call over this one: the first goes on
+            self.end()
+            c = None
+        if ftype == 2:
+            if dtype == 1 and not c:
+                self.start(stream, src, dst, private, slot)
+            elif dtype == 2 and c:
+                self.end()
+            return                          # data, CSBKs, the embedded signalling's own frames: not voice
+        if not c:
+            c = self.start(stream, src, dst, private, slot)
+        if d[4] == c["seq"]:
+            return                          # the same frame twice
+        c["seq"] = d[4]
+        c["last"] = time.monotonic()
+        self.gui.voice(bytes(d[20:53]))
+
+    def start(self, stream, src, dst, private, slot):
+        now = time.monotonic()
+        self.call = {"stream": stream, "src": src, "dst": dst, "private": private, "slot": slot, "start": now,
+                     "wall": time.time(), "last": now, "seq": None}
+        name = self.names.get(src)
+        self.gui.line(f"call {src} {dst} {'private' if private else 'group'} {slot}" + (f" {name}" if name else ""))
+        self.status.set(talker={"id": src, "name": name, "tg": dst, "since": int(time.time())})
+        return self.call
+
+    def end(self):
+        c, self.call = self.call, None
+        if not c:
+            return
+        secs = max(0.0, c["last"] - c["start"])
+        self.gui.line(f"end {c['src']} {secs:.1f}")
+        name = self.names.get(c["src"])
+        log(f"heard {c['src']}{' ' + name if name else ''} on {'private' if c['private'] else 'TG'} {c['dst']} "
+            f"TS{c['slot']}, {secs:.0f} s")
+        self.status.heard(c["src"], name, c["dst"], c["wall"], secs)
+        self.status.set(talker=None)
+
+    def tick(self):
+        if self.call and time.monotonic() - self.call["last"] >= CALL_END:
+            self.end()
+
+
+def listen(link, gui, status, calls):
+    """Online until the master closes, stops answering or forgets the hotspot (Lost), or the GUI is gone"""
+    heard = last_ping = time.monotonic()
+    while not gui.gone.is_set():
+        now = time.monotonic()
+        if now - last_ping >= PING:
+            link.send(b"RPTPING" + link.idb)
+            last_ping = now
+            status.write()
+        if now - heard >= DEAD:
+            raise Lost("the master stopped answering")
+        calls.tick()
+        d = link.recv()
+        if d is None:
+            continue
+        heard = time.monotonic()
+        if d.startswith(b"DMRD"):
+            calls.packet(d)
+        elif d.startswith(b"MSTCL"):
+            raise Lost("the master closed the link")
+        elif d.startswith(b"MSTNAK"):
+            raise Lost("the master dropped the hotspot")
+        # MSTPONG, RPTACK, RPTSBKN (a beacon on RF: none here) and anything else: only that the master is there
+
+
+def settings():
+    """The settings checked; the password hidden in the log from here on"""
+    pw = read_password()
+    if len(pw) >= 3:
+        log.hide = [pw]
+    return Settings(read_conf(), pw, radio_callsign())
+
+
+def run(tg, gui):
+    try:
+        s = settings()
+        s.options_for(tg)
+    except Fail as e:
+        log(f"not started: {e}")
+        gui.line(f"error {e}")
+        return 1
+    status = Status(s, tg)
+    names = Names(lambda i, name: gui.line(f"name {i} {name}"))
+    calls = Calls(s, gui, status, names)
+    wait = RETRY
+    try:
+        while not gui.gone.is_set():
+            link = Link(s, gui.gone)
+            up = None
+            gui.line("state connecting")
+            status.set(state="connecting", why="")
+            try:
+                link.open()
+                link.login(tg)
+                log(f"listening on {s.host}:{s.port} as {s.hid} ({s.callsign}), TG {tg or '-'}")
+                gui.line(f"state online {s.host} {s.hid} {tg}")
+                status.set(state="online", why="")
+                up = time.monotonic()
+                listen(link, gui, status, calls)
+                link.close()
+                log("logged out: the app closed")
+                return 0
+            except Stopped:
+                link.close()            # a login half done: the master forgets it at once
+                log("logged out: the app closed during the login")
+                return 0
+            except Fail as e:
+                link.close(logout=False)
+                log(f"{s.host}: {e}")
+                gui.line(f"error {e}")
+                return 1
+            except Lost as e:
+                link.close(logout=False)
+                calls.end()
+                if up is not None and time.monotonic() - up > RETRY_MAX:
+                    wait = RETRY            # a link that stood a while: its loss is tried again soon
+                log(f"{s.host}: {e}; again in {wait:.0f} s")
+                gui.line(f"state retry {wait:.0f} {e}")
+                status.set(state="retry", why=str(e), talker=None)
+                if gui.gone.wait(wait):
+                    return 0
+                wait = min(RETRY_MAX, wait * 2)
+        return 0
+    finally:
+        Status.remove()
+
+
+def test():
+    """The web page's Test: logs in with what is saved and out again"""
+    try:
+        s = settings()
+        tgs = talkgroups(read_conf())
+        link = Link(s)
+        try:
+            link.open()
+            link.login(tgs[0][0] if tgs else 0)
+        except (Fail, Lost):
+            link.close(logout=False)
+            raise
+        link.close()
+    except (Fail, Lost) as e:
+        log(f"test: {e}")
+        return f"error {e}"
+    log(f"test: logged in to {s.host}:{s.port} as {s.hid} and out")
+    return f"ok {s.name} {s.host}:{s.port}, hotspot {s.hid}"
+
+
+def set_password():
+    pw = sys.stdin.read()
+    pw = pw[:-1] if pw.endswith("\n") else pw
+    pw = pw[:-1] if pw.endswith("\r") else pw
+    if not pw:
+        raise Fail("no password given")
+    if len(pw) > 64 or any(ord(ch) < 32 or ord(ch) == 127 for ch in pw):
+        raise Fail("the password is 1-64 characters, no control characters")
+    write_private(PASSWORD, pw + "\n")
+
+
+def clear_password():
+    try:
+        os.remove(PASSWORD)
+    except FileNotFoundError:
+        pass
+
+
+def main(argv):
+    cmd = argv[1] if len(argv) > 1 else ""
+    try:
+        if cmd == "run" and len(argv) <= 3:
+            tg = int(argv[2]) if len(argv) == 3 and argv[2].isdigit() else 0
+            return run(tg, Gui(socket.socket(fileno=0)))
+        if cmd == "test" and len(argv) == 2:
+            line = test()
+            for h in log.hide:
+                line = line.replace(h, HIDDEN)
+            print(line)
+            return 0 if line.startswith("ok") else 1
+        if cmd in ("set-password", "clear-password") and len(argv) == 2:
+            try:
+                set_password() if cmd == "set-password" else clear_password()
+            except (Fail, OSError) as e:
+                print(f"error {e}", file=sys.stderr)
+                return 1
+            return 0
+    except Exception:
+        log("failed:\n" + traceback.format_exc())
+        raise
+    print("usage: x6100-dmr run [TG] | test | set-password | clear-password", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

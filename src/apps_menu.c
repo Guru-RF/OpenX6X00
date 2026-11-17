@@ -64,6 +64,7 @@ static const struct {
     {"Web radio", "Internet stations", "iradio", OPEN_APP, ACTION_APP_IRADIO},     /* "Internet radio" is cut in 1bit */
     {"Zello", "Internet voice", "zello", OPEN_APP, ACTION_APP_ZELLO},
     {"SVXConnect", "Reflector talkgroups", "svx", OPEN_APP, ACTION_APP_SVX},
+    {"DMR", "Talkgroups, listen only", "dmr", OPEN_APP, ACTION_APP_DMR},
     {"Flights", "Aircraft around", "flights", OPEN_APP, ACTION_APP_FLIGHTS},
     {"HF Air Band", "Oceanic routes, VOLMET", "aero", OPEN_APP, ACTION_APP_AERO},
     {"CB", "27 MHz channels", "cb", OPEN_APP, ACTION_APP_CB},
