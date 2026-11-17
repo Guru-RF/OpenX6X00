@@ -1743,11 +1743,12 @@ typedef struct {
 static void *session_thread(void *arg) {
     sess_thread_t s = *(sess_thread_t *)arg;
     FILE         *f = fdopen(s.fd, "r");
-    char          line[4096];
+    char         *line = NULL;     /* a whole line, however long: half of one is no JSON, and Pat's question in it */
+    size_t        cap  = 0;        /* would be lost (a multi-select of many messages runs past 4 KiB) */
     int           st;
 
     free(arg);
-    while (f && fgets(line, sizeof(line), f)) {
+    while (f && getline(&line, &cap, f) > 0) {
         sess_msg_t m = {.gen = s.gen, .line = strdup(line)};
 
         if (!m.line) {
@@ -1761,6 +1762,7 @@ static void *session_thread(void *arg) {
             usleep(100000);
         }
     }
+    free(line);
     if (f) {
         fclose(f);
     } else {
