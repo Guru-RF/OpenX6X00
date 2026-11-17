@@ -1,0 +1,139 @@
+% rebase('base.html', title='DMR')
+<h2><svg class="i"><use href="#i-speaker"/></svg>DMR</h2>
+<p class="sub">The radio listens to a DMR network's talkgroups over the internet: it logs in to one of the network's servers (its masters) as a hotspot does, and plays what the talkgroup says on the speaker at the radio's volume. Listening only: it sends the network no voice and no data, and nothing of it goes on the air. On the radio: APP &gt; DMR, choose a talkgroup with the MFK. It logs in only while the app listens, and never at boot.</p>
+
+<form class="dp-card" id="acc">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-lock"/></svg></span><div><h3>Hotspot<span class="eff">Takes effect: at the next talkgroup chosen</span></h3><p>The network logs the radio in as a hotspot of yours: your own DMR ID (radioid.net gives one to a licensed amateur) with two digits after it, the callsign of this radio (Settings &gt; General), which must be the one the ID belongs to, and the hotspot password the network asks for. FreeDMR takes listeners such as this one; BrandMeister keeps its hotspot protocol for hotspots with a radio of their own, so its servers are refused here (the manual, DMR). The password stays on the radio, readable by root only and out of the backups; the server gets only a proof of it. Saved, it is never shown again: the page says Set or Not set.</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="network"><b>Network</b></label><span>FreeDMR asks for the talkgroup in the hotspot's options; Other: a network of the same protocol</span></div>
+    <div class="dp-ctl"><select id="network"><option value="freedmr">FreeDMR</option><option value="other">Other</option></select></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="host"><b>Server</b></label><span>The master's host name, from the network's list of servers for hotspots; its port, 62031 for most</span></div>
+    <div class="dp-ctl"><input id="host" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="253"> <input id="port" type="number" min="1" max="65535" style="width:7em" aria-label="Port"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="dmr_id"><b>DMR ID</b></label><span>Yours, 7 digits. The callsign sent with it: <b id="call"></b></span></div>
+    <div class="dp-ctl"><input id="dmr_id" type="text" inputmode="numeric" autocomplete="off" maxlength="7" style="width:9em"> <input id="ssid" type="text" inputmode="numeric" autocomplete="off" maxlength="2" style="width:4em" aria-label="Hotspot digits"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Hotspot ID</b><span>The DMR ID and the two digits after it (01 to 99), another pair for each hotspot of yours on the network</span></div>
+    <div class="dp-ctl"><b id="hotspot"></b></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="password"><b>Hotspot password</b></label><span>Password: <b id="password-state"></b>. The one the network gives for hotspots; empty keeps it</span></div>
+    <div class="dp-ctl"><input id="password" type="password" autocomplete="new-password" maxlength="64" placeholder="New password (empty = keep)"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="options"><b>Options</b></label><span>Sent at the login: {tg} is the talkgroup chosen in the app. Empty: the network's own (FreeDMR: TS2={tg};DIAL=0;VOICE=0;)</span></div>
+    <div class="dp-ctl"><input id="options" type="text" autocomplete="off" spellcheck="false" maxlength="255"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="tgs"><b>Talkgroups</b></label><span>One a line, its number and a name, as 91 World; at most 32. The app lists them; none: one row for the talkgroups the server has for the hotspot</span></div>
+    <div class="dp-ctl"><textarea id="tgs" rows="6" autocomplete="off" spellcheck="false" maxlength="1400" style="width:100%"></textarea></div>
+  </div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <div class="actions" style="margin-top:0">
+      <button type="submit" class="primary">Save</button>
+      <button type="button" id="test">Test</button>
+      <button type="button" id="clear">Clear password</button>
+      <span class="status" id="status"></span>
+    </div>
+    <p class="meta">Test logs in to the server with what is saved, on the first talkgroup, and out again (Save first). A connection report: /mnt/app_logs/dmr.txt on the Files page, never with the password in it.</p>
+  </div>
+</form>
+
+<div class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-speaker"/></svg></span><div><h3>On the air</h3><p>While the app listens: the server, the talkgroup, who talks and the last heard.</p></div></div>
+  <div class="dp-body"><p id="onair" class="meta">The app is not listening.</p><ul id="heard"></ul></div>
+</div>
+
+<script src="/static/js/edit_flow.js?v=3"></script>
+<script>
+var showStatus = function(id, text, error=false) {
+  const el = $(id);
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var hotspot = function() {
+  const id = $("#dmr_id").val().trim(), s = $("#ssid").val().trim();
+  $("#hotspot").text(id ? id + s : "-");
+}
+
+var showOnAir = function(a) {
+  const heard = $("#heard").empty();
+  if (!a) { $("#onair").text("The app is not listening."); return; }
+  let text = a.network + " " + a.master + ", hotspot " + a.hotspot + (a.tg ? ", TG " + a.tg : "") + ": " + a.state;
+  if (a.why) text += " (" + a.why + ")";
+  if (a.talker) text += ". Talking now: " + (a.talker.name || a.talker.id) + " on " + a.talker.tg;
+  $("#onair").text(text);
+  (a.heard || []).forEach(function(h) {
+    $("<li>").text((h.name || h.id) + ", TG " + h.tg + ", " + h.secs + " s, " +
+                   new Date(h.start * 1000).toLocaleTimeString()).appendTo(heard);
+  });
+}
+
+var render = function(d) {
+  $("#network").val(d.network);
+  $("#host").val(d.host);
+  $("#port").val(d.port);
+  $("#dmr_id").val(d.dmr_id);
+  $("#ssid").val(d.ssid);
+  $("#options").val(d.options);
+  $("#tgs").val(d.talkgroups.map(function(t) { return (t.tg + " " + t.name).trim(); }).join("\n"));
+  $("#password").val("");
+  $("#password-state").text(d.password_set ? "Set" : "Not set");
+  $("#clear").prop("disabled", !d.password_set);
+  $("#call").text(d.radio_callsign || "none yet: set it in Settings > General");
+  hotspot();
+  showOnAir(d.on_air);
+  form.reset();
+}
+
+const form = EditFlow.form($("#acc"), $("#status"), $("#acc button[type=submit]"));
+
+var post = function(url, data, done, ms) {
+  $.ajax({
+    url: url,
+    type: "POST",
+    data: JSON.stringify(data),
+    contentType: "application/json; charset=utf-8",
+    dataType: "json",
+    timeout: ms,
+    success: done,
+    error: function(xhr, why) { showStatus("#status", x6100FailText(xhr, why, ms), true); },
+    complete: function() { $("#test").prop("disabled", false); }
+  });
+}
+
+$.get('/api/dmr', {}, render);
+$("#dmr_id, #ssid").on("input", hotspot);
+setInterval(function() {
+  if (!document.hidden) $.get('/api/dmr', {}, function(d) { showOnAir(d.on_air); });
+}, 5000);
+
+$("#acc").on("submit", function(e) {
+  e.preventDefault();
+  showStatus("#status", "Saving...");
+  const tgs = $("#tgs").val().split("\n").map(function(l) { return l.trim(); }).filter(Boolean).map(function(l) {
+    const m = l.match(/^(\d+)\s*(.*)$/);
+    return m ? {tg: parseInt(m[1], 10), name: m[2]} : {tg: l, name: ""};
+  });
+  post("/api/dmr", {network: $("#network").val(), host: $("#host").val().trim(), port: parseInt($("#port").val(), 10),
+                    dmr_id: $("#dmr_id").val().trim(), ssid: $("#ssid").val().trim(), options: $("#options").val(),
+                    talkgroups: tgs, password: $("#password").val()},
+       function(r) { render(r); showStatus("#status", r.result); }, 15000);
+});
+
+$("#test").on("click", function() {
+  $("#test").prop("disabled", true);
+  showStatus("#status", "Logging in...");
+  post("/api/dmr/test", {}, function(r) { showStatus("#status", r.ok ? "Logged in and out: " + r.msg : r.msg, !r.ok); }, 75000);
+});
+
+$("#clear").on("click", function() {
+  if (!confirm("Clear the hotspot password from the radio? The other settings stay.")) return;
+  post("/api/dmr", {clear_password: true}, function(r) { render(r); showStatus("#status", r.result); }, 15000);
+});
+</script>

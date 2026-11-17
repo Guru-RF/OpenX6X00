@@ -1,0 +1,5 @@
+# mbelib 1.3.0, the AMBE+2 3600x2450 decoder only (UPSTREAM.md): the DMR app's voice (src/dmr_ambe.c)
+add_library(mbe STATIC mbelib.c ambe3600x2450.c ecc.c)
+target_include_directories(mbe PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(mbe PRIVATE -w)
+target_link_libraries(mbe PUBLIC m)

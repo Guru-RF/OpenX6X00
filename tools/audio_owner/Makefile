@@ -1,6 +1,6 @@
-# Host test of who has the speaker (src/audio_owner.c): the claims of the Internet radio's station and the voice links
-# (Zello, SVXConnect) counted into the speaker's play mode and the headphones' receiver mute, and a voice link's
-# message over the station. `make` builds and runs it; nothing plays.
+# Host test of who has the speaker (src/audio_owner.c): the claims of the listeners (the Internet radio's station, DMR)
+# and the voice links (Zello, SVXConnect) counted into the speaker's play mode and the headphones' receiver mute, and a
+# voice link's message over a listener. `make` builds and runs it; nothing plays.
 SRC    := ../../src
 CFLAGS := -std=gnu11 -Wall -Wextra -Werror -O1 -g -I $(SRC)
 

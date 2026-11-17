@@ -40,12 +40,13 @@ void audio_play_bt_end(void);
 
 /* The apps that play long audio of their own, each on a stream of its own, and who has the speaker meanwhile
  * (audio_owner.h): the speaker in Play mode from the first claim to the last release (the receiver muted in the
- * Bluetooth headphones while they stand in for it), and a voice link's message over the station: the station's audio
- * is dropped while a link holds a claim and goes on after it */
+ * Bluetooth headphones while they stand in for it), and a voice link's message over a listener (the station, DMR):
+ * the listener's audio is dropped while a link holds a claim and goes on after it */
 typedef enum {
-    AUDIO_USER_STATION,     /* the Internet radio (dialog_iradio.c), through audio_listen_* */
+    AUDIO_USER_STATION,     /* a listener: the Internet radio (dialog_iradio.c), through audio_listen_* */
     AUDIO_USER_ZELLO,       /* a voice link: Zello's channel (zello.c) */
     AUDIO_USER_SVX,         /* a voice link: SVXConnect's */
+    AUDIO_USER_DMR,         /* a listener: DMR's talkgroups (dialog_dmr.c), through audio_listen_* */
     AUDIO_USERS
 } audio_user_t;
 
@@ -65,18 +66,23 @@ size_t audio_user_write(audio_user_t u, const int16_t *buf, size_t samples);
 /* What it has queued is dropped, its own and no other's (any thread) */
 void audio_user_flush(audio_user_t u);
 
-/* The Internet radio's station (AUDIO_USER_STATION), from its playing thread: begin as it starts; open as its first
- * audio comes (its stream and its claim: as audio_user_open); play writes in pieces of at most 1024 samples, each one
- * after go_on() said yes, and returns 0 when all is written, -1 when go_on() said no or a key cut it, -2 when the
- * stream had no room for timeout_ms, -3 when the write failed; while a voice link holds the speaker the pieces are
- * dropped at the pace they would have played. End: what is still queued dropped, the claim and the stream gone.
- * audio_listen_cut(), from any thread: what it queued is dropped, its claim released at once and it writes nothing
- * more until its next begin. radio.c calls it before its PTT and its modem key, so a station never plays into what
- * the radio sends */
-void audio_listen_begin(void);
-int audio_listen_open(void);
-int audio_listen_play(const int16_t *buf, size_t samples, bool (*go_on)(void), int timeout_ms);
-void audio_listen_end(void);
+/* The listeners, the Internet radio's station (AUDIO_USER_STATION) and DMR (AUDIO_USER_DMR), each from its playing
+ * thread: begin as it starts; open as its first audio comes (its stream and its claim: as audio_user_open); play
+ * writes in pieces of at most 1024 samples, each one after go_on() said yes, and returns 0 when all is written, -1
+ * when go_on() said no or a key cut it, -2 when the stream had no room for timeout_ms, -3 when the write failed; while
+ * a voice link holds the speaker the pieces are dropped at the pace they would have played. End: what is still queued
+ * dropped, the claim and the stream gone.
+ * DMR opens it a call at a time and ends it after the call's last audio has played: between calls the speaker is the
+ * receiver's.
+ * audio_listen_cut(), from any thread: what every listener queued is dropped, its claims released at once and it
+ * writes nothing more until its next begin, or a resume once no cut has come for quiet_ms (the listener that goes
+ * on after the radio's TX: true when it may play again). radio.c calls the cut before its PTT and its modem key, so
+ * a listener never plays into what the radio sends */
+void audio_listen_begin(audio_user_t u);
+int audio_listen_open(audio_user_t u);
+bool audio_listen_resume(audio_user_t u, int quiet_ms);
+int audio_listen_play(audio_user_t u, const int16_t *buf, size_t samples, bool (*go_on)(void), int timeout_ms);
+void audio_listen_end(audio_user_t u);
 void audio_listen_cut(void);
 
 /* Short-delay playback into the codec for the phone's voice, from the playing thread (see audio.c) */

@@ -131,6 +131,7 @@ ParamInt         *cfg_svx_limit           = nullptr;
 ParamInt         *cfg_svx_pause           = nullptr;
 ParamInt         *cfg_svx_id              = nullptr;
 ParamInt         *cfg_svx_id_min          = nullptr;
+ParamInt         *cfg_dmr_tg              = nullptr;
 ParamInt         *cfg_field_boot          = nullptr;
 ParamInt         *cfg_field_respot        = nullptr;
 ParamInt         *cfg_voice_msg_gain      = nullptr;
@@ -369,6 +370,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_svx_pause        = &cfg_sm.p_svx_pause;
     cfg_svx_id           = &cfg_sm.p_svx_id;
     cfg_svx_id_min       = &cfg_sm.p_svx_id_min;
+    cfg_dmr_tg           = &cfg_sm.p_dmr_tg;
     cfg_field_boot       = &cfg_sm.p_field_boot;
     cfg_field_respot     = &cfg_sm.p_field_respot;
     cfg_voice_msg_gain   = &cfg_sm.p_voice_msg_gain;

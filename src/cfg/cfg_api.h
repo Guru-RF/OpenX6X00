@@ -165,6 +165,7 @@ extern ParamInt *cfg_svx_limit;      // p_svx_limit
 extern ParamInt *cfg_svx_pause;      // p_svx_pause
 extern ParamInt *cfg_svx_id;         // p_svx_id
 extern ParamInt *cfg_svx_id_min;     // p_svx_id_min
+extern ParamInt *cfg_dmr_tg;         // p_dmr_tg
 extern ParamInt *cfg_field_boot;     // p_field_boot
 extern ParamInt *cfg_field_respot;   // p_field_respot
 extern ParamInt *cfg_voice_msg_gain; // p_voice_msg_gain

@@ -1691,7 +1691,8 @@ def winlink_secrets():
 
 def stored_secrets():
     """Every secret the radio keeps: the Wavelog key and its live link's secret path, the QRZ, HOTA and WWFF keys, the
-    Winlink passwords, the WiFi passwords, the Zello password and developer key, SVXConnect's private key"""
+    Winlink passwords, the WiFi passwords, the Zello password and developer key, SVXConnect's private key, the DMR
+    hotspot password"""
     wl = wavelog_read()
     found = {wl.get("key", ""), wl.get("cat_token", ""), field_key("hota.conf"), field_key("wwff.conf")}
     found.update(qrz_read()[2])
@@ -1699,6 +1700,7 @@ def stored_secrets():
     found.update(wifi_secrets())
     found.update(zello_secrets())
     found.update(svx_secrets())
+    found.update(dmr_secrets())
     return found
 
 
@@ -4420,14 +4422,15 @@ def backup_files():
             "cw_trainer.json": ("cw", settings.CW_TRAINER_FILE),
             "bootlogo.png": ("bootpic", settings.BOOT_PICTURE),
             # The apps' own lists and settings, none of their accounts or keys (Zello's account.conf and
-            # private_key.pem, SVXConnect's pki/ stay out): the GUI reads each again when its app opens, GhostNet's
-            # when it changes
+            # private_key.pem, SVXConnect's pki/, the DMR hotspot password stay out): the GUI reads each again when
+            # its app opens, GhostNet's when it changes
             "ghostnet.conf": ("apps", settings.GHOSTNET_CONF),
             "ghostnet_nets.txt": ("apps", settings.GHOSTNET_NETS_USER),
             "iradio/favorites.tsv": ("apps", settings.IRADIO_FAV_FILE),
             "iradio/country": ("apps", settings.IRADIO_COUNTRY_FILE),
             "zello/channels.txt": ("apps", os.path.join(settings.ZELLO_DIR, "channels.txt")),
-            "svxconnect/svxconnect.conf": ("apps", os.path.join(settings.SVX_DIR, "svxconnect.conf"))}
+            "svxconnect/svxconnect.conf": ("apps", os.path.join(settings.SVX_DIR, "svxconnect.conf")),
+            "dmr/dmr.conf": ("apps", os.path.join(settings.DMR_DIR, "dmr.conf"))}
 
 
 def backup_member(name):
@@ -5663,6 +5666,211 @@ def svx_enroll_cmd():
             shutil.rmtree(svx_path("pki"), ignore_errors=True)
             return svx_state("Key, request and certificate removed")
     return api_error(400, "action: start, stop or remove")
+
+
+# DMR routes: the DMR app (APP > DMR, src/dialog_dmr.c) and its helper x6100-dmr (rootfs/usr/sbin), which logs in to
+# the network's master set here as a hotspot that only listens, and only while the app listens to a talkgroup. In
+# DMR_DIR: dmr.conf, the settings this page writes (the network, the master, the DMR ID, the talkgroups), and password,
+# the hotspot password: given to the helper on its stdin (set-password), which writes it for root alone; never handed
+# back (the page says Set or Not set), not in a backup (backup_files) and not on the Files page
+# (config_pages.secret_places), hidden in whatever a helper says. The master gets SHA-256 of it with its salt, never
+# the password. BrandMeister's masters are refused here and in the helper: BrandMeister keeps its hotspot protocol for
+# hotspots with a radio module (the manual, DMR).
+
+DMR_NETWORKS = ("freedmr", "other")
+DMR_TGS_MAX = 32                # the app's table holds as many
+DMR_ID = re.compile(r"[1-9][0-9]{6}")
+DMR_SSID = re.compile(r"0[1-9]|[1-9][0-9]")
+DMR_REFUSED = ("brandmeister.network",)
+DMR_NAME_BAD = re.compile(r"[|\x00-\x1f\x7f]")
+dmr_lock = threading.Lock()
+
+
+def dmr_path(name):
+    return os.path.join(settings.DMR_DIR, name)
+
+
+def dmr_read():
+    """dmr.conf as the helper reads it: the defaults for what is missing"""
+    c = {"NETWORK": "freedmr", "HOST": "", "PORT": "62031", "DMR_ID": "", "SSID": "01", "OPTIONS": "",
+         "TALKGROUPS": ""}
+    try:
+        with open(dmr_path("dmr.conf"), encoding="utf-8", errors="replace") as f:
+            for line in f:
+                k, sep, v = line.rstrip("\r\n").partition("=")
+                if sep and k.strip() in c:
+                    c[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return c
+
+
+def dmr_password():
+    try:
+        with open(dmr_path("password"), encoding="utf-8", errors="replace") as f:
+            return f.read().rstrip("\r\n")
+    except OSError:
+        return ""
+
+
+def dmr_secrets():
+    """The hotspot password"""
+    return {dmr_password()}
+
+
+def dmr_talkgroups(text):
+    """"91 World|2062 Belgium" as [{"tg": 91, "name": "World"}]"""
+    out = []
+    for item in text.split("|"):
+        m = re.match(r"\s*([0-9]{1,8})\s*(.*)$", item)
+        if m and 0 < int(m.group(1)) <= 16777215:
+            out.append({"tg": int(m.group(1)), "name": m.group(2).strip()})
+    return out
+
+
+def dmr_on_air():
+    """The helper's state while the app listens (its file is fresh: it writes it at least every 10 s), else None"""
+    try:
+        if time.time() - os.path.getmtime(settings.DMR_STATUS) > 60:
+            return None
+        with open(settings.DMR_STATUS, encoding="utf-8") as f:
+            st = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return json.loads(hide_secrets(json.dumps(st))) if isinstance(st, dict) else None
+
+
+def dmr_state(result=None):
+    c = dmr_read()
+    call = max(read_callsign().upper().split("/"), key=len)     # ON6URE of ON6URE/P, as the helper sends it
+    return {"network": c["NETWORK"] if c["NETWORK"] in DMR_NETWORKS else "other", "host": c["HOST"],
+            "port": int(c["PORT"]) if c["PORT"].isdigit() else 62031, "dmr_id": c["DMR_ID"], "ssid": c["SSID"],
+            "options": c["OPTIONS"], "talkgroups": dmr_talkgroups(c["TALKGROUPS"]),
+            "password_set": bool(dmr_password()), "radio_callsign": call,
+            "hotspot": c["DMR_ID"] + c["SSID"] if c["DMR_ID"] else "", "on_air": dmr_on_air(), "result": result}
+
+
+def dmr_run(args, stdin=None, timeout=40):
+    """The helper with this page's folder; (exit code, its last line), the secrets hidden"""
+    env = dict(os.environ, X6100_DMR_DIR=settings.DMR_DIR)
+    try:
+        r = subprocess.run([settings.DMR_CMD, *args], input=stdin, capture_output=True, text=True, timeout=timeout,
+                           env=env)
+    except subprocess.TimeoutExpired:
+        return 1, f"error no answer in {timeout} s: check the radio's network"
+    except (OSError, subprocess.SubprocessError) as e:
+        return 1, f"error {e}"
+    lines = (r.stdout.strip() or r.stderr.strip()).splitlines()
+    return r.returncode, hide_secrets(lines[-1] if lines else f"error exit code {r.returncode}", stdin)
+
+
+@app.route('/dmr')
+def dmr_page():
+    return bottle.template('dmr')
+
+
+@app.get('/api/dmr')
+def get_dmr():
+    return dmr_state()
+
+
+@app.post('/api/dmr')
+def set_dmr():
+    """{"network", "host", "port", "dmr_id", "ssid", "options", "talkgroups": [{"tg", "name"}], "password"}: what is
+    not sent stays, an empty password keeps the one set. {"clear_password": true} takes the password away"""
+    try:
+        body = bottle.request.json
+    except ValueError:
+        body = None
+    if not isinstance(body, dict):
+        return api_error(400, "Send the settings as JSON")
+    try:
+        with dmr_lock:
+            c = dmr_read()
+            new = dict(c)
+            if "network" in body:
+                if body["network"] not in DMR_NETWORKS:
+                    raise ValueError("Network: FreeDMR or Other")
+                new["NETWORK"] = body["network"]
+            if "host" in body:
+                host = svx_text(body["host"], 253, "Server").rstrip(".").lower()
+                if host and not SVX_HOST.fullmatch(host):
+                    raise ValueError("Server: a host name or address, as the network lists its servers")
+                if any(host == h or host.endswith("." + h) for h in DMR_REFUSED):
+                    raise ValueError("Server: BrandMeister keeps its hotspot protocol for hotspots with a radio "
+                                     "module, which this listener is not (see the manual, DMR)")
+                new["HOST"] = host
+            if "port" in body:
+                new["PORT"] = str(svx_int(body["port"], 1, 65535, "Port"))
+            if "dmr_id" in body:
+                dmr_id = body["dmr_id"].strip() if isinstance(body["dmr_id"], str) else None
+                if dmr_id is None or dmr_id and not DMR_ID.fullmatch(dmr_id):
+                    raise ValueError("DMR ID: your own, the 7 digits radioid.net gave your callsign")
+                new["DMR_ID"] = dmr_id
+            if "ssid" in body:
+                ssid = body["ssid"].strip() if isinstance(body["ssid"], str) else None
+                if ssid is None or not DMR_SSID.fullmatch(ssid):
+                    raise ValueError("Hotspot digits: two, 01 to 99")
+                new["SSID"] = ssid
+            if "options" in body:
+                opts = body["options"] if isinstance(body["options"], str) else None
+                if opts is None or len(opts) > 255 or not all(" " <= ch <= "~" for ch in opts):
+                    raise ValueError("Options: up to 255 plain characters (letters, digits, = ; and the like)")
+                new["OPTIONS"] = opts.strip()
+            if "talkgroups" in body:
+                tgs = body["talkgroups"]
+                if not isinstance(tgs, list) or len(tgs) > DMR_TGS_MAX:
+                    raise ValueError(f"Talkgroups: a list of {DMR_TGS_MAX} at most")
+                items, seen = [], set()
+                for t in tgs:
+                    tg = t.get("tg") if isinstance(t, dict) else None
+                    name = t.get("name", "") if isinstance(t, dict) else None
+                    if isinstance(tg, str) and tg.strip().isdigit():
+                        tg = int(tg)
+                    if not isinstance(tg, int) or isinstance(tg, bool) or not 0 < tg <= 16777215:
+                        raise ValueError("Talkgroups: a number from 1 to 16777215 on each line, then its name")
+                    if not isinstance(name, str) or len(name) > 30 or DMR_NAME_BAD.search(name):
+                        raise ValueError(f"TG {tg}: a name of at most 30 characters, without |")
+                    if tg not in seen:
+                        seen.add(tg)
+                        items.append(f"{tg} {' '.join(name.split())}".strip())
+                new["TALKGROUPS"] = "|".join(items)
+            password = body.get("password", "")
+            if not isinstance(password, str) or len(password) > 64 or \
+                    any(ord(ch) < 32 or ord(ch) == 127 for ch in password):
+                raise ValueError("Hotspot password: up to 64 characters, on one line")
+            clear = body.get("clear_password") is True
+            if password and clear:
+                raise ValueError("A new password or Clear, not both")
+            if new != c:
+                os.makedirs(settings.DMR_DIR, exist_ok=True)
+                replace_file(dmr_path("dmr.conf"), lambda f: f.write("".join(f"{k}={v}\n" for k, v in new.items())))
+            if password:
+                rc, line = dmr_run(["set-password"], password + "\n")
+                if rc:
+                    return api_error(500, "DMR: " + (line[6:] if line.startswith("error ") else line))
+            if clear:
+                rc, line = dmr_run(["clear-password"])
+                if rc:
+                    return api_error(500, "DMR: " + (line[6:] if line.startswith("error ") else line))
+    except ValueError as e:
+        return api_error(400, str(e))
+    except OSError as e:
+        return api_error(500, f"Can't save: {e}")
+    return dmr_state("Saved. On the radio: APP > DMR, choose a talkgroup")
+
+
+@app.post('/api/dmr/test')
+def test_dmr():
+    """x6100-dmr test with what is saved: it logs in to the master as the hotspot and out again. Its line"""
+    if not dmr_lock.acquire(blocking=False):
+        return api_error(409, "A test is running")
+    try:
+        rc, line = dmr_run(["test"], timeout=70)    # a master that answers slowly: four steps of up to 16 s
+    finally:
+        dmr_lock.release()
+    ok = rc == 0 and line.startswith("ok ")
+    return {"ok": ok, "msg": line[3:] if ok else line[6:] if line.startswith("error ") else line}
 
 
 # The Bands, Digital modes, Time and Files pages, static files: config_pages.py adds their routes to app

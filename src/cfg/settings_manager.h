@@ -482,6 +482,9 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_svx_id_min{"svx_id_min", 60, 5, 120,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // The DMR app (dialog_dmr.c): the talkgroup last listened to, which Connect asks for again; 0 none yet
+    Parameter<int32_t> p_dmr_tg{"dmr_tg", 0, 0, 16'777'215,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // Field Ops: start in Field Ops at power on
     Parameter<int32_t> p_field_boot{"field_boot", false, 0, 1,

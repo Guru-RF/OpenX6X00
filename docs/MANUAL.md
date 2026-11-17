@@ -18,7 +18,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8) ([GhostNet](#ghostnet)), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
-- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [GPS / Clock](#gps--clock), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb), [Flights](#flights), [Internet radio](#internet-radio), [Zello](#zello), [SVXConnect](#svxconnect), [Weather](#weather)
+- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [GPS / Clock](#gps--clock), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb), [Flights](#flights), [Internet radio](#internet-radio), [Zello](#zello), [SVXConnect](#svxconnect), [DMR](#dmr), [Weather](#weather)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
@@ -281,7 +281,7 @@ The APP button opens six pages of apps and tools:
 | APP 3:6 | Bands, GPS / Clock, Screen rec, CW Keyboard |
 | APP 4:6 | Propagation, Scanner, Internet radio, Zello |
 | APP 5:6 | SVXConnect, Flights, HF Air Band, CB |
-| APP 6:6 | Weather, Mail |
+| APP 6:6 | Weather, Mail, DMR |
 
 With Icon menus on (Settings > Display > INTERFACE, on by default) APP also
 opens the same apps as a grid of tiles over these pages, with Walkie and
@@ -6550,6 +6550,96 @@ Connect with a direction on to start it. Closing the app then keeps the
 radio on the reflector ("SVXConnect link stays on"); open the app and press
 Disconnect to stop it. Nothing starts it at power on.
 
+### DMR
+
+APP > DMR (APP 6:6, the tile after SVXConnect in the APP grid, or a
+long-press action) listens to the talkgroups of a DMR network over the
+internet. The radio logs in to one of the network's servers (its masters)
+as a hotspot does, with the MMDVM hotspot protocol, and plays what the
+talkgroup says. **It only listens**: it sends the network no voice and no
+data, only its login, its options, a keepalive every 10 seconds and its
+logout, and it never keys the transmitter. It needs the network (WiFi,
+Ethernet or USB), and it is logged in only while the app listens to a
+talkgroup: closing the app logs out, and nothing logs in at power on.
+
+**What the networks ask** (as they say in November 2026):
+
+- **Your own DMR ID and callsign.** radioid.net gives a DMR ID to a licensed
+  radio amateur, and the networks check the ID against the callsign. The
+  radio logs in with the ID and two digits (the hotspot ID, 01 to 99, another
+  pair for each hotspot of yours on the network) and with its own callsign
+  (Settings > General; ON6URE of ON6URE/P). Never use someone else's ID or
+  hotspot password.
+- **FreeDMR** is for licensed amateurs and takes hotspots of any kind; its
+  site (freedmr.uk) lists the servers for hotspots and the hotspot password.
+  The talkgroup is asked for in the hotspot's options: the radio sends
+  `TS2=<talkgroup>;DIAL=0;VOICE=0;` (the talkgroup on time slot 2, no
+  dial-a-talkgroup, no voice announcements).
+- **BrandMeister** keeps its hotspot protocol for repeaters and hotspots with
+  a radio of their own, and asks programs without one to use another
+  protocol (its wiki, "Homebrew repeater protocol"), whose own page still
+  calls itself a draft. The radio has no DMR radio, so it does not log in to
+  BrandMeister: the web page and the app refuse its servers.
+- **Other**: a network of the same protocol, with its own rules and options.
+
+What the radio tells the server about itself: the callsign, no frequency
+(it has no DMR radio), power 0, colour code 1, no position, "Listen only",
+and its software, "OpenX6X00" and the version.
+
+**The settings**, on the web configurator's DMR page (Operating > DMR):
+
+- **Network**: FreeDMR or Other. **Server**: the master's host name, and its
+  port (62031 for most).
+- **DMR ID**: yours, 7 digits, and the hotspot's two digits after it (01 unless
+  you change it); the page shows the hotspot ID and the callsign sent with
+  it.
+- **Hotspot password**: the one the network gives for hotspots. Write only:
+  the page says Set or Not set, an empty field keeps it, Clear password
+  takes it away. It is kept on the radio's DATA partition
+  (`/mnt/dmr/password`), readable by root only, never shown, never in a log,
+  never on a command line, not in a Backup and not on the Files page; the
+  server gets only a proof of it (SHA-256 of it with a number the server
+  sends), never the password.
+- **Options**: sent at the login, `{tg}` the talkgroup chosen in the app.
+  Empty: the network's own (FreeDMR's above; Other: none).
+- **Talkgroups**: one a line, its number and a name (`91 Worldwide`), 32 at
+  most. None: the app has one row, the talkgroups the server has for the
+  hotspot (the login without options).
+- **Test** logs in to the server with what is saved, on the first
+  talkgroup, and out again. **On the air** shows, while the app listens, the
+  server, the talkgroup, who talks and the last heard.
+
+The settings are in `/mnt/dmr/dmr.conf`, in the Backup's Apps' lists.
+
+**On the radio:**
+
+- Turn the MFK to a talkgroup and press it: the radio logs in and listens to
+  it (> marks it). Another talkgroup: press it, and the radio logs in again
+  with it. **Connect** (the button) logs in with the talkgroup last chosen;
+  **Disconnect** logs out.
+- The top line says what happens: "Logging in to the network", then the
+  server, the talkgroup and the hotspot ID; or why it is not connected
+  ("the master refused the hotspot password", "no DMR ID: set yours on the
+  radio's web page (DMR)"). A server that does not answer or stops answering
+  is tried again after 10 seconds, then 20, 40 and so on up to 5 minutes; a
+  refusal (the password, the ID, the callsign) is not tried again.
+- **Talking now**: the station's callsign and name as radioid.net has them
+  (its DMR ID until they are known), the talkgroup and for how long; a call
+  to your own DMR ID says "a private call to you". **Heard**, on the right:
+  the last calls, newest first, with how long ago and how long.
+- The calls play on the speaker at the radio's volume (VOL), or on the
+  Bluetooth headphones while they stand in for it, one call at a time: a
+  second call while one is on is not heard. Between calls the speaker is the
+  receiver's. A Zello or SVXConnect message wins over a call.
+- When the radio transmits (the PTT, the hand mic, VOX, the KEY jack, a
+  digital mode), the call's audio stops at once; the next call plays once
+  the radio has received for a second.
+- A report for a problem: `/mnt/app_logs/dmr.txt` (Files page): the logins,
+  why they ended, the calls heard; never the password.
+
+The voice is decoded on the radio by mbelib, an independent decoder of the
+AMBE+2 voice, receive only (see the README's Licences).
+
 ### Weather
 
 APP > Weather (APP 6:6, the tile before Settings in the APP grid, or a
@@ -6921,12 +7011,13 @@ The menu has General and six groups:
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV (a QSO deleted or edited here is so in the worked-before list of FT8, FT4 and JS8 and in `ft_log.adi` or `js8call_log.adi` too); Worked before: the QSOs that list has besides (imported, or deleted by v0.3.12 or older), counted and forgotten on request; the text of the keyboard modes, a file a day: read, download, delete (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
 | | Internet radio | the [Internet radio](#internet-radio)'s favourites: add a station by its name and stream address, edit, move up, delete; whether this card image plays more than MP3 (writes `/mnt/iradio/favorites.tsv`) |
 | | Zello | the [Zello](#zello) app's account (user name, password, the developer key's Issuer and Private Key: only Set or Not set shown again, the user name as its first two characters), Clear account, Test (logs on to zello.io and off again), and the channels, one a line (writes `/mnt/zello`, for root alone; the account not in a Backup and not on the Files page, the channels in the Backup's Apps' lists) |
+| | DMR | the [DMR](#dmr) app's network, server, DMR ID and hotspot digits, the hotspot password (only Set or Not set shown again), options and talkgroups, Test (logs in to the server and out again), and On the air (writes `/mnt/dmr`; the password for root alone, not in a Backup and not on the Files page, the settings in the Backup's Apps' lists) |
 | | Flights | the aircraft around the radio, as APP > Flights shows them: plot, list, range, a centre by locator (see [Flights](#flights)) |
 | | Weather | the weather where the radio is, as APP > Weather shows it: now, five days, the warnings, a place by its locator (see [Weather](#weather)) |
 | | SmartCW | SmartCW's own page through the radio, in a new tab on port 8073; in the menu while SmartCW is plugged in (see [SmartCW](#smartcw)) |
 | Files | Files | browse and download `/mnt` |
 | | Gallery | screen recordings, voice recordings, screenshots, SSTV and WeFax pictures (see below) |
-| | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages, your own boot picture, the apps' lists (GhostNet's settings and nets file, the Internet radio's favourites and country, the Zello channels, the SVXConnect settings; Flights, HF Air Band and CB keep theirs in the settings) (optionally CW trainer and WiFi) as one file, and restore the parts you choose (restored WiFi networks are taken a few seconds after, no restart needed; see below) |
+| | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages, your own boot picture, the apps' lists (GhostNet's settings and nets file, the Internet radio's favourites and country, the Zello channels, the SVXConnect settings, the DMR settings; Flights, HF Air Band and CB keep theirs in the settings) (optionally CW trainer and WiFi) as one file, and restore the parts you choose (restored WiFi networks are taken a few seconds after, no restart needed; see below) |
 | System | Display | every display option of the radio, a few station options of the other tabs (independent VFOs, the band plan, the WR12, [TX ranges, the own list and TX outside ham bands](#amateur-bands-only) in the Transmitter card), and the [boot picture](#boot-picture) (see below) |
 | | Time | local and server time; Sync sets the radio clock from the browser's, in the radio's timezone; NTP sync; timezone |
 | | Network | the radio's [network name](#network-name), its [other names](#the-radios-own-names), and the USB Ethernet adapter: state, DHCP or static address (see [Ethernet](#ethernet)) |

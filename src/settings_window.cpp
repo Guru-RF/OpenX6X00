@@ -841,6 +841,7 @@ static const key_action_t front_actions[] = {
     {" APP Internet radio ", ACTION_APP_IRADIO},
     {" APP Zello ", ACTION_APP_ZELLO},
     {" APP SVXConnect ", ACTION_APP_SVX},
+    {" APP DMR ", ACTION_APP_DMR},
     {" APP Flights ", ACTION_APP_FLIGHTS},
     {" APP HF Air Band ", ACTION_APP_AERO},
     {" APP CB ", ACTION_APP_CB},

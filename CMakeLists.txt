@@ -93,6 +93,7 @@ if(ENABLE_TESTING AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 else()
         add_subdirectory(third-party/js8core)     # JS8Call's modem, for src/js8
         add_subdirectory(third-party/wsprd)
+        add_subdirectory(third-party/mbelib)     # the DMR app's voice decoder (src/dmr_ambe.c)
         add_subdirectory(src)
         add_subdirectory(lv_drivers)
         add_subdirectory(sql)
@@ -166,6 +167,8 @@ else()
                         ${RADE_PREFIX}/doc/kiss_fft-COPYING src/LICENSE-freedv-backend.txt
                         DESTINATION share/x6100/licenses/rade)
         endif()
+        # mbelib, the DMR app's voice decoder, linked into the GUI: its ISC notice goes with the binary
+        install(FILES third-party/mbelib/COPYRIGHT DESTINATION share/x6100/licenses/mbelib)
         # The apps' version, for the web configurator and the scripts. Read at configure time, so a
         # changed main.h must configure again: a plain rebuild left the old number in the file (and
         # in the update bundle, whose radios then thought they ran 0.1.0)
