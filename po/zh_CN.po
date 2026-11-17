@@ -717,8 +717,12 @@ msgid "CW as you type"
 msgstr "边打字边发 CW"
 
 #: src/apps_menu.c
-msgid "Position, time"
-msgstr "位置、时间"
+msgid "GPS / Clock"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Position, clock"
+msgstr ""
 
 #: src/apps_menu.c
 msgid "Screen Rec"
@@ -1677,6 +1681,12 @@ msgstr ""
 "航空"
 
 #: src/button_bar.cpp
+msgid ""
+"GPS /\n"
+"Clock"
+msgstr ""
+
+#: src/button_bar.cpp
 msgid "Rate"
 msgstr "速率"
 
@@ -1866,6 +1876,22 @@ msgstr ""
 
 #: src/clock.c
 msgid "NZST-12NZDT,M9.5.0,M4.1.0/3"
+msgstr ""
+
+#: src/clock_rule.c
+msgid "time station"
+msgstr ""
+
+#: src/clock_rule.c src/ft8_window.c
+msgid "Time Sync"
+msgstr ""
+
+#: src/clock_rule.c
+msgid "clock chip"
+msgstr ""
+
+#: src/clock_sync.c
+msgid "hwclock -w -u -f "
 msgstr ""
 
 #: src/cluster/client.c
@@ -2787,7 +2813,7 @@ msgstr "杂散是电台内部产生的稳定载波. 此扫描在每个启用的�
 msgid "Disconnect the antenna, then press Start. A few minutes: every active band the radio transmits on."
 msgstr "断开天线, 然后按\"开始\". 需要几分钟: 扫描电台可发射的每个启用波段."
 
-#: src/dialog_cb.c
+#: src/dialog_cb.c src/wefax_window.c
 msgid "Plan"
 msgstr "频道表"
 
@@ -2923,6 +2949,10 @@ msgstr "%d 条报告 - %02d:%02dZ"
 #: src/dialog_cluster.c
 msgid "Set your callsign: Settings > General"
 msgstr "请设置呼号: 设置 > 常规"
+
+#: src/dialog_cluster.c
+msgid "CB call: no amateur cluster login"
+msgstr ""
 
 #: src/dialog_cluster.c
 msgid "Cluster link off"
@@ -3207,7 +3237,7 @@ msgid "Skip"
 msgstr "跳过"
 
 #: src/dialog_cw_trainer.c src/dialog_field.c src/first_start.c
-#: src/js8_window.c
+#: src/js8_window.c src/wefax_window.c
 msgid "Back"
 msgstr "返回"
 
@@ -4063,6 +4093,10 @@ msgstr "%s 报告: %s"
 #: src/dialog_field.c
 msgid "NOTA: press the row to open it in its programme first"
 msgstr "NOTA: 先按该行, 在其活动中打开"
+
+#: src/dialog_field.c
+msgid "No spot with a CB callsign: amateur programmes only"
+msgstr ""
 
 #: src/dialog_field.c
 msgid "XOTA is a list of your own: no spot"
@@ -6189,7 +6223,7 @@ msgstr "已存储"
 msgid "None: RX only"
 msgstr "无: 仅接收"
 
-#: src/dialog_wspr.c src/gps_window.c
+#: src/dialog_wspr.c
 msgid "None"
 msgstr "无"
 
@@ -6717,10 +6751,6 @@ msgid "OPERATOR"
 msgstr ""
 
 #: src/field/flog.c
-msgid " Field Ops log"
-msgstr " 野外运行日志"
-
-#: src/field/flog.c
 msgid "the microSD has an error and is read-only. Restart the radio; if it happens again, back up and rewrite the microSD"
 msgstr "microSD 卡出错, 已变为只读. 请重启电台; 如果再次出现, 请备份并重写 microSD 卡"
 
@@ -6738,6 +6768,10 @@ msgstr "无法写入 microSD 卡. 请重启电台; 如果再次出现, 请发送
 
 #: src/field/flog.c
 msgid "ARLHS"
+msgstr ""
+
+#: src/field/rbn.c
+msgid "not with a CB call"
 msgstr ""
 
 #: src/field/refs.c
@@ -7184,10 +7218,6 @@ msgid " CQ modifier"
 msgstr " CQ 修饰符"
 
 #: src/ft8_window.c
-msgid "hwclock -w -u -f /dev/rtc1"
-msgstr ""
-
-#: src/ft8_window.c
 #, c-format
 msgid "Clock in sync (NTP, within %d ms): no Time Sync needed"
 msgstr "时钟已同步 (NTP, %d ms 内): 无需时间同步"
@@ -7212,44 +7242,19 @@ msgid "Clock moved %+.2f s to the slot start"
 msgstr "时钟已调整 %+.2f s, 对准时隙开始"
 
 #: src/ft8_window.c
-msgid "Auto Sync"
-msgstr "自动同步"
-
-#: src/ft8_window.c
-msgid "Auto Sync off: the clock moves only with Time Sync"
-msgstr "自动同步关: 只有按时间同步才调整时钟"
+#, c-format
+msgid "Auto Sync: by the decodes the clock is %.1f s %s, too far: press Time Sync as a slot starts"
+msgstr "自动同步: 根据解码, 时钟偏差 %.1f s (%s), 太大: 请在时隙开始时按时间同步"
 
 #: src/ft8_window.c
 #, c-format
-msgid "Auto Sync on: it works in FT8 and FT4, not in %s"
-msgstr "自动同步开: 仅在 FT8 和 FT4 中有效, %s 中无效"
-
-#: src/ft8_window.c
-msgid "Auto Sync on: NTP keeps the clock, nothing to do while it does"
-msgstr "自动同步开: NTP 维持时钟, 期间无需操作"
-
-#: src/ft8_window.c
-msgid "Auto Sync on: the GPS keeps the clock, nothing to do while it does"
-msgstr "自动同步开: GPS 维持时钟, 期间无需操作"
-
-#: src/ft8_window.c
-msgid "Auto Sync on: the clock follows the decodes, after a minute or more"
-msgstr "自动同步开: 一分钟或更久后, 时钟跟随解码结果"
+msgid "%d stations"
+msgstr ""
 
 #: src/ft8_window.c
 #, c-format
 msgid "Auto Sync: the clock can't be set (%s)"
 msgstr "自动同步: 无法设置时钟 (%s)"
-
-#: src/ft8_window.c
-#, c-format
-msgid "Auto Sync: the clock is on time by the decodes of %d stations"
-msgstr "自动同步: 根据 %d 个电台的解码, 时钟准确"
-
-#: src/ft8_window.c
-#, c-format
-msgid "Auto Sync: by the decodes the clock is %.1f s %s, too far: press Time Sync as a slot starts"
-msgstr "自动同步: 根据解码, 时钟偏差 %.1f s (%s), 太大: 请在时隙开始时按时间同步"
 
 #: src/ft8_window.c
 #, c-format
@@ -7466,32 +7471,184 @@ msgid "GhostNet RTTY: 7.077 MHz, 45.45 baud, 170 Hz"
 msgstr ""
 
 #: src/gps_window.c
-msgid "Sat in view/in use:"
-msgstr "卫星 可见/使用:"
+msgid "Satellites, fix:"
+msgstr ""
 
 #: src/gps_window.c
-msgid "Fix:"
-msgstr "定位:"
+msgid "GPS date, time:"
+msgstr ""
 
 #: src/gps_window.c
-msgid "Date, time:"
-msgstr "日期, 时间:"
+msgid "Position:"
+msgstr ""
 
 #: src/gps_window.c
-msgid "Latitude:"
-msgstr "纬度:"
+msgid "Grid, gpsd:"
+msgstr ""
 
 #: src/gps_window.c
-msgid "Longitude:"
-msgstr "经度:"
+msgid "Clock:"
+msgstr ""
 
 #: src/gps_window.c
-msgid "QTH Grid:"
-msgstr "QTH 网格:"
+msgid "FT8 says:"
+msgstr ""
 
 #: src/gps_window.c
-msgid "GPS status"
-msgstr "GPS 状态"
+msgid "Time station:"
+msgstr ""
+
+#: src/gps_window.c
+msgid "no fix"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%ld s ago"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%ld min ago"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%ld h ago"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%02d:%02d:%02d UTC, kept by NTP (%d ms)"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%02d:%02d:%02d UTC, kept by %s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%02d:%02d:%02d UTC, clock chip"
+msgstr ""
+
+#: src/gps_window.c
+msgid "no word: FT8 or FT4 open on a busy band"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "on time (%+.2f s), %d stations, %s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%.2f s %s, %d stations, %s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%.1f s %s: too far, Time Sync in FT8"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "the stations disagree (%d), %s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "listening: %d stations, %d slots"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%s: off"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid ""
+"%s keeps the clock\n"
+"The marker's delay learned: %.3f s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid ""
+"Clock right by %s\n"
+"%+.3f s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid ""
+"Clock moved %+.3f s\n"
+"by %s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%s: no markers until :%02d"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%s: listening"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%s: marker %s, %.0f dB"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid ""
+"Station:\n"
+"%s"
+msgstr ""
+
+#: src/gps_window.c
+msgid ""
+"Stop\n"
+"listening"
+msgstr ""
+
+#: src/gps_window.c src/voice_messages.c
+msgid "Listen"
+msgstr "试听"
+
+#: src/gps_window.c
+msgid ""
+"Auto Sync:\n"
+"On"
+msgstr ""
+
+#: src/gps_window.c
+msgid ""
+"Auto Sync:\n"
+"Off"
+msgstr ""
+
+#: src/gps_window.c
+msgid ""
+"Auto Sync off\n"
+"FT8 only measures the clock"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid ""
+"Auto Sync on\n"
+"%s keeps the clock for now"
+msgstr ""
+
+#: src/gps_window.c
+msgid ""
+"Auto Sync on\n"
+"FT8 and FT4 set the clock"
+msgstr ""
 
 #: src/gui_main.c
 msgid ""
@@ -7927,28 +8084,40 @@ msgid "Auto: x%d"
 msgstr "自动: x%d"
 
 #: src/js8_window.c
-msgid ""
-"Heart-\n"
-"beat"
-msgstr ""
-"发送\n"
-"心跳"
-
-#: src/js8_window.c
 msgid "Query >"
 msgstr "查询 >"
-
-#: src/js8_window.c
-msgid "Reply"
-msgstr "回复"
 
 #: src/js8_window.c
 msgid "Send..."
 msgstr "发送..."
 
 #: src/js8_window.c
+msgid "Map"
+msgstr "地图"
+
+#: src/js8_window.c
 msgid "Settings..."
 msgstr "设置..."
+
+#: src/js8_window.c
+msgid ""
+"Trans-\n"
+"late"
+msgstr ""
+"翻译\n"
+"消息"
+
+#: src/js8_window.c
+msgid "Write..."
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Heart-\n"
+"beat"
+msgstr ""
+"发送\n"
+"心跳"
 
 #: src/js8_window.c
 msgid "APRS >"
@@ -7961,18 +8130,6 @@ msgstr "记录 QSO"
 #: src/js8_window.c
 msgid "Alerts >"
 msgstr "提醒 >"
-
-#: src/js8_window.c
-msgid "Map"
-msgstr "地图"
-
-#: src/js8_window.c
-msgid ""
-"Trans-\n"
-"late"
-msgstr ""
-"翻译\n"
-"消息"
 
 #: src/js8_window.c
 msgid "  (bad checksum)"
@@ -8164,6 +8321,10 @@ msgid "Saved message %d cleared"
 msgstr "存储消息 %d 已清除"
 
 #: src/js8_window.c
+msgid "Not sent: kept for Send... or Reply"
+msgstr ""
+
+#: src/js8_window.c
 msgid " INFO, e.g. X6100 5W EFHW"
 msgstr " INFO, 例如 X6100 5W EFHW"
 
@@ -8236,6 +8397,10 @@ msgid "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .-+?!\"/@:
 msgstr ""
 
 #: src/js8_window.c
+msgid "Your message not sent yet: Enter sends it"
+msgstr ""
+
+#: src/js8_window.c
 msgid "band changed"
 msgstr "波段已更改"
 
@@ -8243,6 +8408,34 @@ msgstr "波段已更改"
 #, c-format
 msgid "End of the %s list"
 msgstr "%s 列表已到末尾"
+
+#: src/js8_window.c
+#, c-format
+msgid "HB %02d:%02d - %d heard you"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%d station%s - HB: say you're here"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%d new"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "heard you %+d"
+msgstr ""
+
+#: src/js8_window.c
+msgid "heard you"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Listening... the stations heard come here. HB tells them you are here."
+msgstr ""
 
 #: src/js8_window.c
 msgid ""
@@ -8523,6 +8716,116 @@ msgstr ""
 #, c-format
 msgid "Ask %s if they hear a station: type its call and ?"
 msgstr "询问 %s 是否听到某电台: 输入其呼号和 ?"
+
+#: src/js8_window.c
+msgid "Heartbeat interval (knob)..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "Speed: the selected station's"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Activation reference..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "Log QSO..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "Send a heartbeat now"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Groups, INFO, STATUS, Relay..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "Clear the list"
+msgstr ""
+
+#: src/js8_window.c
+msgid "JS8 Settings"
+msgstr ""
+
+#: src/js8_window.c
+msgid "heard your HB"
+msgstr ""
+
+#: src/js8_window.c
+msgid "nothing said yet"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid ", they hear you %+d"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Nothing with %s yet: Reply, Query > or Write..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "(Board)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "To %s: type it and press Enter (MSG first for their Inbox)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Chat"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid ""
+"Chat\n"
+"%s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Choose a station first (MFK)"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"View:\n"
+"Board"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"View:\n"
+"Stations"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"View:\n"
+"Messages"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid ""
+"Heartbeat\n"
+"auto %u min"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Reply"
+msgstr "回复"
+
+#: src/js8_window.c
+#, c-format
+msgid ""
+"Reply\n"
+"%s"
+msgstr ""
 
 #: src/js8_window.c
 #, c-format
@@ -9067,8 +9370,8 @@ msgstr "与 %s 的 QSO 已结束 - 存入日志?"
 
 #: src/js8_window.c
 #, c-format
-msgid "QSO with %s ended: Log QSO (page 5) to log it"
-msgstr "与 %s 的 QSO 已结束: 用\"记录 QSO\" (第 5 页) 记入日志"
+msgid "QSO with %s ended: Settings... (page 3), Log QSO, to log it"
+msgstr ""
 
 #: src/js8_window.c
 msgid ""
@@ -9139,6 +9442,20 @@ msgstr ""
 
 #: src/js8_window.c
 #, c-format
+msgid "Message to %s from %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Message from %s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "MFK press: read it and reply      ESC or a button: later (Inbox)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
 msgid "Can't save %s"
 msgstr "无法保存 %s"
 
@@ -9159,13 +9476,13 @@ msgstr "来自 %s 的消息 - 无法保存 %s"
 
 #: src/js8_window.c
 #, c-format
-msgid "New message to %s from %s - Inbox on page 3"
-msgstr "给 %s 的新消息, 来自 %s - 收件箱在第 3 页"
+msgid "New message to %s from %s - Inbox on page 1"
+msgstr ""
 
 #: src/js8_window.c
 #, c-format
-msgid "New message from %s - Inbox on page 3"
-msgstr "来自 %s 的新消息 - 收件箱在第 3 页"
+msgid "New message from %s - Inbox on page 1"
+msgstr ""
 
 #: src/js8_window.c
 #, c-format
@@ -9365,8 +9682,8 @@ msgstr "测试提示音"
 
 #: src/js8_window.c
 #, c-format
-msgid "%s was heard on %s, you send %s - hold Speed (page 6) to match"
-msgstr "听到 %s 用 %s, 你用 %s 发送 - 长按\"速度\" (第 6 页) 以匹配"
+msgid "%s was heard on %s, you send %s - Settings... (page 3), Speed: theirs, to match"
+msgstr ""
 
 #: src/js8_window.c
 #, c-format
@@ -9549,8 +9866,8 @@ msgid "%s: not heard on this band"
 msgstr "%s: 本波段未收到"
 
 #: src/js8_window.c
-msgid "Translate: Show Messages first"
-msgstr "翻译: 请先按\"显示消息\""
+msgid "View: Messages first"
+msgstr ""
 
 #: src/js8_window.c
 msgid "Turn the MFK onto a message"
@@ -9575,6 +9892,28 @@ msgstr "忙: 请稍后重试"
 #: src/js8_window.c
 msgid "Translating..."
 msgstr "正在翻译..."
+
+#: src/js8_window.c
+msgid "The JS8 app is closed on the radio"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Already sending: Stop first"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Not sent: the radio's screen says why"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Not sent: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Queued: %d frame%s, %.0f s"
+msgstr ""
 
 #: src/jtty.c
 msgid "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ +-./?!\"#$%,&*()_'=[]{}<>|:;"
@@ -12521,6 +12860,10 @@ msgid "Keep knob lines"
 msgstr "保留旋钮行"
 
 #: src/settings_window.cpp
+msgid "Knob press: next control"
+msgstr ""
+
+#: src/settings_window.cpp
 msgid "Decoder text"
 msgstr "解码文字"
 
@@ -13082,6 +13425,10 @@ msgid "Unsupported callsign (too long)"
 msgstr "不支持的呼号 (太长)"
 
 #: src/station.c
+msgid "CB callsign: FT8 sends no QTH with it; no DX cluster, RBN or Wavelog"
+msgstr ""
+
+#: src/station.c
 msgid "Callsign is long, QTH will be omitted"
 msgstr "呼号较长, 将省略 QTH"
 
@@ -13279,6 +13626,22 @@ msgstr ""
 msgid " via Bluetooth"
 msgstr " 经蓝牙"
 
+#: src/text_popup.c
+msgid "Enter: OK    Esc, or hold the MFK: close"
+msgstr ""
+
+#: src/time_station.c
+msgid "WWVH 5000"
+msgstr ""
+
+#: src/time_station.c
+msgid "WWVH 10000"
+msgstr ""
+
+#: src/time_station.c
+msgid "WWVH 15000"
+msgstr ""
+
 #: src/tx_meters.c
 msgid "EXTERNAL TUNE"
 msgstr "外部调谐"
@@ -13356,10 +13719,6 @@ msgstr "无法创建 %s"
 #: src/voice_messages.c
 msgid "No audio: recording uses the hand mic"
 msgstr "无音频: 录音使用手咪"
-
-#: src/voice_messages.c
-msgid "Listen"
-msgstr "试听"
 
 #: src/voice_messages.c
 msgid ""
@@ -13649,6 +14008,87 @@ msgstr "频率已锁定 (应用或锁定键)"
 msgid "Wavelog: %d.%03d.%d %s%s"
 msgstr ""
 
+#: src/wefax/thumb.c
+#, c-format
+msgid "%s/thumbs"
+msgstr ""
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "%ld days"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "no preview"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "not in the plan"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "a copy, unreadable"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "none yet"
+msgstr ""
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "%s ago, q%d"
+msgstr ""
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "%s ago"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "the last copy after it"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "MFK: kind"
+msgstr ""
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "mark q%d"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "MFK: kind   press: full screen"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "The plan has no Bulletin"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid "MFK press: zoom   any button: back"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid "MFK: up, down   VOL: left, right   press: zoom"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid "MFK: up, down   VOL: left, right   press: whole chart"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Bulletin"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Fax\n"
+"Browser"
+msgstr ""
+"传真\n"
+"浏览"
+
 #: src/wefax_window.c
 msgid ""
 "View\n"
@@ -13658,12 +14098,14 @@ msgstr ""
 "大"
 
 #: src/wefax_window.c
-msgid ""
-"Fax\n"
-"Browser"
+msgid "(Browser)"
 msgstr ""
-"传真\n"
-"浏览"
+
+#: src/wefax_window.c
+msgid ""
+"Back to\n"
+"List"
+msgstr ""
 
 #: src/wefax_window.c
 msgid ""
@@ -13680,6 +14122,16 @@ msgid ""
 msgstr ""
 "修正\n"
 "倾斜"
+
+#: src/wefax_window.c
+msgid "(Bulletin)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Close\n"
+"Bulletin"
+msgstr ""
 
 #: src/wefax_window.c
 msgid "day and night"
@@ -13714,12 +14166,18 @@ msgid "Honolulu (US)"
 msgstr "檀香山 (美国)"
 
 #: src/wefax_window.c
-msgid "Saving fax..."
-msgstr "正在保存传真..."
+#, c-format
+msgid "Fax saved, quality %d"
+msgstr ""
 
 #: src/wefax_window.c
-msgid "Fax saved"
-msgstr "传真已保存"
+#, c-format
+msgid "Fax dropped: quality %d, a copy has %d"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Saving fax..."
+msgstr "正在保存传真..."
 
 #: src/wefax_window.c
 msgid "Fax save failed"
@@ -13747,6 +14205,45 @@ msgid "WeFax TX failed (%i)"
 msgstr "WeFax 发射失败 (%i)"
 
 #: src/wefax_window.c
+msgid ""
+"Auto\n"
+"Plan"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Plan\n"
+"--:--"
+msgstr ""
+
+#: src/wefax_window.c
+#, c-format
+msgid ""
+"Plan\n"
+"%02d:%02d"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Plan off: tuned by hand"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Plan: no plan"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Plan on (plan.json)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Plan on"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Plan off"
+msgstr ""
+
+#: src/wefax_window.c
 msgid "RX Cont"
 msgstr "连续接收"
 
@@ -13755,12 +14252,42 @@ msgid "RX Auto"
 msgstr "自动接收"
 
 #: src/wefax_window.c
+msgid "Taking the fax going on"
+msgstr ""
+
+#: src/wefax_window.c
 msgid "Fax Started"
 msgstr "传真开始"
 
 #: src/wefax_window.c
-msgid "MFK: align   Freq.: stations   View: Small shows the waterfall"
-msgstr "MFK: 对齐   频率: 电台   显示 小: 可见瀑布"
+msgid "No fax going on, waiting for the next"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Fax going on: taken from here"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Page 2: Freq., View   Page 3: Align, Tilt (MFK)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "MFK: choose a fax   press: open it"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Fix Align, Fix Tilt, then the MFK   Done saves"
+msgstr ""
+
+#: src/wefax_window.c
+#, c-format
+msgid "Align %+d"
+msgstr ""
+
+#: src/wefax_window.c
+#, c-format
+msgid "Tilt %+d"
+msgstr ""
 
 #: src/wefax_window.c
 msgid ""
@@ -13785,6 +14312,34 @@ msgstr "没有已保存的传真"
 #: src/wefax_window.c
 msgid "Editing saved fax"
 msgstr "正在编辑已存传真"
+
+#: src/wefax_window.c
+msgid "Fax saved"
+msgstr "传真已保存"
+
+#: src/wefax_window.c
+msgid ""
+"Fix\n"
+"Chart"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Open\n"
+"Chart"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"All\n"
+"Kinds"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"All\n"
+"Faxes"
+msgstr ""
 
 #: src/wefax_window.c
 msgid "WEFAX - stations"
@@ -13847,6 +14402,19 @@ msgid ""
 msgstr ""
 "显示\n"
 "全尺寸"
+
+#: src/wefax_window.c
+msgid "Auto Tilt: no clear tilt, MFK to set it"
+msgstr ""
+
+#: src/wefax_window.c
+#, c-format
+msgid "Auto Tilt %+d, MFK to adjust"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Tilt..."
+msgstr ""
 
 #: src/wifi.cpp
 #, c-format
@@ -14209,8 +14777,76 @@ msgid "not on a channel yet"
 msgstr "尚未进入频道"
 
 #. not in the list: a line or a word of a longer text
+msgid " Field Ops log"
+msgstr " 野外运行日志"
+
+#. not in the list: a line or a word of a longer text
+msgid "Auto Sync"
+msgstr "自动同步"
+
+#. not in the list: a line or a word of a longer text
 msgid "SETTINGS"
 msgstr "设置"
+
+#~ msgid "Position, time"
+#~ msgstr "位置、时间"
+
+#~ msgid "Auto Sync off: the clock moves only with Time Sync"
+#~ msgstr "自动同步关: 只有按时间同步才调整时钟"
+
+#~ msgid "Auto Sync on: it works in FT8 and FT4, not in %s"
+#~ msgstr "自动同步开: 仅在 FT8 和 FT4 中有效, %s 中无效"
+
+#~ msgid "Auto Sync on: NTP keeps the clock, nothing to do while it does"
+#~ msgstr "自动同步开: NTP 维持时钟, 期间无需操作"
+
+#~ msgid "Auto Sync on: the GPS keeps the clock, nothing to do while it does"
+#~ msgstr "自动同步开: GPS 维持时钟, 期间无需操作"
+
+#~ msgid "Auto Sync on: the clock follows the decodes, after a minute or more"
+#~ msgstr "自动同步开: 一分钟或更久后, 时钟跟随解码结果"
+
+#~ msgid "Auto Sync: the clock is on time by the decodes of %d stations"
+#~ msgstr "自动同步: 根据 %d 个电台的解码, 时钟准确"
+
+#~ msgid "Sat in view/in use:"
+#~ msgstr "卫星 可见/使用:"
+
+#~ msgid "Fix:"
+#~ msgstr "定位:"
+
+#~ msgid "Date, time:"
+#~ msgstr "日期, 时间:"
+
+#~ msgid "Latitude:"
+#~ msgstr "纬度:"
+
+#~ msgid "Longitude:"
+#~ msgstr "经度:"
+
+#~ msgid "QTH Grid:"
+#~ msgstr "QTH 网格:"
+
+#~ msgid "GPS status"
+#~ msgstr "GPS 状态"
+
+#~ msgid "QSO with %s ended: Log QSO (page 5) to log it"
+#~ msgstr "与 %s 的 QSO 已结束: 用\"记录 QSO\" (第 5 页) 记入日志"
+
+#~ msgid "New message to %s from %s - Inbox on page 3"
+#~ msgstr "给 %s 的新消息, 来自 %s - 收件箱在第 3 页"
+
+#~ msgid "New message from %s - Inbox on page 3"
+#~ msgstr "来自 %s 的新消息 - 收件箱在第 3 页"
+
+#~ msgid "%s was heard on %s, you send %s - hold Speed (page 6) to match"
+#~ msgstr "听到 %s 用 %s, 你用 %s 发送 - 长按\"速度\" (第 6 页) 以匹配"
+
+#~ msgid "Translate: Show Messages first"
+#~ msgstr "翻译: 请先按\"显示消息\""
+
+#~ msgid "MFK: align   Freq.: stations   View: Small shows the waterfall"
+#~ msgstr "MFK: 对齐   频率: 电台   显示 小: 可见瀑布"
 
 #~ msgid "Zello: not sent"
 #~ msgstr "Zello: 未发送"

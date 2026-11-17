@@ -717,8 +717,12 @@ msgid "CW as you type"
 msgstr "CW à la frappe"
 
 #: src/apps_menu.c
-msgid "Position, time"
-msgstr "Position, heure"
+msgid "GPS / Clock"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Position, clock"
+msgstr ""
 
 #: src/apps_menu.c
 msgid "Screen Rec"
@@ -1675,6 +1679,12 @@ msgstr ""
 "aéro HF"
 
 #: src/button_bar.cpp
+msgid ""
+"GPS /\n"
+"Clock"
+msgstr ""
+
+#: src/button_bar.cpp
 msgid "Rate"
 msgstr "Vitesse"
 
@@ -1864,6 +1874,22 @@ msgstr ""
 
 #: src/clock.c
 msgid "NZST-12NZDT,M9.5.0,M4.1.0/3"
+msgstr ""
+
+#: src/clock_rule.c
+msgid "time station"
+msgstr ""
+
+#: src/clock_rule.c src/ft8_window.c
+msgid "Time Sync"
+msgstr ""
+
+#: src/clock_rule.c
+msgid "clock chip"
+msgstr ""
+
+#: src/clock_sync.c
+msgid "hwclock -w -u -f "
 msgstr ""
 
 #: src/cluster/client.c
@@ -2781,7 +2807,7 @@ msgstr "Les birdies sont des porteuses fixes que la radio produit en elle-même.
 msgid "Disconnect the antenna, then press Start. A few minutes: every active band the radio transmits on."
 msgstr "Débranchez l'antenne, puis appuyez sur Démarrer. Quelques minutes : chaque bande active où la radio émet."
 
-#: src/dialog_cb.c
+#: src/dialog_cb.c src/wefax_window.c
 msgid "Plan"
 msgstr ""
 
@@ -2915,6 +2941,10 @@ msgstr "%d spots - %02d:%02dZ"
 #: src/dialog_cluster.c
 msgid "Set your callsign: Settings > General"
 msgstr "Indiquez votre indicatif : Réglages > Général"
+
+#: src/dialog_cluster.c
+msgid "CB call: no amateur cluster login"
+msgstr ""
 
 #: src/dialog_cluster.c
 msgid "Cluster link off"
@@ -3199,7 +3229,7 @@ msgid "Skip"
 msgstr "Passer"
 
 #: src/dialog_cw_trainer.c src/dialog_field.c src/first_start.c
-#: src/js8_window.c
+#: src/js8_window.c src/wefax_window.c
 msgid "Back"
 msgstr "Retour"
 
@@ -4026,6 +4056,10 @@ msgstr "Spot %s : %s"
 #: src/dialog_field.c
 msgid "NOTA: press the row to open it in its programme first"
 msgstr "NOTA : appuyez d'abord sur la ligne pour l'ouvrir dans son programme"
+
+#: src/dialog_field.c
+msgid "No spot with a CB callsign: amateur programmes only"
+msgstr ""
 
 #: src/dialog_field.c
 msgid "XOTA is a list of your own: no spot"
@@ -6146,7 +6180,7 @@ msgstr "Mémorisé"
 msgid "None: RX only"
 msgstr "Aucun : RX seule"
 
-#: src/dialog_wspr.c src/gps_window.c
+#: src/dialog_wspr.c
 msgid "None"
 msgstr "Aucun"
 
@@ -6675,10 +6709,6 @@ msgid "OPERATOR"
 msgstr ""
 
 #: src/field/flog.c
-msgid " Field Ops log"
-msgstr ""
-
-#: src/field/flog.c
 msgid "the microSD has an error and is read-only. Restart the radio; if it happens again, back up and rewrite the microSD"
 msgstr "la microSD a une erreur, lecture seule. Redémarrez la radio ; si cela revient, sauvegardez et réécrivez la microSD"
 
@@ -6696,6 +6726,10 @@ msgstr "la microSD n'a pas pu être écrite. Redémarrez la radio ; si cela revi
 
 #: src/field/flog.c
 msgid "ARLHS"
+msgstr ""
+
+#: src/field/rbn.c
+msgid "not with a CB call"
 msgstr ""
 
 #: src/field/refs.c
@@ -7142,10 +7176,6 @@ msgid " CQ modifier"
 msgstr " Modificateur de CQ"
 
 #: src/ft8_window.c
-msgid "hwclock -w -u -f /dev/rtc1"
-msgstr ""
-
-#: src/ft8_window.c
 #, c-format
 msgid "Clock in sync (NTP, within %d ms): no Time Sync needed"
 msgstr "Horloge synchronisée (NTP, à %d ms près) : pas besoin de Synchro heure"
@@ -7170,44 +7200,19 @@ msgid "Clock moved %+.2f s to the slot start"
 msgstr "Horloge décalée de %+.2f s au début du créneau"
 
 #: src/ft8_window.c
-msgid "Auto Sync"
-msgstr "Synchro auto"
-
-#: src/ft8_window.c
-msgid "Auto Sync off: the clock moves only with Time Sync"
-msgstr "Synchro auto désactivée : l'horloge ne bouge qu'avec Synchro heure"
+#, c-format
+msgid "Auto Sync: by the decodes the clock is %.1f s %s, too far: press Time Sync as a slot starts"
+msgstr "Synchro auto : l'horloge a %.1f s d'écart (%s) selon les décodages, trop : Synchro heure en début de créneau"
 
 #: src/ft8_window.c
 #, c-format
-msgid "Auto Sync on: it works in FT8 and FT4, not in %s"
-msgstr "Synchro auto activée : elle fonctionne en FT8 et FT4, pas en %s"
-
-#: src/ft8_window.c
-msgid "Auto Sync on: NTP keeps the clock, nothing to do while it does"
-msgstr "Synchro auto activée : NTP tient l'horloge, rien à faire tant que c'est le cas"
-
-#: src/ft8_window.c
-msgid "Auto Sync on: the GPS keeps the clock, nothing to do while it does"
-msgstr "Synchro auto activée : le GPS tient l'horloge, rien à faire tant que c'est le cas"
-
-#: src/ft8_window.c
-msgid "Auto Sync on: the clock follows the decodes, after a minute or more"
-msgstr "Synchro auto activée : l'horloge suit les décodages, après une minute ou plus"
+msgid "%d stations"
+msgstr ""
 
 #: src/ft8_window.c
 #, c-format
 msgid "Auto Sync: the clock can't be set (%s)"
 msgstr "Synchro auto : impossible de régler l'horloge (%s)"
-
-#: src/ft8_window.c
-#, c-format
-msgid "Auto Sync: the clock is on time by the decodes of %d stations"
-msgstr "Synchro auto : l'horloge est à l'heure d'après les décodages de %d stations"
-
-#: src/ft8_window.c
-#, c-format
-msgid "Auto Sync: by the decodes the clock is %.1f s %s, too far: press Time Sync as a slot starts"
-msgstr "Synchro auto : l'horloge a %.1f s d'écart (%s) selon les décodages, trop : Synchro heure en début de créneau"
 
 #: src/ft8_window.c
 #, c-format
@@ -7424,32 +7429,184 @@ msgid "GhostNet RTTY: 7.077 MHz, 45.45 baud, 170 Hz"
 msgstr "GhostNet RTTY : 7.077 MHz, 45,45 bauds, 170 Hz"
 
 #: src/gps_window.c
-msgid "Sat in view/in use:"
-msgstr "Satellites visibles/utilisés :"
+msgid "Satellites, fix:"
+msgstr ""
 
 #: src/gps_window.c
-msgid "Fix:"
-msgstr "Position :"
+msgid "GPS date, time:"
+msgstr ""
 
 #: src/gps_window.c
-msgid "Date, time:"
-msgstr "Date, heure :"
+msgid "Position:"
+msgstr ""
 
 #: src/gps_window.c
-msgid "Latitude:"
-msgstr "Latitude :"
+msgid "Grid, gpsd:"
+msgstr ""
 
 #: src/gps_window.c
-msgid "Longitude:"
-msgstr "Longitude :"
+msgid "Clock:"
+msgstr ""
 
 #: src/gps_window.c
-msgid "QTH Grid:"
-msgstr "Locator QTH :"
+msgid "FT8 says:"
+msgstr ""
 
 #: src/gps_window.c
-msgid "GPS status"
-msgstr "État du GPS"
+msgid "Time station:"
+msgstr ""
+
+#: src/gps_window.c
+msgid "no fix"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%ld s ago"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%ld min ago"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%ld h ago"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%02d:%02d:%02d UTC, kept by NTP (%d ms)"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%02d:%02d:%02d UTC, kept by %s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%02d:%02d:%02d UTC, clock chip"
+msgstr ""
+
+#: src/gps_window.c
+msgid "no word: FT8 or FT4 open on a busy band"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "on time (%+.2f s), %d stations, %s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%.2f s %s, %d stations, %s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%.1f s %s: too far, Time Sync in FT8"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "the stations disagree (%d), %s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "listening: %d stations, %d slots"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%s: off"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid ""
+"%s keeps the clock\n"
+"The marker's delay learned: %.3f s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid ""
+"Clock right by %s\n"
+"%+.3f s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid ""
+"Clock moved %+.3f s\n"
+"by %s"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%s: no markers until :%02d"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%s: listening"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid "%s: marker %s, %.0f dB"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid ""
+"Station:\n"
+"%s"
+msgstr ""
+
+#: src/gps_window.c
+msgid ""
+"Stop\n"
+"listening"
+msgstr ""
+
+#: src/gps_window.c src/voice_messages.c
+msgid "Listen"
+msgstr "Écouter"
+
+#: src/gps_window.c
+msgid ""
+"Auto Sync:\n"
+"On"
+msgstr ""
+
+#: src/gps_window.c
+msgid ""
+"Auto Sync:\n"
+"Off"
+msgstr ""
+
+#: src/gps_window.c
+msgid ""
+"Auto Sync off\n"
+"FT8 only measures the clock"
+msgstr ""
+
+#: src/gps_window.c
+#, c-format
+msgid ""
+"Auto Sync on\n"
+"%s keeps the clock for now"
+msgstr ""
+
+#: src/gps_window.c
+msgid ""
+"Auto Sync on\n"
+"FT8 and FT4 set the clock"
+msgstr ""
 
 #: src/gui_main.c
 msgid ""
@@ -7885,28 +8042,40 @@ msgid "Auto: x%d"
 msgstr "Auto : x%d"
 
 #: src/js8_window.c
-msgid ""
-"Heart-\n"
-"beat"
-msgstr ""
-"Battement\n"
-"(HB)"
-
-#: src/js8_window.c
 msgid "Query >"
 msgstr "Demander >"
-
-#: src/js8_window.c
-msgid "Reply"
-msgstr "Répondre"
 
 #: src/js8_window.c
 msgid "Send..."
 msgstr "Envoyer..."
 
 #: src/js8_window.c
+msgid "Map"
+msgstr "Carte"
+
+#: src/js8_window.c
 msgid "Settings..."
 msgstr "Réglages..."
+
+#: src/js8_window.c
+msgid ""
+"Trans-\n"
+"late"
+msgstr ""
+"Tradu-\n"
+"ire"
+
+#: src/js8_window.c
+msgid "Write..."
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Heart-\n"
+"beat"
+msgstr ""
+"Battement\n"
+"(HB)"
 
 #: src/js8_window.c
 msgid "APRS >"
@@ -7919,18 +8088,6 @@ msgstr "Noter le QSO"
 #: src/js8_window.c
 msgid "Alerts >"
 msgstr "Alertes >"
-
-#: src/js8_window.c
-msgid "Map"
-msgstr "Carte"
-
-#: src/js8_window.c
-msgid ""
-"Trans-\n"
-"late"
-msgstr ""
-"Tradu-\n"
-"ire"
 
 #: src/js8_window.c
 msgid "  (bad checksum)"
@@ -8122,6 +8279,10 @@ msgid "Saved message %d cleared"
 msgstr "Message enregistré %d effacé"
 
 #: src/js8_window.c
+msgid "Not sent: kept for Send... or Reply"
+msgstr ""
+
+#: src/js8_window.c
 msgid " INFO, e.g. X6100 5W EFHW"
 msgstr " INFO, p. ex. X6100 5W EFHW"
 
@@ -8194,6 +8355,10 @@ msgid "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .-+?!\"/@:
 msgstr ""
 
 #: src/js8_window.c
+msgid "Your message not sent yet: Enter sends it"
+msgstr ""
+
+#: src/js8_window.c
 msgid "band changed"
 msgstr "bande changée"
 
@@ -8201,6 +8366,34 @@ msgstr "bande changée"
 #, c-format
 msgid "End of the %s list"
 msgstr "Fin de la liste %s"
+
+#: src/js8_window.c
+#, c-format
+msgid "HB %02d:%02d - %d heard you"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%d station%s - HB: say you're here"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "%d new"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "heard you %+d"
+msgstr ""
+
+#: src/js8_window.c
+msgid "heard you"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Listening... the stations heard come here. HB tells them you are here."
+msgstr ""
 
 #: src/js8_window.c
 msgid ""
@@ -8481,6 +8674,116 @@ msgstr ""
 #, c-format
 msgid "Ask %s if they hear a station: type its call and ?"
 msgstr "Demandez à %s s'il entend une station : tapez l'indicatif et ?"
+
+#: src/js8_window.c
+msgid "Heartbeat interval (knob)..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "Speed: the selected station's"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Activation reference..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "Log QSO..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "Send a heartbeat now"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Groups, INFO, STATUS, Relay..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "Clear the list"
+msgstr ""
+
+#: src/js8_window.c
+msgid "JS8 Settings"
+msgstr ""
+
+#: src/js8_window.c
+msgid "heard your HB"
+msgstr ""
+
+#: src/js8_window.c
+msgid "nothing said yet"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid ", they hear you %+d"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Nothing with %s yet: Reply, Query > or Write..."
+msgstr ""
+
+#: src/js8_window.c
+msgid "(Board)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "To %s: type it and press Enter (MSG first for their Inbox)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Chat"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid ""
+"Chat\n"
+"%s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Choose a station first (MFK)"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"View:\n"
+"Board"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"View:\n"
+"Stations"
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"View:\n"
+"Messages"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid ""
+"Heartbeat\n"
+"auto %u min"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Reply"
+msgstr "Répondre"
+
+#: src/js8_window.c
+#, c-format
+msgid ""
+"Reply\n"
+"%s"
+msgstr ""
 
 #: src/js8_window.c
 #, c-format
@@ -9026,8 +9329,8 @@ msgstr "QSO avec %s terminé : l'enregistrer dans le log ?"
 
 #: src/js8_window.c
 #, c-format
-msgid "QSO with %s ended: Log QSO (page 5) to log it"
-msgstr "QSO avec %s terminé : Noter QSO (page 5) pour le noter"
+msgid "QSO with %s ended: Settings... (page 3), Log QSO, to log it"
+msgstr ""
 
 #: src/js8_window.c
 msgid ""
@@ -9098,6 +9401,20 @@ msgstr ""
 
 #: src/js8_window.c
 #, c-format
+msgid "Message to %s from %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Message from %s"
+msgstr ""
+
+#: src/js8_window.c
+msgid "MFK press: read it and reply      ESC or a button: later (Inbox)"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
 msgid "Can't save %s"
 msgstr "Impossible d'enregistrer %s"
 
@@ -9118,13 +9435,13 @@ msgstr "Message de %s : impossible d'enregistrer %s"
 
 #: src/js8_window.c
 #, c-format
-msgid "New message to %s from %s - Inbox on page 3"
-msgstr "Nouveau message pour %s de %s : Boîte en page 3"
+msgid "New message to %s from %s - Inbox on page 1"
+msgstr ""
 
 #: src/js8_window.c
 #, c-format
-msgid "New message from %s - Inbox on page 3"
-msgstr "Nouveau message de %s : Boîte en page 3"
+msgid "New message from %s - Inbox on page 1"
+msgstr ""
 
 #: src/js8_window.c
 #, c-format
@@ -9325,8 +9642,8 @@ msgstr "Tester le bip"
 
 #: src/js8_window.c
 #, c-format
-msgid "%s was heard on %s, you send %s - hold Speed (page 6) to match"
-msgstr "%s a été entendu en %s, vous émettez en %s : maintenez Vitesse (page 6) pour égaler"
+msgid "%s was heard on %s, you send %s - Settings... (page 3), Speed: theirs, to match"
+msgstr ""
 
 #: src/js8_window.c
 #, c-format
@@ -9509,8 +9826,8 @@ msgid "%s: not heard on this band"
 msgstr "%s : pas entendu sur cette bande"
 
 #: src/js8_window.c
-msgid "Translate: Show Messages first"
-msgstr "Traduire : d'abord Voir messages"
+msgid "View: Messages first"
+msgstr ""
 
 #: src/js8_window.c
 msgid "Turn the MFK onto a message"
@@ -9535,6 +9852,28 @@ msgstr "Occupé : réessayez bientôt"
 #: src/js8_window.c
 msgid "Translating..."
 msgstr "Traduction..."
+
+#: src/js8_window.c
+msgid "The JS8 app is closed on the radio"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Already sending: Stop first"
+msgstr ""
+
+#: src/js8_window.c
+msgid "Not sent: the radio's screen says why"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Not sent: %s"
+msgstr ""
+
+#: src/js8_window.c
+#, c-format
+msgid "Queued: %d frame%s, %.0f s"
+msgstr ""
 
 #: src/jtty.c
 msgid "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ +-./?!\"#$%,&*()_'=[]{}<>|:;"
@@ -12473,6 +12812,10 @@ msgid "Keep knob lines"
 msgstr "Garder les lignes boutons"
 
 #: src/settings_window.cpp
+msgid "Knob press: next control"
+msgstr ""
+
+#: src/settings_window.cpp
 msgid "Decoder text"
 msgstr "Texte décodé"
 
@@ -13034,6 +13377,10 @@ msgid "Unsupported callsign (too long)"
 msgstr "Indicatif non pris en charge (trop long)"
 
 #: src/station.c
+msgid "CB callsign: FT8 sends no QTH with it; no DX cluster, RBN or Wavelog"
+msgstr ""
+
+#: src/station.c
 msgid "Callsign is long, QTH will be omitted"
 msgstr "L'indicatif est long, le QTH sera omis"
 
@@ -13231,6 +13578,22 @@ msgstr ""
 msgid " via Bluetooth"
 msgstr " par Bluetooth"
 
+#: src/text_popup.c
+msgid "Enter: OK    Esc, or hold the MFK: close"
+msgstr ""
+
+#: src/time_station.c
+msgid "WWVH 5000"
+msgstr ""
+
+#: src/time_station.c
+msgid "WWVH 10000"
+msgstr ""
+
+#: src/time_station.c
+msgid "WWVH 15000"
+msgstr ""
+
 #: src/tx_meters.c
 msgid "EXTERNAL TUNE"
 msgstr "TUNE EXTERNE"
@@ -13308,10 +13671,6 @@ msgstr "Impossible de créer %s"
 #: src/voice_messages.c
 msgid "No audio: recording uses the hand mic"
 msgstr "Pas d'audio : l'enregistrement utilise le micro à main"
-
-#: src/voice_messages.c
-msgid "Listen"
-msgstr "Écouter"
 
 #: src/voice_messages.c
 msgid ""
@@ -13601,6 +13960,87 @@ msgstr "La fréquence est verrouillée (une app, ou le verrou)"
 msgid "Wavelog: %d.%03d.%d %s%s"
 msgstr "Wavelog : %d.%03d.%d %s%s"
 
+#: src/wefax/thumb.c
+#, c-format
+msgid "%s/thumbs"
+msgstr ""
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "%ld days"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "no preview"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "not in the plan"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "a copy, unreadable"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "none yet"
+msgstr ""
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "%s ago, q%d"
+msgstr ""
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "%s ago"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "the last copy after it"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "MFK: kind"
+msgstr ""
+
+#: src/wefax_bulletin.c
+#, c-format
+msgid "mark q%d"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "MFK: kind   press: full screen"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "The plan has no Bulletin"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid "MFK press: zoom   any button: back"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid "MFK: up, down   VOL: left, right   press: zoom"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid "MFK: up, down   VOL: left, right   press: whole chart"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Bulletin"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Fax\n"
+"Browser"
+msgstr ""
+"Voir\n"
+"fax"
+
 #: src/wefax_window.c
 msgid ""
 "View\n"
@@ -13610,12 +14050,14 @@ msgstr ""
 "grand"
 
 #: src/wefax_window.c
-msgid ""
-"Fax\n"
-"Browser"
+msgid "(Browser)"
 msgstr ""
-"Voir\n"
-"fax"
+
+#: src/wefax_window.c
+msgid ""
+"Back to\n"
+"List"
+msgstr ""
 
 #: src/wefax_window.c
 msgid ""
@@ -13632,6 +14074,16 @@ msgid ""
 msgstr ""
 "Corriger\n"
 "inclinaison"
+
+#: src/wefax_window.c
+msgid "(Bulletin)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Close\n"
+"Bulletin"
+msgstr ""
 
 #: src/wefax_window.c
 msgid "day and night"
@@ -13666,12 +14118,18 @@ msgid "Honolulu (US)"
 msgstr ""
 
 #: src/wefax_window.c
-msgid "Saving fax..."
-msgstr "Enregistrement du fax..."
+#, c-format
+msgid "Fax saved, quality %d"
+msgstr ""
 
 #: src/wefax_window.c
-msgid "Fax saved"
-msgstr "Fax enregistré"
+#, c-format
+msgid "Fax dropped: quality %d, a copy has %d"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Saving fax..."
+msgstr "Enregistrement du fax..."
 
 #: src/wefax_window.c
 msgid "Fax save failed"
@@ -13699,6 +14157,45 @@ msgid "WeFax TX failed (%i)"
 msgstr "WeFax TX échouée (%i)"
 
 #: src/wefax_window.c
+msgid ""
+"Auto\n"
+"Plan"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Plan\n"
+"--:--"
+msgstr ""
+
+#: src/wefax_window.c
+#, c-format
+msgid ""
+"Plan\n"
+"%02d:%02d"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Plan off: tuned by hand"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Plan: no plan"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Plan on (plan.json)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Plan on"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Plan off"
+msgstr ""
+
+#: src/wefax_window.c
 msgid "RX Cont"
 msgstr "RX continu"
 
@@ -13707,12 +14204,42 @@ msgid "RX Auto"
 msgstr "RX auto"
 
 #: src/wefax_window.c
+msgid "Taking the fax going on"
+msgstr ""
+
+#: src/wefax_window.c
 msgid "Fax Started"
 msgstr "Fax démarré"
 
 #: src/wefax_window.c
-msgid "MFK: align   Freq.: stations   View: Small shows the waterfall"
-msgstr "MFK : aligner   Fréq. : stations   Voir : petit montre la cascade"
+msgid "No fax going on, waiting for the next"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Fax going on: taken from here"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Page 2: Freq., View   Page 3: Align, Tilt (MFK)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "MFK: choose a fax   press: open it"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Fix Align, Fix Tilt, then the MFK   Done saves"
+msgstr ""
+
+#: src/wefax_window.c
+#, c-format
+msgid "Align %+d"
+msgstr ""
+
+#: src/wefax_window.c
+#, c-format
+msgid "Tilt %+d"
+msgstr ""
 
 #: src/wefax_window.c
 msgid ""
@@ -13737,6 +14264,34 @@ msgstr "Aucun fax enregistré"
 #: src/wefax_window.c
 msgid "Editing saved fax"
 msgstr "Modification du fax enregistré"
+
+#: src/wefax_window.c
+msgid "Fax saved"
+msgstr "Fax enregistré"
+
+#: src/wefax_window.c
+msgid ""
+"Fix\n"
+"Chart"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Open\n"
+"Chart"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"All\n"
+"Kinds"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"All\n"
+"Faxes"
+msgstr ""
 
 #: src/wefax_window.c
 msgid "WEFAX - stations"
@@ -13799,6 +14354,19 @@ msgid ""
 msgstr ""
 "Voir\n"
 "taille réelle"
+
+#: src/wefax_window.c
+msgid "Auto Tilt: no clear tilt, MFK to set it"
+msgstr ""
+
+#: src/wefax_window.c
+#, c-format
+msgid "Auto Tilt %+d, MFK to adjust"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Tilt..."
+msgstr ""
 
 #: src/wifi.cpp
 #, c-format
@@ -14159,6 +14727,10 @@ msgstr "LIEN ZELLO"
 #: src/zello.c
 msgid "not on a channel yet"
 msgstr "pas encore sur un canal"
+
+#. not in the list: a line or a word of a longer text
+msgid "Auto Sync"
+msgstr "Synchro auto"
 
 #. not in the list: a line or a word of a longer text
 msgid "Parse"
@@ -14883,6 +15455,66 @@ msgstr "au sol"
 #. not in the list: a line or a word of a longer text
 msgid "squawk"
 msgstr "squawk"
+
+#~ msgid "Position, time"
+#~ msgstr "Position, heure"
+
+#~ msgid "Auto Sync off: the clock moves only with Time Sync"
+#~ msgstr "Synchro auto désactivée : l'horloge ne bouge qu'avec Synchro heure"
+
+#~ msgid "Auto Sync on: it works in FT8 and FT4, not in %s"
+#~ msgstr "Synchro auto activée : elle fonctionne en FT8 et FT4, pas en %s"
+
+#~ msgid "Auto Sync on: NTP keeps the clock, nothing to do while it does"
+#~ msgstr "Synchro auto activée : NTP tient l'horloge, rien à faire tant que c'est le cas"
+
+#~ msgid "Auto Sync on: the GPS keeps the clock, nothing to do while it does"
+#~ msgstr "Synchro auto activée : le GPS tient l'horloge, rien à faire tant que c'est le cas"
+
+#~ msgid "Auto Sync on: the clock follows the decodes, after a minute or more"
+#~ msgstr "Synchro auto activée : l'horloge suit les décodages, après une minute ou plus"
+
+#~ msgid "Auto Sync: the clock is on time by the decodes of %d stations"
+#~ msgstr "Synchro auto : l'horloge est à l'heure d'après les décodages de %d stations"
+
+#~ msgid "Sat in view/in use:"
+#~ msgstr "Satellites visibles/utilisés :"
+
+#~ msgid "Fix:"
+#~ msgstr "Position :"
+
+#~ msgid "Date, time:"
+#~ msgstr "Date, heure :"
+
+#~ msgid "Latitude:"
+#~ msgstr "Latitude :"
+
+#~ msgid "Longitude:"
+#~ msgstr "Longitude :"
+
+#~ msgid "QTH Grid:"
+#~ msgstr "Locator QTH :"
+
+#~ msgid "GPS status"
+#~ msgstr "État du GPS"
+
+#~ msgid "QSO with %s ended: Log QSO (page 5) to log it"
+#~ msgstr "QSO avec %s terminé : Noter QSO (page 5) pour le noter"
+
+#~ msgid "New message to %s from %s - Inbox on page 3"
+#~ msgstr "Nouveau message pour %s de %s : Boîte en page 3"
+
+#~ msgid "New message from %s - Inbox on page 3"
+#~ msgstr "Nouveau message de %s : Boîte en page 3"
+
+#~ msgid "%s was heard on %s, you send %s - hold Speed (page 6) to match"
+#~ msgstr "%s a été entendu en %s, vous émettez en %s : maintenez Vitesse (page 6) pour égaler"
+
+#~ msgid "Translate: Show Messages first"
+#~ msgstr "Traduire : d'abord Voir messages"
+
+#~ msgid "MFK: align   Freq.: stations   View: Small shows the waterfall"
+#~ msgstr "MFK : aligner   Fréq. : stations   Voir : petit montre la cascade"
 
 #~ msgid "Zello: not sent"
 #~ msgstr "Zello : non envoyé"
