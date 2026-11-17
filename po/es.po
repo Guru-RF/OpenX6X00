@@ -8174,7 +8174,7 @@ msgstr "%d escuchadas  %d me escuchan"
 #: src/js8_map.c
 #, c-format
 msgid "QSO map - %d station%s"
-msgstr "Mapa de QSO - %d estación%s"
+msgstr "Mapa de QSO - %d indicativo%s"
 
 #: src/js8_map.c
 msgid "World"
