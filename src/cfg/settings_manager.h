@@ -170,6 +170,11 @@ class SettingsManager {
     // knob_press.h). Off (the default): a press switches between changing the value and choosing the control
     Parameter<int32_t> p_knob_press_next{"knob_press_next", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Panel stripes fix (Settings > Display > BACKLIGHT, live, #239): the display engine's gamma table sends 8..31
+    // out as 32 in each colour, for panels that stripe in those dark values (panel_stripes.c, tcon_gamma.h). Off
+    // (the default): the table off, the colours as they are
+    Parameter<int32_t> p_panel_stripes{"panel_stripes", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Independent VFOs: A and B each keep their own band, a VFO switch brings its band back
     // (vfo_toggle). Off: both VFOs live in the current band, as the radio does it.
     // Turning the knob into another band plan segment sets its mode: CW in the CW segment, the

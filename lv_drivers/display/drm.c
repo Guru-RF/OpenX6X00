@@ -99,6 +99,7 @@ static plane_t              primary, overlay;
 static plane_t              *gui;           /* the plane LVGL draws to */
 static bool                 planes;         /* the GUI on the overlay, the waterfall on the primary */
 static bool                 crtc_set;
+static void                 (*modeset_cb)(void);    /* drm_set_modeset_cb() */
 static volatile bool        flip_pending;
 static uint32_t             *shadow;        /* portrait copy of the GUI, cached RAM */
 static uint32_t             *wf_shadow;     /* portrait copy of the primary plane (screen dump) */
@@ -591,6 +592,10 @@ void drm_wf_present_ring(const uint32_t *src, int32_t x, int32_t w, int32_t head
     primary.ready = true;
 }
 
+void drm_set_modeset_cb(void (*cb)(void)) {
+    modeset_cb = cb;
+}
+
 uint32_t drm_frame_ms(void) {
     return mode.vrefresh ? (1000 + mode.vrefresh - 1) / mode.vrefresh : 17;
 }
@@ -615,6 +620,9 @@ void drm_commit(void) {
     if (!crtc_set) {
         ret = first_commit();
         crtc_set = ret == 0;
+        if (crtc_set && modeset_cb) {
+            modeset_cb();
+        }
     } else if (planes) {
         drmModeAtomicReq *req = drmModeAtomicAlloc();
 

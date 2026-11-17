@@ -50,6 +50,8 @@ void drm_wf_present_ring(const uint32_t *src, int32_t x, int32_t w, int32_t head
 /* Shows what was flushed or presented since the last call, at the next vblank:
  * once per main loop, after lv_timer_handler() */
 void drm_commit(void);
+/* cb called once the panel's mode is set (the first frame): for what a mode set may undo, the panel stripes fix */
+void drm_set_modeset_cb(void (*cb)(void));
 /* One frame of the panel's mode in ms, rounded up (17 at 60 Hz); 17 before drm_init or when the mode has no rate */
 uint32_t drm_frame_ms(void);
 /* The screen as /dev/fb0 would hold it (480x800 BGRX) into path; false if not active */
