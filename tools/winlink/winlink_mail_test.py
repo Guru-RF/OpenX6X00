@@ -252,6 +252,15 @@ def run(root):
     check(rc == 0 and len(m3) == 1, f"a subject with a dash beyond Latin-1 goes out as a-b: {lst2}")
     for x in m3:
         helper(root, "delete", "out", x["mid"])
+    # a broken letter (the first byte of an a with an accent and nothing after it): sent with "?" for it, whatever
+    # the locale, not refused as unreadable
+    p = subprocess.run([sys.executable, "-I", HELPER, "send"], input=b'{"to": "N0ONE", "subject": "caf\xc3", '
+                       b'"body": "x"}', capture_output=True, env=dict(root.env(), LC_ALL="C.UTF-8"), timeout=90)
+    rc2, lst2, _ = helper(root, "list", "out")
+    m4 = [x for x in lst2 if x["subject"].startswith("caf")] if rc2 == 0 else []
+    check(p.returncode == 0 and [x["subject"] for x in m4] == ["caf?"], f"a broken letter sent as ?: {p.stdout} {m4}")
+    for x in m4:
+        helper(root, "delete", "out", x["mid"])
     if m2:
         helper(root, "delete", "out", m2[0]["mid"])
     rc, v, _ = helper(root, "view", "out")

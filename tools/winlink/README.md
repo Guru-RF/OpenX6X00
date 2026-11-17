@@ -113,7 +113,8 @@ test's own (the only transport the helper takes besides the radio's two modems,
 and only on a PC): its secure login challenge, Pat's password question passed on
 through the helper and answered, the reply the CMS expects, Pat's log lines of the
 session and none from before. Also: a subject and a text in Latin-1 sent as
-typed, what is beyond Latin-1 written out before Pat would make it "?"; Mercury
+typed, what is beyond Latin-1 written out before Pat would make it "?", a broken
+UTF-8 letter sent as "?" (not refused); Mercury
 and XARA listing the VARA HF gateways; on a band chosen, a gateway called
 lately on another band not put on top. It prints `MAIL OK` (2026-11-16: about
 6 s).
