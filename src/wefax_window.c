@@ -653,6 +653,8 @@ static void rstat_update(void)
     rstat.gen       = fax_gen;
     rstat.freq      = f;
     snprintf(rstat.station, sizeof(rstat.station), "%s", at && at->name ? at->name : "");
+    rstat.plan = decoder && plan_on;
+    snprintf(rstat.plan_next, sizeof(rstat.plan_next), "%s", rstat.plan ? plan_next : "");
     pthread_mutex_unlock(&rstat_lock);
 }
 
@@ -2362,12 +2364,4 @@ bool wefax_window_remote(wefax_rc_t what)
     }
     buttons_refresh(&btn_rx_mode);
     return true;
-}
-
-bool wefax_window_plan(char *next, size_t size)
-{
-    bool on = dialog_type_is_run(dialog_wefax) && plan_on;
-
-    snprintf(next, size, "%s", on ? plan_next : "");
-    return on;
 }

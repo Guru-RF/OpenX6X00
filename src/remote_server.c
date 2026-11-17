@@ -1402,6 +1402,8 @@ static void wefax_status_line(char *buf, size_t n, const wefax_status_t *s) {
     k += json_str(buf + k, n - k, s->station);
     k += snprintf(buf + k, n - k, ",\"saved\":");
     k += json_str(buf + k, n - k, s->saved);
+    k += snprintf(buf + k, n - k, ",\"plan\":%d,\"next\":", s->plan);
+    k += json_str(buf + k, n - k, s->plan_next);
     snprintf(buf + k, n - k, "}");
 }
 

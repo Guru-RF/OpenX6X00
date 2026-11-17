@@ -39,12 +39,11 @@ typedef struct {
     char     station[40];   /* its name in the app's list, "" for none */
     char     saved[48];     /* the last picture written to /mnt/wefax, its file name */
     uint32_t saves;         /* pictures written since the GUI started */
+    bool     plan;          /* Auto Plan on */
+    char     plan_next[48]; /* its next slot, "HH:MM station kHz", "" for none */
 } wefax_status_t;
 
 void wefax_window_status(wefax_status_t *s);
-
-/* Auto Plan for the panel's state: on, and its next slot ("HH:MM station kHz", "" for none) into next. LVGL thread */
-bool wefax_window_plan(char *next, size_t size);
 
 #ifdef __cplusplus
 }

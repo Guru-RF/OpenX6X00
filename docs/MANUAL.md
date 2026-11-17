@@ -6713,7 +6713,7 @@ The menu has General and six groups:
 | | Tailscale | Enabled, status, Log in to Tailscale, the radio on your tailnet, Log out, and Funnel (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
 | Apps | FT8 | the radio's FT8 app: its own waterfall with the calls of each slot, the stations on a map, the band's decodes, the QSO under way, the app's buttons and its next message (see [FT8 in the browser](#ft8-in-the-browser)) |
 | | JS8 | the radio's JS8 app: its own waterfall with the calls heard, the stations on a map, the band's messages or the stations heard, the conversation with a box to write, the app's buttons (see [JS8 in the browser](#js8-in-the-browser)) |
-| | WeFax | the radio's WeFax app: the chart live as it comes in, open and close, RX Auto or Cont, Save now, Clear, the stations, the last charts (see [WeFax in the browser](#wefax-in-the-browser)) |
+| | WeFax | the radio's WeFax app: the chart live as it comes in, open and close, RX Auto or Cont, Auto Plan, Save now, Clear, the stations, the last charts (see [WeFax in the browser](#wefax-in-the-browser)) |
 | Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
 | | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies, and your own for PSK, Olivia and JTTY in the place of their built-in ones; a card shows what the band keys of those three step through, with the band plan ([Frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty)); WSPR band hopping: Hop and each band's Off, RX or RX+TX, set live (see [Band hopping](#band-hopping)) |
 | | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)), on the frequencies the radio tunes |
@@ -8182,13 +8182,17 @@ Apps > WeFax (`http://x6100.local/wefax`) shows the radio's
   its stop tone) or RX Cont (takes the rows at once), Save now (writes the
   rows kept to `/mnt/wefax` and starts over), Clear (asks first: what was not
   saved is lost).
+- Auto Plan: turns the app's Auto Plan on or off; while it runs, the button
+  shows the next chart's time, station and frequency. Tuning a station by hand
+  stops it until the app opens again, as on the radio.
 - Stations: the app's own list (DWD, Northwood, Athens and NOAA's five) and
   your channels named WEFAX ([Channels](#channels), the Memories page), and a
   box for any other station by its published frequency in kHz. A tap tunes
   the radio 1.5 kHz under it in USB, as the app's Freq. list does; the station
   the radio is on is marked.
-- Last charts: the newest eight on the card, a tap opens one; all of them in
-  the Gallery.
+- Last charts: the newest eight on the card with their time, and for Auto
+  Plan's the chart and its quality; a tap opens one; all of them in the
+  Gallery.
 
 The page receives only: the WeFax transmitter ([RTTY and WeFax
 TX](#rtty-and-wefax-tx)) stays on the radio.

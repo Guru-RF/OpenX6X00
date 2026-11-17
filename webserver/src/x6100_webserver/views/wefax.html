@@ -19,6 +19,7 @@
 .wf-st button small{font-weight:500;font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--dim)}
 .wf-st button.here{border-color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}
 .wf-st button.here small{color:var(--text)}
+#b-plan[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#111}
 .wf-own{display:flex;gap:8px;max-width:360px}
 .wf-last{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
 .wf-last a{display:block;color:var(--text);text-decoration:none;font-size:13px;font-variant-numeric:tabular-nums}
@@ -44,6 +45,7 @@ Receive only: nothing here transmits.</p>
     <div class="actions">
       <button type="button" class="primary" id="b-open">Open the app</button>
       <span class="seg" id="b-mode"><button type="button" data-m="auto" aria-pressed="false" title="Waits for a chart's start tone, saves it at its stop tone">RX Auto</button><button type="button" data-m="cont" aria-pressed="false" title="Takes the rows at once, whatever comes">RX Cont</button></span>
+      <button type="button" id="b-plan" aria-pressed="false" title="Tunes the day's charts on their best frequency, one after the other, and keeps the best copy of each (the app's Auto Plan)">Auto Plan</button>
       <button type="button" id="b-save" title="Writes the rows kept to the card (/mnt/wefax) and starts over">Save now</button>
       <button type="button" id="b-clear">Clear</button>
       <span class="status" id="st"></span>
@@ -93,8 +95,13 @@ Receive only: nothing here transmits.</p>
     if (why) { status(why, true); ses.explain(); return false; }
     return send(s);
   }
+  /* "wefax-20261116-044107-DWD-surface-analysis-00Z-q57.png" (Auto Plan's: the chart and its quality) or
+   * "wefax-20261116-044107.png": "16/11 04:41 DWD surface analysis 00Z, quality 57" */
   function chartName(name) {
-    return name.replace(/^wefax-|\.png$/g, "").replace(/^(\d{4})(\d\d)(\d\d)-(\d\d)(\d\d)\d\d$/, "$3/$2 $4:$5");
+    const m = /^wefax-(\d{4})(\d\d)(\d\d)-(\d\d)(\d\d)\d\d(?:-(.+?))??(?:-q(\d+))?\.png$/.exec(name);
+    if (!m) return name.replace(/\.png$/, "");
+    return m[3] + "/" + m[2] + " " + m[4] + ":" + m[5] + (m[6] ? " " + m[6].replace(/-/g, " ") : "") +
+           (m[7] ? ", quality " + m[7] : "");
   }
 
   /* ---- the chart, row by row ---- */
@@ -167,7 +174,8 @@ Receive only: nothing here transmits.</p>
     $("#saves").text(f.saved ? chartName(f.saved) : "-");
     $("#b-open").text(f.open ? "Close the app" : "Open the app").toggleClass("primary", !f.open);
     $("#b-mode button").each(function() { this.setAttribute("aria-pressed", String(!!f.open && (this.dataset.m === "auto") === !!f.auto)); this.disabled = !f.open; });
-    $("#b-save, #b-clear").prop("disabled", !f.open);
+    $("#b-save, #b-clear, #b-plan").prop("disabled", !f.open);
+    $("#b-plan").attr("aria-pressed", String(!!f.plan)).text(f.plan ? "Auto Plan" + (f.next ? ": " + f.next + " kHz" : " on") : "Auto Plan");
     if (f.gen !== picGen) { picGen = f.gen; if (f.fax) newPicture(); }
     if (f.saves !== lastSaves) { if (lastSaves >= 0 || !canvas) loadLast(); lastSaves = f.saves; if (!f.fax) showSaved(f.saved); }
     markStation();
@@ -233,6 +241,7 @@ Receive only: nothing here transmits.</p>
   $("#own").on("keydown", function(e) { if (e.key === "Enter") $("#b-own").trigger("click"); });
   $("#b-open").on("click", function() { act(fax && fax.open ? "wefax close" : "wefax open"); });
   $("#b-mode").on("click", "button", function() { act("wefax " + this.dataset.m); });
+  $("#b-plan").on("click", function() { act(fax && fax.plan ? "wefax unplan" : "wefax plan"); });
   $("#b-save").on("click", function() { if (act("wefax save")) status("Saving on the radio..."); });
   $("#b-clear").on("click", function() { if (confirm("Clear the chart on the radio? What was not saved is lost.")) act("wefax clear"); });
 
