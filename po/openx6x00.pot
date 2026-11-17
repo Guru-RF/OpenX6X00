@@ -220,6 +220,7 @@ msgstr ""
 #: src/dialog_channels.c src/dialog_cluster.c src/dialog_cw_kbd.c
 #: src/dialog_cw_trainer.c src/dialog_freedv.c src/ft8_window.c
 #: src/js8_window.c src/navtex_window.c src/voice_messages.c src/wefax_window.c
+#: src/winlink_mail.c
 msgid "Close"
 msgstr ""
 
@@ -384,11 +385,11 @@ msgstr ""
 msgid "No saved pictures"
 msgstr ""
 
-#: src/app_sstv_gallery.c src/birdie.c src/first_start.c src/wefax_window.c
+#: src/app_sstv_gallery.c src/birdie.c src/first_start.c
 msgid "Done"
 msgstr ""
 
-#: src/app_sstv_gallery.c src/wefax_window.c
+#: src/app_sstv_gallery.c
 msgid ""
 "Close\n"
 "Browser"
@@ -659,6 +660,14 @@ msgstr ""
 
 #: src/apps_menu.c
 msgid "CW as you type"
+msgstr ""
+
+#: src/apps_menu.c src/button_bar.cpp src/screen_main.c src/winlink_mail.c
+msgid "Mail"
+msgstr ""
+
+#: src/apps_menu.c
+msgid "Winlink, no phone"
 msgstr ""
 
 #: src/apps_menu.c
@@ -1796,7 +1805,7 @@ msgid "Cluster %s - %s"
 msgstr ""
 
 #: src/cluster_column.c src/dialog_cluster.c src/ft8_window.c src/knob_info.cpp
-#: src/radio_controls.cpp
+#: src/radio_controls.cpp src/winlink_mail.c
 msgid "All"
 msgstr ""
 
@@ -1871,7 +1880,7 @@ msgstr ""
 msgid "Call [sent [rcvd]]: "
 msgstr ""
 
-#: src/cw_messages.c
+#: src/cw_messages.c src/winlink_mail.c
 msgid "New"
 msgstr ""
 
@@ -1881,7 +1890,7 @@ msgstr ""
 
 #: src/cw_messages.c src/dialog_channels.c src/js8_window.c
 #: src/recorder_window.c src/settings_window.cpp src/voice_messages.c
-#: src/wifi_window.c
+#: src/wefax_window.c src/wifi_window.c src/winlink_mail.c
 msgid "Delete"
 msgstr ""
 
@@ -2191,7 +2200,8 @@ msgid ""
 "channel"
 msgstr ""
 
-#: src/dialog_aero.c src/dialog_cb.c src/settings_window.cpp src/wifi_window.c
+#: src/dialog_aero.c src/dialog_cb.c src/first_start.c src/settings_window.cpp
+#: src/wifi_window.c
 msgid "Scan"
 msgstr ""
 
@@ -2806,7 +2816,7 @@ msgstr ""
 msgid "Cluster: %s"
 msgstr ""
 
-#: src/dialog_cluster.c src/radio_controls.cpp
+#: src/dialog_cluster.c src/radio_controls.cpp src/winlink_mail.c
 msgid "all bands"
 msgstr ""
 
@@ -2907,7 +2917,7 @@ msgstr ""
 msgid "MFK: choose - press: use - Server: close - add servers from the web page"
 msgstr ""
 
-#: src/dialog_cw_kbd.c src/dialog_freedv.c
+#: src/dialog_cw_kbd.c src/dialog_freedv.c src/winlink_mail.c
 msgid "Send"
 msgstr ""
 
@@ -2973,6 +2983,10 @@ msgstr ""
 msgid "Replay"
 msgstr ""
 
+#: src/dialog_cw_trainer.c src/first_start.c
+msgid "Next"
+msgstr ""
+
 #: src/dialog_cw_trainer.c src/dialog_scan.c src/dialog_snake.c
 msgid "Pause"
 msgstr ""
@@ -2995,12 +3009,18 @@ msgid ""
 "Calls"
 msgstr ""
 
+#: src/dialog_cw_trainer.c
+msgid ""
+"Mode:\n"
+"Copy"
+msgstr ""
+
 #: src/dialog_cw_trainer.c src/dialog_scan.c src/first_start.c
 msgid "Skip"
 msgstr ""
 
 #: src/dialog_cw_trainer.c src/dialog_field.c src/first_start.c
-#: src/js8_window.c src/wefax_window.c
+#: src/js8_window.c src/winlink_mail.c
 msgid "Back"
 msgstr ""
 
@@ -3116,6 +3136,11 @@ msgstr ""
 
 #: src/dialog_cw_trainer.c
 #, c-format
+msgid "CW TRAINER - #%06x Copy stats#"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
 msgid "CW TRAINER - #%06x Stats#"
 msgstr ""
 
@@ -3130,7 +3155,86 @@ msgid "Today: %u tries, %u%% right, %u min"
 msgstr ""
 
 #: src/dialog_cw_trainer.c
+msgid "Last 20 tries per character. Weak ones (red, yellow) come up more often in Copy."
+msgstr ""
+
+#: src/dialog_cw_trainer.c
 msgid "Last 20 tries per character. Weak ones (red, yellow) come up more often in Learn."
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "CW TRAINER - #%06x Copy#"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid "%i WPM - group %i"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Start: groups follow each other, type each one on the keyboard"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "No keyboard found: plug in a USB or Bluetooth one, or use the MFK on the keys"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "The radio keys the group (sidetone only)"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Type what you hear. Enter: done, Backspace: rub out. Replay: hear it again"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "No keyboard: turn the MFK to a key, press it to enter. Replay: hear it again"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "WRONG"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Sent:   "
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Typed: "
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Replay: hear the right one again. Next or Enter: another group"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Replay: hear the right one again. Next or MFK press: another group"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Next group follows. Pause: stop after this one"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Start or Enter: the next group"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Start or MFK press: the next group"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+#, c-format
+msgid ""
+"Level %i\n"
+"Score  %i / %i\n"
+"Last %i: %i / %i\n"
+"Next level at %i%%"
+msgstr ""
+
+#: src/dialog_cw_trainer.c
+msgid "Del"
 msgstr ""
 
 #: src/dialog_cw_trainer.c
@@ -3157,20 +3261,7 @@ msgid "CW TRAINER - #%06x Learn (Koch)#"
 msgstr ""
 
 #: src/dialog_cw_trainer.c
-#, c-format
-msgid "%i WPM - group %i"
-msgstr ""
-
-#: src/dialog_cw_trainer.c
 msgid "Start: groups follow each other, key each one back with the paddle"
-msgstr ""
-
-#: src/dialog_cw_trainer.c
-msgid "The radio keys the group (sidetone only)"
-msgstr ""
-
-#: src/dialog_cw_trainer.c
-msgid "Sent:   "
 msgstr ""
 
 #: src/dialog_cw_trainer.c
@@ -3179,14 +3270,6 @@ msgstr ""
 
 #: src/dialog_cw_trainer.c
 msgid "Heard: "
-msgstr ""
-
-#: src/dialog_cw_trainer.c
-msgid "WRONG"
-msgstr ""
-
-#: src/dialog_cw_trainer.c
-msgid "Next group follows. Pause: stop after this one"
 msgstr ""
 
 #: src/dialog_cw_trainer.c
@@ -4143,7 +4226,8 @@ msgstr ""
 msgid "FLIGHTS"
 msgstr ""
 
-#: src/dialog_flights.c src/dialog_meteo.c src/first_start.c src/station.c
+#: src/dialog_flights.c src/dialog_meteo.c src/first_start.c src/meteo.c
+#: src/station.c
 msgid "Locator"
 msgstr ""
 
@@ -4187,7 +4271,7 @@ msgstr ""
 msgid "Flight"
 msgstr ""
 
-#: src/dialog_flights.c
+#: src/dialog_flights.c src/winlink_mail.c
 msgid "Type"
 msgstr ""
 
@@ -4872,7 +4956,7 @@ msgstr ""
 msgid "Sun %s to %s"
 msgstr ""
 
-#: src/dialog_meteo.c
+#: src/dialog_meteo.c src/wefax/plan.c
 msgid "Wind"
 msgstr ""
 
@@ -4960,6 +5044,10 @@ msgstr ""
 
 #: src/dialog_meteo.c
 msgid "WEATHER"
+msgstr ""
+
+#: src/dialog_meteo.c
+msgid "Place"
 msgstr ""
 
 #: src/dialog_meteo.c
@@ -5116,6 +5204,7 @@ msgid "Sweep"
 msgstr ""
 
 #: src/dialog_propagation.c src/dialog_wspr.c src/knob_info.cpp
+#: src/winlink_mail.c
 msgid "Band"
 msgstr ""
 
@@ -5131,7 +5220,7 @@ msgstr ""
 msgid "Beacons"
 msgstr ""
 
-#: src/dialog_propagation.c
+#: src/dialog_propagation.c src/winlink_mail.c
 msgid "Refresh"
 msgstr ""
 
@@ -5467,7 +5556,7 @@ msgid "Disconnect"
 msgstr ""
 
 #: src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
-#: src/wifi_window.c
+#: src/wifi_window.c src/winlink_mail.c
 msgid "Connect"
 msgstr ""
 
@@ -6452,6 +6541,112 @@ msgid "A language marked draft is still being checked by a speaker."
 msgstr ""
 
 #: src/first_start.c
+msgid "Press the keyboard's pairing key now"
+msgstr ""
+
+#: src/first_start.c
+msgid "Looking for the keyboard..."
+msgstr ""
+
+#: src/first_start.c
+msgid "Pairing..."
+msgstr ""
+
+#: src/first_start.c
+msgid "Bluetooth is busy, a moment..."
+msgstr ""
+
+#: src/first_start.c
+msgid "The keyboard was not seen: press its pairing key, then choose it again"
+msgstr ""
+
+#: src/first_start.c
+msgid "Paired, but not connected: press a key on it, or choose it again"
+msgstr ""
+
+#: src/first_start.c
+msgid "Pairing failed: press its pairing key, then choose it again"
+msgstr ""
+
+#: src/first_start.c
+msgid "A Bluetooth keyboard can type the WiFi password, the callsign and the locator in the next steps. A USB keyboard needs nothing here: it types once plugged in."
+msgstr ""
+
+#: src/first_start.c
+msgid "Bluetooth starting..."
+msgstr ""
+
+#: src/first_start.c
+msgid "Bluetooth is not running on this radio: Skip this step, or plug in a USB keyboard"
+msgstr ""
+
+#: src/first_start.c
+msgid "No Bluetooth adapter found: Skip this step, or plug in a USB keyboard"
+msgstr ""
+
+#: src/first_start.c
+msgid "Bluetooth is off with WiFi, they share a chip: Turn on switches both on"
+msgstr ""
+
+#: src/first_start.c
+msgid "Bluetooth is off: Turn on switches it on"
+msgstr ""
+
+#: src/first_start.c
+msgid "Put the keyboard in pairing mode, then Scan"
+msgstr ""
+
+#: src/first_start.c
+msgid "Looking for keyboards, 16 s..."
+msgstr ""
+
+#: src/first_start.c
+msgid "Choose your keyboard: the guide pairs it and connects it"
+msgstr ""
+
+#: src/first_start.c
+msgid "No keyboard found: is it in pairing mode? Scan looks again"
+msgstr ""
+
+#: src/first_start.c
+msgid "Type this code on the keyboard, then its Enter key:"
+msgstr ""
+
+#: src/first_start.c
+#, c-format
+msgid "%s connected: waiting for its keys..."
+msgstr ""
+
+#: src/first_start.c
+#, c-format
+msgid "%s works: type something to try it"
+msgstr ""
+
+#: src/first_start.c
+msgid "A keyboard works: type something to try it"
+msgstr ""
+
+#: src/first_start.c src/meteo.c
+msgid "Typed"
+msgstr ""
+
+#: src/first_start.c
+msgid "Keyboards"
+msgstr ""
+
+#: src/first_start.c
+msgid "paired: press to connect"
+msgstr ""
+
+#: src/first_start.c
+msgid "new: press to pair"
+msgstr ""
+
+#: src/first_start.c
+msgid "Turn on"
+msgstr ""
+
+#: src/first_start.c
 msgid "WiFi sets the clock, and the DX Cluster, the uploads and the web configurator need it. Networks opens the WiFi window: choose a network there, then ESC or GEN comes back here."
 msgstr ""
 
@@ -6621,6 +6816,28 @@ msgstr ""
 
 #: src/first_start.c
 #, c-format
+msgid "%s, Bluetooth"
+msgstr ""
+
+#: src/first_start.c
+msgid "Keyboard"
+msgstr ""
+
+#: src/first_start.c src/settings_window.cpp src/wifi_window.c
+#: src/winlink_mail.c
+msgid "Connected"
+msgstr ""
+
+#: src/first_start.c
+msgid "Skipped: Settings > Bluetooth > DEVICES pairs one"
+msgstr ""
+
+#: src/first_start.c
+msgid "None: Settings > Bluetooth > DEVICES pairs one"
+msgstr ""
+
+#: src/first_start.c
+#, c-format
 msgid "http://%s.local or http://%s, in a browser on the same network"
 msgstr ""
 
@@ -6671,10 +6888,6 @@ msgstr ""
 msgid ""
 "Settings > General > STATION\n"
 "runs the guide again"
-msgstr ""
-
-#: src/first_start.c
-msgid "Next"
 msgstr ""
 
 #: src/freq_entry.c
@@ -7317,6 +7530,10 @@ msgid "%s/run"
 msgstr ""
 
 #: src/image_level.c
+msgid "New card image: use Multi-Boot"
+msgstr ""
+
+#: src/image_level.c
 msgid "New card image out: Settings > Info"
 msgstr ""
 
@@ -7719,6 +7936,12 @@ msgstr ""
 
 #: src/js8_window.c
 msgid "Write..."
+msgstr ""
+
+#: src/js8_window.c
+msgid ""
+"Close\n"
+"Chat"
 msgstr ""
 
 #: src/js8_window.c
@@ -8352,7 +8575,7 @@ msgid "Nothing with %s yet: Reply, Query > or Write..."
 msgstr ""
 
 #: src/js8_window.c
-msgid "(Board)"
+msgid "F1, F5 or ESC: back to the board"
 msgstr ""
 
 #: src/js8_window.c
@@ -8400,7 +8623,7 @@ msgid ""
 "auto %u min"
 msgstr ""
 
-#: src/js8_window.c
+#: src/js8_window.c src/winlink_mail.c
 msgid "Reply"
 msgstr ""
 
@@ -8999,7 +9222,7 @@ msgstr ""
 msgid "Press to choose POTA or SOTA first"
 msgstr ""
 
-#: src/js8_window.c
+#: src/js8_window.c src/winlink_mail.c
 msgid "Inbox"
 msgstr ""
 
@@ -10116,6 +10339,10 @@ msgstr ""
 msgid "%u / %u, fixed (not read)"
 msgstr ""
 
+#: src/panel_stripes.c
+msgid "allwinner,sun8i-a33-tcon"
+msgstr ""
+
 #: src/perf_hud.c
 #, c-format
 msgid "%.0f fps  draw %.1f/%u ms  loop %u ms  knob %s"
@@ -11135,6 +11362,10 @@ msgid " APP CW Keyboard "
 msgstr ""
 
 #: src/settings_window.cpp
+msgid " APP Mail "
+msgstr ""
+
+#: src/settings_window.cpp
 msgid " APP Field Ops "
 msgstr ""
 
@@ -11434,7 +11665,7 @@ msgstr ""
 msgid "Forget "
 msgstr ""
 
-#: src/settings_window.cpp
+#: src/settings_window.cpp src/wefax_window.c src/winlink_mail.c
 msgid "Cancel"
 msgstr ""
 
@@ -11619,11 +11850,38 @@ msgid "Apply"
 msgstr ""
 
 #: src/settings_window.cpp
+msgid "0123456789.,;+- ABCDEFGHIJKLMNOPQRSTUVWXabcdefghijklmnopqrstuvwx"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "50.85, 4.35 or JO20ft"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Not a place: degrees (50.85, 4.35) or a locator (JO20ft)"
+msgstr ""
+
+#: src/settings_window.cpp
 msgid "Auto ("
 msgstr ""
 
 #: src/settings_window.cpp
 msgid "Band plan"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Weather from"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Auto \n"
+" Locator \n"
+" Typed "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Weather place"
 msgstr ""
 
 #: src/settings_window.cpp
@@ -11844,10 +12102,6 @@ msgstr ""
 
 #: src/settings_window.cpp
 msgid "Press DIT"
-msgstr ""
-
-#: src/settings_window.cpp src/wifi_window.c
-msgid "Connected"
 msgstr ""
 
 #: src/settings_window.cpp
@@ -12195,6 +12449,10 @@ msgid "BACKLIGHT"
 msgstr ""
 
 #: src/settings_window.cpp
+msgid "Panel stripes fix"
+msgstr ""
+
+#: src/settings_window.cpp
 msgid "SPECTRUM"
 msgstr ""
 
@@ -12387,11 +12645,46 @@ msgid ""
 msgstr ""
 
 #: src/settings_window.cpp
-msgid "RX AUDIO"
+msgid "No callsign set: CQ CQ"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "No text yet: CQ CQ"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Only %.*s, %d WPM"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "First %d characters, %d WPM"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Boot sound: only \"%.*s\" fits"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Boot text"
 msgstr ""
 
 #: src/settings_window.cpp
 msgid "Boot sound"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Off \n"
+" CQ CQ \n"
+" Callsign \n"
+" Own text "
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "RX AUDIO"
 msgstr ""
 
 #: src/settings_window.cpp
@@ -12689,6 +12982,15 @@ msgstr ""
 
 #: src/settings_window.cpp
 #, c-format
+msgid "v%s is out; for its card image rebuild the card with Multi-Boot: %s"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "more"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
 msgid "v%s is out; its card image brings %s"
 msgstr ""
 
@@ -12733,6 +13035,11 @@ msgstr ""
 
 #: src/settings_window.cpp
 msgid "Updating..."
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "New card image for this version, rebuild the card with Multi-Boot: %s"
 msgstr ""
 
 #: src/settings_window.cpp
@@ -13473,6 +13780,54 @@ msgstr ""
 msgid "Wavelog: %d.%03d.%d %s%s"
 msgstr ""
 
+#: src/wefax/plan.c
+msgid "good"
+msgstr ""
+
+#: src/wefax/plan.c
+msgid "fair"
+msgstr ""
+
+#: src/wefax/plan.c
+msgid "poor"
+msgstr ""
+
+#: src/wefax/plan.c
+msgid "Unsorted"
+msgstr ""
+
+#: src/wefax/plan.c
+msgid "Significant weather"
+msgstr ""
+
+#: src/wefax/plan.c
+msgid "Analysis, North Atlantic"
+msgstr ""
+
+#: src/wefax/plan.c
+msgid "Analysis"
+msgstr ""
+
+#: src/wefax/plan.c
+msgid "Upper air"
+msgstr ""
+
+#: src/wefax/plan.c
+msgid "Forecast"
+msgstr ""
+
+#: src/wefax/plan.c
+msgid "Sea and swell"
+msgstr ""
+
+#: src/wefax/plan.c
+msgid "Rain and visibility"
+msgstr ""
+
+#: src/wefax/plan.c
+msgid "Ice"
+msgstr ""
+
 #: src/wefax/thumb.c
 #, c-format
 msgid "%s/thumbs"
@@ -13484,18 +13839,21 @@ msgid "%ld days"
 msgstr ""
 
 #: src/wefax_bulletin.c
-#, c-format
-msgid "next %02d:%02d, now"
+msgid "Northwood"
 msgstr ""
 
-#: src/wefax_bulletin.c
-#, c-format
-msgid "next %02d:%02d, in %d min"
+#: src/wefax_bulletin.c src/wefax_window.c
+msgid "now"
 msgstr ""
 
-#: src/wefax_bulletin.c
+#: src/wefax_bulletin.c src/wefax_window.c
 #, c-format
-msgid "next %02d:%02d"
+msgid "in %d min"
+msgstr ""
+
+#: src/wefax_bulletin.c src/wefax_window.c
+#, c-format
+msgid "in %d h %02d"
 msgstr ""
 
 #: src/wefax_bulletin.c
@@ -13503,11 +13861,16 @@ msgid "no preview"
 msgstr ""
 
 #: src/wefax_bulletin.c
-msgid "not in the plan"
+msgid "a copy, unreadable"
 msgstr ""
 
 #: src/wefax_bulletin.c
-msgid "a copy, unreadable"
+#, c-format
+msgid "none yet, %s"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "not in the plan"
 msgstr ""
 
 #: src/wefax_bulletin.c
@@ -13516,12 +13879,12 @@ msgstr ""
 
 #: src/wefax_bulletin.c
 #, c-format
-msgid "%s ago, q%d"
+msgid "%s ago"
 msgstr ""
 
 #: src/wefax_bulletin.c
 #, c-format
-msgid "%s ago"
+msgid "next copy %02d:%02d (%s), %s"
 msgstr ""
 
 #: src/wefax_bulletin.c
@@ -13529,33 +13892,74 @@ msgid "the last copy after it"
 msgstr ""
 
 #: src/wefax_bulletin.c
-msgid "MFK: kind"
+#, c-format
+msgid "%s   MFK: next"
 msgstr ""
 
 #: src/wefax_bulletin.c
 #, c-format
-msgid "taken %02d:%02d UTC, %02d/%02d"
+msgid "quality: %s (%d)"
 msgstr ""
 
 #: src/wefax_bulletin.c
 #, c-format
-msgid "mark q%d"
+msgid "%s   MFK: next   press: full screen"
 msgstr ""
 
 #: src/wefax_bulletin.c
-msgid "MFK: kind   press: full screen"
+msgid "older"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "none received yet, coming (UTC):"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "Auto Plan takes them by itself   MFK: next"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "Delete this chart?"
+msgstr ""
+
+#: src/wefax_bulletin.c
+msgid "press Delete again (3 s)"
 msgstr ""
 
 #: src/wefax_bulletin.c
 msgid "The plan has no Bulletin"
 msgstr ""
 
-#: src/wefax_viewer.c
-msgid "whole"
+#: src/wefax_bulletin.c
+msgid "No chart saved yet"
+msgstr ""
+
+#: src/wefax_night.c
+msgid ""
+"Night\n"
+"On"
+msgstr ""
+
+#: src/wefax_night.c
+msgid ""
+"Night\n"
+"Off"
+msgstr ""
+
+#: src/wefax_night.c
+msgid ""
+"Night\n"
+"Auto (on)"
+msgstr ""
+
+#: src/wefax_night.c
+msgid ""
+"Night\n"
+"Auto"
 msgstr ""
 
 #: src/wefax_viewer.c
-msgid "MFK press: zoom   any button: back"
+msgid "MFK press: zoom   F3: Fix   F5: back"
 msgstr ""
 
 #: src/wefax_viewer.c
@@ -13566,14 +13970,51 @@ msgstr ""
 msgid "MFK: up, down   VOL: left, right   press: whole chart"
 msgstr ""
 
+#: src/wefax_viewer.c
+msgid "Saving the chart..."
+msgstr ""
+
+#: src/wefax_viewer.c
+#, c-format
+msgid "#%06x Fix#   Tilt %+d%s   Align %+d      %s"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid " (searching)"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid " (auto)"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid "MFK: tilt   VOL: align   press: auto tilt   the lines: the frame upright"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid "whole"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid "Auto Tilt: no clear tilt, MFK to set it"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid "Chart saved"
+msgstr ""
+
+#: src/wefax_viewer.c
+msgid "Saving failed"
+msgstr ""
+
 #: src/wefax_window.c
 msgid "Bulletin"
 msgstr ""
 
 #: src/wefax_window.c
 msgid ""
-"Fax\n"
-"Browser"
+"All\n"
+"Charts"
 msgstr ""
 
 #: src/wefax_window.c
@@ -13583,35 +14024,49 @@ msgid ""
 msgstr ""
 
 #: src/wefax_window.c
-msgid "(Browser)"
-msgstr ""
-
-#: src/wefax_window.c
-msgid ""
-"Back to\n"
-"List"
-msgstr ""
-
-#: src/wefax_window.c
-msgid ""
-"Fix\n"
-"Align"
-msgstr ""
-
-#: src/wefax_window.c
-msgid ""
-"Fix\n"
-"Tilt"
-msgstr ""
-
-#: src/wefax_window.c
 msgid "(Bulletin)"
 msgstr ""
 
 #: src/wefax_window.c
+msgid "(All Charts)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Open"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Newest"
+msgstr ""
+
+#: src/wefax_window.c
 msgid ""
-"Close\n"
-"Bulletin"
+"Full\n"
+"Screen"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Fix"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "(Fix)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Auto\n"
+"Tilt"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Undo"
+msgstr ""
+
+#: src/wefax_window.c
+msgid ""
+"Save\n"
+"& Back"
 msgstr ""
 
 #: src/wefax_window.c
@@ -13694,14 +14149,14 @@ msgstr ""
 #: src/wefax_window.c
 msgid ""
 "Plan\n"
-"--:--"
+"next --:--"
 msgstr ""
 
 #: src/wefax_window.c
 #, c-format
 msgid ""
 "Plan\n"
-"%02d:%02d"
+"next %02d:%02d"
 msgstr ""
 
 #: src/wefax_window.c
@@ -13733,6 +14188,31 @@ msgid "RX Auto"
 msgstr ""
 
 #: src/wefax_window.c
+msgid "No chart planned"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Plan is off"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "a fax starts by itself with its start tone"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Auto Plan (F2 of page 1) takes the day's charts by itself"
+msgstr ""
+
+#: src/wefax_window.c
+#, c-format
+msgid "then %02d:%02d %s (%s)"
+msgstr ""
+
+#: src/wefax_window.c
+msgid "Waiting for the next chart"
+msgstr ""
+
+#: src/wefax_window.c
 msgid "Taking the fax going on"
 msgstr ""
 
@@ -13749,73 +14229,17 @@ msgid "Fax going on: taken from here"
 msgstr ""
 
 #: src/wefax_window.c
-msgid "Page 2: Freq., View   Page 3: Align, Tilt (MFK)"
+msgid "Page 2: Freq., View   Page 3: Align, Tilt (MFK)   Page 4: Night"
 msgstr ""
 
 #: src/wefax_window.c
-msgid "MFK: choose a fax   press: open it"
-msgstr ""
-
-#: src/wefax_window.c
-msgid "Fix Align, Fix Tilt, then the MFK   Done saves"
-msgstr ""
-
-#: src/wefax_window.c
-#, c-format
-msgid "Align %+d"
-msgstr ""
-
-#: src/wefax_window.c
-#, c-format
-msgid "Tilt %+d"
+msgid "Can't read this chart"
 msgstr ""
 
 #: src/wefax_window.c
 msgid ""
-"Save\n"
-"Fax"
-msgstr ""
-
-#: src/wefax_window.c
-msgid ""
-"Delete\n"
-"Fax"
-msgstr ""
-
-#: src/wefax_window.c
-msgid "No saved faxes"
-msgstr ""
-
-#: src/wefax_window.c
-msgid "Editing saved fax"
-msgstr ""
-
-#: src/wefax_window.c
-msgid "Fax saved"
-msgstr ""
-
-#: src/wefax_window.c
-msgid ""
-"Fix\n"
-"Chart"
-msgstr ""
-
-#: src/wefax_window.c
-msgid ""
-"Open\n"
-"Chart"
-msgstr ""
-
-#: src/wefax_window.c
-msgid ""
-"All\n"
-"Kinds"
-msgstr ""
-
-#: src/wefax_window.c
-msgid ""
-"All\n"
-"Faxes"
+"Delete?\n"
+"Press again"
 msgstr ""
 
 #: src/wefax_window.c
@@ -13866,19 +14290,6 @@ msgstr ""
 msgid ""
 "View\n"
 "Full Size"
-msgstr ""
-
-#: src/wefax_window.c
-msgid "Auto Tilt: no clear tilt, MFK to set it"
-msgstr ""
-
-#: src/wefax_window.c
-#, c-format
-msgid "Auto Tilt %+d, MFK to adjust"
-msgstr ""
-
-#: src/wefax_window.c
-msgid "Auto Tilt..."
 msgstr ""
 
 #: src/wifi.cpp
@@ -14179,6 +14590,517 @@ msgstr ""
 #: src/winlink.c
 #, c-format
 msgid "high SWR %s, the hold ends in %d min"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Outbox"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Sent"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x %s:# %s did not run"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x %s:# no answer"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Reading the mailbox..."
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid ""
+"#%06x Winlink is off.#\n"
+"\n"
+"Pat and the modem do not run. Winlink On (page 2) starts them, and they start with the radio from then on. Your callsign is the radio's (Settings > General) unless the web configurator's Operating > Winlink sets another."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Starting Pat..."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "No messages. Connect calls a gateway for new mail."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Nothing to send. New writes a message."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Nothing sent yet."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Reading Pat's gateway list..."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "No gateway on this band."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "From"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "To"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Cc"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Attachments, in the web mailbox"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid ""
+"\n"
+"\n"
+"[the rest is in the web mailbox]"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Subject"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "the message: plain text, short is best over HF"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "calls or e-mail addresses, commas between"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Pat asks:# %s"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Someone is on the gateway's frequency. Pat waits for it to clear."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "The gateway asks for your Winlink password."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Pat could not confirm that your Winlink account is active."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "A new account: its password comes in a message now."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Messages are waiting at the gateway."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Continue: the account is activated over the air, and a message brings a new password. It is the only key to the account: write it down. Better: create the account first (winlink.org), or set your password (page 2)."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Download now: the message with the password comes in during this connection. Write the password down and set it on the radio (Password, page 2): it cannot be recovered."
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "All: every one now. Small: those under Pat's size limit. Later: none now. Waiting: %s"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Connected# to #%06x %s# on %s kHz"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Calling# #%06x %s# on %s kHz, %s"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Receiving %s: %d of %d bytes"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Sending %s: %d of %d bytes"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Exchanging mail..."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "The radio transmits when Pat calls."
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x A connection is under way#"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Started from the web mailbox, or before the app was closed: Abort ends it."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "No connection"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "WINLINK MAIL"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "New message"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "CONNECT"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "CONNECTION"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Calling"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x %d unread#"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "%d to send"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Ready"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Starting"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Winlink off"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x No Winlink password set:# Password (page 2) sets it"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Last connection: %s"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Enter or Down: next field - in the text Enter is a new line - Esc: back"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "MFK: next field - MFK press: type - Send when done"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Up / Down or MFK: scroll - R: reply - Esc: back"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "+ called lately - Connect twice: the radio transmits"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Pat waits for the answer: a button here, or the web mailbox"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Abort ends the connection; Back leaves it running"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Enter: read - N: new - C: connect - B: next box"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "MFK: choose - MFK press: read"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Box"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid ""
+"Winlink:\n"
+"On"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid ""
+"Winlink:\n"
+"Off"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Connection"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "(MAIL 1:2)"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "(MAIL 2:2)"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Password"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "(READ 1:1)"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid ""
+"Next\n"
+"field"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "(CONNECT 1:1)"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "(LINK 1:1)"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Abort"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "(PAT ASKS)"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Read"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Wait, still busy"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Deleted"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Delete: press again, the message is not sent"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Delete: press again"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "The message is not sent: Cancel or Esc again leaves it"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "The message you were writing"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Winlink is off: Winlink On (page 2) first"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Re: %s"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Winlink: the message is in the outbox"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Winlink: the message was not sent"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Not sent"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "In the outbox: Connect sends it"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Line: "
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "To: "
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Cc: "
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Subj: "
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Winlink:# %s failed"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Wait: reading Winlink's state"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "A connection is under way: Abort it first"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Stopping Pat and the modem..."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Starting Pat and the modem..."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Password set: Pat starts again with it"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Password set; Pat did not restart#"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Password not set:# 1-64 characters"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Password set: kept on the radio, never shown"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "A connection is under way: the password after it"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Password: "
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Gateways"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid ""
+"Continue\n"
+"anyway"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Type it"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid ""
+"Download\n"
+"now"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Later"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Small"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Winlink: Pat asks, see APP > Mail"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Done: 1 message received"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Done: %d messages received"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Failed: %s"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Ended"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Winlink: %s"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "A connection is under way"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Connect to %s on %.1f kHz: press again, the radio transmits#"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Connect:# %s did not run"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Ending the connection..."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Ending the connection now"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Ending the connection (Abort again: at once)"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Wait, still busy: Abort again"
 msgstr ""
 
 #: src/wr12.c
