@@ -297,7 +297,7 @@ static void test_bulletin(void)
 {
     wefax_plan_load();
 
-    const wefax_bulletin_t *analysis = NULL, *ice = NULL, *days = NULL;
+    const wefax_bulletin_t *analysis = NULL, *ice = NULL, *days = NULL, *sigwx = NULL;
 
     for (int k = 0; k < wefax_plan_bulletin_count(); k++) {
         const wefax_bulletin_t *b = wefax_plan_bulletin(k);
@@ -308,14 +308,43 @@ static void test_bulletin(void)
             ice = b;
         if (!strcmp(b->name, "Forecast 3-5 days"))
             days = b;
+        if (!strcmp(b->name, "Significant weather"))
+            sigwx = b;
     }
-    CHECK(analysis && ice && days, "the kinds Analysis, Ice, Forecast 3-5 days");
-    if (!analysis || !ice || !days)
+    CHECK(analysis && ice && days && sigwx, "the kinds Analysis, Ice, Forecast 3-5 days, Significant weather");
+    if (!analysis || !ice || !days || !sigwx)
         return;
     CHECK(wefax_bulletin_has(analysis, "NW-surface-analysis-00Z") &&
               wefax_bulletin_has(analysis, "DWD-surface-analysis-06Z") &&
               !wefax_bulletin_has(analysis, "NW-surface-forecast-24h-00Z"),
           "Analysis takes both stations' analyses only");
+
+    /* DWD's 05:25 and 18:00 charts are the North Atlantic surface analysis (their titles), not significant weather */
+    CHECK(!strcmp(product_of(slot_at(5, 25)), "DWD-surface-analysis-Atlantic-00Z") &&
+              !strcmp(product_of(slot_at(18, 0)), "DWD-surface-analysis-Atlantic-12Z"),
+          "05:25 and 18:00: %s, %s", product_of(slot_at(5, 25)), product_of(slot_at(18, 0)));
+    CHECK(wefax_bulletin_has(analysis, product_of(slot_at(18, 0))) && !wefax_bulletin_has(sigwx, product_of(slot_at(18, 0))),
+          "the Atlantic analysis is an Analysis");
+    CHECK(wefax_bulletin_has(sigwx, product_of(slot_at(9, 36))), "Northwood's upper-air SIGWX is Significant weather");
+
+    /* Northwood's slots named from the charts received: 10:00, 10:12, 18:24-18:48 no longer unknown nor fillers;
+     * only 09:00 is (noise was all that was heard) */
+    CHECK(!strcmp(product_of(slot_at(10, 0)), "NW-surface-analysis-06Z") &&
+              !strcmp(product_of(slot_at(10, 12)), "NW-surface-forecast-24h-06Z") &&
+              !strcmp(product_of(slot_at(18, 36)), "NW-surface-forecast-24h-12Z"),
+          "10:00 %s, 10:12 %s, 18:36 %s", product_of(slot_at(10, 0)), product_of(slot_at(10, 12)),
+          product_of(slot_at(18, 36)));
+    CHECK(!strcmp(product_of(slot_at(1, 48)), "NW-sea-swell-12h-18Z"), "01:48's swell is T+12: %s",
+          product_of(slot_at(1, 48)));
+
+    int unknown = 0, fillers = 0;
+
+    for (int i = 0; i < wefax_plan_count(); i++) {
+        unknown += wefax_plan_product_unique(wefax_plan_slot(i)->product);
+        fillers += wefax_plan_slot(i)->fill;
+    }
+    CHECK(unknown == 1 && wefax_plan_product_unique(product_of(slot_at(9, 0))) && !fillers,
+          "unknown slots %d (09:00 only), fillers %d", unknown, fillers);
     CHECK(wefax_bulletin_has(days, "NW-surface-forecast-120h-12Z") && !wefax_bulletin_has(days, "NW-surface-forecast-24h-12Z"),
           "Forecast 3-5 days takes 120 h, not 24 h");
 

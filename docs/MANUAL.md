@@ -4069,8 +4069,8 @@ from 09:00, 4610 from 16:12; DWD: 7880 by day, 3855 at night), tuned in USB
 header too. The plan and the way it keeps the best copy are F4OLI's
 (OlivLoze's fork), from his own receiving station.
 
-- A chart coming in is not cut by the next slot; a filler slot of the plan
-  gives way to a chart of the plan. A chart whose stop tone was missed gives
+- A chart coming in is not cut by the next slot; a filler slot of a plan (one
+  of your own: the firmware's has none) gives way to a chart of the plan. A chart whose stop tone was missed gives
   way 30 s before its end.
 - A chart of fair quality (mark 60 or more) is saved straightened (Auto Tilt,
   as Fix Tilt finds it), and its tilt is kept for its station
@@ -4094,7 +4094,9 @@ header too. The plan and the way it keeps the best copy are F4OLI's
   its phasing missed, it can sit sideways (Fix Align in the browser); a
   full copy of the chart replaces it when one comes in.
 - The plan is in the firmware (tools/wefax_plan/plan.json, from a 48 h watch
-  in November 2026, made for western Europe); a `/mnt/wefax/plan.json` of the
+  in November 2026, made for western Europe, each chart named from its title
+  as received; DWD's 05:25 and 18:00 charts are the North Atlantic surface
+  analysis, in the Bulletin's Analysis); a `/mnt/wefax/plan.json` of the
   same form replaces it (`"slots"`: `t` the UTC start, `st` the station, `hz`
   the frequency the fax is on, `prod` the chart's name, `dur` its length in s,
   690 by default, `fill` true for a filler). The Fax Browser lists the newest
