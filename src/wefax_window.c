@@ -3,15 +3,26 @@
  *
  *  Xiegu X6100 LVGL GUI - WeFax app: reception in Auto (APT start/stop) or
  *  Cont, live view with Align and Tilt, faxes saved as PNG in /mnt/wefax, a
- *  browser to straighten or delete them, TX of a picture.
+ *  browser to straighten or delete them, TX of a picture. Auto Plan follows the
+ *  day's charts (wefax/plan.h) and keeps the best copy of each (wefax/quality.h),
+ *  the Bulletin shows the newest of each kind (wefax_bulletin.h), one of them over
+ *  the whole screen (wefax_viewer.h); from OlivLoze's fork (F4OLI), for a radio
+ *  away from the internet.
  */
 
 #include "screen_main.h"
 #include "board.h"
 #include "wefax_window.h"
+#include "wefax_bulletin.h"
+#include "wefax_viewer.h"
 #include "freq_list.h"
 #include "wefax/decoder.h"
 #include "wefax/encoder.h"
+#include "wefax/plan.h"
+#include "wefax/quality.h"
+#include "wefax/thumb.h"
+#include "wefax/tilt.h"
+#include "i18n.h"
 #include "tx_player.h"
 #include "msg_box.h"
 #include "audio.h"
@@ -30,6 +41,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
+#include <math.h>
 #include <png.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -66,7 +78,8 @@ static void audio_cb(unsigned int n, float *samples);
 static void page_1_cb(button_data_t *data);
 static void page_2_cb(button_data_t *data);
 static void page_3_cb(button_data_t *data);
-static void page_4_cb(button_data_t *data);
+static void br_back_cb(button_data_t *data);
+static void viewer_back_cb(button_data_t *data);
 static void close_cb(button_data_t *data);
 static void freq_cb(button_data_t *data);
 static void rx_mode_cb(button_data_t *data);
@@ -82,9 +95,18 @@ static void browser_cb(button_data_t *data);
 static void fix_align_cb(button_data_t *data);
 static void fix_tilt_cb(button_data_t *data);
 static void done_cb(button_data_t *data);
+static void plan_cb(button_data_t *data);
+static const char *plan_label(void);
+static void bulletin_cb(button_data_t *data);
+static void bul_open_cb(button_data_t *data);
+static const char *bul_open_label(void);
+static void bul_back_cb(button_data_t *data);
+static const char *bul_back_label(void);
 
 static void browser_close(void);
 static void draw_live(void);
+static void plan_stop(const char *why);
+static void rx_auto(void);
 
 /* ---- state ---- */
 
@@ -112,19 +134,25 @@ static view_t     view = VIEW_SMALL;
 static lv_obj_t  *app_parent;
 static lv_obj_t  *canvas, *viewport, *panel;
 static app_frame_t frame;          /* header and status line, Big and Full */
-static lv_timer_t *view_timer, *browser_save_timer;
+static lv_timer_t *view_timer, *browser_save_timer, *browser_tilt_timer;
 static bool       align_on, tilt_on; /* the encoder turns live Align / Tilt */
 
-/* PNG written by a worker, the LVGL thread only takes a copy */
+/* PNG written by a worker, the LVGL thread only takes a copy. The worker marks it (wefax/quality.h) and names it
+ * wefax-<local date and time>[-<chart>]-q<mark>.png; of a chart of Auto Plan it keeps the best copy only */
 typedef struct {
     uint8_t  *img;
     unsigned  rows;
     int       align, tilt;
-    char      path[128];
+    bool      no_stop;      /* not ended by its stop tone: the footer is probably cut */
+    time_t    when;
+    struct tm tm;           /* when, local, for the name */
+    char      product[48];  /* Auto Plan: the chart, "" for none */
+    char      station[16];  /* and its station */
 } save_job_t;
 
 static pthread_mutex_t save_lock = PTHREAD_MUTEX_INITIALIZER;
 static bool save_busy, save_over, save_ok;
+static char save_msg[64];           /* what the overlay says once it is written */
 
 /* browser of the saved faxes (page 3) */
 static lv_obj_t *table;
@@ -135,6 +163,7 @@ static int       br_align, br_tilt;
 static uint8_t  *pic;
 static unsigned  pic_w, pic_h;
 static char      pic_path[256];
+static unsigned  pic_gen;           /* counts the pictures opened: Auto Tilt's result is for one */
 
 /* TX (web remote): a worker plays the picture through tx_player, no RX meanwhile */
 static pthread_t     tx_thread;
@@ -143,36 +172,79 @@ static volatile bool tx_running, tx_abort;
 static volatile int  tx_progress, tx_result;
 static char          tx_path[192];
 
+/* Auto Plan: the radio follows the day's slots in Auto (wefax/plan.h); the slot of the fax coming in names it */
+static lv_timer_t *plan_timer;
+static bool        plan_on;
+static int32_t     plan_dial;       /* what the plan tuned: another dial is tuning by hand */
+static time_t      plan_done[WEFAX_PLAN_MAX];  /* when each slot was taken or skipped */
+static char        plan_btn[24];    /* the button's label: the next slot's time */
+static char        plan_next[48];   /* the next slot, for the header: "HH:MM station kHz" */
+static int         fax_slot = -1;   /* the slot of the fax coming in */
+static time_t      fax_t0;          /* when it began */
 
-/* ---- buttons: F1 goes round the 4 pages ---- */
+/* Auto Plan turned on during a chart: the decoder takes it from where it is (wefax_decoder_auto_join), and its first
+ * JOIN_ROWS rows tell a chart from noise */
+#define JOIN_ROWS       30
+#define JOIN_COHERENCE  0.35f       /* a chart's traces go on from a row to the next: 0.5-0.9, noise < 0.3 */
+#define JOIN_DARK       0.45f       /* a chart is mostly white, noise about half dark */
 
-static button_data_t btn_page_1  = {.type = BTN_TEXT, .label = "(FAX 1:4)", .press = page_2_cb};
+static bool        join_probe;
+static int         join_slot = -1;
+static time_t      join_t0;         /* the start of the chart joined */
+
+
+/* ---- buttons ----
+ * Page 1 what the app is for off-grid, 2 reception by hand, 3 the live picture's settings and TX power; the Fax
+ * Browser and the Bulletin have their own buttons while they show, F1 back to page 1 */
+
+static button_data_t btn_page_1   = {.type = BTN_TEXT, .label = "(FAX 1:3)", .press = page_2_cb};
+static button_data_t btn_plan     = {.type = BTN_TEXT_FN, .label_fn = plan_label, .press = plan_cb};
+static button_data_t btn_bulletin = {.type = BTN_TEXT, .label = "Bulletin", .press = bulletin_cb};
+static button_data_t btn_browser  = {.type = BTN_TEXT, .label = "Fax\nBrowser", .press = browser_cb};
+static button_data_t btn_close    = {.type = BTN_TEXT, .label = "Close", .press = close_cb};
+
+static button_data_t btn_page_2  = {.type = BTN_TEXT, .label = "(FAX 2:3)", .press = page_3_cb};
 static button_data_t btn_freq    = {.type = BTN_TEXT, .label = "Freq.", .press = freq_cb};
 static button_data_t btn_rx_mode = {.type = BTN_TEXT_FN, .label_fn = rx_mode_label, .press = rx_mode_cb};
+static button_data_t btn_view    = {.type = BTN_TEXT, .label = "View\nBig", .press = view_cb};
 static button_data_t btn_clear   = {.type = BTN_TEXT, .label = "Clear", .press = clear_cb};
-static button_data_t btn_close   = {.type = BTN_TEXT, .label = "Close", .press = close_cb};
 
-static button_data_t btn_page_2 = {.type = BTN_TEXT, .label = "(FAX 2:4)", .press = page_3_cb};
+static button_data_t btn_page_3 = {.type = BTN_TEXT, .label = "(FAX 3:3)", .press = page_1_cb};
 static button_data_t btn_align  = {.type = BTN_TEXT_FN, .label_fn = align_label, .press = align_cb,
                                    .ctrl = CTRL_WEFAX_ALIGN, .encoder_allowed = true};
 static button_data_t btn_tilt   = {.type = BTN_TEXT_FN, .label_fn = tilt_label, .press = tilt_cb,
                                    .ctrl = CTRL_WEFAX_TILT, .encoder_allowed = true};
-static button_data_t btn_view   = {.type = BTN_TEXT, .label = "View\nBig", .press = view_cb};
 static button_data_t btn_save   = {.type = BTN_TEXT, .label = "Save", .press = save_cb};
 
-static button_data_t btn_page_3    = {.type = BTN_TEXT, .label = "(FAX 3:4)", .press = page_4_cb};
-static button_data_t btn_browser   = {.type = BTN_TEXT, .label = "Fax\nBrowser", .press = browser_cb};
-static button_data_t btn_fix_align = {.type = BTN_TEXT, .label = "Fix\nAlign", .press = fix_align_cb, .disabled = true};
-static button_data_t btn_fix_tilt  = {.type = BTN_TEXT, .label = "Fix\nTilt", .press = fix_tilt_cb, .disabled = true};
-static button_data_t btn_done      = {.type = BTN_TEXT, .label = "Done", .press = done_cb, .disabled = true};
+static buttons_page_t page_1 = {.items = {&btn_page_1, &btn_plan, &btn_bulletin, &btn_browser, &btn_close}};
+static buttons_page_t page_2 = {.items = {&btn_page_2, &btn_freq, &btn_rx_mode, &btn_view, &btn_clear}};
+static buttons_page_t page_3 = {.items = {&btn_page_3, &btn_align, &btn_tilt, &btn_save, &btn_dig_pwr}};
 
-/* page 4: TX power */
-static button_data_t btn_page_4 = {.type = BTN_TEXT, .label = "(FAX 4:4)", .press = page_1_cb};
+/* The Fax Browser: its list (F5 deletes), a fax open */
+static button_data_t btn_br_page   = {.type = BTN_TEXT, .label = "(Browser)", .press = page_1_cb};
+static button_data_t btn_br_close  = {.type = BTN_TEXT, .label = "Close\nBrowser", .press = page_1_cb};
+static button_data_t btn_br_back   = {.type = BTN_TEXT, .label = "Back to\nList", .press = br_back_cb};
+static button_data_t btn_fix_align = {.type = BTN_TEXT, .label = "Fix\nAlign", .press = fix_align_cb};
+static button_data_t btn_fix_tilt  = {.type = BTN_TEXT, .label = "Fix\nTilt", .press = fix_tilt_cb};
+static button_data_t btn_done      = {.type = BTN_TEXT, .label = "Done", .press = done_cb};
 
-static buttons_page_t page_1 = {.items = {&btn_page_1, &btn_freq, &btn_rx_mode, &btn_clear, &btn_close}};
-static buttons_page_t page_2 = {.items = {&btn_page_2, &btn_align, &btn_tilt, &btn_view, &btn_save}};
-static buttons_page_t page_3 = {.items = {&btn_page_3, &btn_browser, &btn_fix_align, &btn_fix_tilt, &btn_done}};
-static buttons_page_t page_4 = {.items = {&btn_page_4, &btn_dig_pwr}};
+static buttons_page_t page_br_list = {.items = {&btn_br_page, &btn_br_close, NULL, NULL, &btn_done}};
+static buttons_page_t page_br_pic  = {.items = {&btn_br_page, &btn_br_back, &btn_fix_align, &btn_fix_tilt, &btn_done}};
+
+/* The Bulletin: its tiles, one of them large */
+static button_data_t btn_bul_page  = {.type = BTN_TEXT, .label = "(Bulletin)", .press = page_1_cb};
+static button_data_t btn_bul_open  = {.type = BTN_TEXT_FN, .label_fn = bul_open_label, .press = bul_open_cb};
+static button_data_t btn_bul_back  = {.type = BTN_TEXT_FN, .label_fn = bul_back_label, .press = bul_back_cb};
+static button_data_t btn_bul_close = {.type = BTN_TEXT, .label = "Close\nBulletin", .press = page_1_cb};
+
+static buttons_page_t page_bul = {.items = {&btn_bul_page, &btn_plan, &btn_bul_open, &btn_bul_back, &btn_bul_close}};
+
+/* The full screen viewer: any button goes back (they are under it, unseen) */
+static button_data_t btn_vw[5] = {
+    {.type = BTN_TEXT, .label = "Back", .press = viewer_back_cb}, {.type = BTN_TEXT, .label = "Back", .press = viewer_back_cb},
+    {.type = BTN_TEXT, .label = "Back", .press = viewer_back_cb}, {.type = BTN_TEXT, .label = "Back", .press = viewer_back_cb},
+    {.type = BTN_TEXT, .label = "Back", .press = viewer_back_cb}};
+static buttons_page_t page_viewer = {.items = {&btn_vw[0], &btn_vw[1], &btn_vw[2], &btn_vw[3], &btn_vw[4]}};
 
 /* Frequency and mode come back when the app closes */
 static dialog_t dialog = {
@@ -318,6 +390,8 @@ static int wrap_x(int x, int width)
 
 /* Tilt is in 1/1000 px per row of the 750 px view; on a picture of the given width
  * it scales with the rows. The newest row does not move. */
+_Static_assert(VIEW_W == WEFAX_TILT_UNIT_W, "the tilt's unit is a row of the view");
+
 static int tilt_px(int64_t from_newest, int tilt, unsigned width)
 {
     return (int)(from_newest * tilt * VIEW_W / (1000LL * width));
@@ -372,6 +446,7 @@ static void clear_fax(void)
     store_n = store_head = 0;
     fax_rows = 0;
     fax_gen++;
+    fax_slot = -1;
 }
 
 /* ---- drawing ---- */
@@ -497,6 +572,32 @@ static void draw_picture(void)
 /* ---- PNG ---- */
 
 /* Grey PNG of img (w x h) with Align and Tilt applied as on screen */
+/* A chart's preview for the Bulletin (wefax/thumb.h), by a thread of its own: reading the PNG back takes the radio a
+ * second or two */
+static void *preview_worker(void *arg)
+{
+    wefax_preview_make(SAVE_DIR, arg);
+    free(arg);
+    return NULL;
+}
+
+static void preview_later(const char *name)
+{
+    char     *copy = strdup(name);
+    pthread_t th;
+
+    if (copy && pthread_create(&th, NULL, preview_worker, copy) == 0)
+        pthread_detach(th);
+    else
+        free(copy);
+}
+
+/* A worse copy of a chart removed: its preview goes with it */
+static void copy_dropped(const char *dir, const char *name)
+{
+    wefax_preview_remove(dir, name);
+}
+
 static bool png_write_fixed(FILE *fp, const uint8_t *img, unsigned w, unsigned h, int align, int tilt)
 {
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
@@ -576,26 +677,56 @@ void wefax_window_status(wefax_status_t *s)
 static void *save_worker(void *arg)
 {
     save_job_t *job = arg;
-    bool        ok  = false;
+    bool        ok  = false, dropped = false;
     FILE       *fp;
+    char        name[128], path[sizeof(name) + 32], tmp[sizeof(path) + 8], msg[sizeof(save_msg)];
+    int         q    = (int)lroundf(wefax_quality(job->img, WEFAX_WIDTH, job->rows, job->no_stop, NULL));
+    bool        same = job->product[0] && !wefax_plan_product_unique(job->product);
+    int         best = same ? wefax_plan_copies(SAVE_DIR, job->product, job->when, NULL, false, NULL) : -1;
 
-    if (mkdir(SAVE_DIR, 0775) != 0 && errno != EEXIST) {
+    /* Auto Plan's chart straightened, its station's tilt learned: a fair copy only, noise has no lines to go by */
+    int t;
+
+    if (job->product[0] && q >= 60 && best < q && wefax_auto_tilt(job->img, WEFAX_WIDTH, job->rows, &t)) {
+        if (t != job->tilt)
+            printf("WEFAX TILT: %s straightened, tilt %+d (was %+d)\n", job->product, t, job->tilt);
+        job->tilt = t;
+        wefax_station_tilt_learn(job->station, t);
+    }
+
+    wefax_plan_file_name(name, sizeof(name), &job->tm, job->product, q);
+    snprintf(path, sizeof(path), SAVE_DIR "/%s", name);
+    snprintf(tmp, sizeof(tmp), "%s.part", path);
+    snprintf(msg, sizeof(msg), _("Fax saved, quality %d"), q);
+
+    if (best >= q) {
+        /* a copy of this chart as good or better is there already */
+        ok = dropped = true;
+        snprintf(msg, sizeof(msg), _("Fax dropped: quality %d, a copy has %d"), q, best);
+        printf("WEFAX PLAN: %s quality %d dropped, a copy has %d\n", job->product, q, best);
+    } else if (mkdir(SAVE_DIR, 0775) != 0 && errno != EEXIST) {
         printf("WEFAX: can't make %s: %s\n", SAVE_DIR, strerror(errno));
-    } else if (!(fp = fopen(job->path, "wb"))) {
-        printf("WEFAX: can't write %s: %s\n", job->path, strerror(errno));
+    } else if (!(fp = fopen(tmp, "wb"))) {
+        printf("WEFAX: can't write %s: %s\n", tmp, strerror(errno));
     } else {
+        /* written aside, then renamed: what reads the folder (the browser, the web page) never gets half a fax */
         ok = png_write_fixed(fp, job->img, WEFAX_WIDTH, job->rows, job->align, job->tilt);
         if (fclose(fp) != 0)
             ok = false;
+        if (ok && rename(tmp, path) != 0)
+            ok = false;
         if (!ok) {
-            remove(job->path);
-            printf("WEFAX: writing %s failed\n", job->path);
+            remove(tmp);
+            printf("WEFAX: writing %s failed\n", path);
         }
     }
 
-    if (ok) {
-        printf("WEFAX: saved %s (%u x %u)\n", job->path, WEFAX_WIDTH, job->rows);
-        rstat_saved(job->path);
+    if (ok && !dropped) {
+        printf("WEFAX: saved %s (%u x %u, quality %d)\n", path, WEFAX_WIDTH, job->rows, q);
+        rstat_saved(path);
+        if (best >= 0)
+            wefax_plan_copies(SAVE_DIR, job->product, job->when, name, true, copy_dropped);   /* the worse go */
+        wefax_preview_make(SAVE_DIR, name);         /* for the Bulletin */
     }
 
     free(job->img);
@@ -605,12 +736,14 @@ static void *save_worker(void *arg)
     save_busy = false;
     save_ok   = ok;
     save_over = true;
+    snprintf(save_msg, sizeof(save_msg), "%s", msg);
     pthread_mutex_unlock(&save_lock);
     return NULL;
 }
 
-/* Copy the kept fax (oldest row first) and hand it to a worker; the kept rows can go right after */
-static bool save_fax(void)
+/* Copy the kept fax (oldest row first) and hand it to a worker; the kept rows can go right after. no_stop: it was not
+ * ended by its stop tone */
+static bool save_fax(bool no_stop)
 {
     if (!store || !store_n) {
         printf("WEFAX: nothing to save\n");
@@ -628,22 +761,25 @@ static bool save_fax(void)
 
     save_job_t *job = calloc(1, sizeof(*job));
     time_t      now = time(NULL);
-    struct tm   tm;
 
-    if (!job || !(job->img = malloc((size_t)store_n * WEFAX_WIDTH)) || !localtime_r(&now, &tm)) {
+    if (!job || !(job->img = malloc((size_t)store_n * WEFAX_WIDTH)) || !localtime_r(&now, &job->tm)) {
         printf("WEFAX: can't save, no memory or clock\n");
         if (job)
             free(job->img);
         free(job);
         return false;
     }
-    job->rows  = store_n;
-    job->align = (int)param_i_get(cfg_wefax_align);
-    job->tilt  = (int)param_i_get(cfg_wefax_tilt);
+    job->rows    = store_n;
+    job->no_stop = no_stop;
+    job->when    = now;
+    job->align   = (int)param_i_get(cfg_wefax_align);
+    job->tilt    = (int)param_i_get(cfg_wefax_tilt);
+    if (plan_on && fax_on && wefax_plan_slot(fax_slot)) {
+        snprintf(job->product, sizeof(job->product), "%s", wefax_plan_slot(fax_slot)->product);
+        snprintf(job->station, sizeof(job->station), "%s", wefax_plan_slot(fax_slot)->station);
+    }
     for (unsigned r = 0; r < store_n; r++)
         memcpy(job->img + (size_t)r * WEFAX_WIDTH, store_row(r), WEFAX_WIDTH);
-    snprintf(job->path, sizeof(job->path), SAVE_DIR "/wefax-%04d%02d%02d-%02d%02d%02d.png", tm.tm_year + 1900,
-             tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 
     pthread_t th;
 
@@ -671,13 +807,16 @@ static bool save_fax(void)
 
 static void save_result(void)
 {
+    char msg[sizeof(save_msg)];
+
     pthread_mutex_lock(&save_lock);
     bool over = save_over, ok = save_ok;
     save_over = false;
+    snprintf(msg, sizeof(msg), "%s", save_msg);
     pthread_mutex_unlock(&save_lock);
 
     if (over)
-        channel_overlay_show(ok ? "Fax saved" : "Fax save failed");
+        channel_overlay_show(ok ? msg : "Fax save failed");
 }
 
 /* ---- Auto ---- */
@@ -686,7 +825,7 @@ static void save_result(void)
  * The decoder already follows the new fax, it is not reset. */
 static bool auto_keep_previous(void)
 {
-    if (store_n && !save_fax()) {
+    if (store_n && !save_fax(true)) {
         printf("WEFAX AUTO: the previous fax could not be saved, kept\n");
         return false;
     }
@@ -695,17 +834,18 @@ static bool auto_keep_previous(void)
     return true;
 }
 
-/* Stop tone or kept rows full: save, then Auto waits for the next start */
-static void auto_fax_over(void)
+/* Stop tone (stopped), kept rows full, or Auto Plan moving on: save, then Auto waits for the next start */
+static void auto_fax_over(bool stopped)
 {
     if (!decoder)
         return;
-    if (store_n && !save_fax()) {
+    if (store_n && !save_fax(!stopped)) {
         printf("WEFAX AUTO: the fax could not be saved, kept\n");
         return;
     }
-    gen_seen = 0;
-    fax_on   = false;
+    gen_seen   = 0;
+    fax_on     = false;
+    join_probe = false;
     wefax_decoder_set_mode(decoder, WEFAX_MODE_AUTO);      /* one reset only: it keeps the pause after the stop */
     clear_fax();
 }
@@ -714,8 +854,9 @@ static void auto_fax_over(void)
 static void rx_restart(void)
 {
     wefax_decoder_reset(decoder);
-    gen_seen = 0;
-    fax_on   = false;
+    gen_seen   = 0;
+    fax_on     = false;
+    join_probe = false;
 }
 
 /* ---- audio thread ---- */
@@ -838,6 +979,172 @@ static void tx_poll(void)
         rx_restart();       /* RX goes on from a clean decoder */
 }
 
+/* ---- Auto Plan ---- */
+
+static const char *plan_label(void)
+{
+    return plan_btn[0] ? plan_btn : "Auto\nPlan";
+}
+
+/* The button and the header name the next slot */
+static void plan_show(int next)
+{
+    const wefax_slot_t *s = wefax_plan_slot(next);
+    char                l[sizeof(plan_btn)];
+
+    if (!plan_on)
+        snprintf(l, sizeof(l), "%s", "Auto\nPlan");
+    else if (!s)
+        snprintf(l, sizeof(l), "%s", "Plan\n--:--");
+    else
+        snprintf(l, sizeof(l), "Plan\n%02d:%02d", s->min / 60, s->min % 60);
+    if (s && plan_on)
+        snprintf(plan_next, sizeof(plan_next), "%02d:%02d %s %.1f", s->min / 60, s->min % 60, s->station,
+                 s->freq_hz / 1000.0);
+    else
+        plan_next[0] = '\0';
+    if (strcmp(l, plan_btn)) {
+        snprintf(plan_btn, sizeof(plan_btn), "%s", l);
+        if (btn_plan.disp_btn)
+            buttons_refresh(&btn_plan);
+    }
+}
+
+/* The slot's station in USB and RX Auto: the plan's tuning; another dial from now on is tuning by hand */
+static void plan_tune(const wefax_slot_t *s)
+{
+    freq_list_item_t it   = {.freq_hz = s->freq_hz, .name = s->station};
+    int32_t          dial = s->freq_hz - WEFAX_CENTER_HZ;
+
+    if (cparam_i_get(cfg_fg_freq) != dial || cparam_i_get(cfg_cur_mode) != radio_mode_usb)
+        freq_list_tune(&it, WEFAX_CENTER_HZ);
+    plan_dial = dial;
+    if (!auto_mode()) {
+        if (store_n)
+            save_fax(true);
+        rx_auto();
+        buttons_refresh(&btn_rx_mode);
+    }
+    printf("WEFAX PLAN: %02d:%02d %s %.1f kHz %s\n", s->min / 60, s->min % 60, s->station, s->freq_hz / 1000.0,
+           s->product);
+
+    /* the station's own tilt, learned from its charts: they come in straight */
+    int tilt;
+
+    if (wefax_station_tilt(s->station, &tilt) && tilt != (int)param_i_get(cfg_wefax_tilt)) {
+        param_i_set(cfg_wefax_tilt, tilt);
+        if (btn_tilt.disp_btn)
+            buttons_refresh(&btn_tilt);
+        printf("WEFAX TILT: %s, tilt %+d\n", s->station, tilt);
+    }
+}
+
+/* A slot's time: a fax of the plan coming in keeps the radio, any other gives way (saved as it is) */
+static void plan_take(int i, time_t now)
+{
+    const wefax_slot_t *s = wefax_plan_slot(i);
+
+    if (fax_on) {
+        if (wefax_plan_keeps_radio(wefax_plan_slot(fax_slot), (int)(now - fax_t0), s)) {
+            printf("WEFAX PLAN: %02d:%02d %s skipped, a fax is coming in\n", s->min / 60, s->min % 60, s->product);
+            return;
+        }
+        auto_fax_over(false);
+    }
+    plan_tune(s);
+}
+
+/* Each second: tuned by hand stops the plan; the next slot is taken WEFAX_PLAN_EARLY_S before its start */
+static void plan_timer_cb(lv_timer_t *t)
+{
+    (void)t;
+    if (!plan_on || !decoder || tx_running)
+        return;
+    if (plan_dial && cparam_i_get(cfg_fg_freq) != plan_dial) {
+        plan_stop("Auto Plan off: tuned by hand");
+        return;
+    }
+
+    time_t now  = time(NULL);
+    int    sod  = wefax_plan_sod(now), wait;
+    int    next = wefax_plan_next(sod, now, plan_done, &wait);
+
+    if (next >= 0 && wait <= 0) {
+        plan_done[next] = now;
+        plan_take(next, now);
+        next = wefax_plan_next(sod, now, plan_done, &wait);     /* the button names the one after */
+    }
+    plan_show(next);
+}
+
+static void plan_start(void)
+{
+    if (!decoder || plan_on)
+        return;
+    if (!wefax_plan_load()) {
+        channel_overlay_show("Auto Plan: no plan");
+        return;
+    }
+    memset(plan_done, 0, sizeof(plan_done));
+    plan_on   = true;
+    plan_dial = 0;
+    param_i_set(cfg_wefax_plan, 1);         /* on again when the app opens */
+    buttons_mark(&btn_plan, true);
+    channel_overlay_show(wefax_plan_from_file() ? "Auto Plan on (plan.json)" : "Auto Plan on");
+    printf("WEFAX PLAN: on, %d slots\n", wefax_plan_count());
+    plan_timer_cb(NULL);
+
+    /* Between two slots: the station of the last one that started, Auto waits for the next start. During its chart,
+     * the chart from where it is: off-grid the app is opened when it is needed, not before a slot */
+    time_t now = time(NULL);
+    int    since, last = wefax_plan_last_started(wefax_plan_sod(now), &since);
+
+    if (plan_dial || last < 0 || fax_on)
+        return;
+
+    const wefax_slot_t *s = wefax_plan_slot(last);
+
+    plan_tune(s);
+    if (wefax_plan_worth_joining(s, since)) {
+        join_slot  = last;
+        join_t0    = now - since;
+        join_probe = true;
+        wefax_decoder_auto_join(decoder);
+        printf("WEFAX PLAN: %02d:%02d %s started %d s ago, taken from here\n", s->min / 60, s->min % 60, s->product,
+               since);
+    }
+}
+
+static void plan_stop(const char *why)
+{
+    if (!plan_on)
+        return;
+    plan_on    = false;
+    plan_dial  = 0;
+    join_probe = false;
+    buttons_mark(&btn_plan, false);
+    plan_show(-1);
+    if (why)
+        channel_overlay_show(why);
+    printf("WEFAX PLAN: off%s%s\n", why ? ", " : "", why ? why : "");
+}
+
+/* Off by its button: off when the app opens too. Tuning by hand stops it only until then */
+static void plan_off(void)
+{
+    plan_stop("Auto Plan off");
+    param_i_set(cfg_wefax_plan, 0);
+}
+
+static void plan_cb(button_data_t *data)
+{
+    (void)data;
+    if (plan_on)
+        plan_off();
+    else
+        plan_start();
+}
+
 /* ---- LVGL timer ---- */
 
 /* Station and frequency on the left, receiver state on the right */
@@ -848,10 +1155,14 @@ static void header_update(void)
     const freq_list_item_t *at = entry_at(freqs, freqs_n, f);
 
     snprintf(l, sizeof(l), "%s   %.1f kHz", at ? at->name : "WeFax", f / 1000.0);
+    const char             *rx = decoder && wefax_decoder_get_mode(decoder) == WEFAX_MODE_CONT ? "RX Cont" : "RX Auto";
+
     if (tx_running)
         snprintf(r, sizeof(r), "#%06x TX %i%%#", theme_hex(TC_tx), tx_progress / 10);
+    else if (plan_on && plan_next[0])
+        snprintf(r, sizeof(r), "%s   %s %.5s", _(rx), _("Plan"), plan_next);     /* the next slot's time */
     else
-        snprintf(r, sizeof(r), "%s", decoder && wefax_decoder_get_mode(decoder) == WEFAX_MODE_CONT ? "RX Cont" : "RX Auto");
+        snprintf(r, sizeof(r), "%s", rx);
 
     if (strcmp(l, lv_label_get_text(frame.head_left)))
         lv_label_set_text(frame.head_left, l);
@@ -890,12 +1201,19 @@ static void view_timer_cb(lv_timer_t *t)
         if (wefax_decoder_auto_fax_confirmed(decoder) && !fax_on) {
             fax_on = true;
             clear_fax();
-            channel_overlay_show("Fax Started");
+            fax_t0   = time(NULL);
+            fax_slot = plan_on ? wefax_plan_slot_of_fax(cparam_i_get(cfg_fg_freq) + WEFAX_CENTER_HZ,
+                                                        wefax_plan_sod(fax_t0)) : -1;
+            if (join_probe) {
+                fax_t0   = join_t0;
+                fax_slot = join_slot;
+            }
+            channel_overlay_show(join_probe ? "Taking the fax going on" : "Fax Started");
         }
 
         /* the stop tone: file I/O here, never in the audio thread */
         if (wefax_decoder_auto_stop_detected(decoder)) {
-            auto_fax_over();
+            auto_fax_over(true);
             return;
         }
     }
@@ -915,10 +1233,32 @@ static void view_timer_cb(lv_timer_t *t)
     store_add(row);
     remote_server_wefax_row(row, WEFAX_WIDTH, ++fax_rows);
 
+    /* a chart joined: its first rows say whether there is one */
+    if (join_probe && fax_on && store_n >= JOIN_ROWS) {
+        uint8_t *img  = malloc((size_t)JOIN_ROWS * WEFAX_WIDTH);
+        float    dark = 1.0f, c = 0.0f;
+
+        join_probe = false;
+        if (img) {
+            for (unsigned r = 0; r < JOIN_ROWS; r++)
+                memcpy(img + (size_t)r * WEFAX_WIDTH, store_row(store_n - JOIN_ROWS + r), WEFAX_WIDTH);
+            c = wefax_quality_rows(img, WEFAX_WIDTH, JOIN_ROWS, &dark);
+            free(img);
+        }
+        printf("WEFAX PLAN: joined rows: coherence %.2f, dark %.2f\n", c, dark);
+        if (c < JOIN_COHERENCE || dark > JOIN_DARK) {
+            channel_overlay_show("No fax going on, waiting for the next");
+            rx_restart();
+            clear_fax();
+            return;
+        }
+        channel_overlay_show("Fax going on: taken from here");
+    }
+
     /* a fax longer than the kept rows: save it rather than lose its top */
     if (auto_mode() && fax_on && store_n >= STORE_ROWS) {
         printf("WEFAX AUTO: %u rows kept, saving\n", store_n);
-        auto_fax_over();
+        auto_fax_over(false);
         return;
     }
 
@@ -991,6 +1331,17 @@ static void apply_view(void)
     }
 }
 
+/* The status line: what the buttons and the MFK do where the app is */
+#define HINT_RX     "Page 2: Freq., View   Page 3: Align, Tilt (MFK)"
+#define HINT_LIST   "MFK: choose a fax   press: open it"
+#define HINT_PIC    "Fix Align, Fix Tilt, then the MFK   Done saves"
+
+static void hint(const char *text)
+{
+    if (frame.status)
+        lv_label_set_text(frame.status, text);
+}
+
 static void focus_canvas(void)
 {
     lv_group_add_obj(keyboard_group, canvas);
@@ -1057,7 +1408,7 @@ static void app_open(lv_obj_t *parent)
     lv_obj_clear_flag(panel, LV_OBJ_FLAG_CLICKABLE);
 
     app_frame_create(&frame, dialog.obj);
-    lv_label_set_text(frame.status, "MFK: align   Freq.: stations   View: Small shows the waterfall");
+    hint(HINT_RX);
 
     /* the canvas takes the keys: the main screen's key handler is off while a dialog is open */
     lv_group_add_obj(keyboard_group, canvas);
@@ -1068,6 +1419,16 @@ static void app_open(lv_obj_t *parent)
     clear_fax();
     apply_view();
     view_timer = lv_timer_create(view_timer_cb, VIEW_MS, NULL);
+
+    plan_on    = false;
+    plan_dial  = 0;
+    join_probe = false;
+    plan_btn[0] = '\0';
+    wefax_plan_load();
+    plan_show(-1);
+    plan_timer = lv_timer_create(plan_timer_cb, 1000, NULL);
+    if (param_i_get(cfg_wefax_plan))
+        plan_start();                   /* off-grid: open the app and the charts come */
 }
 
 static void app_close(void)
@@ -1084,12 +1445,28 @@ static void app_close(void)
         lv_timer_del(view_timer);
         view_timer = NULL;
     }
+    if (plan_timer) {
+        lv_timer_del(plan_timer);
+        plan_timer = NULL;
+    }
+    plan_on       = false;
+    plan_dial     = 0;
+    join_probe    = false;
+    btn_plan.mark = false;
+    plan_btn[0]   = '\0';
+    plan_next[0]  = '\0';
     if (browser_save_timer) {
         lv_timer_del(browser_save_timer);
         browser_save_timer = NULL;
     }
+    if (browser_tilt_timer) {
+        lv_timer_del(browser_tilt_timer);
+        browser_tilt_timer = NULL;
+    }
 
     align_on = tilt_on = false;
+    wefax_bulletin_close();
+    wefax_viewer_close();       /* after the Bulletin: its close gives the keys to nothing then */
     browser_close();
     canvas          = NULL;
     viewport        = NULL;
@@ -1170,6 +1547,11 @@ static void app_key_cb(lv_event_t *e)
     }
     draw_picture();
 
+    char msg[32];
+
+    snprintf(msg, sizeof(msg), br_align_on ? _("Align %+d") : _("Tilt %+d"), br_align_on ? br_align : br_tilt);
+    channel_overlay_show(msg);
+
     /* the browser picture differs from its file only with a correction: Done becomes Save */
     br_modified    = br_align || br_tilt;
     btn_done.label = br_modified ? "Save\nFax" : "Done";
@@ -1193,7 +1575,7 @@ static void files_free(void)
     files_n = 0;
 }
 
-/* wefax-*.png in SAVE_DIR, newest first */
+/* wefax-*.png in SAVE_DIR, the newest BROWSER_FILES: all of them read, then sorted, Auto Plan saves dozens a day */
 static void files_read(void)
 {
     files_free();
@@ -1204,36 +1586,50 @@ static void files_read(void)
         return;
 
     struct dirent *de;
+    char         **all = NULL;
+    unsigned       n = 0, size = 0;
 
-    while ((de = readdir(dir)) && files_n < BROWSER_FILES) {
+    while ((de = readdir(dir))) {
         size_t len = strlen(de->d_name);
 
-        if (len >= 5 && !strcmp(de->d_name + len - 4, ".png") && !strncmp(de->d_name, "wefax-", 6) &&
-            (files[files_n] = strdup(de->d_name)))
-            files_n++;
+        if (len < 5 || strcmp(de->d_name + len - 4, ".png") || strncmp(de->d_name, "wefax-", 6))
+            continue;
+        if (n == size) {
+            char **more = realloc(all, (size ? size * 2 : 256) * sizeof(*all));
+
+            if (!more)
+                break;
+            all  = more;
+            size = size ? size * 2 : 256;
+        }
+        if ((all[n] = strdup(de->d_name)))
+            n++;
     }
     closedir(dir);
-    qsort(files, files_n, sizeof(files[0]), newest_first);
+    if (all)
+        qsort(all, n, sizeof(all[0]), newest_first);
+    for (unsigned i = 0; i < n; i++)
+        if (files_n < BROWSER_FILES)
+            files[files_n++] = all[i];
+        else
+            free(all[i]);
+    free(all);
 }
 
-/* Page 3 buttons: on a picture Fix Align, Fix Tilt and Done/Save; on the list F5 deletes */
+/* The browser's F5: on a picture Done, or Save with a correction; on the list Delete */
 static void browser_buttons(bool picture)
 {
     if (picture) {
         br_modified    = br_align || br_tilt;
         btn_done.label = br_modified ? "Save\nFax" : "Done";
+        buttons_disabled(&btn_done, false);
         if (btn_done.disp_btn)
             buttons_refresh(&btn_done);
-        buttons_disabled(&btn_fix_align, false);
-        buttons_disabled(&btn_fix_tilt, false);
-        buttons_disabled(&btn_done, false);
         return;
     }
 
     br_modified    = false;
     btn_done.label = "Delete\nFax";
-    buttons_disabled(&btn_fix_align, true);
-    buttons_disabled(&btn_fix_tilt, true);
     buttons_disabled(&btn_done, files_n == 0);
     if (btn_done.disp_btn)
         buttons_refresh(&btn_done);
@@ -1291,90 +1687,16 @@ static void picture_free(void)
 /* Any PNG in SAVE_DIR, as 8-bit grey */
 static bool picture_open(const char *name)
 {
-    char path[256];
+    char     path[256];
+    unsigned w, h;
+    uint8_t *img;
 
     snprintf(path, sizeof(path), "%s/%s", SAVE_DIR, name);
-
-    FILE *fp = fopen(path, "rb");
-
-    if (!fp) {
-        printf("WEFAX: can't open %s: %s\n", path, strerror(errno));
+    if (!(img = wefax_png_read_grey(path, &w, &h)))
         return false;
-    }
-
-    png_structp png  = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    png_infop   info = png ? png_create_info_struct(png) : NULL;
-    uint8_t *volatile img = NULL, *volatile line = NULL;      /* freed after a longjmp */
-
-    if (!png || !info) {
-        png_destroy_read_struct(&png, info ? &info : NULL, NULL);
-        fclose(fp);
-        return false;
-    }
-    if (setjmp(png_jmpbuf(png))) {
-        png_destroy_read_struct(&png, &info, NULL);
-        fclose(fp);
-        free(img);
-        free(line);
-        printf("WEFAX: %s is not a readable PNG\n", path);
-        return false;
-    }
-
-    png_init_io(png, fp);
-    png_read_info(png, info);
-
-    png_uint_32 w = png_get_image_width(png, info), h = png_get_image_height(png, info);
-    int         depth = png_get_bit_depth(png, info), type = png_get_color_type(png, info);
-
-    if (!w || !h || w > 10000 || h > 10000) {
-        png_destroy_read_struct(&png, &info, NULL);
-        fclose(fp);
-        printf("WEFAX: %s: bad size\n", path);
-        return false;
-    }
-
-    /* everything to 8-bit RGB(A), then grey */
-    if (depth == 16)
-        png_set_strip_16(png);
-    if (type == PNG_COLOR_TYPE_PALETTE)
-        png_set_palette_to_rgb(png);
-    if (type == PNG_COLOR_TYPE_GRAY && depth < 8)
-        png_set_expand_gray_1_2_4_to_8(png);
-    if (png_get_valid(png, info, PNG_INFO_tRNS))
-        png_set_tRNS_to_alpha(png);
-    type = png_get_color_type(png, info);
-    if (type == PNG_COLOR_TYPE_GRAY || type == PNG_COLOR_TYPE_GRAY_ALPHA)
-        png_set_gray_to_rgb(png);
-    png_read_update_info(png, info);
-
-    size_t rowbytes = png_get_rowbytes(png, info);
-    int    ch       = png_get_channels(png, info);
-
-    img  = malloc((size_t)w * h);
-    line = malloc(rowbytes);
-    if (ch < 3 || !rowbytes || !img || !line) {
-        png_destroy_read_struct(&png, &info, NULL);
-        fclose(fp);
-        free(img);
-        free(line);
-        printf("WEFAX: %s: unsupported or no memory\n", path);
-        return false;
-    }
-
-    for (png_uint_32 y = 0; y < h; y++) {
-        png_read_row(png, line, NULL);
-        for (png_uint_32 x = 0; x < w; x++) {
-            const uint8_t *p = line + (size_t)x * ch;
-
-            img[(size_t)y * w + x] = (uint8_t)((77U * p[0] + 150U * p[1] + 29U * p[2]) >> 8);
-        }
-    }
-    png_read_end(png, NULL);
-    png_destroy_read_struct(&png, &info, NULL);
-    fclose(fp);
-    free(line);
 
     picture_free();
+    pic_gen++;
     pic   = img;
     pic_w = w;
     pic_h = h;
@@ -1392,7 +1714,9 @@ static bool picture_open(const char *name)
         lv_obj_invalidate(canvas);
     }
     br_editing = true;
+    buttons_load_page(&page_br_pic);
     browser_buttons(true);
+    hint(HINT_PIC);
     printf("WEFAX: opened %s (%u x %u)\n", path, pic_w, pic_h);
     return true;
 }
@@ -1450,10 +1774,9 @@ static void browser_open(void)
     table_focus();
 
     br_open = true;
+    buttons_load_page(&page_br_list);
     browser_buttons(false);
-    btn_browser.label = "Close\nBrowser";
-    if (btn_browser.disp_btn)
-        buttons_refresh(&btn_browser);
+    hint(HINT_LIST);
 }
 
 static void browser_close(void)
@@ -1466,13 +1789,9 @@ static void browser_close(void)
     files_free();
     browser_buttons(false);
     picture_free();
+    if (br_open)
+        hint(HINT_RX);
     br_open = false;
-
-    btn_done.label = "Done";
-    buttons_disabled(&btn_done, true);
-    if (btn_done.disp_btn)
-        buttons_refresh(&btn_done);
-    btn_browser.label = "Fax\nBrowser";
 
     /* the live fax back over the picture, with the current layout */
     draw_live();
@@ -1488,7 +1807,9 @@ static void browser_close(void)
 /* From a picture back to the list */
 static void browser_list(void)
 {
+    buttons_load_page(&page_br_list);
     browser_buttons(false);
+    hint(HINT_LIST);
     if (canvas) {
         lv_group_remove_obj(canvas);
         lv_obj_add_flag(canvas, LV_OBJ_FLAG_HIDDEN);
@@ -1522,6 +1843,7 @@ static void browser_delete(void)
         return;
     }
     printf("WEFAX: deleted %s\n", path);
+    wefax_preview_remove(SAVE_DIR, files[i]);
 
     /* same table: the selection stays on the row, now the next fax (LVGL 8 can't set it) */
     files_read();
@@ -1559,6 +1881,7 @@ static bool picture_save(void)
         return false;
     }
     printf("WEFAX: saved %s (%u x %u), align %d tilt %d\n", pic_path, pic_w, pic_h, br_align, br_tilt);
+    preview_later(strrchr(pic_path, '/') + 1);      /* the Bulletin shows it straight too */
     return true;
 }
 
@@ -1575,9 +1898,20 @@ static void picture_save_timer_cb(lv_timer_t *t)
 
 /* ---- buttons ---- */
 
+/* The Bulletin away, the keys back to the picture */
+static void bulletin_hide(void)
+{
+    if (!wefax_bulletin_is_open())
+        return;
+    wefax_bulletin_close();
+    if (canvas)
+        focus_canvas();
+}
+
 static void page_1_cb(button_data_t *data)
 {
     (void)data;
+    bulletin_hide();
     browser_close();
     align_on = tilt_on = false;
     buttons_load_page(&page_1);
@@ -1586,22 +1920,143 @@ static void page_1_cb(button_data_t *data)
 static void page_2_cb(button_data_t *data)
 {
     (void)data;
+    bulletin_hide();
     browser_close();
+    align_on = tilt_on = false;
     buttons_load_page(&page_2);
 }
 
 static void page_3_cb(button_data_t *data)
 {
     (void)data;
+    bulletin_hide();
+    browser_close();
     align_on = tilt_on = false;
     buttons_load_page(&page_3);
 }
 
-static void page_4_cb(button_data_t *data)
+/* A fax open: back to the list, its corrections not saved */
+static void br_back_cb(button_data_t *data)
+{
+    (void)data;
+    if (br_open && br_editing)
+        browser_list();
+}
+
+/* The chart Auto Plan is taking, for its tile */
+static void bulletin_live(wefax_bulletin_live_t *out)
+{
+    const wefax_slot_t *s = fax_on && store_n ? wefax_plan_slot(fax_slot) : NULL;
+
+    if (!s)
+        return;
+
+    long p = s->dur ? (long)(time(NULL) - fax_t0) * 1000 / s->dur : 0;
+
+    out->product  = s->product;
+    out->permille = p < 0 ? 0 : p > 999 ? 999 : (int)p;
+    out->rows     = store_n;
+    out->row      = store_row;
+}
+
+/* Fix Chart: the fax browser on the chart, its Fix Align and Fix Tilt */
+static void bulletin_fix(const char *name)
+{
+    char file[96];
+
+    snprintf(file, sizeof(file), "%s", name);      /* name goes with the Bulletin */
+    bulletin_hide();
+    browser_close();
+    browser_open();
+    for (unsigned i = 0; i < files_n; i++)
+        if (!strcmp(files[i], file)) {
+            if (picture_open(files[i]))
+                channel_overlay_show("Editing saved fax");
+            break;
+        }
+}
+
+/* The viewer gone: the Bulletin's buttons and keys back */
+static void viewer_closed(void)
+{
+    if (!wefax_bulletin_is_open())
+        return;
+    buttons_load_page(&page_bul);
+    wefax_bulletin_focus();
+}
+
+static void viewer_back_cb(button_data_t *data)
+{
+    (void)data;
+    wefax_viewer_close();
+}
+
+static void bulletin_view(const char *name, const char *title)
+{
+    if (wefax_viewer_open(SAVE_DIR, name, title, viewer_closed))
+        buttons_load_page(&page_viewer);
+}
+
+static void bulletin_changed(void)
+{
+    buttons_refresh(&btn_bul_open);
+    buttons_refresh(&btn_bul_back);
+}
+
+/* Bulletin: each kind of chart as a tile (wefax_bulletin.h), over the app in the Big view */
+static void bulletin_cb(button_data_t *data)
 {
     (void)data;
     browser_close();
-    buttons_load_page(&page_4);
+    align_on = tilt_on = false;
+    if (view == VIEW_SMALL) {
+        view           = VIEW_BIG;
+        btn_view.label = "View\nBig";
+        apply_view();
+    }
+    if (canvas)
+        lv_group_remove_obj(canvas);
+    wefax_preview_sweep(SAVE_DIR);      /* the previews of charts deleted elsewhere (the web Gallery) */
+
+    wefax_bulletin_cbs_t cbs = {.live       = bulletin_live,
+                                .open_file  = bulletin_fix,
+                                .other_keys = app_key_cb,
+                                .changed    = bulletin_changed,
+                                .view_file  = bulletin_view};
+
+    wefax_bulletin_open(dialog.obj, &cbs);
+    buttons_load_page(&page_bul);
+}
+
+static const char *bul_open_label(void)
+{
+    return wefax_bulletin_one() ? "Fix\nChart" : "Open\nChart";
+}
+
+static void bul_open_cb(button_data_t *data)
+{
+    (void)data;
+    if (wefax_bulletin_one())
+        wefax_bulletin_fix();
+    else
+        wefax_bulletin_enter();
+}
+
+static const char *bul_back_label(void)
+{
+    return wefax_bulletin_one() ? "All\nKinds" : "All\nFaxes";
+}
+
+/* Large: back to the tiles; the tiles: the list of every fax */
+static void bul_back_cb(button_data_t *data)
+{
+    (void)data;
+    if (wefax_bulletin_one()) {
+        wefax_bulletin_back();
+        return;
+    }
+    bulletin_hide();
+    browser_open();
 }
 
 static void close_cb(button_data_t *data)
@@ -1717,7 +2172,7 @@ static void view_cb(button_data_t *data)
 static void save_cb(button_data_t *data)
 {
     (void)data;
-    if (decoder && save_fax()) {
+    if (decoder && save_fax(true)) {
         wefax_decoder_reset(decoder);
         gen_seen = 0;
         fax_on   = false;
@@ -1728,13 +2183,9 @@ static void save_cb(button_data_t *data)
 static void browser_cb(button_data_t *data)
 {
     (void)data;
-    if (!br_open) {
+    bulletin_hide();
+    if (!br_open)
         browser_open();
-        return;
-    }
-    browser_close();
-    if (btn_browser.disp_btn)
-        buttons_refresh(&btn_browser);
 }
 
 static void fix_align_cb(button_data_t *data)
@@ -1751,6 +2202,101 @@ static void fix_align_cb(button_data_t *data)
     }
 }
 
+/* Auto Tilt off the LVGL thread: the search takes the radio seconds, while a fax may be coming in row by row. The
+ * worker has its own copy of the picture; the timer takes its result if the same picture is still open */
+typedef struct {
+    uint8_t *img;
+    unsigned w, h;
+    unsigned gen;
+} tilt_job_t;
+
+static pthread_mutex_t tilt_lock = PTHREAD_MUTEX_INITIALIZER;
+static bool            tilt_busy, tilt_done, tilt_ok;
+static int             tilt_found;
+static unsigned        tilt_gen;
+
+static void *tilt_worker(void *arg)
+{
+    tilt_job_t *job = arg;
+    int         t   = 0;
+    bool        ok  = wefax_auto_tilt(job->img, job->w, job->h, &t);
+
+    pthread_mutex_lock(&tilt_lock);
+    tilt_found = t;
+    tilt_ok    = ok;
+    tilt_gen   = job->gen;
+    tilt_done  = true;
+    tilt_busy  = false;
+    pthread_mutex_unlock(&tilt_lock);
+    free(job->img);
+    free(job);
+    return NULL;
+}
+
+static void auto_tilt_timer_cb(lv_timer_t *t)
+{
+    char     msg[48];
+    bool     done, ok;
+    int      found;
+    unsigned gen;
+
+    pthread_mutex_lock(&tilt_lock);
+    done      = tilt_done;
+    ok        = tilt_ok;
+    found     = tilt_found;
+    gen       = tilt_gen;
+    tilt_done = false;
+    pthread_mutex_unlock(&tilt_lock);
+    if (!done)
+        return;
+    lv_timer_del(t);
+    browser_tilt_timer = NULL;
+    if (!br_open || !br_editing || !pic || br_tilt || gen != pic_gen)
+        return;     /* another picture, or touched up meanwhile */
+    if (!ok) {
+        channel_overlay_show("Auto Tilt: no clear tilt, MFK to set it");
+        return;
+    }
+    br_tilt = found;
+    draw_picture();
+    browser_buttons(true);
+    snprintf(msg, sizeof(msg), _("Auto Tilt %+d, MFK to adjust"), br_tilt);
+    channel_overlay_show(msg);
+}
+
+static void auto_tilt_start(void)
+{
+    tilt_job_t *job = malloc(sizeof(*job));
+    pthread_t   th;
+
+    pthread_mutex_lock(&tilt_lock);
+    bool busy = tilt_busy;
+    pthread_mutex_unlock(&tilt_lock);
+    if (busy || !job || !(job->img = malloc((size_t)pic_w * pic_h))) {
+        free(job);
+        return;
+    }
+    memcpy(job->img, pic, (size_t)pic_w * pic_h);
+    job->w   = pic_w;
+    job->h   = pic_h;
+    job->gen = pic_gen;
+    pthread_mutex_lock(&tilt_lock);
+    tilt_busy = true;
+    tilt_done = false;
+    pthread_mutex_unlock(&tilt_lock);
+    if (pthread_create(&th, NULL, tilt_worker, job) != 0) {
+        pthread_mutex_lock(&tilt_lock);
+        tilt_busy = false;
+        pthread_mutex_unlock(&tilt_lock);
+        free(job->img);
+        free(job);
+        return;
+    }
+    pthread_detach(th);
+    channel_overlay_show("Auto Tilt...");
+    browser_tilt_timer = lv_timer_create(auto_tilt_timer_cb, 100, NULL);
+}
+
 static void fix_tilt_cb(button_data_t *data)
 {
     (void)data;
@@ -1759,13 +2305,18 @@ static void fix_tilt_cb(button_data_t *data)
     br_tilt_on  = true;
     br_align_on = false;
     align_on = tilt_on = false;
+
+    /* from the tilt that straightens it, the MFK only touches it up; the overlay first, the search takes the radio
+     * a few seconds */
+    if (!br_tilt && !browser_tilt_timer)
+        auto_tilt_start();
     if (canvas) {
         lv_group_focus_obj(canvas);
         lv_group_set_editing(keyboard_group, true);
     }
 }
 
-/* F5 of page 3: Delete on the list; on a picture Done, or Save with a correction */
+/* F5 of the browser: Delete on the list; on a picture Done, or Save with a correction */
 static void done_cb(button_data_t *data)
 {
     (void)data;
@@ -1804,9 +2355,19 @@ bool wefax_window_remote(wefax_rc_t what)
             if (auto_mode())
                 rx_cont();
             break;
-        case WEFAX_RC_SAVE:  save_cb(NULL); break;
-        case WEFAX_RC_CLEAR: clear_cb(NULL); break;
+        case WEFAX_RC_SAVE:   save_cb(NULL); break;
+        case WEFAX_RC_CLEAR:  clear_cb(NULL); break;
+        case WEFAX_RC_PLAN:   plan_start(); break;
+        case WEFAX_RC_UNPLAN: plan_off(); break;
     }
     buttons_refresh(&btn_rx_mode);
     return true;
+}
+
+bool wefax_window_plan(char *next, size_t size)
+{
+    bool on = dialog_type_is_run(dialog_wefax) && plan_on;
+
+    snprintf(next, size, "%s", on ? plan_next : "");
+    return on;
 }

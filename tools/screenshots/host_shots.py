@@ -8,8 +8,8 @@ sandbox, driven by a script of x6drive.py's commands; every "shot NAME" lands as
 <build dir> is a host build (host/build.sh, cmake -DHOST_BUILD=ON). <script> is a file, or the
 commands inline with ";" between them ("key APP; sleep 1; shot apps"). Each run starts from the
 default settings (the build's params.db, or sql/params.sql) with the theme and the --set values in
-params, and the files of --data DIR copied into the GUI's data folder (a ghostnet.conf, a
-cluster.conf); the GUI gets 10 s after its FIFOs appear before the script starts. The defaults have
+params, and the files and folders of --data DIR copied into the GUI's data folder (a ghostnet.conf,
+a cluster.conf, a wefax folder of charts); the GUI gets 10 s after its FIFOs appear before the script starts. The defaults have
 no callsign, so the first-start guide (src/first_start.c) would come up over every shot: it is
 marked done, unless --first-start leaves it to come up.
 
@@ -85,6 +85,8 @@ def main():
         for n in os.listdir(a.data):
             if os.path.isfile(os.path.join(a.data, n)):
                 shutil.copy(os.path.join(a.data, n), os.path.join(data, n))
+            elif os.path.isdir(os.path.join(a.data, n)):     # a folder of the app's files: wefax/ with charts
+                shutil.copytree(os.path.join(a.data, n), os.path.join(data, n))
     db = os.path.join(data, "params.db")
     if os.path.exists(os.path.join(build, "params.db")):
         shutil.copy(os.path.join(build, "params.db"), db)

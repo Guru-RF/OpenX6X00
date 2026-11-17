@@ -122,6 +122,8 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_wefax_align{"wefax_align", 0, -1300, 1300, StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_wefax_tilt{"wefax_tilt", 0, -400, 400, StorageType::GLOBAL, pending_writes_, &global_params_};
+    /* WeFax Auto Plan on when the app opens: turned on, it stays on until its button turns it off (F4OLI) */
+    Parameter<int32_t> p_wefax_plan{"wefax_plan", 0, 0, 1, StorageType::GLOBAL, pending_writes_, &global_params_};
 
     Parameter<int32_t> p_rit{"rit", 0, -BOARD_RIT_MAX, BOARD_RIT_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};

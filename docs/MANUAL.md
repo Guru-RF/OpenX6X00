@@ -18,7 +18,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8) ([GhostNet](#ghostnet)), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
-- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb), [Flights](#flights), [Internet radio](#internet-radio), [Zello](#zello), [SVXConnect](#svxconnect), [Weather](#weather)
+- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [GPS / Clock](#gps--clock), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb), [Flights](#flights), [Internet radio](#internet-radio), [Zello](#zello), [SVXConnect](#svxconnect), [Weather](#weather)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
@@ -263,7 +263,7 @@ The APP button opens six pages of apps and tools:
 |---|---|
 | APP 1:6 | Modes, Cluster, SWR Scan, RX Recorder |
 | APP 2:6 | Settings, CW Trainer, Field Ops, Channels |
-| APP 3:6 | Bands, GPS, Screen rec, CW Keyboard |
+| APP 3:6 | Bands, GPS / Clock, Screen rec, CW Keyboard |
 | APP 4:6 | Propagation, Scanner, Internet radio, Zello |
 | APP 5:6 | SVXConnect, Flights, HF Air Band, CB |
 | APP 6:6 | Weather |
@@ -395,7 +395,7 @@ press time counted as held: a tap of F1 did its long action (#233).
 |---|---|
 | Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, CW decoder on/off, CW ZAP (in CW and CW-R, the dial onto the signal the CW Tuner hears, as the CW 1:2 ZAP button; up to v0.3.9 neither was a key action, #196), SWL panel (as the X6100 hand mic's GENE: the broadcast stations on the air within 2 kHz, again the next one), SWL: save channel (as its NW: the station shown saved as a channel; up to v0.3.11 neither was a key action, so an X6200 could not open the panel, #155), ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex, RADE |
-| Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Propagation, Channels, Scanner, Internet radio, RX recorder, SWR Scan, GPS, QTH grid, Settings |
+| Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Propagation, Channels, Scanner, Internet radio, RX recorder, SWR Scan, GPS / Clock, QTH grid, Settings |
 
 The hand mic F1 and F2 keys (and the H-22's F3 on the X6200), short and long
 press, are set in the same tab, from the quick actions (all but the
@@ -3339,7 +3339,7 @@ Buttons:
 | 2 | Hold Freq, Auto, Force QSO save, Power |
 | 3 | CQ Modifier, Time Sync, Log Map, Live Map |
 | 4 | Freq: Preset / 14.091, Hound: Off / On, Retries, For you |
-| 5 | Ext tune (see [TUNE for an external tuner](#tune-for-an-external-tuner)), Auto Sync |
+| 5 | Ext tune (see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 
 - Show: CQ shows the CQs and the messages to you; All shows all traffic.
 - TX CQ calls CQ. A band key, Freq or Mode ends the CQ: TX CQ goes to
@@ -3379,8 +3379,9 @@ Buttons:
   FT8, 7.5 s FT4, 3.75 s FT2) and is kept in the clock chip. A clock that
   NTP (WiFi) or the GPS keeps is left alone ("Clock in sync", "The GPS keeps
   the clock"): moved to a press it could only get worse.
-- Auto Sync (page 5): Time Sync by itself, from the decodes, for a radio
-  with no WiFi or GPS. Disabled by default; a press switches it. In FT8 and
+- Auto Sync, switched on the [GPS / Clock](#gps--clock) page: Time Sync by
+  itself, from the decodes, for a radio with no WiFi or GPS. Off by
+  default. In FT8 and
   FT4 (not FT2) it reads the time offset (DT) of each station it decodes,
   one vote a station however often it is heard (a Fox counts once). Once 5
   stations or more were heard in 3 slots or more within the last 4 minutes,
@@ -3390,13 +3391,16 @@ Buttons:
   Sync: clock moved -0.42 s by the decodes of 7 stations". Then it starts
   over with the decodes that follow. It aims at the DT a right clock shows
   on this radio, a little over 0 (the signals reach the decoder a moment
-  late), not at 0. The clock must be within about 2 s first: Time Sync, at
+  late), not at 0: 0.15 s until the radio has learned its own, which it does
+  by itself while NTP keeps the clock (at home, on WiFi). The clock must be
+  within about 2 s first: Time Sync, at
   a slot start, does that. Further off it moves nothing and says so once
   ("too far: press Time Sync as a slot starts"); stations that disagree
   (two groups of clocks) move nothing either. A clock that NTP or the GPS
-  keeps is left alone. Switched on, the first answer shows too ("the clock
-  is on time by the decodes of 6 stations"). The system log has a line a
-  minute with what it reads ("ft8: Auto Time Sync: median DT ...").
+  keeps is left alone, and so is one a time station set in the last hour.
+  Off, the decodes are still read: the GPS / Clock page's "FT8 says" row
+  shows what they say of the clock. The system log has a line a minute with
+  what it reads ("ft8: Auto Time Sync: median DT ...").
 - CQ Modifier: for example `CQ POTA` or `CQ DX`.
 
 The list. Each row has the slot time, the message, and on the right the
@@ -4031,10 +4035,90 @@ WeFax buttons. WeFax opens in RX Auto: it waits for the start tone of a fax.
 
 | Page | Buttons |
 |---|---|
-| 1 | Freq., RX Auto / Cont, Clear, Close |
-| 2 | Align, Tilt, View, Save |
-| 3 | Fax Browser, Fix Align, Fix Tilt, Done |
-| 4 | Power |
+| 1 | Auto Plan, Bulletin, Fax Browser, Close |
+| 2 | Freq., RX Auto / Cont, View, Clear |
+| 3 | Align, Tilt, Save, Power |
+
+The Fax Browser and the Bulletin have their own buttons while they show; F1
+(Browser, Bulletin) goes back to page 1, so does Close Browser or Close
+Bulletin. The status line under the picture says what the MFK does there.
+Up to v0.3.12 the pages were Freq./RX/Clear/Close, Align/Tilt/View/Save,
+the browser and Power.
+
+| Where | Buttons |
+|---|---|
+| Fax Browser, the list | Close Browser, Delete Fax |
+| Fax Browser, a fax open | Back to List, Fix Align, Fix Tilt, Done / Save Fax |
+| Bulletin, the tiles | Auto Plan, Open Chart, All Faxes, Close Bulletin |
+| Bulletin, one chart large | Auto Plan, Fix Chart, All Kinds, Close Bulletin |
+
+Fix Tilt on a saved fax first finds the tilt that straightens it (a station's
+line rate and the radio's never quite agree, each row comes a little earlier
+or later and the chart leans): "Auto Tilt -185" a few seconds after the press,
+then the MFK touches it up by one, "Tilt -183", and Save Fax writes it over
+its file. A fax with nothing upright to go by says "no clear tilt" and the MFK
+sets it from 0. Fix Align moves the fax 8 px a step, its value shown the same
+way.
+
+Auto Plan (page 1) leaves WeFax on its own for the day: the radio follows a
+plan of the DWD and Northwood charts (UTC), each on the frequency that comes
+in best at its hour (Northwood: 2618.5 kHz at night, 4610 from 06:00, 8040
+from 09:00, 4610 from 16:12; DWD: 7880 by day, 3855 at night), tuned in USB
+10 s before the chart starts. The button shows the next slot's time, the
+header too. The plan and the way it keeps the best copy are F4OLI's
+(OlivLoze's fork), from his own receiving station.
+
+- A chart coming in is not cut by the next slot; a filler slot of the plan
+  gives way to a chart of the plan. A chart whose stop tone was missed gives
+  way 30 s before its end.
+- A chart of fair quality (mark 60 or more) is saved straightened (Auto Tilt,
+  as Fix Tilt finds it), and its tilt is kept for its station
+  (`/mnt/wefax/tilt.conf`, the median of its last five): when the plan tunes
+  the station again, Tilt is set to it and its charts come in straight. On
+  F4OLI's radio DWD's is about -185, Northwood's about -10.
+- Each fax gets a quality mark (0-100: stripes, noise, lost sync, fading,
+  times 0.8 when its stop tone was not heard), in its name with the chart:
+  `wefax-20261116-062315-NW-surface-analysis-00Z-q91.png`. A fax saved by
+  hand or out of the plan has the mark only.
+- A chart is sent several times a day: of one chart (the same name within
+  16 h) only the best copy is kept; a worse one is not written ("Fax
+  dropped: quality 41, a copy has 77"). Charts whose name holds `unknown`
+  are all kept.
+- Auto Plan stays on: the app opens with it on until its button turns it off
+  (off-grid: put up an antenna, open WeFax, the charts come). Tuning by hand
+  (Freq., the knob, the web page) stops it until the app opens again.
+- Opened during a chart of the plan (with more than 2 minutes of it to come),
+  the app takes the chart from where it is: its first 30 rows tell a chart
+  from noise, on noise it waits for the next start. Its top is missing and,
+  its phasing missed, it can sit sideways (Fix Align in the browser); a
+  full copy of the chart replaces it when one comes in.
+- The plan is in the firmware (tools/wefax_plan/plan.json, from a 48 h watch
+  in November 2026, made for western Europe); a `/mnt/wefax/plan.json` of the
+  same form replaces it (`"slots"`: `t` the UTC start, `st` the station, `hz`
+  the frequency the fax is on, `prod` the chart's name, `dur` its length in s,
+  690 by default, `fill` true for a filler). The Fax Browser lists the newest
+  128 faxes.
+- The browser remote has it too: `wefax plan` and `wefax unplan`.
+
+Bulletin (page 1) shows each kind of chart (analysis, forecasts at 24 h,
+36-48 h and 3-5 days, sea and swell, wind, significant weather, rain and
+visibility, ice) as a tile, eight a page: its newest copy, how old it is (the
+dot green under 6 h, orange under 24 h, red older) and its mark; a kind with
+no copy yet says when the plan has the next one, and the chart coming in
+draws in its tile ("receiving 40 %"). The MFK picks a tile, its press (or
+Open Chart) shows it large: the whole chart, its station and frequency, when
+it was taken, its mark and the next one; the MFK goes through the kinds
+there, All Kinds goes back to the tiles. A press there shows the chart over
+the whole screen: the next press goes x2, then 1:1 (the pressure figures
+readable), then whole again; the MFK moves up and down, VOL left and right, a
+small map in the corner shows where; any button goes back. Fix Chart opens it
+in the Fax Browser for Fix Align and Fix Tilt; All Faxes is the Browser's
+list of every fax. The tiles come from a small preview of each chart in
+`/mnt/wefax/thumbs`, made when it is saved; a chart saved before gets one
+the first time it is shown ("preparing" for a few seconds), and the preview
+of a chart deleted on the web Gallery goes when the Bulletin opens. The kinds
+and the charts in each are the plan's `"bulletin"` (a `/mnt/wefax/plan.json`
+can have its own). Bulletin and viewer are F4OLI's too.
 
 The VOL knob works as on the main screen: turned it changes what it is on
 (volume, squelch, RF gain, the filter edges...), a press of VOL switches
@@ -5588,6 +5672,68 @@ notch on a birdie that falls inside the passband in USB, LSB and the digital
 modes, and takes it off again when you tune away (a notch you set yourself is
 left alone). The receiver's own centre spike, which moves with the VFO, is not a
 birdie and is not kept.
+
+### GPS / Clock
+
+APP (page 3) > GPS / Clock: the GPS (satellites in view and in use, the fix,
+its date and time, the position, the grid and gpsd's state) and the clock:
+what keeps it, what the FT8 decodes say of it, and a time station's minute
+marker. The clock part is F4OLI's (OlivLoze's fork), merged with FT8's Auto
+Sync.
+
+- Clock: the time in UTC and what keeps it ("kept by NTP (12 ms)", "kept by
+  GPS"), else the last move here ("RWM 9996 +0.031 s 3 min ago", "8
+  stations -0.42 s 1 h ago"), else "clock chip".
+- FT8 says: what the FT8 and FT4 decodes say of the clock while that app is
+  open, Auto Sync on or off ("0.42 s ahead, 7 stations, 2 min ago", "on time",
+  "the stations disagree", "too far, Time Sync in FT8").
+- Time station: what the station listened to gives ("listening", "marker 20
+  s ago, 24 dB", "RWM 9996: behind 0.031 s, 24 dB", "no markers until :40").
+
+| Button | |
+|---|---|
+| Station | RWM 4996, 9996 (the first), 14996 kHz; WWV 2500, 5000, 10000, 15000, 20000 kHz; WWVH 5000, 10000, 15000 kHz; CHU 3330, 7850, 14670 kHz |
+| Listen | tunes the station in USB and listens to its minute marker; Stop listening. Closing the page gives the frequency and mode back |
+| Auto Sync | On: in FT8 and FT4 the clock follows the decodes (see [FT8 and FT4](#ft8-and-ft4)). Off by default |
+
+Which source moves the clock, one rule for all:
+
+1. The GPS (a fix in the last 10 s) and NTP (ntpd synchronised to a source,
+   asked directly: the kernel's own flag stays "unsynchronised" for up to 17
+   minutes after any step) keep the clock. Nothing on this page moves it
+   then; the others only measure, and learn what a right clock reads by them.
+2. A time station, while it is listened to: it moves the clock to the
+   millisecond and holds FT8 off for an hour after (the FT8 stations' own
+   clocks and the receive path move FT8's word by a tenth of a second).
+3. FT8 and FT4, with Auto Sync on.
+4. By hand: FT8's Time Sync, pressed as a slot starts, or the phone's clock
+   (the [Browser panel](#browser-panel)'s GPS button).
+
+Every move goes into the clock chip too.
+
+#### From a time station
+
+A time station sends a marker on each minute; heard, the radio knows when
+the minute starts to a few milliseconds. The clock must already be within 30
+s (the clock chip keeps it so): which minute it is, is the clock's own.
+
+- RWM (Moscow, 4996, 9996 and 14996 kHz): keys its carrier 500 ms on the
+  minute in the minutes :10 to :29 and :40 to :59; in the others there is
+  none, and the row says until when. Its 100 ms second pulses are told apart.
+  Heard across Europe.
+- WWV (Colorado, 2.5 to 20 MHz): a 1000 Hz tone 800 ms on each minute (1500
+  Hz at the hour, not taken). WWVH (Hawaii, on WWV's frequencies) sends 1200
+  Hz: each is listened to on its own tone, the other one not heard.
+- CHU (Ottawa, 3330, 7850 and 14670 kHz): a 1000 Hz tone 500 ms on the
+  minute, told apart from its 300 ms second pulses.
+
+Two markers 1 to 5 minutes apart that agree within 30 ms move the clock
+("Clock moved +0.031 s by RWM 9996"); within 20 ms it is right and left
+alone. While NTP or the GPS keeps the clock, a station heard teaches the
+delay from the station to the measure instead (the receive path, the
+distance), kept in `/mnt/clock_sync.conf` with FT8's learned DT; listen to
+one once at home to calibrate. DCF77, MSF and TDF (#275) send below the
+radio's HF range; EBC and IAM are not done yet.
 
 ### Channels
 
@@ -7483,8 +7629,8 @@ text, call, grid, audio Hz, SNR, to me, worked, distance, country), the app's
 state as `ft8 {...}` (open, proto, cq, tx, auto, hold, sending, txf, next),
 the CW decoder's text as `cw "..."`; `ft8 open|close|cq|stop|auto|hold|mode`,
 `ft8 txcall`, `ft8 txfreq HZ` and `ft8 reply ID` work the app; `wefax
-open|close|auto|cont|save|clear` works the WeFax app as its buttons do (RX
-Auto, RX Cont, Save, Clear; operate and control, `err wefax WHAT` for one it
+open|close|auto|cont|save|clear|plan|unplan` works the WeFax app as its buttons
+do (RX Auto, RX Cont, Save, Clear, Auto Plan on and off; operate and control, `err wefax WHAT` for one it
 does not know), and the panel state's `app` names the digital app open
 (`"FT8"`, `"WeFax"`, `""` for none); its state comes as `wefax {...}` (open,
 auto, fax: a chart coming in, tx and txp, gen: a new picture, rows kept,
@@ -9035,8 +9181,10 @@ FAT32 on a PC settles it.
 Check the clock: FT8 and JS8 need it within about 2 s, WSPR within about a
 second. WiFi (NTP) or GPS sets it, and in the field the phone's clock (the
 [Browser panel](#browser-panel)'s GPS button). FT8 and JS8 also have Time Sync (FT8's
-for a clock that neither keeps), and FT8 Auto Sync, which keeps the clock
-right from the decodes once Time Sync has it within about 2 s.
+for a clock that neither keeps), and Auto Sync (on the
+[GPS / Clock](#gps--clock) page), which keeps the clock right from the FT8
+decodes once Time Sync has it within about 2 s. A time station (RWM, WWV,
+WWVH, CHU) on the same page sets it to the millisecond.
 
 #### The clock is back at the same time after every power-off
 
@@ -9045,7 +9193,8 @@ come stopped (their STOP or TEST1 bit set) and never count. The radio starts
 such a chip at boot and says so in the system log ("Clock chip ... was
 stopped ... started"). The chip takes the right time at the next NTP sync
 (when WiFi or Ethernet comes up), from FT8's Time Sync, or from the date and
-time set in Settings > General > DATE / TIME, and keeps it from then on.
+time set in Settings > General > DATE / TIME, or a time station on the
+[GPS / Clock](#gps--clock) page, and keeps it from then on.
 
 #### The GPS icon turns grey after a while
 

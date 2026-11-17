@@ -223,6 +223,26 @@ bool wefax_decoder_auto_fax_confirmed(const wefax_decoder_t *d)
     return d && d->confirmed;
 }
 
+static void line_restart(wefax_decoder_t *d, double pos);
+
+/* A fax going on, its start tone and black band long gone: rows at once, as a confirmed fax, the stop tone still
+ * ends it. No phasing: the phasing lines went by before it, the rows begin anywhere in the line (Align fixes that) */
+void wefax_decoder_auto_join(wefax_decoder_t *d)
+{
+    if (!d || d->mode != WEFAX_MODE_AUTO || d->confirmed)
+        return;
+    d->started    = true;
+    d->confirmed  = true;
+    d->stopped    = false;
+    d->start_hits = 0;
+    d->black_rows = 0;
+    d->next_seen  = false;
+    d->ph_on      = false;
+    d->generation++;
+    line_restart(d, 0.0);
+    printf("WEFAX AUTO: joined a fax going on\n");
+}
+
 /* ---- tone measurements on a window of grey samples ---- */
 
 /* Rising edges per second, levels from the window's own 5th/95th percentile; 0 without enough swing */

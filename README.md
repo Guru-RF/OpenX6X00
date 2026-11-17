@@ -572,8 +572,10 @@ lists, and the first-start guide's language and country, the Weather,
 Internet radio, Zello, Flights, HF Air Band and CB apps, GhostNet in JS8 and
 the spectrum's fill by level; OlivLoze NOTA, XOTA, the map of a reference's surroundings, the phone's
 position and clock from the Panel, the WeFax commands of the browser remote,
-and the browser's Apps pages: FT8, JS8 with its chat and WeFax, their
-waterfalls, maps, flags and countries; Chris Lawson (cjlawson02) the spectrum's dB without powf and log10f
+WeFax's Auto Plan, Bulletin, full-screen viewer and Auto Tilt, the clock from a
+time station's minute marker and ntpd's own word, JS8's board of stations,
+its lane over the waterfall and its conversations, and the browser's Apps pages:
+FT8, JS8 with its chat and WeFax, their waterfalls, maps, flags and countries; Chris Lawson (cjlawson02) the spectrum's dB without powf and log10f
 and the paddle keyer's start after the settings.
 
 Patches, captures, logs and tests from the issues: BrunoKlu the capture and the

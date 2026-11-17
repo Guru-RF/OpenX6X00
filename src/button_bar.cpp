@@ -397,7 +397,7 @@ static button_data_t btn_flights = app_btn("Flights", ACTION_APP_FLIGHTS);
 static button_data_t btn_aero = app_btn("HF Air\nBand", ACTION_APP_AERO);
 static button_data_t btn_cb = app_btn("CB", ACTION_APP_CB);
 static button_data_t btn_meteo = app_btn("Weather", ACTION_APP_METEO);
-static button_data_t btn_gps = {.type = BTN_TEXT, .label = "GPS", .press = app_press,
+static button_data_t btn_gps = {.type = BTN_TEXT, .label = "GPS /\nClock", .press = app_press,
                                 .hold = [](button_data_t *) { main_screen_start_app(ACTION_APP_SNAKE); },  /* the hidden game */
                                 .ctrl = ACTION_APP_GPS};
 
