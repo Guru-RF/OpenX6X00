@@ -778,6 +778,10 @@ msgstr ""
 msgid "Reflector talkgroups"
 msgstr ""
 
+#: src/apps_menu.c
+msgid "Talkgroups, listen only"
+msgstr ""
+
 #: src/apps_menu.c src/button_bar.cpp src/screen_main.c
 msgid "Flights"
 msgstr "Voli"
@@ -3436,6 +3440,80 @@ msgstr "HAI MANIPOLATO"
 msgid "SCORE"
 msgstr "PUNTEGGIO"
 
+#: src/dialog_dmr.c
+msgid "the helper could not start"
+msgstr ""
+
+#: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
+#: src/wifi_window.c
+msgid "Disconnect"
+msgstr "Disconnetti"
+
+#: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
+#: src/wifi_window.c src/winlink_mail.c
+msgid "Connect"
+msgstr "Connetti"
+
+#: src/dialog_dmr.c
+msgid "the master's talkgroups"
+msgstr ""
+
+#: src/dialog_dmr.c
+msgid "Heard"
+msgstr ""
+
+#: src/dialog_dmr.c src/dialog_svx.c
+msgid "nobody yet"
+msgstr ""
+
+#: src/dialog_dmr.c src/dialog_svx.c
+msgid "Not connected"
+msgstr ""
+
+#: src/dialog_dmr.c
+msgid "Set up DMR on the radio's web page: the network, your DMR ID, the hotspot password"
+msgstr ""
+
+#: src/dialog_dmr.c src/js8_window.c
+msgid "Set your callsign first: Settings > General"
+msgstr "Imposta prima il nominativo: Impostazioni > Generale"
+
+#: src/dialog_dmr.c
+msgid "Not connected: choose a talkgroup with the MFK, or Connect"
+msgstr ""
+
+#: src/dialog_dmr.c
+msgid "hotspot"
+msgstr ""
+
+#: src/dialog_dmr.c
+msgid "Logging in to the network"
+msgstr ""
+
+#: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c
+msgid "Talking now:"
+msgstr ""
+
+#: src/dialog_dmr.c
+msgid "a private call to you"
+msgstr ""
+
+#: src/dialog_dmr.c
+msgid "Listening only: the radio never transmits for DMR"
+msgstr ""
+
+#: src/dialog_dmr.c
+msgid "set it up on the radio's web page first (DMR)"
+msgstr ""
+
+#: src/dialog_dmr.c
+msgid "set your callsign first (Settings > General)"
+msgstr ""
+
+#: src/dialog_dmr.c
+msgid "talkgroups on the internet, listening only, never on the air"
+msgstr ""
+
 #: src/dialog_field.c
 msgid "x6100-wavelog sync 2>/dev/null"
 msgstr ""
@@ -5716,16 +5794,6 @@ msgstr ""
 "SERPENTE NELLA CASCATA\n"
 "#%06x Gira la manopola per sterzare - MFK per iniziare#"
 
-#: src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
-#: src/wifi_window.c
-msgid "Disconnect"
-msgstr "Disconnetti"
-
-#: src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
-#: src/wifi_window.c src/winlink_mail.c
-msgid "Connect"
-msgstr "Connetti"
-
 #: src/dialog_svx.c src/dialog_zello.c
 msgid ""
 "Stop\n"
@@ -5924,10 +5992,6 @@ msgid "Recent"
 msgstr ""
 
 #: src/dialog_svx.c
-msgid "nobody yet"
-msgstr ""
-
-#: src/dialog_svx.c
 #, c-format
 msgid "#%06x SVXCONNECT#  #%06x %s#"
 msgstr ""
@@ -6002,10 +6066,6 @@ msgid "nodes"
 msgstr ""
 
 #: src/dialog_svx.c
-msgid "Not connected"
-msgstr ""
-
-#: src/dialog_svx.c
 msgid "Connecting to the reflector"
 msgstr ""
 
@@ -6023,10 +6083,6 @@ msgstr ""
 
 #: src/dialog_svx.c
 msgid "No audio: talking on SVXConnect uses the hand mic"
-msgstr ""
-
-#: src/dialog_svx.c src/dialog_zello.c
-msgid "Talking now:"
 msgstr ""
 
 #: src/dialog_svx.c
@@ -8413,10 +8469,6 @@ msgstr ""
 #: src/js8_window.c
 msgid " CALL MESSAGE / @ALLCALL ..."
 msgstr ""
-
-#: src/js8_window.c
-msgid "Set your callsign first: Settings > General"
-msgstr "Imposta prima il nominativo: Impostazioni > Generale"
 
 #: src/js8_window.c
 msgid "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .-+?!\"/@:<>{}_#&'(),=;*"

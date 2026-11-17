@@ -782,6 +782,10 @@ msgstr ""
 msgid "Reflector talkgroups"
 msgstr "TG del reflector"
 
+#: src/apps_menu.c
+msgid "Talkgroups, listen only"
+msgstr "TG, solo escuchar"
+
 #: src/apps_menu.c src/button_bar.cpp src/screen_main.c
 msgid "Flights"
 msgstr "Vuelos"
@@ -3578,6 +3582,80 @@ msgstr "USTED MANIPULÓ"
 msgid "SCORE"
 msgstr "PUNTAJE"
 
+#: src/dialog_dmr.c
+msgid "the helper could not start"
+msgstr "no se pudo iniciar el programa auxiliar"
+
+#: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
+#: src/wifi_window.c
+msgid "Disconnect"
+msgstr "Desconectar"
+
+#: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
+#: src/wifi_window.c src/winlink_mail.c
+msgid "Connect"
+msgstr "Conectar"
+
+#: src/dialog_dmr.c
+msgid "the master's talkgroups"
+msgstr "los TG del servidor"
+
+#: src/dialog_dmr.c
+msgid "Heard"
+msgstr "Escuchados"
+
+#: src/dialog_dmr.c src/dialog_svx.c
+msgid "nobody yet"
+msgstr "nadie todavía"
+
+#: src/dialog_dmr.c src/dialog_svx.c
+msgid "Not connected"
+msgstr "Sin conexión"
+
+#: src/dialog_dmr.c
+msgid "Set up DMR on the radio's web page: the network, your DMR ID, the hotspot password"
+msgstr "Configure DMR en la página web de la radio: la red, su ID DMR, la contraseña del hotspot"
+
+#: src/dialog_dmr.c src/js8_window.c
+msgid "Set your callsign first: Settings > General"
+msgstr "Primero ponga su indicativo: Ajustes > General"
+
+#: src/dialog_dmr.c
+msgid "Not connected: choose a talkgroup with the MFK, or Connect"
+msgstr "Sin conexión: elija un TG con la MFK, o Conectar"
+
+#: src/dialog_dmr.c
+msgid "hotspot"
+msgstr ""
+
+#: src/dialog_dmr.c
+msgid "Logging in to the network"
+msgstr "Entrando en la red"
+
+#: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c
+msgid "Talking now:"
+msgstr "Hablando:"
+
+#: src/dialog_dmr.c
+msgid "a private call to you"
+msgstr "una llamada privada para usted"
+
+#: src/dialog_dmr.c
+msgid "Listening only: the radio never transmits for DMR"
+msgstr "Solo escuchar: la radio nunca transmite para DMR"
+
+#: src/dialog_dmr.c
+msgid "set it up on the radio's web page first (DMR)"
+msgstr "primero configúrelo en la página web de la radio (DMR)"
+
+#: src/dialog_dmr.c
+msgid "set your callsign first (Settings > General)"
+msgstr "primero ponga su indicativo (Ajustes > General)"
+
+#: src/dialog_dmr.c
+msgid "talkgroups on the internet, listening only, never on the air"
+msgstr "TG por internet, solo escuchar, nunca al aire"
+
 #: src/dialog_field.c
 msgid "x6100-wavelog sync 2>/dev/null"
 msgstr ""
@@ -5928,16 +6006,6 @@ msgstr ""
 "VIBORITA EN LA CASCADA\n"
 "#%06x Gire la perilla para doblar - MFK para empezar#"
 
-#: src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
-#: src/wifi_window.c
-msgid "Disconnect"
-msgstr "Desconectar"
-
-#: src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
-#: src/wifi_window.c src/winlink_mail.c
-msgid "Connect"
-msgstr "Conectar"
-
 #: src/dialog_svx.c src/dialog_zello.c
 msgid ""
 "Stop\n"
@@ -6170,10 +6238,6 @@ msgid "Recent"
 msgstr "Recientes"
 
 #: src/dialog_svx.c
-msgid "nobody yet"
-msgstr "nadie todavía"
-
-#: src/dialog_svx.c
 #, c-format
 msgid "#%06x SVXCONNECT#  #%06x %s#"
 msgstr ""
@@ -6248,10 +6312,6 @@ msgid "nodes"
 msgstr "nodos"
 
 #: src/dialog_svx.c
-msgid "Not connected"
-msgstr "Sin conexión"
-
-#: src/dialog_svx.c
 msgid "Connecting to the reflector"
 msgstr "Conectando al reflector"
 
@@ -6270,10 +6330,6 @@ msgstr "hable al micrófono de mano"
 #: src/dialog_svx.c
 msgid "No audio: talking on SVXConnect uses the hand mic"
 msgstr "Sin audio: para hablar en SVXConnect se usa el micrófono de mano"
-
-#: src/dialog_svx.c src/dialog_zello.c
-msgid "Talking now:"
-msgstr "Hablando:"
 
 #: src/dialog_svx.c
 msgid "Choose a talkgroup with the MFK to talk on it"
@@ -8725,10 +8781,6 @@ msgstr " Mensaje (opcional) - Intro envía"
 #: src/js8_window.c
 msgid " CALL MESSAGE / @ALLCALL ..."
 msgstr " INDICATIVO MENSAJE / @ALLCALL ..."
-
-#: src/js8_window.c
-msgid "Set your callsign first: Settings > General"
-msgstr "Primero ponga su indicativo: Ajustes > General"
 
 #: src/js8_window.c
 msgid "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .-+?!\"/@:<>{}_#&'(),=;*"

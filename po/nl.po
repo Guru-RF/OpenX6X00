@@ -781,6 +781,10 @@ msgstr ""
 msgid "Reflector talkgroups"
 msgstr "Reflector-gespreksgroepen"
 
+#: src/apps_menu.c
+msgid "Talkgroups, listen only"
+msgstr "Gespreksgroepen, alleen luisteren"
+
 #: src/apps_menu.c src/button_bar.cpp src/screen_main.c
 msgid "Flights"
 msgstr "Vluchten"
@@ -3571,6 +3575,80 @@ msgstr "JIJ SEINDE"
 msgid "SCORE"
 msgstr ""
 
+#: src/dialog_dmr.c
+msgid "the helper could not start"
+msgstr "het hulpprogramma kon niet starten"
+
+#: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
+#: src/wifi_window.c
+msgid "Disconnect"
+msgstr "Verbreken"
+
+#: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
+#: src/wifi_window.c src/winlink_mail.c
+msgid "Connect"
+msgstr "Verbinden"
+
+#: src/dialog_dmr.c
+msgid "the master's talkgroups"
+msgstr "de gespreksgroepen van de master"
+
+#: src/dialog_dmr.c
+msgid "Heard"
+msgstr "Gehoord"
+
+#: src/dialog_dmr.c src/dialog_svx.c
+msgid "nobody yet"
+msgstr "nog niemand"
+
+#: src/dialog_dmr.c src/dialog_svx.c
+msgid "Not connected"
+msgstr "Niet verbonden"
+
+#: src/dialog_dmr.c
+msgid "Set up DMR on the radio's web page: the network, your DMR ID, the hotspot password"
+msgstr "Stel DMR in op de webpagina van de radio: het netwerk, je DMR-ID, het hotspotwachtwoord"
+
+#: src/dialog_dmr.c src/js8_window.c
+msgid "Set your callsign first: Settings > General"
+msgstr "Stel eerst je roepnaam in: Instellingen > Algemeen"
+
+#: src/dialog_dmr.c
+msgid "Not connected: choose a talkgroup with the MFK, or Connect"
+msgstr "Niet verbonden: kies een gespreksgroep met de MFK, of Verbinden"
+
+#: src/dialog_dmr.c
+msgid "hotspot"
+msgstr ""
+
+#: src/dialog_dmr.c
+msgid "Logging in to the network"
+msgstr "Aanmelden bij het netwerk"
+
+#: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c
+msgid "Talking now:"
+msgstr "Spreekt nu:"
+
+#: src/dialog_dmr.c
+msgid "a private call to you"
+msgstr "een privéoproep voor jou"
+
+#: src/dialog_dmr.c
+msgid "Listening only: the radio never transmits for DMR"
+msgstr "Alleen luisteren: de radio zendt nooit voor DMR"
+
+#: src/dialog_dmr.c
+msgid "set it up on the radio's web page first (DMR)"
+msgstr "stel het eerst in op de webpagina van de radio (DMR)"
+
+#: src/dialog_dmr.c
+msgid "set your callsign first (Settings > General)"
+msgstr "stel eerst je roepnaam in (Instellingen > Algemeen)"
+
+#: src/dialog_dmr.c
+msgid "talkgroups on the internet, listening only, never on the air"
+msgstr "gespreksgroepen op het internet, alleen luisteren, nooit in de lucht"
+
 #: src/dialog_field.c
 msgid "x6100-wavelog sync 2>/dev/null"
 msgstr ""
@@ -5900,16 +5978,6 @@ msgstr ""
 "WATERVALSLANG\n"
 "#%06x Draai aan de knop om te sturen - MFK om te starten#"
 
-#: src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
-#: src/wifi_window.c
-msgid "Disconnect"
-msgstr "Verbreken"
-
-#: src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
-#: src/wifi_window.c src/winlink_mail.c
-msgid "Connect"
-msgstr "Verbinden"
-
 #: src/dialog_svx.c src/dialog_zello.c
 msgid ""
 "Stop\n"
@@ -6142,10 +6210,6 @@ msgid "Recent"
 msgstr ""
 
 #: src/dialog_svx.c
-msgid "nobody yet"
-msgstr "nog niemand"
-
-#: src/dialog_svx.c
 #, c-format
 msgid "#%06x SVXCONNECT#  #%06x %s#"
 msgstr ""
@@ -6220,10 +6284,6 @@ msgid "nodes"
 msgstr ""
 
 #: src/dialog_svx.c
-msgid "Not connected"
-msgstr "Niet verbonden"
-
-#: src/dialog_svx.c
 msgid "Connecting to the reflector"
 msgstr "Verbinden met de reflector"
 
@@ -6242,10 +6302,6 @@ msgstr "spreek in de handmicro"
 #: src/dialog_svx.c
 msgid "No audio: talking on SVXConnect uses the hand mic"
 msgstr "Geen audio: praten op SVXConnect gebruikt de handmicro"
-
-#: src/dialog_svx.c src/dialog_zello.c
-msgid "Talking now:"
-msgstr "Spreekt nu:"
 
 #: src/dialog_svx.c
 msgid "Choose a talkgroup with the MFK to talk on it"
@@ -8686,10 +8742,6 @@ msgstr " Bericht (optioneel) - Enter verstuurt"
 #: src/js8_window.c
 msgid " CALL MESSAGE / @ALLCALL ..."
 msgstr " ROEPNAAM BERICHT / @ALLCALL ..."
-
-#: src/js8_window.c
-msgid "Set your callsign first: Settings > General"
-msgstr "Stel eerst je roepnaam in: Instellingen > Algemeen"
 
 #: src/js8_window.c
 msgid "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .-+?!\"/@:<>{}_#&'(),=;*"

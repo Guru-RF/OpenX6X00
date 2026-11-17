@@ -782,6 +782,10 @@ msgstr ""
 msgid "Reflector talkgroups"
 msgstr "反射器通话组"
 
+#: src/apps_menu.c
+msgid "Talkgroups, listen only"
+msgstr "通话组, 仅收听"
+
 #: src/apps_menu.c src/button_bar.cpp src/screen_main.c
 msgid "Flights"
 msgstr "航班"
@@ -3584,6 +3588,80 @@ msgstr "你拍发的"
 msgid "SCORE"
 msgstr "得分"
 
+#: src/dialog_dmr.c
+msgid "the helper could not start"
+msgstr "辅助程序无法启动"
+
+#: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
+#: src/wifi_window.c
+msgid "Disconnect"
+msgstr "断开"
+
+#: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
+#: src/wifi_window.c src/winlink_mail.c
+msgid "Connect"
+msgstr "连接"
+
+#: src/dialog_dmr.c
+msgid "the master's talkgroups"
+msgstr "服务器的通话组"
+
+#: src/dialog_dmr.c
+msgid "Heard"
+msgstr "听到"
+
+#: src/dialog_dmr.c src/dialog_svx.c
+msgid "nobody yet"
+msgstr "还没有人"
+
+#: src/dialog_dmr.c src/dialog_svx.c
+msgid "Not connected"
+msgstr "未连接"
+
+#: src/dialog_dmr.c
+msgid "Set up DMR on the radio's web page: the network, your DMR ID, the hotspot password"
+msgstr "请在电台网页上设置 DMR: 网络, 你的 DMR ID, 热点密码"
+
+#: src/dialog_dmr.c src/js8_window.c
+msgid "Set your callsign first: Settings > General"
+msgstr "请先设置呼号: 设置 > 常规"
+
+#: src/dialog_dmr.c
+msgid "Not connected: choose a talkgroup with the MFK, or Connect"
+msgstr "未连接: 用 MFK 选择通话组, 或按 \"连接\""
+
+#: src/dialog_dmr.c
+msgid "hotspot"
+msgstr "热点"
+
+#: src/dialog_dmr.c
+msgid "Logging in to the network"
+msgstr "正在登录网络"
+
+#: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c
+msgid "Talking now:"
+msgstr "正在讲话:"
+
+#: src/dialog_dmr.c
+msgid "a private call to you"
+msgstr "给你的私人呼叫"
+
+#: src/dialog_dmr.c
+msgid "Listening only: the radio never transmits for DMR"
+msgstr "仅收听: 电台不会为 DMR 发射"
+
+#: src/dialog_dmr.c
+msgid "set it up on the radio's web page first (DMR)"
+msgstr "请先在电台网页上设置 (DMR)"
+
+#: src/dialog_dmr.c
+msgid "set your callsign first (Settings > General)"
+msgstr "请先设置呼号 (设置 > 常规)"
+
+#: src/dialog_dmr.c
+msgid "talkgroups on the internet, listening only, never on the air"
+msgstr "互联网上的通话组, 仅收听, 不经无线发射"
+
 #: src/dialog_field.c
 msgid "x6100-wavelog sync 2>/dev/null"
 msgstr ""
@@ -5951,16 +6029,6 @@ msgstr ""
 "瀑布贪吃蛇\n"
 "#%06x 转动旋钮控制方向 - 按 MFK 开始#"
 
-#: src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
-#: src/wifi_window.c
-msgid "Disconnect"
-msgstr "断开"
-
-#: src/dialog_svx.c src/dialog_zello.c src/settings_window.cpp
-#: src/wifi_window.c src/winlink_mail.c
-msgid "Connect"
-msgstr "连接"
-
 #: src/dialog_svx.c src/dialog_zello.c
 msgid ""
 "Stop\n"
@@ -6193,10 +6261,6 @@ msgid "Recent"
 msgstr "最近讲话"
 
 #: src/dialog_svx.c
-msgid "nobody yet"
-msgstr "还没有人"
-
-#: src/dialog_svx.c
 #, c-format
 msgid "#%06x SVXCONNECT#  #%06x %s#"
 msgstr ""
@@ -6271,10 +6335,6 @@ msgid "nodes"
 msgstr "节点"
 
 #: src/dialog_svx.c
-msgid "Not connected"
-msgstr "未连接"
-
-#: src/dialog_svx.c
 msgid "Connecting to the reflector"
 msgstr "正在连接反射器"
 
@@ -6293,10 +6353,6 @@ msgstr "请对手咪说话"
 #: src/dialog_svx.c
 msgid "No audio: talking on SVXConnect uses the hand mic"
 msgstr "无音频: 在 SVXConnect 上讲话使用手咪"
-
-#: src/dialog_svx.c src/dialog_zello.c
-msgid "Talking now:"
-msgstr "正在讲话:"
 
 #: src/dialog_svx.c
 msgid "Choose a talkgroup with the MFK to talk on it"
@@ -8741,10 +8797,6 @@ msgstr " 消息 (可选) - Enter 发送"
 #: src/js8_window.c
 msgid " CALL MESSAGE / @ALLCALL ..."
 msgstr " 呼号 消息 / @ALLCALL ..."
-
-#: src/js8_window.c
-msgid "Set your callsign first: Settings > General"
-msgstr "请先设置呼号: 设置 > 常规"
 
 #: src/js8_window.c
 msgid "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .-+?!\"/@:<>{}_#&'(),=;*"
