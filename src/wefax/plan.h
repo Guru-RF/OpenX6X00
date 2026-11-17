@@ -122,6 +122,28 @@ bool                    wefax_bulletin_has(const wefax_bulletin_t *b, const char
 /* The slot that brings kind b next after sod, the seconds until its start in *wait (0..86399); -1 for none */
 int wefax_plan_next_of_kind(const wefax_bulletin_t *b, int sod, int *wait);
 
+/* The slots from sod on (the next day's too) that bring kind b, or the chart product when b is NULL, or any chart
+ * when both are NULL: soonest first, at most max, each slot's index in slot[] and the seconds until its start
+ * (0..86399) in wait[]. How many */
+int wefax_plan_coming(const wefax_bulletin_t *b, const char *product, int sod, int *slot, int *wait, int max);
+
+/* ---- the copies: their quality and which one shows ---- */
+
+#define WEFAX_MARK_GOOD 70      /* a copy's mark (wefax/quality.h): "good" from this */
+#define WEFAX_MARK_FAIR 30      /* "fair" from this, "poor" under it: noise, a fade */
+
+/* The mark in a word: "good", "fair" or "poor", "" for none (q < 0); English, the GUI translates it */
+const char *wefax_plan_quality_word(int q);
+
+/* Of two saved copies of a kind of chart (file names; have "" for none), the one the Bulletin shows: the newest of
+ * fair mark, a poor one only when there is no other, else the newest. True: cand rather than have */
+bool wefax_plan_bulletin_prefers(const char *cand, const char *have);
+
+/* A chart in words, from its name: the kind ("Analysis", "Forecast", "Upper air", "Sea and swell", "Unsorted" for
+ * none or an unknown chart...; the Bulletin's words where it has the same), English for the GUI to translate, and its
+ * hours ("48 h", "36-48 h", "" none). NULL for a name it does not know: show the name itself */
+const char *wefax_plan_chart_kind(const char *product, char *hours, size_t size);
+
 #ifdef __cplusplus
 }
 #endif

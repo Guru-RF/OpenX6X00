@@ -369,6 +369,91 @@ static void test_bulletin(void)
     CHECK(i == slot_at(15, 20) && wait == hms(17, 20, 0), "after 22:00 tomorrow's: %s", product_of(i));
 }
 
+/* What comes next of a kind, of a chart, of any; a chart in words; the quality in words; the copy the Bulletin shows */
+static void test_words(void)
+{
+    wefax_plan_load();
+
+    const wefax_bulletin_t *ice = NULL;
+
+    for (int k = 0; k < wefax_plan_bulletin_count(); k++)
+        if (!strcmp(wefax_plan_bulletin(k)->name, "Ice"))
+            ice = wefax_plan_bulletin(k);
+
+    int slot[4], wait[4], n = wefax_plan_coming(ice, NULL, hms(5, 0, 0), slot, wait, 4);
+
+    CHECK(n == 4 && slot[0] == slot_at(15, 20) && slot[1] == slot_at(15, 40) && slot[2] == slot_at(21, 0) &&
+              slot[3] == slot_at(21, 15) && wait[0] == hms(10, 20, 0) && wait[3] == hms(16, 15, 0),
+          "the ice charts after 05:00, soonest first: %d of them", n);
+    n = wefax_plan_coming(NULL, "NW-surface-analysis-12Z", hms(12, 0, 0), slot, wait, 4);
+    CHECK(n == 4 && slot[0] == slot_at(14, 36) && slot[1] == slot_at(15, 0) && slot[2] == slot_at(16, 0) &&
+              slot[3] == slot_at(17, 0),
+          "Northwood's 12Z analysis after 12:00: %s first", n ? product_of(slot[0]) : "none");
+    n = wefax_plan_coming(NULL, NULL, hms(23, 50, 0), slot, wait, 3);
+    CHECK(n == 3 && slot[0] == slot_at(0, 0) && wait[0] == 600 && slot[1] == slot_at(0, 12) && slot[2] == slot_at(0, 36),
+          "any chart after 23:50: tomorrow's 00:00 in %d s", n ? wait[0] : -1);
+    CHECK(wefax_plan_coming(NULL, "XX-none", 0, slot, wait, 4) == 0, "a chart not in the plan: none coming");
+    n = wefax_plan_coming(NULL, NULL, hms(4, 30, 0), slot, wait, 1);
+    CHECK(n == 1 && slot[0] == slot_at(4, 30) && wait[0] == 0, "starting now: wait 0");
+
+    /* every chart of the firmware's plan has words */
+    char        hours[16];
+    const char *kind;
+
+    for (int i = 0; i < wefax_plan_count(); i++) {
+        kind = wefax_plan_chart_kind(product_of(i), hours, sizeof(hours));
+        CHECK(kind != NULL, "%s has words", product_of(i));
+    }
+
+    static const struct {
+        const char *product, *kind, *hours;
+    } words[] = {
+        {"NW-surface-analysis-12Z", "Analysis", ""},
+        {"DWD-surface-analysis-Atlantic-00Z", "Analysis, North Atlantic", ""},
+        {"NW-surface-forecast-24h-06Z", "Forecast", "24 h"},
+        {"DWD-pressure-forecast-108h-00Z", "Forecast", "108 h"},
+        {"DWD-850hPa-forecast-36-48h-00Z", "Upper air", "36-48 h"},     /* not "850 h" */
+        {"NW-sea-swell-12h-18Z", "Sea and swell", "12 h"},
+        {"DWD-waves-48h-12Z", "Sea and swell", "48 h"},
+        {"NW-surface-wind-24h-06Z", "Wind", "24 h"},
+        {"NW-rain-visibility-12h-00Z", "Rain and visibility", "12 h"},
+        {"NW-upper-sigwx-18Z", "Significant weather", ""},
+        {"DWD-sigwx-analysis-12Z", "Significant weather", ""},          /* saved before its slot was renamed */
+        {"DWD-ice-NW-Atlantic-12Z", "Ice", ""},
+        {"NW-unknown", "Unsorted", ""},
+        {"", "Unsorted", ""},
+    };
+
+    for (size_t i = 0; i < sizeof(words) / sizeof(words[0]); i++) {
+        kind = wefax_plan_chart_kind(words[i].product, hours, sizeof(hours));
+        CHECK(kind && !strcmp(kind, words[i].kind) && !strcmp(hours, words[i].hours), "%s: %s %s",
+              words[i].product, kind ? kind : "(none)", hours);
+    }
+    CHECK(!wefax_plan_chart_kind("XX-something-else", hours, sizeof(hours)) && !hours[0], "a name it does not know");
+
+    CHECK(!strcmp(wefax_plan_quality_word(91), "good") && !strcmp(wefax_plan_quality_word(70), "good") &&
+              !strcmp(wefax_plan_quality_word(69), "fair") && !strcmp(wefax_plan_quality_word(30), "fair") &&
+              !strcmp(wefax_plan_quality_word(29), "poor") && !strcmp(wefax_plan_quality_word(0), "poor") &&
+              !wefax_plan_quality_word(-1)[0],
+          "the quality in words: good from 70, fair from 30, poor under");
+
+    /* the Bulletin's copy: the newest of fair mark, a poor one only when there is no other */
+    const char *old_good = "wefax-20261116-062315-NW-surface-analysis-00Z-q91.png";
+    const char *new_poor = "wefax-20261116-120112-NW-surface-analysis-06Z-q12.png";
+    const char *new_fair = "wefax-20261116-123012-DWD-surface-analysis-06Z-q35.png";
+    const char *older_poor = "wefax-20261116-050000-NW-surface-analysis-00Z-q8.png";
+
+    CHECK(wefax_plan_bulletin_prefers(new_poor, ""), "anything rather than none");
+    CHECK(!wefax_plan_bulletin_prefers(new_poor, old_good) && wefax_plan_bulletin_prefers(old_good, new_poor),
+          "an older good copy rather than a newer poor one");
+    CHECK(wefax_plan_bulletin_prefers(new_fair, old_good) && !wefax_plan_bulletin_prefers(old_good, new_fair),
+          "the newer of two fair or better");
+    CHECK(wefax_plan_bulletin_prefers(new_poor, older_poor) && !wefax_plan_bulletin_prefers(older_poor, new_poor),
+          "the newer of two poor ones");
+    CHECK(wefax_plan_bulletin_prefers(new_poor, "wefax-20261101-120000.png"),
+          "a poor copy and one from before the marks: the newer");
+}
+
 /* ---- previews ---- */
 
 static bool write_png(const char *path, const uint8_t *img, unsigned w, unsigned h)
@@ -586,6 +671,37 @@ static void test_tilt(void)
     CHECK(!wefax_station_tilt("Bad name", &t) && !wefax_station_tilt("", &t), "a name with a space is not kept");
 }
 
+/* A chart written with Align and Tilt (Fix, Auto Plan's save) comes out as the app shows it */
+static void test_write_fixed(void)
+{
+    srand(3);
+
+    unsigned w = WIDTH, h = 600, rw = 0, rh = 0;
+    uint8_t *straight = chart(h, 10, 0), *raw = sheared(straight, w, h, -185), *back;
+    char     path[600], part[620];
+    struct stat st;
+
+    snprintf(path, sizeof(path), "%s/wefax/wefax-20261117-101500-NW-surface-analysis-06Z-q80.png", BOARD_DATA);
+    snprintf(part, sizeof(part), "%s.part", path);
+    CHECK(wefax_png_write_fixed(path, raw, w, h, 0, -185), "written with Tilt -185");
+    CHECK(stat(part, &st) != 0, "no .part left");
+    back = wefax_png_read_grey(path, &rw, &rh);
+    CHECK(back && rw == w && rh == h && !memcmp(back, straight, (size_t)w * h), "Tilt straightens the received chart");
+    free(back);
+
+    /* Align: each row moved right by it, round the width */
+    CHECK(wefax_png_write_fixed(path, straight, w, h, 100, 0), "written with Align +100");
+    back = wefax_png_read_grey(path, &rw, &rh);
+    CHECK(back && back[(size_t)10 * w + 150] == straight[(size_t)10 * w + 50] &&
+              back[(size_t)10 * w + 20] == straight[(size_t)10 * w + w - 80],
+          "Align +100 moves the chart 100 px right");
+    free(back);
+    CHECK(!wefax_png_write_fixed("/nonexistent/dir/x.png", straight, w, h, 0, 0), "an unwritable folder: false");
+    unlink(path);
+    free(raw);
+    free(straight);
+}
+
 int main(void)
 {
     test_load();
@@ -594,9 +710,11 @@ int main(void)
     test_names();
     test_slot_of_file();
     test_bulletin();
+    test_words();
     test_previews();
     test_quality();
     test_tilt();
+    test_write_fixed();
     printf("wefax plan: %d checks, %d failed\n", checks, fails);
     return fails != 0;
 }

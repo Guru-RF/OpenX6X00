@@ -3,7 +3,7 @@
  *
  *  OpenX6X00 - WeFax tilt, found on a chart and kept per station (tilt.h).
  *
- *  For each tilt tried, the rows are shifted as Fix Tilt would and summed column by column: lined up, the vertical
+ *  For each tilt tried, the rows are shifted as Fix would and summed column by column: lined up, the vertical
  *  lines make the sums jump from one column to the next, so the sum of the squared jumps is largest. The rows'
  *  own darkness is taken off first, a row of noise weighs no more than a row of chart. Every 8 over every third
  *  row, then each one around the best over all of them: tried on the charts of F4OLI's radio, DWD's came out
@@ -23,7 +23,7 @@
 #define STATIONS_MAX    16
 #define KEEP            5       /* a station's last charts, its tilt their median */
 
-/* The shift of row y (Fix Tilt's tilt_px): the newest row stays */
+/* The shift of row y (as wefax_png_write_fixed and the live view's tilt_px): the newest row stays */
 static int shift_of(int y, unsigned h, unsigned w, int tilt)
 {
     return (int)(((int64_t)y - (int64_t)(h - 1)) * tilt * WEFAX_TILT_UNIT_W / (1000LL * w));

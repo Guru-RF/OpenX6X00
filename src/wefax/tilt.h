@@ -16,7 +16,7 @@
 extern "C" {
 #endif
 
-/* Tilt is 1/1000 px per row of a picture this wide (the app's view), as the Tilt and Fix Tilt buttons count it */
+/* Tilt is 1/1000 px per row of a picture this wide (the app's view), as the Tilt button and Fix count it */
 #define WEFAX_TILT_UNIT_W   750
 #define WEFAX_TILT_MAX      400
 
