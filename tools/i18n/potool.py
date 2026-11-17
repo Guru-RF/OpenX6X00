@@ -581,8 +581,8 @@ def cmd_import_tsv(args):
     note = f'# The first texts from the CX8ANM edition of OpenX6X00 (condoruy, Cóndor Tecnológico), {tsv.name}.'
     if note not in header.comments:
         header.comments.append(note)
-    have = {e.msgid for e in entries if e.msgstr}
-    added = 0
+    have = {e.msgid for e in entries if e.msgstr}   # a translation already there stays: only empty entries are filled
+    added = differ = 0
     for raw in tsv.read_text(encoding='utf-8').splitlines():
         if not raw.strip() or raw.startswith('#') or '\t' not in raw:
             continue
@@ -590,13 +590,17 @@ def cmd_import_tsv(args):
         en, tr = en.replace('\\n', '\n'), tr.split('\t')[0].replace('\\n', '\n')
         if en in have or not tr.strip():
             continue
+        if convs(en) != convs(tr):   # the GUI would leave it out, and check would fail on it
+            differ += 1
+            continue
         entries.append(Entry(en, tr))
         have.add(en)
         added += 1
     merged = merge(entries, pot)
     write_po(path, header, merged)
     done = sum(1 for e in merged if e.msgstr and not e.obsolete and e.refs)
-    print(f'{path.relative_to(ROOT)}: {added} taken from {tsv.name}, {done}/{len(pot)} translated, '
+    print(f'{path.relative_to(ROOT)}: {added} taken from {tsv.name} ({differ} left out: other conversions), '
+          f'{done}/{len(pot)} translated, '
           f'{sum(1 for e in merged if e.msgstr and not e.refs and not e.obsolete)} line parts, '
           f'{sum(1 for e in merged if e.obsolete)} obsolete')
 
