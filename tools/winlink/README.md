@@ -99,6 +99,26 @@ it, the first time with a download of about 150 MB, then it only gives the path;
 It prints `MODEMS OK`; `--keep DIR` (run the script by hand) keeps the logs, `--only
 ardop|mercury|xara` runs one.
 
+`make mail` runs `winlink_mail_test.py`: APP > Mail's helper
+(`rootfs/usr/sbin/x6100-winlink-mail`, #294) against a real Pat (`make PAT=...`, as
+above) on loopback, its config and mailbox under a temporary root as the radio lays
+them out. Sending (with the checks the helper makes before Pat's: no recipient, no
+subject, no text, a subject over 128 characters, an address with a space or a
+control character), the lists, reading (an unread message marked read), deleting,
+a message ID that is a path refused; the gateways from Pat's cached list (no
+internet), ARDOP only, the nearest first, by band, the last one connected to on
+top; a session Pat cannot start (no modem): Pat's account question passed on and
+answered, then a failure, not a hang; and a session over telnet with a CMS of the
+test's own (the only transport the helper takes besides the radio's two modems,
+and only on a PC): its secure login challenge, Pat's password question passed on
+through the helper and answered, the reply the CMS expects, Pat's log lines of the
+session and none from before. Also: a subject and a text in Latin-1 sent as
+typed, what is beyond Latin-1 written out before Pat would make it "?", a broken
+UTF-8 letter sent as "?" (not refused); Mercury
+and XARA listing the VARA HF gateways; on a band chosen, a gateway called
+lately on another band not put on top. It prints `MAIL OK` (2026-11-16: about
+6 s).
+
 Also here, in Python alone: `winlink_test.py`, the tests of the supervisor
 (`rootfs/usr/sbin/x6100-winlink`: the settings, Pat's config, Mercury's and
 XARA's, XARA's callsign, its speed and the VARA HF licence tick, the outcome of

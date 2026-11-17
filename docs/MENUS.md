@@ -26,6 +26,7 @@ closed v0.129, finds the same things under these names:
 | Recorder, "RX audio" | Recorder, "Record and play RX" | the RX recorder |
 | CW Trainer, "Learn CW" | CW Trainer, "Learn CW" | |
 | CW Keyboard, "CW as you type" | - | the CW Keyboard app: with Live each letter is keyed as it is typed |
+| Mail, "Winlink, no phone" | - | Winlink mail on the radio: read, write, connect to a gateway |
 | GPS, "Position, time" | GPS, "Position and time" | |
 | Screen Rec, "Screen and audio" | Screen Rec, "Record screen and audio" | starts or stops a screen recording |
 | Walkie, "Portrait screen" | Settings > Walkie | the Walkie Talkie screen |

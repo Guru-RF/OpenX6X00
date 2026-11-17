@@ -84,6 +84,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     control_owner.c
     winlink.c
     i18n.cpp
+    winlink_mail.c
 )
 
 # The languages (i18n.h): every GUI source gets i18n_hook.h first, so the texts it hands to LVGL are translated.

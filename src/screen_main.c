@@ -44,6 +44,7 @@
 #include "cw_messages.h"
 #include "cw_encoder.h"
 #include "dialog_cw_kbd.h"
+#include "winlink_mail.h"
 #include "voice_messages.h"
 #include "swrscan_window.h"
 #include "ft8_window.h"
@@ -517,6 +518,7 @@ static const char *app_name(press_action_t a) {
         case ACTION_APP_AERO:       return "HF Air Band";
         case ACTION_APP_CB:         return "CB";
         case ACTION_APP_METEO:      return "Weather";
+        case ACTION_APP_MAIL:       return "Mail";
         default:                   return NULL;    /* Modes menu: a menu, not an app */
     }
 }
@@ -628,6 +630,7 @@ void main_screen_start_app(press_action_t app_action) {
         {ACTION_APP_AERO, &dialog_aero},
         {ACTION_APP_CB, &dialog_cb},
         {ACTION_APP_METEO, &dialog_meteo},
+        {ACTION_APP_MAIL, &dialog_winlink_mail},
     };
 
     if (app_action == ACTION_APP_RTTY) {
@@ -689,7 +692,7 @@ void main_screen_action(press_action_t action) {
             if ((action >= ACTION_APP_RTTY && action <= ACTION_APP_CHANNELS) || action == ACTION_APP_PROPAGATION ||
                 action == ACTION_APP_SCAN || action == ACTION_APP_IRADIO || action == ACTION_APP_ZELLO ||
                 action == ACTION_APP_FLIGHTS || action == ACTION_APP_AERO || action == ACTION_APP_CB ||
-                action == ACTION_APP_METEO) {
+                action == ACTION_APP_METEO || action == ACTION_APP_MAIL) {
                 main_screen_start_app(action);
             }
             break;

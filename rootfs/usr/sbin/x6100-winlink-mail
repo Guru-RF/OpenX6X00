@@ -1,0 +1,684 @@
+#!/usr/bin/env python3
+# OpenX6X00 - Winlink mail on the radio (#294): the GUI's APP > Mail reads and writes Pat's mailbox and connects to a
+# gateway through Pat's own API on 127.0.0.1:8080, the one its web mailbox uses. Pat stays the only one that writes
+# the mailbox, so the web mailbox and the radio show the same messages, and a connection goes through Pat, the modem
+# and the GUI's checks before each key as one from the web mailbox does (src/winlink.c). x6100-winlink runs Pat; this
+# only asks it. Plain text only: attachments and forms stay in the web mailbox.
+#
+#   x6100-winlink-mail status            the state for the app, one JSON object: Winlink on, Pat answering,
+#                                        a session under way, the password's place, the mailbox counts
+#   x6100-winlink-mail list in|out|sent|archive
+#                                        the messages, newest first, without their bodies (a JSON array)
+#   x6100-winlink-mail view BOX          status and list in one: {"status": ..., "list": [...]} (one start of
+#                                        Python on the radio instead of two)
+#   x6100-winlink-mail read BOX MID      one message with its body; in the inbox it is marked read
+#   x6100-winlink-mail send              a new message into Pat's outbox, from a JSON object on stdin:
+#                                        {"to": "...", "cc": "...", "subject": "...", "body": "..."}
+#   x6100-winlink-mail delete BOX MID    a message deleted
+#   x6100-winlink-mail gateways [BAND]   the gateways of the chosen modem (Pat's list, the nearest first), the ones
+#                                        connected to lately on top; BAND as Pat names them (40m), empty for all
+#   x6100-winlink-mail session URL       a connection, as Pat's Connect does, and what happens during it: one JSON
+#                                        object a line on stdout ({"log": ...}, {"prompt": ...}, {"prompt_abort":
+#                                        ...}, {"status": ...}, {"progress": ...}, at the end {"done": ...}). On
+#                                        stdin, a line each: {"prompt": {"id": ..., "value": ...}} answers one of
+#                                        Pat's questions (a busy channel, the password), "abort" ends the
+#                                        connection, "abort!" at once
+#   x6100-winlink-mail abort             ends Pat's connection under way, one the GUI no longer follows
+#
+# Every other command answers one JSON object or array; a failure is {"error": "..."} and the exit status 1.
+# The text to show is Latin-1, which the GUI's fonts have (src/fonts/font_select.c: latin1_N behind every font):
+# what is beyond it is written out in it where it can be (typographic quotes and dashes, the euro sign, a letter
+# with an accent Latin-1 lacks), else "?". What is sent goes the same way: Pat writes a message in Latin-1, as
+# Winlink carries it, and would put "?" for the rest.
+# Pat's HTTP guard (tools/pat, 0001) takes 127.0.0.1 as the Host; what changes something is sent with jQuery's
+# X-Requested-With, as Pat's own page sends it.
+#
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
+import base64
+import datetime
+import http.client
+import json
+import os
+import re
+import select
+import socket
+import sys
+import threading
+import time
+import urllib.parse
+
+try:
+    import unicodedata
+except ImportError:                    # a Python built without it: the table below only
+    unicodedata = None
+
+ROOT = os.environ.get("X6100_WINLINK_ROOT", "")   # tests on a PC only: every path below under it
+CONF = ROOT + "/mnt/winlink.conf"
+DATA = ROOT + "/mnt/winlink"
+RECENT = os.path.join(DATA, "mail_recent.json")   # the gateways connected to from the radio, the last first
+LIB = ROOT + "/var/lib/winlink"
+PASSWORD = os.path.join(LIB, "password")
+PAT_CONFIG = os.path.join(LIB, "pat", "config.json")
+STATUS = ROOT + "/run/winlink/status"
+PAT_OWN_LOG = ROOT + "/run/winlink/pat-own.log"
+HOST = "127.0.0.1"
+PORT = int(os.environ.get("X6100_WINLINK_MAIL_PORT", "8080"))   # another one in the tests only
+BOXES = ("in", "out", "sent", "archive")
+# Pat's transports a session takes: the radio's two modems; telnet in the tests on a PC only (a CMS of their own)
+SCHEMES = ("ardop", "varahf") + (("telnet",) if ROOT else ())
+MID_RE = re.compile(r"[A-Za-z0-9]{1,12}")
+BAND_RE = re.compile(r"[0-9]{1,4}c?m")
+LIST_MAX = 300                 # messages a list gives, the newest
+GATEWAYS_MAX = 80
+RECENT_MAX = 6
+BODY_MAX = 16 * 1024           # characters of a body shown on the radio (an LVGL label measures up to 32767 px,
+                               # some 1200 lines); the rest is in the web mailbox
+TO_MAX = 512
+SUBJECT_MAX = 128              # Pat refuses longer (fbb.Validate)
+HEADERS = {"X-Requested-With": "XMLHttpRequest"}
+
+
+class Fail(Exception):
+    pass
+
+
+# ---- Pat's API --------------------------------------------------------------------------------------------------
+
+def request(method, path, body=None, headers=None, timeout=10):
+    """(status, bytes) of Pat's answer; Fail when Pat does not answer"""
+    con = http.client.HTTPConnection(HOST, PORT, timeout=timeout)
+    try:
+        con.request(method, path, body=body, headers={**HEADERS, **(headers or {})})
+        r = con.getresponse()
+        return r.status, r.read(4 * 1024 * 1024)
+    except (OSError, http.client.HTTPException) as e:
+        raise Fail("Pat does not answer: Winlink is off or still starting") from e
+    finally:
+        con.close()
+
+
+def get_json(path, timeout=10):
+    status, data = request("GET", path, timeout=timeout)
+    if status != 200:
+        raise Fail(pat_error(status, data))
+    try:
+        return json.loads(data.decode("utf-8", "replace"))
+    except ValueError as e:
+        raise Fail("Pat's answer could not be read") from e
+
+
+def pat_error(status, data):
+    text = data.decode("utf-8", "replace").strip().splitlines()
+    return f"Pat: {text[0][:160]}" if text else f"Pat answered {status}"
+
+
+def pat_status():
+    try:
+        st = get_json("/api/status", timeout=2)
+    except Fail:
+        return None
+    return st if isinstance(st, dict) else None
+
+
+# ---- the settings and the supervisor's status ------------------------------------------------------------------
+
+def read_kv(path):
+    out = {}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                k, sep, v = line.rstrip("\n").partition("=")
+                if sep:
+                    out[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return out
+
+
+def password_where():
+    """As x6100-winlink says it: "page", "pat" or "none"; never the password itself"""
+    try:
+        with open(PASSWORD) as f:
+            if f.read().strip("\r\n"):
+                return "page"
+    except OSError:
+        pass
+    try:
+        with open(PAT_CONFIG) as f:
+            cfg = json.load(f)
+    except (OSError, ValueError, UnicodeDecodeError):
+        return "none"
+    pw = cfg.get("secure_login_password") if isinstance(cfg, dict) else None
+    return "pat" if isinstance(pw, str) and pw else "none"
+
+
+MODEM_NAMES = {"ardop": "ARDOP", "mercury": "Mercury", "xara": "XARA"}   # x6100-winlink's modem= choices
+
+
+def modem():
+    m = read_kv(CONF).get("modem")
+    return m if m in MODEM_NAMES else "ardop"
+
+
+def transport():
+    """Pat's transport for the chosen modem: ARDOP's, or VARA HF's for Mercury and XARA"""
+    return "ardop" if modem() == "ardop" else "varahf"
+
+
+# ---- messages ---------------------------------------------------------------------------------------------------
+
+def addr(a):
+    if isinstance(a, dict):
+        return str(a.get("Addr") or "")
+    return ""
+
+
+def addrs(v):
+    return ", ".join(x for x in (addr(a) for a in (v or [])) if x)
+
+
+def when(s):
+    """Pat's RFC 3339 time as "2026-11-16 21:05" (UTC), and as a number to sort by"""
+    try:
+        t = datetime.datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=datetime.timezone.utc)
+        t = t.astimezone(datetime.timezone.utc)
+        return t.strftime("%Y-%m-%d %H:%M"), int(t.timestamp())
+    except ValueError:
+        return "", 0
+
+
+# Beyond Latin-1: written out where it has no form there (NFKD then takes what is left: ł is not split, so it is
+# here; č, ő and the like lose their mark)
+FOLD = {"œ": "oe", "Œ": "OE", "ł": "l", "Ł": "L", "đ": "d", "Đ": "D", "\u2018": "'", "\u2019": "'", "\u201a": "'",
+        "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u2013": "-", "\u2014": "-", "\u2026": "...", "\u20ac": "EUR",
+        "\u2022": "*", "\u00a0": " "}
+
+
+def screen_char(c):
+    if " " <= c <= "~" or c in "\n\t" or "\u00a1" <= c <= "\u00ff":
+        return c
+    if c in FOLD:
+        return FOLD[c]
+    if unicodedata is not None:
+        base = "".join(b for b in unicodedata.normalize("NFKD", c) if " " <= b <= "~" or "\u00a1" <= b <= "\u00ff")
+        if base:
+            return base
+    return "?" if ord(c) >= 160 else " "
+
+
+def clean(text, limit):
+    """Text for the radio's screen: Latin-1, no control characters but the line ends and tabs, at most limit
+    characters"""
+    text = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
+    out, n = [], 0
+    for c in text:
+        a = screen_char(c)
+        out.append(a)
+        n += len(a)
+        if n >= limit:
+            break
+    return "".join(out)[:limit]
+
+
+def one_line(text, limit):
+    return " ".join(clean(text, limit * 2).split())[:limit]
+
+
+def summary(m):
+    date, ts = when(m.get("Date"))
+    return {"mid": str(m.get("MID") or ""), "date": date, "ts": ts, "from": one_line(addr(m.get("From")), 64),
+            "to": one_line(addrs(m.get("To")), 160), "subject": one_line(m.get("Subject"), SUBJECT_MAX),
+            "unread": bool(m.get("Unread")), "files": len(m.get("Files") or [])}
+
+
+def check_box(box, mid=None):
+    if box not in BOXES:
+        raise Fail(f"no mailbox {box!r}")
+    if mid is not None and not MID_RE.fullmatch(mid):
+        raise Fail("not a message ID")
+
+
+def summaries(msgs):
+    out = [summary(m) for m in msgs if isinstance(m, dict)]
+    out.sort(key=lambda m: m["ts"], reverse=True)
+    return out[:LIST_MAX]
+
+
+def cmd_list(box):
+    check_box(box)
+    msgs = get_json(f"/api/mailbox/{box}")
+    if not isinstance(msgs, list):
+        raise Fail("Pat's answer could not be read")
+    return summaries(msgs)
+
+
+def cmd_read(box, mid):
+    check_box(box, mid)
+    m = get_json(f"/api/mailbox/{box}/{mid}")
+    if not isinstance(m, dict):
+        raise Fail("Pat's answer could not be read")
+    out = summary(m)
+    body = clean(m.get("Body"), BODY_MAX + 1)
+    out.update({"cc": one_line(addrs(m.get("Cc")), 160), "body": body[:BODY_MAX], "cut": len(body) > BODY_MAX,
+                "attachments": [{"name": one_line(f.get("Name"), 80), "size": int(f.get("Size") or 0)}
+                                for f in (m.get("Files") or []) if isinstance(f, dict)]})
+    if box == "in" and m.get("Unread"):
+        status, data = request("POST", f"/api/mailbox/{box}/{mid}/read", body=json.dumps({"Read": True}),
+                               headers={"Content-Type": "application/json"})
+        if status != 200:
+            raise Fail(pat_error(status, data))
+    return out
+
+
+def split_addrs(text):
+    """Pat splits on commas, semicolons and spaces (app.SplitFunc): the same here, to check them first"""
+    return [a for a in re.split(r"[,;\s]+", text or "") if a]
+
+
+def cmd_send():
+    try:
+        m = json.loads(sys.stdin.buffer.read().decode("utf-8", "replace"))   # whatever the locale
+    except ValueError as e:
+        raise Fail("the message could not be read") from e
+    if not isinstance(m, dict):
+        raise Fail("the message could not be read")
+    to, cc = str(m.get("to") or "").strip(), str(m.get("cc") or "").strip()
+    # in Latin-1, as Pat writes it (its "?" for the rest written out where it can be); the subject on one line
+    subject = " ".join("".join(screen_char(c) if c.isprintable() else " " for c in str(m.get("subject") or ""))
+                       .split())
+    body = "".join(screen_char(c) if c.isprintable() or c in "\r\n\t" else " " for c in str(m.get("body") or ""))
+    if not split_addrs(to) and not split_addrs(cc):
+        raise Fail("To is empty")
+    if len(to) > TO_MAX or len(cc) > TO_MAX:
+        raise Fail("too many addresses")
+    for a in split_addrs(to) + split_addrs(cc):
+        if any(ord(c) < 33 or ord(c) > 126 for c in a):
+            raise Fail(f"not an address: {a}")
+    if not subject:
+        raise Fail("the subject is empty")
+    if len(subject.encode("utf-8")) > SUBJECT_MAX:
+        raise Fail(f"the subject is longer than {SUBJECT_MAX} characters")
+    if not body.strip():
+        raise Fail("the message is empty")
+    body = body.replace("\r\n", "\n").replace("\n", "\r\n")     # Winlink's line ends
+    form = urllib.parse.urlencode({"to": to, "cc": cc, "subject": subject, "body": body,
+                                   "date": datetime.datetime.now(datetime.timezone.utc).strftime(
+                                       "%Y-%m-%dT%H:%M:%SZ")})
+    status, data = request("POST", "/api/mailbox/out", body=form,
+                           headers={"Content-Type": "application/x-www-form-urlencoded"})
+    if status not in (200, 201):
+        raise Fail(pat_error(status, data))
+    return {"ok": True, "text": data.decode("utf-8", "replace").strip()[:120]}
+
+
+def cmd_delete(box, mid):
+    check_box(box, mid)
+    status, data = request("DELETE", f"/api/mailbox/{box}/{mid}")
+    if status != 200:
+        raise Fail(pat_error(status, data))
+    return {"ok": True}
+
+
+# ---- gateways ---------------------------------------------------------------------------------------------------
+
+def read_recent():
+    try:
+        with open(RECENT) as f:
+            v = json.load(f)
+    except (OSError, ValueError, UnicodeDecodeError):
+        return []
+    return [r for r in v if isinstance(r, dict) and isinstance(r.get("url"), str)] if isinstance(v, list) else []
+
+
+def remember(url, call, khz):
+    """The gateway on top of the recent ones: the list starts with them next time"""
+    rec = [r for r in read_recent() if r.get("url") != url]
+    rec.insert(0, {"url": url, "call": call, "khz": khz})
+    try:
+        os.makedirs(DATA, exist_ok=True)
+        tmp = f"{RECENT}.{os.getpid()}"
+        with open(tmp, "w") as f:
+            json.dump(rec[:RECENT_MAX], f)
+            f.flush()
+            os.fsync(f.fileno())                   # /mnt is FAT on the SD card
+        os.replace(tmp, RECENT)
+    except OSError:
+        pass
+
+
+def khz(f):
+    """Pat's frequency ({"hz": ..., "khz": ...}) in kHz; 0 when none"""
+    try:
+        return round(float(f.get("khz")), 2) if isinstance(f, dict) else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+def parse_url(url):
+    """(transport, callsign, kHz) of a connect URL as Pat's list gives them: ardop:///DM6TS?freq=7101.5&bw=500MAX"""
+    u = urllib.parse.urlsplit(url)
+    call = u.path.strip("/").split("/")[-1].upper() if u.path else ""
+    try:
+        f = float(urllib.parse.parse_qs(u.query).get("freq", ["0"])[0])
+    except ValueError:
+        f = 0
+    return u.scheme, call, f
+
+
+def cmd_gateways(band=""):
+    if band and not BAND_RE.fullmatch(band):
+        raise Fail(f"not a band: {band}")
+    mode = transport()
+    q = urllib.parse.urlencode({"mode": mode, **({"band": band} if band else {})})
+    # Pat reads its list from the card; a list older than the cache is downloaded when the internet is there, the
+    # one built into Pat when it is not
+    rms = get_json(f"/api/rmslist?{q}", timeout=60)
+    if not isinstance(rms, list):
+        raise Fail("Pat's answer could not be read")
+    out = []
+    for r in rms:
+        if not isinstance(r, dict) or not isinstance(r.get("url"), str):
+            continue
+        dist = r.get("distance")
+        out.append({"call": one_line(r.get("callsign"), 16), "grid": one_line(r.get("gridsquare"), 8),
+                    "dist": int(dist) if isinstance(dist, (int, float)) else -1, "khz": khz(r.get("freq")),
+                    "dial": khz(r.get("dial")), "modes": one_line(r.get("modes"), 24), "url": r["url"][:200],
+                    "recent": False})
+        if len(out) >= GATEWAYS_MAX:
+            break
+    known = {g["url"]: g for g in out}
+    top = []
+    for r in read_recent():
+        scheme, call, f = parse_url(r["url"])
+        if scheme != mode or (band and r["url"] not in known):
+            continue        # another modem's, or (with a band chosen) a gateway on another band
+        g = dict(known.get(r["url"]) or {"call": call, "grid": "", "dist": -1, "khz": f, "dial": f, "modes": "",
+                                         "url": r["url"]})
+        g["recent"] = True
+        top.append(g)
+    urls = {g["url"] for g in top}
+    return top + [g for g in out if g["url"] not in urls]
+
+
+# ---- a session: the connection and Pat's websocket -------------------------------------------------------------
+
+class WS:
+    """A websocket client to Pat's /ws, the little of RFC 6455 Pat's page uses: text frames, ping and close"""
+
+    def __init__(self, timeout=5):
+        self.sock = socket.create_connection((HOST, PORT), timeout=timeout)
+        key = base64.b64encode(os.urandom(16)).decode()
+        self.sock.sendall((f"GET /ws HTTP/1.1\r\nHost: {HOST}:{PORT}\r\nUpgrade: websocket\r\n"
+                           f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"
+                           f"X-Requested-With: XMLHttpRequest\r\n\r\n").encode())
+        head = b""
+        while b"\r\n\r\n" not in head:
+            chunk = self.sock.recv(4096)
+            if not chunk:
+                raise OSError("closed during the handshake")
+            head += chunk
+            if len(head) > 16384:
+                raise OSError("handshake too long")
+        head, self.buf = head.split(b"\r\n\r\n", 1)
+        if not head.startswith(b"HTTP/1.1 101"):
+            raise OSError(head.split(b"\r\n", 1)[0].decode("latin-1"))
+        self.sock.settimeout(None)
+        self.parts = []
+        self.lock = threading.Lock()
+
+    def fileno(self):
+        return self.sock.fileno()
+
+    def _send_frame(self, opcode, payload):
+        mask = os.urandom(4)
+        n = len(payload)
+        head = bytes([0x80 | opcode])
+        if n < 126:
+            head += bytes([0x80 | n])
+        elif n < 65536:
+            head += bytes([0x80 | 126]) + n.to_bytes(2, "big")
+        else:
+            head += bytes([0x80 | 127]) + n.to_bytes(8, "big")
+        data = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
+        with self.lock:
+            self.sock.sendall(head + mask + data)
+
+    def send(self, obj):
+        self._send_frame(0x1, json.dumps(obj).encode())
+
+    def _need(self, n):
+        while len(self.buf) < n:
+            chunk = self.sock.recv(65536)
+            if not chunk:
+                raise EOFError
+            self.buf += chunk
+        out, self.buf = self.buf[:n], self.buf[n:]
+        return out
+
+    def pending(self):
+        return bool(self.buf)
+
+    def recv(self):
+        """The next message as an object; None for one that is not JSON or not whole yet. EOFError when closed"""
+        b0, b1 = self._need(2)
+        fin, opcode, n = b0 & 0x80, b0 & 0x0F, b1 & 0x7F
+        if n == 126:
+            n = int.from_bytes(self._need(2), "big")
+        elif n == 127:
+            n = int.from_bytes(self._need(8), "big")
+        mask = self._need(4) if b1 & 0x80 else None
+        data = self._need(n)
+        if mask:
+            data = bytes(b ^ mask[i % 4] for i, b in enumerate(data))
+        if opcode == 0x8:
+            raise EOFError
+        if opcode == 0x9:
+            self._send_frame(0xA, data)
+            return None
+        if opcode in (0x1, 0x2, 0x0):
+            self.parts.append(data)
+            if not fin:
+                return None
+            data, self.parts = b"".join(self.parts), []
+            try:
+                return json.loads(data.decode("utf-8", "replace"))
+            except ValueError:
+                return None
+        return None
+
+    def close(self):
+        try:
+            self._send_frame(0x8, b"")
+        except OSError:
+            pass
+        self.sock.close()
+
+
+def emit(obj):
+    sys.stdout.write(json.dumps(obj) + "\n")
+    sys.stdout.flush()
+
+
+def cmd_session(url):
+    scheme, call, f = parse_url(url)
+    if scheme not in SCHEMES or not re.fullmatch(r"[A-Z0-9]{3,10}(-[0-9]{1,2})?", call):
+        raise Fail("not a gateway's address")
+    st = pat_status()
+    if st is None:
+        raise Fail("Pat does not answer: Winlink is off or still starting")
+    if st.get("connected") or st.get("dialing"):
+        raise Fail("Pat is in a connection already")
+    try:
+        old_log = os.path.getsize(PAT_OWN_LOG)     # Pat sends its log from the start: what is older is skipped
+    except OSError:
+        old_log = 0
+    try:
+        ws = WS()
+    except OSError as e:
+        raise Fail(f"Pat's events could not be followed: {e}") from e
+    remember(url, call, f)
+    done = {}
+
+    def connect():
+        try:
+            status, data = request("GET", "/api/connect?" + urllib.parse.urlencode({"url": url}), timeout=None)
+            try:
+                got = json.loads(data.decode("utf-8", "replace").strip().splitlines()[-1])
+            except (ValueError, IndexError):
+                got = {}
+            done.update({"ok": status == 200, "received": int(got.get("NumReceived") or 0)
+                         if isinstance(got, dict) else 0, "error": "" if status == 200 else "Session failure"})
+        except Fail as e:
+            done.update({"ok": False, "received": 0, "error": str(e)})
+
+    t = threading.Thread(target=connect, daemon=True)
+    t.start()
+    skip = old_log
+    stdin_open = True
+    pending = b""              # what came on stdin, not a whole line yet (read unbuffered: select sees it all)
+    end_at = None
+    try:
+        while True:
+            if not t.is_alive() and end_at is None:
+                end_at = time.time() + 1.0     # the last lines of the log follow the end
+            if end_at is not None and time.time() >= end_at:
+                break
+            fds = [ws] + ([sys.stdin] if stdin_open else [])
+            ready = [ws] if ws.pending() else select.select(fds, [], [], 0.2)[0]
+            if sys.stdin in ready:
+                try:
+                    chunk = os.read(sys.stdin.fileno(), 65536)
+                except OSError:
+                    chunk = b""
+                if not chunk:
+                    stdin_open = False         # the GUI gone: the connection goes on, as one from the mailbox would
+                pending += chunk
+                while b"\n" in pending:
+                    raw, pending = pending.split(b"\n", 1)
+                    line = raw.decode("utf-8", "replace").strip()
+                    if line in ("abort", "abort!"):
+                        request("POST", "/api/disconnect" + ("?dirty=true" if line == "abort!" else ""))
+                    elif line:
+                        try:
+                            ans = json.loads(line).get("prompt")
+                            ws.send({"prompt_response": {"id": str(ans["id"]), "value": str(ans["value"])}})
+                        except (ValueError, KeyError, TypeError, AttributeError):
+                            pass
+            if ws in ready:
+                try:
+                    m = ws.recv()
+                except (EOFError, OSError):
+                    break
+                if not isinstance(m, dict):
+                    continue
+                if "Ping" in m:
+                    ws.send({"Pong": True})
+                elif "LogLine" in m:
+                    line = str(m["LogLine"])
+                    if skip > 0:
+                        skip -= len(line.encode("utf-8", "replace")) + 1
+                        continue
+                    emit({"log": one_line(line, 200)})
+                elif "Prompt" in m and isinstance(m["Prompt"], dict):
+                    p = m["Prompt"]
+                    emit({"prompt": {"id": str(p.get("id") or ""), "kind": str(p.get("kind") or ""),
+                                     "message": one_line(p.get("message"), 200),
+                                     "options": [{"value": str(o.get("value") or ""),
+                                                  "desc": one_line(o.get("desc"), 120),
+                                                  "checked": bool(o.get("checked"))}
+                                                 for o in (p.get("options") or []) if isinstance(o, dict)]}})
+                elif "PromptAbort" in m and isinstance(m["PromptAbort"], dict):
+                    emit({"prompt_abort": str(m["PromptAbort"].get("id") or "")})
+                elif "Status" in m and isinstance(m["Status"], dict):
+                    s = m["Status"]
+                    emit({"status": {"connected": bool(s.get("connected")), "dialing": bool(s.get("dialing")),
+                                     "remote": one_line(s.get("remote_addr"), 40)}})
+                elif "Progress" in m and isinstance(m["Progress"], dict):
+                    p = m["Progress"]
+                    emit({"progress": {"done": int(p.get("bytes_transferred") or 0),
+                                       "total": int(p.get("bytes_total") or 0),
+                                       "subject": one_line(p.get("subject"), 80),
+                                       "receiving": bool(p.get("receiving")), "sending": bool(p.get("sending"))}})
+    finally:
+        ws.close()
+    t.join(timeout=0.5)
+    emit({"done": done or {"ok": False, "received": 0, "error": "Pat stopped"}})
+    return None
+
+
+# ---- status -----------------------------------------------------------------------------------------------------
+
+def cmd_abort():
+    status, data = request("POST", "/api/disconnect")
+    if status != 200:
+        raise Fail("no connection to end")
+    return {"ok": True}
+
+
+def cmd_view(box):
+    check_box(box)
+    boxes = {}
+    st = cmd_status(boxes)
+    if not st["pat"]:
+        return {"status": st, "list": []}
+    return {"status": st, "list": summaries(boxes[box]) if box in boxes else cmd_list(box)}
+
+
+def cmd_status(boxes=None):
+    """boxes: the inbox's and the outbox's messages as Pat gave them, for view to use again"""
+    sup = read_kv(STATUS)
+    conf = read_kv(CONF)
+    out = {"enabled": conf.get("enabled") == "1", "state": sup.get("state", "off"), "text": sup.get("text", "Off"),
+           "password": password_where(), "modem": sup.get("modem", "off"), "mycall": conf.get("mycall", ""),
+           "transport": transport(), "modem_name": MODEM_NAMES[modem()],
+           "last_text": sup.get("last_text", ""), "last_next": sup.get("last_next", ""),
+           "last_result": sup.get("last_result", ""), "last_gateway": sup.get("last_gateway", ""),
+           "last_time": int(sup["last_time"]) if sup.get("last_time", "").isdigit() else 0,
+           "pat": False, "connected": False, "dialing": False}
+    st = pat_status() if out["enabled"] else None
+    if st is not None:
+        out.update({"pat": True, "connected": bool(st.get("connected")), "dialing": bool(st.get("dialing"))})
+        for box in ("in", "out"):
+            try:
+                msgs = get_json(f"/api/mailbox/{box}")
+            except Fail:
+                continue
+            msgs = msgs if isinstance(msgs, list) else []
+            if boxes is not None:
+                boxes[box] = msgs
+            out[box] = len(msgs)
+            if box == "in":
+                out["unread"] = sum(1 for m in msgs if isinstance(m, dict) and m.get("Unread"))
+    return out
+
+
+def main(argv):
+    cmds = {"status": (cmd_status, 0), "list": (cmd_list, 1), "read": (cmd_read, 2), "send": (cmd_send, 0),
+            "delete": (cmd_delete, 2), "gateways": (cmd_gateways, None), "session": (cmd_session, 1),
+            "view": (cmd_view, 1), "abort": (cmd_abort, 0)}
+    if not argv or argv[0] not in cmds:
+        sys.stderr.write("usage: x6100-winlink-mail " + "|".join(cmds) + " ...\n")
+        return 2
+    fn, n = cmds[argv[0]]
+    args = argv[1:]
+    if (n is not None and len(args) != n) or (n is None and len(args) > 1):
+        sys.stderr.write(f"x6100-winlink-mail {argv[0]}: wrong arguments\n")
+        return 2
+    try:
+        out = fn(*args)
+    except Fail as e:
+        emit({"error": str(e)})
+        return 1
+    if out is not None:
+        emit(out)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        sys.exit(130)
