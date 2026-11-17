@@ -81,6 +81,7 @@ typedef enum {
     ACTION_APP_SCAN,     /* 127: Scanner */
     ACTION_APP_FREEDV,   /* 128: RADE (FreeDV) */
     ACTION_APP_FIRST_START, /* 129: the first-start guide (first_start.c), from Settings > General; no key gets it */
+    ACTION_APP_MAIL,     /* 130: Winlink mail on the radio (#294) */
 
     /* The CX8ANM edition's numbers (condoruy's fork), so a key given one of its apps there opens it here as well */
     ACTION_APP_METEO = 200,   /* Weather (dialog_meteo.c) */

@@ -25,3 +25,12 @@ Volts: the battery's and the supply's voltage), `swr_scan_2500.png` (the 2500 kH
 (TUNE for an external tuner at 10 W); and from the web configurator in Firefox, `web_display_bootpic.png` (the
 Boot picture card) and `web_logs_textlog.png` (the keyboard modes' text log). The other shots still show the button text of v0.3.7 (every theme has
 one button text size since v0.3.8): they are taken again on the X6200 on an antenna.
+
+Added on 2026-11-16 for APP > Mail (#294), from the PC build (host/build.sh, its stub radio, so the
+S-meter and the battery are made up) against a real Pat 1.0.1 with tools/pat/patches, the mail and the
+gateways those of the test (N0CALL, N0GWA, N0GWB; tools/winlink/winlink_mail_test.py): `mail_inbox.png`
+(the inbox, one unread), `mail_read.png` (a message read), `mail_reply.png` (a reply typed on a keyboard),
+`mail_new.png` and `mail_outbox.png` (a new message, then in the outbox), `mail_gateways.png` (Connect:
+Pat's gateway list, the nearest first), `mail_prompt.png` (Pat's question during a connection, answered on
+the buttons) and `mail_connection.png` (a connection's end: with no modem on the PC, it fails). To be taken
+again on a radio.

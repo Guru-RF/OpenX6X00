@@ -23,7 +23,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
 - [Wavelog](#wavelog): [live link](#live-link)
-- [Winlink](#winlink): [Mercury](#mercury-experimental), [XARA](#xara-experimental)
+- [Winlink](#winlink): [Mail on the radio](#mail-on-the-radio), [Mercury](#mercury-experimental), [XARA](#xara-experimental)
 - [Browser panel](#browser-panel)
 - [Browser remote](#browser-remote)
 - [Browser apps](#browser-apps): [FT8](#ft8-in-the-browser), [JS8](#js8-in-the-browser), [WeFax](#wefax-in-the-browser)
@@ -266,7 +266,7 @@ The APP button opens six pages of apps and tools:
 | APP 3:6 | Bands, GPS / Clock, Screen rec, CW Keyboard |
 | APP 4:6 | Propagation, Scanner, Internet radio, Zello |
 | APP 5:6 | SVXConnect, Flights, HF Air Band, CB |
-| APP 6:6 | Weather |
+| APP 6:6 | Weather, Mail |
 
 With Icon menus on (Settings > Display > INTERFACE, on by default) APP also
 opens the same apps as a grid of tiles over these pages, with Walkie and
@@ -6957,7 +6957,8 @@ speaks VARA HF (both experimental), in its place. Pat
 calls a Winlink RMS gateway, the radio tunes there and transmits, and your
 mail goes out while the new mail comes in. Where: web configurator,
 Operating > Winlink. Off by default; when it is off, Pat and the modem do not
-run.
+run. With no phone or laptop at hand, [APP > Mail](#mail-on-the-radio) reads,
+writes and sends the same mail on the radio itself.
 
 Setting it up:
 
@@ -7290,6 +7291,73 @@ page answers only to the radio's names and never through Tailscale Funnel, no
 calls home, the Winlink page's ARDOP bandwidth as the widest, its log open to
 the radio's lines, a reply with a Winlink form or a text-only template that
 reaches the composer), ardopcf with its audio and PTT through the radio's GUI.
+
+### Mail on the radio
+
+Since v0.3.13 (#294). APP > Mail (the APP grid's Mail tile, APP 6:6, or a
+key's long press given APP Mail in Settings > Keys) reads, writes and sends
+Winlink mail on the radio, with the touch screen, the
+MFK or a USB or Bluetooth keyboard: no phone, no laptop and no WiFi. It is
+the same mailbox as Pat's web page: a message written on the radio shows in
+the web mailbox, and the other way round. Plain text only: a message's
+attachments are named with their size, and they and Winlink forms stay in the
+web mailbox.
+
+- The list: Box goes through the Inbox, the Outbox (what the next
+  connection sends) and Sent. Unread messages are marked with `*` and
+  counted at the top right, with the messages waiting to go. The MFK (or Up
+  and Down) chooses, a press (or Enter) reads. On a keyboard N writes a new
+  message, C connects, B goes to the next box.
+- Reading: Up and Down, the MFK or the space bar scroll. Reply fills in the
+  sender and "Re:" and quotes nothing: over HF every byte takes air time.
+  Delete, pressed twice, deletes the message; in the Outbox it is then not
+  sent.
+- New: To and Cc (callsigns or e-mail addresses, commas between them), the
+  subject (at most 128 characters) and the text. On a keyboard type into the
+  field; Enter or Down goes to the next field, and in the text Enter is a new
+  line. Without one, the MFK chooses the field and a press (or Type) opens the
+  on-screen keys: a field takes the whole line typed, the text a line at a
+  time. Send puts the message in the Outbox; Cancel twice drops it. Pat
+  writes mail in Latin-1, as Winlink carries it: accents and umlauts go out
+  and show as they are, and what is beyond Latin-1 is written out (typographic
+  quotes and dashes as plain ones, the euro sign as EUR, Ł as L), where Pat
+  would put "?". If Pat asks something during a connection while you write,
+  its question comes first; the message comes back after the answer, or with
+  New.
+- Connect: Pat's gateway list for the modem chosen on the Winlink page (ARDOP,
+  or the VARA HF gateways for Mercury and XARA), the nearest first, the ones
+  called from the radio lately on top (`+`, on the band chosen). Band goes
+  through the bands. The
+  list comes from the card: without internet Pat takes the one it last
+  downloaded, or the one it comes with. Connect, pressed twice for the same
+  gateway (the second press transmits; another gateway chosen in between
+  asks again), calls the gateway as Pat's Connect does, with the same
+  checks before each key (see above): the radio tunes there and Pat sends the
+  Outbox and fetches the new mail. The Connection page shows Calling or
+  Connected, the progress of each message on the bar, Pat's last log lines,
+  and at the end what happened, with what to do next as the Winlink page says
+  it. Abort ends the connection; pressed again, at once.
+- Pat's questions during a connection come up on the buttons, as in the web
+  mailbox: a busy channel (Continue anyway or Abort; Pat waits for it to
+  clear meanwhile), the password when none is set (typed in a hidden field),
+  an account Pat cannot confirm (Continue anyway: the account is activated
+  over the air and a message brings its password, the only key to it, so
+  write it down), a new account's password message (Download now or Later)
+  and messages waiting at the gateway over Pat's size limit (All, Small or
+  Later). A question answered in the web mailbox goes away on the radio.
+- Page 2: Winlink On or Off (as the Winlink page's Enabled; Pat and the
+  modem start with the radio from then on), the Winlink password (kept on
+  the radio and never shown, as the Winlink page keeps it; Pat starts again
+  with it) and Refresh. The callsign is the radio's (Settings > General)
+  unless the Winlink page sets another; the modem and the bandwidths are set
+  on the Winlink page.
+- Closing the app leaves a connection running, as one from the web mailbox;
+  APP > Mail shows it again ("A connection is under way") and Abort ends it.
+- The app holds neither the radio's audio nor its frequency, so it is not
+  one of the digital apps that keep Winlink from keying.
+
+Over SSH, `x6100-winlink-mail` is what the app runs: `status`, `list in`,
+`read in <ID>` and `gateways 40m` print what the app shows, as JSON.
 
 ### Mercury (experimental)
 
