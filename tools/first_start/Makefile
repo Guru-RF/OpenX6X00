@@ -1,9 +1,10 @@
-# Host test of when the first-start guide comes up by itself (first_start_rule.h): `make` builds it for both radios and
-# runs it. The rule (src/first_start_rule.c) and the real src/cfg (the settings, their pending writes, the database
-# code) on a params.db made from sql/params.sql in a folder of its own, deleted as Settings > Info > Factory reset
-# deletes it (factory_reset.h). Stand-ins for LVGL's log and async calls and for the GUI thread's check (stubs.cpp).
-# See first_start_test.cpp for the cases. src/cfg's headers want LVGL beside src/ (LVGL) and ft8_lib's headers (DEPS,
-# as host/build.sh puts them in build-host/deps).
+# Host tests of the first-start guide: `make` builds them and runs them. first_start_kbd_test: its Keyboard step, what
+# it shows from what Bluetooth and the keyboard say (src/first_start_kbd.c, #291), plain C. The others: when the guide
+# comes up by itself (first_start_rule.h), for both radios. The rule (src/first_start_rule.c) and the real src/cfg
+# (the settings, their pending writes, the database code) on a params.db made from sql/params.sql in a folder of its
+# own, deleted as Settings > Info > Factory reset deletes it (factory_reset.h). Stand-ins for LVGL's log and async
+# calls and for the GUI thread's check (stubs.cpp). See the test files for the cases. src/cfg's headers want LVGL
+# beside src/ (LVGL) and ft8_lib's headers (DEPS, as host/build.sh puts them in build-host/deps).
 TOP      := ../..
 SRC      := $(TOP)/src
 DEPS     ?= $(TOP)/build-host/deps
@@ -42,11 +43,15 @@ first_start_x6100: $(TEST) $(CFG_CPP) $(HEADERS) $(call OBJS,x6100)
 first_start_x6200: $(TEST) $(CFG_CPP) $(HEADERS) $(call OBJS,x6200)
 	$(CXX) $(CXXFLAGS) -DBOARD_X6200=1 -o $@ $(TEST) $(CFG_CPP) $(filter build/%,$^) -lsqlite3 -lpthread
 
-test: first_start_x6100 first_start_x6200
+first_start_kbd_test: first_start_kbd_test.c $(SRC)/first_start_kbd.c $(SRC)/first_start_kbd.h $(SRC)/bt_dev.h
+	$(CC) -std=gnu11 -O1 -g -Wall -Wextra -I $(SRC) -o $@ first_start_kbd_test.c $(SRC)/first_start_kbd.c
+
+test: first_start_x6100 first_start_x6200 first_start_kbd_test
 	./first_start_x6100 $(TOP)/sql/params.sql
 	./first_start_x6200 $(TOP)/sql/params.sql
+	mkdir -p build && ./first_start_kbd_test build/first_start_bt.conf
 
 clean:
-	rm -rf first_start_x6100 first_start_x6200 build
+	rm -rf first_start_x6100 first_start_x6200 first_start_kbd_test build
 
 .PHONY: all test clean

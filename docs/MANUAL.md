@@ -42,7 +42,7 @@ Settings. Button and option names are written as the radio shows them.
 
 A radio with no callsign, at its first start on a new card or after a factory
 reset (Settings > Info), opens the first-start guide a few seconds after the
-start: five steps, then a summary. The radio receives underneath all the
+start: six steps, then a summary. The radio receives underneath all the
 while. A radio that has a callsign, for example one updated from an earlier
 version, never opens it by itself. The X6100 and the X6200 show the same guide
 (both screens are 800 by 480).
@@ -53,15 +53,30 @@ Where: Settings > General > STATION > First-start guide (Start runs it again).
    name our fonts cannot draw before it is chosen, such as 中文, has its code
    beside it: zh_CN). The choice is taken at once: the screen is built again
    in it, and the guide comes back on this step in that language.
-2. WiFi. Networks opens the WiFi window and turns WiFi on: choose a network
+2. Keyboard. Pairs a Bluetooth keyboard, so the WiFi password, the callsign
+   and the locator in the next steps can be typed on it; a USB keyboard
+   needs nothing here. Put the keyboard in pairing mode, then Scan (16 s):
+   the keyboards found are listed, *new* or *paired*. Press yours: the guide
+   pairs it, trusts it (it connects by itself at the next starts) and
+   connects it, as Settings > Bluetooth > DEVICES does. Many keyboards want
+   their pairing key pressed once more at that moment: the line says so.
+   One that asks for a code shows it in large digits: type them on the
+   keyboard, then its Enter key. Once its keys come, the line says "works:
+   type something to try it", and what you type shows under it. Not
+   found, or the pairing failed: the line says what to do, and Scan looks
+   again. With Bluetooth off, Turn on switches it on (with WiFi off, the
+   chip is off: Turn on switches WiFi and Bluetooth on, as the next step
+   would). With no Bluetooth on the radio the line says so; Skip goes on
+   without a keyboard. Settings > Bluetooth > DEVICES pairs one later.
+3. WiFi. Networks opens the WiFi window and turns WiFi on: choose a network
    there, then ESC or GEN brings you back to the guide. The line above
    Networks says whether the radio is connected, to which network and with
    which address. With Ethernet connected, WiFi is not needed.
-3. Callsign and locator. Callsign and Locator open the keyboard (on the
-   screen, or a USB keyboard when one is plugged in); Enter or the tick key
-   saves. With a GPS that has a fix, a GPS fix line offers its locator:
-   Use <locator> sets it.
-4. Country. The country you operate from, as Settings > General > STATION >
+4. Callsign and locator. Callsign and Locator open the keyboard (on the
+   screen, or a USB or Bluetooth keyboard when one is there); Enter or the
+   tick key saves. With a GPS that has a fix, a GPS fix line offers its
+   locator: Use <locator> sets it.
+5. Country. The country you operate from, as Settings > General > STATION >
    Country has it: Country opens the list (the names in the screen's
    language, "-" for none). With a callsign, the line From the callsign
    offers its country (from cty.dat): Use <country> sets it. The line under
@@ -72,25 +87,25 @@ Where: Settings > General > STATION > First-start guide (Start runs it again).
    one of the same time when the list has not that one), but only while no
    time zone was ever chosen (a new card, a factory reset), or the guide set
    it from a country before.
-5. Clock and time zone. The clock with the date and UTC, and what set it:
+6. Clock and time zone. The clock with the date and UTC, and what set it:
    NTP (over WiFi) or the GPS. Set by either, there is nothing to do. If
    neither did, set the date and time in the fields under it, as in
    Settings > General > DATE / TIME. Time zone sets the zone the clock at the
-   top right shows ("From the country" under it when step 4 set it); the
+   top right shows ("From the country" under it when step 5 set it); the
    logs and the digital modes stay on UTC.
-6. Done. What is set and what is not, the web configurator's address
-   (`http://x6100.local` or `http://x6200.local`, or the
-   [network name](#network-name) you gave the radio, and its IP address), and
-   where this manual is.
+7. Done. What is set and what is not (the keyboard by its Bluetooth name),
+   the web configurator's address (`http://x6100.local` or
+   `http://x6200.local`, or the [network name](#network-name) you gave the
+   radio, and its IP address), and where this manual is.
 
 Moving through it:
 
-- The buttons at the bottom: Back, the step's own (Language, Networks,
-  Callsign, Locator, Country, Time zone), Skip and Next (Done on the last
-  screen). The MFK moves between the controls of a step and its press opens
-  one; touch works too.
-- Skip goes on without the step: the summary then says "Skipped" for WiFi,
-  the callsign or the country while they are not set. One set elsewhere
+- The buttons at the bottom: Back, the step's own (Language, Scan or Turn
+  on, Networks, Callsign, Locator, Country, Time zone), Skip and Next (Done
+  on the last screen). The MFK moves between the controls of a step and its
+  press opens one; touch works too.
+- Skip goes on without the step: the summary then says "Skipped" for the
+  keyboard, WiFi, the callsign or the country while they are not set. One set elsewhere
   (the callsign in Settings, WiFi in the WiFi window) shows as set.
 - ESC asks "Skip the guide?" first; a second ESC within 4 seconds skips the
   rest. GEN, or another app, leaves the guide as well.
@@ -104,8 +119,8 @@ Moving through it:
 ### First steps
 
 On a new card the [first-start guide](#first-start-guide) takes you through
-steps 1 to 3 (and the language and the country) and names the web
-configurator's address.
+steps 1 to 3 (and the language, a Bluetooth keyboard and the country) and
+names the web configurator's address.
 
 1. Set your callsign and QTH locator.
    Where: Settings > General > STATION.
@@ -486,8 +501,9 @@ one second.
 
 ### Keyboard
 
-A USB keyboard, or a Bluetooth one paired in Settings > Bluetooth > DEVICES,
-types in the text boxes and the apps. On the main screen it has the keys for
+A USB keyboard, or a Bluetooth one paired in Settings > Bluetooth > DEVICES
+(or in the [first-start guide](#first-start-guide)'s Keyboard step), types
+in the text boxes and the apps. On the main screen it has the keys for
 the knobs (see [Buttons and knobs](#buttons-and-knobs)), `f` for the
 frequency box and, in CW, the [CW line](#cw-from-the-keyboard). Scroll Lock
 turns the [frequency lock](#buttons-and-knobs) on and off and Print Screen

@@ -1,8 +1,9 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  OpenX6X00 - the first-start guide (first_start.c): WiFi, the callsign and locator, the clock and its time zone,
- *  then where the manual and the web configurator are. When it comes up by itself: first_start_rule.h
+ *  OpenX6X00 - the first-start guide (first_start.c): the language, a Bluetooth keyboard, WiFi, the callsign and
+ *  locator, the country, the clock and its time zone, then where the manual and the web configurator are. When it
+ *  comes up by itself: first_start_rule.h; the keyboard step's decisions: first_start_kbd.h
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
