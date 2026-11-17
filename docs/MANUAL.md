@@ -7306,9 +7306,10 @@ web mailbox.
 - The list: Box goes through the Inbox, the Outbox (what the next
   connection sends) and Sent. Unread messages are marked with `*` and
   counted at the top right, with the messages waiting to go. The MFK (or Up
-  and Down) chooses, a press (or Enter) reads. On a keyboard N writes a new
-  message, C connects, B goes to the next box.
-- Reading: Up and Down, the MFK or the space bar scroll. Reply fills in the
+  and Down) chooses, a press (or Enter) reads; a message touched is read at
+  once. On a keyboard N writes a new message, C connects, B goes to the next
+  box.
+- Reading: Up and Down, the MFK, the space bar or a finger scroll. Reply fills in the
   sender and "Re:" and quotes nothing: over HF every byte takes air time.
   Delete, pressed twice, deletes the message; in the Outbox it is then not
   sent.
@@ -7327,7 +7328,7 @@ web mailbox.
 - Connect: Pat's gateway list for the modem chosen on the Winlink page (ARDOP,
   or the VARA HF gateways for Mercury and XARA), the nearest first, the ones
   called from the radio lately on top (`+`, on the band chosen). Band goes
-  through the bands. The
+  through the bands; the MFK, the arrows or a touch choose a gateway. The
   list comes from the card: without internet Pat takes the one it last
   downloaded, or the one it comes with. Connect, pressed twice for the same
   gateway (the second press transmits; another gateway chosen in between

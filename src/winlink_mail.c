@@ -553,7 +553,9 @@ static lv_obj_t *label(lv_obj_t *parent, const lv_font_t *font, uint32_t color) 
     return l;
 }
 
-/* A row of the lists: four labels, the selection its background */
+static void row_click_cb(lv_event_t *e);
+
+/* A row of the lists: four labels, the selection its background; touched, it is chosen (row_click_cb) */
 static lv_obj_t *make_row(int i) {
     static const int x[] = {6, 30, 190, 360}, w[] = {22, 156, 166, 395};
     lv_obj_t        *r   = lv_obj_create(body);
@@ -563,7 +565,9 @@ static lv_obj_t *make_row(int i) {
     lv_obj_set_pos(r, 3, 4 + i * ROW_H);
     lv_obj_set_style_bg_color(r, TC(sel_bg), 0);
     lv_obj_set_style_radius(r, 4, 0);
-    lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(r, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(r, row_click_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
     for (int c = 0; c < 4; c++) {
         lv_obj_t *l = label(r, &sony_20, theme_hex(TC_text));
 
@@ -736,8 +740,7 @@ static void build_read(void) {
     lv_obj_set_pos(read_box, 2, 2);
     lv_obj_set_style_pad_all(read_box, 8, 0);
     lv_obj_set_flex_flow(read_box, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_scrollbar_mode(read_box, LV_SCROLLBAR_MODE_AUTO);
-    lv_obj_clear_flag(read_box, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_scrollbar_mode(read_box, LV_SCROLLBAR_MODE_AUTO);   /* clickable: a finger scrolls it too */
 
     head = label(read_box, &sony_20, COLOR_DIM);
     lv_label_set_recolor(head, true);
@@ -2135,6 +2138,22 @@ static void move_sel(int d) {
         note[0]       = 0;
     }
     show();
+}
+
+/* A row touched: a message is read at once, as an MFK press reads the one chosen; a gateway is only chosen, and
+ * Connect, pressed twice, calls it */
+static void row_click_cb(lv_event_t *e) {
+    int k = top + (int)(intptr_t)lv_event_get_user_data(e);
+
+    if (popup_first() || (view != V_LIST && view != V_GATEWAYS) || k >= list_n()) {
+        return;
+    }
+    if (k != sel) {
+        move_sel(k - sel);
+    }
+    if (view == V_LIST) {
+        open_selected();
+    }
 }
 
 static void compose_key(uint32_t key) {
