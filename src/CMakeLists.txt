@@ -40,7 +40,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     dialog_zello.c zello.c voice_net.c voice_link.c voice_ptt.c dialog_svx.c svx.c svx_proto.c
     dialog_meteo.c meteo.c meteo_alerts.c
     first_start.c first_start_rule.c
-    dialog_cw_trainer.c
+    dialog_cw_trainer.c cw_trainer_score.c
     dialog_cw_kbd.c recolor_rows.c
     theme.c
     freq_strip.c

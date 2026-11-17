@@ -226,7 +226,7 @@ the same GUI. How they are taken: [docs/screenshots](docs/screenshots/README.md)
 
 | | |
 |---|---|
-| ![CW Trainer](docs/screenshots/cw_trainer.png) **[CW Trainer](docs/MANUAL.md#cw-trainer)**: Koch's method, keyed back with the paddle | ![Birdie Cal](docs/screenshots/birdie_cal.png) **[Birdie Cal](docs/MANUAL.md#birdie-cal)**: finds the radio's own carriers to mark and notch them |
+| ![CW Trainer](docs/screenshots/cw_trainer.png) **[CW Trainer](docs/MANUAL.md#cw-trainer)**: Koch's method, keyed back with the paddle or typed on a keyboard (Copy) | ![Birdie Cal](docs/screenshots/birdie_cal.png) **[Birdie Cal](docs/MANUAL.md#birdie-cal)**: finds the radio's own carriers to mark and notch them |
 | ![SWR Scan](docs/screenshots/swr_scan.png) **SWR Scan** around the VFO, 50 to 500 kHz wide (it transmits, so not run here) | ![RX Recorder](docs/screenshots/recorder.png) **RX Recorder**: record, rename and play back |
 
 ### In the browser
