@@ -5111,15 +5111,16 @@ def flights_get():
 # Weather: as APP > Weather shows it (src/dialog_meteo.c), from the same helper (rootfs/usr/sbin/x6100-meteo: Open-Meteo,
 # OpenStreetMap's Nominatim for the place's name, the country's weather service for its warnings; the position sent
 # rounded to 0.1 degree). Asked only while the page is open and seen: its script asks again every 15 minutes, and
-# only the first ask and Update let the helper look up a place's name (Nominatim's policy). The country and the QTH
-# locator are set on the radio, Settings > General > STATION: this page only reads them.
+# only the first ask and Update let the helper look up a place's name (Nominatim's policy). The country, the QTH
+# locator and where the weather is for (Weather from, Weather place) are set on the radio, Settings > General >
+# STATION: this page only reads them.
 
 
 def meteo_position(grid):
     """{lat, lon, src, where, cc, lang, notices} for the page: the locator typed on it, else what the radio asks for
-    (its GPS, the phone's, the QTH locator, else the country's capital: pos_get on the GUI's socket, as the Flights
-    page asks), else the QTH locator of params.db while the GUI does not answer. None without any. notices: APP >
-    Weather > Notices is on"""
+    (its GPS, the phone's, the QTH locator, else the country's capital, or the locator alone or a place typed as its
+    Weather from says: pos_get on the GUI's socket, as the Flights page asks), else the QTH locator of params.db
+    while the GUI does not answer. None without any. notices: APP > Weather > Notices is on"""
     reply = display_call({"cmd": "pos_get"}) or {}
     ok = reply.get("t") == "pos"
     cc = str(reply.get("cc") or "") if ok else read_param("country")
@@ -5132,6 +5133,7 @@ def meteo_position(grid):
     if ok and isinstance(reply.get("lat"), (int, float)) and isinstance(reply.get("lon"), (int, float)):
         src = str(reply.get("src") or "")
         where = {"Locator": f"Locator {read_param('qth')}",
+                 "Typed": f"Place {reply.get('place') or ''}".strip(),
                  "Country": f"Country {reply.get('country') or cc}"}.get(src, src)
         return dict(pos, lat=reply["lat"], lon=reply["lon"], src=src, where=where)
     qth = read_param("qth")

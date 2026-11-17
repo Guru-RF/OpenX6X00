@@ -142,6 +142,12 @@ const char *station_qth(void) {
 #define POS_MAX_AGE_S   600     /* the phone sends its position every two minutes standing still */
 #define PHONE_MAX_ACC_M 1000    /* coarser than that (a phone placed by its cell), the locator does as well */
 
+bool station_locator_position(double *lat, double *lon) {
+    if (strlen(params.qth.x) < 4 || !qth_grid_check(params.qth.x)) return false;
+    qth_str_to_pos(params.qth.x, lat, lon);
+    return true;
+}
+
 bool station_position(double *lat, double *lon, const char **src) {
     int age, acc;
 
@@ -153,11 +159,11 @@ bool station_position(double *lat, double *lon, const char **src) {
         *src = "Phone";
         return true;
     }
-    if (strlen(params.qth.x) >= 4 && qth_grid_check(params.qth.x)) {
-        qth_str_to_pos(params.qth.x, lat, lon);
+    if (station_locator_position(lat, lon)) {
         *src = "Locator";
         return true;
     }
     *src = "";
     return false;
 }
+

@@ -1722,7 +1722,7 @@ msgstr "EE. UU., Américas (FCC)"
 
 #: src/cb.c
 msgid "Australia"
-msgstr ""
+msgstr "Australia"
 
 #: src/cb.c
 msgid "Poland (PL)"
@@ -1960,7 +1960,7 @@ msgstr ""
 #: src/cluster_column.c
 #, c-format
 msgid "Cluster %s - %s"
-msgstr ""
+msgstr "Cluster %s - %s"
 
 #: src/cluster_column.c src/dialog_cluster.c src/ft8_window.c src/knob_info.cpp
 #: src/radio_controls.cpp
@@ -3801,7 +3801,7 @@ msgstr "¿Spot?"
 
 #: src/dialog_field.c
 msgid "Spot"
-msgstr ""
+msgstr "Spot"
 
 #: src/dialog_field.c
 msgid ""
@@ -10177,7 +10177,7 @@ msgstr "Brillo"
 
 #: src/knob_info.cpp
 msgid "Zoom"
-msgstr ""
+msgstr "Zoom"
 
 #: src/knob_info.cpp
 msgid "Compressor"
@@ -11223,11 +11223,11 @@ msgstr ""
 
 #: src/remote_server.c
 msgid "the radio's operator"
-msgstr ""
+msgstr "el operador de la radio"
 
 #: src/remote_server.c
 msgid "a TCI client"
-msgstr ""
+msgstr "un cliente TCI"
 
 #: src/remote_server.c
 #, c-format
@@ -16020,6 +16020,406 @@ msgstr "Radio"
 msgid "squawk"
 msgstr "squawk"
 
+#. not in the list: a line or a word of a longer text
+msgid "(admin)"
+msgstr "(admin)"
+
+#. not in the list: a line or a word of a longer text
+msgid "- Press Start Auto RX to start Autodecoder."
+msgstr "- Pulsá Iniciar RX automático para arrancar el decodificador automático."
+
+#. not in the list: a line or a word of a longer text
+msgid "All speeds"
+msgstr "Todas las velocidades"
+
+#. not in the list: a line or a word of a longer text
+msgid "Auto RX"
+msgstr "RX automático"
+
+#. not in the list: a line or a word of a longer text
+msgid "Auto call every %i s"
+msgstr "Llamada automática cada %i s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Auto:"
+msgstr "Auto:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Awaiting signal..."
+msgstr "Esperando señal..."
+
+#. not in the list: a line or a word of a longer text
+msgid "Band up"
+msgstr "Banda arriba"
+
+#. not in the list: a line or a word of a longer text
+msgid "Best score %s"
+msgstr "Mejor puntaje %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Best speed %i WPM"
+msgstr "Mejor velocidad %i WPM"
+
+#. not in the list: a line or a word of a longer text
+msgid "Browser"
+msgstr "Navegador"
+
+#. not in the list: a line or a word of a longer text
+msgid "CQ auto:"
+msgstr "CQ automático:"
+
+#. not in the list: a line or a word of a longer text
+msgid "CW peak Q:"
+msgstr "Q pico CW:"
+
+#. not in the list: a line or a word of a longer text
+msgid "CW peak:"
+msgstr "Pico CW:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Calls"
+msgstr "Indicativos"
+
+#. not in the list: a line or a word of a longer text
+msgid "Change"
+msgstr "Cambiar"
+
+#. not in the list: a line or a word of a longer text
+msgid "Choose TX action"
+msgstr "Elegí la acción de TX"
+
+#. not in the list: a line or a word of a longer text
+msgid "Comp:"
+msgstr "Comp:"
+
+#. not in the list: a line or a word of a longer text
+msgid "DNF auto:"
+msgstr "DNF auto:"
+
+#. not in the list: a line or a word of a longer text
+msgid "DNF freq:"
+msgstr "DNF frec.:"
+
+#. not in the list: a line or a word of a longer text
+msgid "DNF width:"
+msgstr "DNF ancho:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Decode:"
+msgstr "Decodifica:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Decoder:"
+msgstr "Decodificador:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Decoding %s signal"
+msgstr "Decodificando señal %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Denoise"
+msgstr "Quitar ruido"
+
+#. not in the list: a line or a word of a longer text
+msgid "Directed"
+msgstr "Dirigidos"
+
+#. not in the list: a line or a word of a longer text
+msgid "Field"
+msgstr "Campo"
+
+#. not in the list: a line or a word of a longer text
+msgid "Filter BW:"
+msgstr "Ancho filtro:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Filter high:"
+msgstr "Filtro alto:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Filter low:"
+msgstr "Filtro bajo:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Force QSO"
+msgstr "Forzar QSO"
+
+#. not in the list: a line or a word of a longer text
+msgid "Freq:"
+msgstr "Frec.:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Full Size"
+msgstr "Tamaño completo"
+
+#. not in the list: a line or a word of a longer text
+msgid "Halt"
+msgstr "Detener"
+
+#. not in the list: a line or a word of a longer text
+msgid "Hound:"
+msgstr "Hound:"
+
+#. not in the list: a line or a word of a longer text
+msgid "IF shift:"
+msgstr "Desplaz. FI:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Iambic:"
+msgstr "Yámbico:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Interval %i s"
+msgstr "Intervalo %i s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Interval: page 2"
+msgstr "Intervalo: página 2"
+
+#. not in the list: a line or a word of a longer text
+msgid "Level %i"
+msgstr "Nivel %i"
+
+#. not in the list: a line or a word of a longer text
+msgid "Manual RX"
+msgstr "RX manual"
+
+#. not in the list: a line or a word of a longer text
+msgid "Messages"
+msgstr "Mensajes"
+
+#. not in the list: a line or a word of a longer text
+msgid "Mic level: keep out of the red"
+msgstr "Nivel de micrófono: sin llegar al rojo"
+
+#. not in the list: a line or a word of a longer text
+msgid "My speed"
+msgstr "Mi velocidad"
+
+#. not in the list: a line or a word of a longer text
+msgid "NB level:"
+msgstr "NB nivel:"
+
+#. not in the list: a line or a word of a longer text
+msgid "NB width:"
+msgstr "NB ancho:"
+
+#. not in the list: a line or a word of a longer text
+msgid "NR level:"
+msgstr "NR nivel:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Next call in %i s"
+msgstr "Próxima llamada en %i s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Next level at %i%%"
+msgstr "Siguiente nivel al %i%%"
+
+#. not in the list: a line or a word of a longer text
+msgid "Practice"
+msgstr "Práctica"
+
+#. not in the list: a line or a word of a longer text
+msgid "Preset"
+msgstr "Predefinido"
+
+#. not in the list: a line or a word of a longer text
+msgid "Press Stop Manual RX to render received picture"
+msgstr "Pulsá Detener RX manual para dibujar la imagen recibida"
+
+#. not in the list: a line or a word of a longer text
+msgid "QSK time:"
+msgstr "Tiempo QSK:"
+
+#. not in the list: a line or a word of a longer text
+msgid "RBN, beacon"
+msgstr "RBN, baliza"
+
+#. not in the list: a line or a word of a longer text
+msgid "RF gain:"
+msgstr "Ganancia RF:"
+
+#. not in the list: a line or a word of a longer text
+msgid "RX Pics"
+msgstr "Imágenes RX"
+
+#. not in the list: a line or a word of a longer text
+msgid "Ratio:"
+msgstr "Relación:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Reset"
+msgstr "Reiniciar"
+
+#. not in the list: a line or a word of a longer text
+msgid "Restart OFF"
+msgstr "Reinicio NO"
+
+#. not in the list: a line or a word of a longer text
+msgid "Restart ON"
+msgstr "Reinicio SÍ"
+
+#. not in the list: a line or a word of a longer text
+msgid "Retries:"
+msgstr "Reintentos:"
+
+#. not in the list: a line or a word of a longer text
+msgid "SSTV Autodecoder is running."
+msgstr "El decodificador automático SSTV está funcionando."
+
+#. not in the list: a line or a word of a longer text
+msgid "SSTV Manual decoder is running"
+msgstr "El decodificador manual SSTV está funcionando"
+
+#. not in the list: a line or a word of a longer text
+msgid "SSTV pictures and texts installed"
+msgstr "Imágenes y textos SSTV instalados"
+
+#. not in the list: a line or a word of a longer text
+msgid "Scale:"
+msgstr "Escala:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Screen"
+msgstr "Pantalla"
+
+#. not in the list: a line or a word of a longer text
+msgid "Searching the line syncs for the SSTV mode"
+msgstr "Buscando los sincronismos de línea del modo SSTV"
+
+#. not in the list: a line or a word of a longer text
+msgid "Show:"
+msgstr "Mostrar:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Small"
+msgstr "Chica"
+
+#. not in the list: a line or a word of a longer text
+msgid "Span:"
+msgstr "Ancho:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Squelch:"
+msgstr "Silenciador:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Stand by."
+msgstr "En espera."
+
+#. not in the list: a line or a word of a longer text
+msgid "Start here"
+msgstr "Empezar acá"
+
+#. not in the list: a line or a word of a longer text
+msgid "Stations"
+msgstr "Estaciones"
+
+#. not in the list: a line or a word of a longer text
+msgid "Step:"
+msgstr "Paso:"
+
+#. not in the list: a line or a word of a longer text
+msgid "TX power:"
+msgstr "Potencia TX:"
+
+#. not in the list: a line or a word of a longer text
+msgid "TX setup"
+msgstr "Ajuste de TX"
+
+#. not in the list: a line or a word of a longer text
+msgid "Text"
+msgstr "Texto"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tone:"
+msgstr "Tono:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Train:"
+msgstr "Entrenar:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Trainer"
+msgstr "Entrenador"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tuner:"
+msgstr "Acoplador:"
+
+#. not in the list: a line or a word of a longer text
+msgid "Upload"
+msgstr "Subir"
+
+#. not in the list: a line or a word of a longer text
+msgid "View"
+msgstr "Ver"
+
+#. not in the list: a line or a word of a longer text
+msgid "Volume:"
+msgstr "Volumen:"
+
+#. not in the list: a line or a word of a longer text
+msgid "WF ref:"
+msgstr "Ref. cascada:"
+
+#. not in the list: a line or a word of a longer text
+msgid "logged in"
+msgstr "conectado"
+
+#. not in the list: a line or a word of a longer text
+msgid "not answering, let go"
+msgstr "no responde, se suelta"
+
+#. not in the list: a line or a word of a longer text
+msgid "let go"
+msgstr "suelto"
+
+#. not in the list: a line or a word of a longer text
+msgid "one at a time"
+msgstr "uno a la vez"
+
+#. not in the list: a line or a word of a longer text
+msgid "paused after wrong keys"
+msgstr "en pausa tras claves erróneas"
+
+#. not in the list: a line or a word of a longer text
+msgid "prompt: Off"
+msgstr "aviso: No"
+
+#. not in the list: a line or a word of a longer text
+msgid "prompt: On"
+msgstr "aviso: Sí"
+
+#. not in the list: a line or a word of a longer text
+msgid "two from the internet already"
+msgstr "ya hay dos desde internet"
+
+#. not in the list: a line or a word of a longer text
+msgid "via Funnel"
+msgstr "por Funnel"
+
+#. not in the list: a line or a word of a longer text
+msgid "hold: down"
+msgstr "mantener: abajo"
+
+#. not in the list: a line or a word of a longer text
+msgid "profile %d"
+msgstr "perfil %d"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s line syncs found"
+msgstr "%s sincronismos de línea encontrados"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s mode"
+msgstr "modo %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Activation"
+msgstr "Activación"
+
 #~ msgid "Position, time"
 #~ msgstr "Posición, hora"
 
@@ -17293,4 +17693,85 @@ msgstr "squawk"
 
 #~ msgid "GhostNet: nets, translation, RTTY..."
 #~ msgstr "GhostNet: redes, traducción, RTTY..."
+
+#~ msgid "North America"
+#~ msgstr "Norteamérica"
+
+#~ msgid "Bridge NA-Europe"
+#~ msgstr "Puente NA-Europa"
+
+#~ msgid "Bridge NA-Australia"
+#~ msgstr "Puente NA-Australia"
+
+#~ msgid "Bridge Europe-Australia"
+#~ msgstr "Puente Europa-Australia"
+
+#~ msgid "Bridge Australia-Pacific"
+#~ msgstr "Puente Australia-Pacífico"
+
+#~ msgid "Spanish net"
+#~ msgstr "Red hispana"
+
+#~ msgid "%s in Spanish"
+#~ msgstr "%s en español"
+
+#~ msgid "Mo"
+#~ msgstr "lun"
+
+#~ msgid "Tu"
+#~ msgstr "mar"
+
+#~ msgid "We"
+#~ msgstr "mié"
+
+#~ msgid "Th"
+#~ msgstr "jue"
+
+#~ msgid "Fr"
+#~ msgstr "vie"
+
+#~ msgid "Sa"
+#~ msgstr "sáb"
+
+#~ msgid "RTTY 45.45 baud"
+#~ msgstr "RTTY 45,45 baudios"
+
+#~ msgid "Voice, emergencies only"
+#~ msgstr "Voz, solo emergencias"
+
+#~ msgid " manual"
+#~ msgstr " a mano"
+
+#~ msgid "Su"
+#~ msgstr "dom"
+
+#~ msgid "(armed)"
+#~ msgstr "(armado)"
+
+#~ msgid "(listen)"
+#~ msgstr "(escucha)"
+
+#~ msgid "- Press Start Manual RX to start Manual"
+#~ msgstr "- Pulsá Iniciar RX manual para arrancar el manual"
+
+#~ msgid "Moni level:"
+#~ msgstr "Nivel monitor:"
+
+#~ msgid "No license"
+#~ msgstr "Sin licencia"
+
+#~ msgid "Position from %s%s"
+#~ msgstr "Posición de %s%s"
+
+#~ msgid "Run complete - final score %s"
+#~ msgstr "Ronda terminada - puntaje final %s"
+
+#~ msgid "Score %d - MFK to call CQ again"
+#~ msgstr "Puntaje %d - MFK para llamar CQ otra vez"
+
+#~ msgid "Turn the knob to steer - MFK to start"
+#~ msgstr "Girá la perilla para dirigir - MFK para empezar"
+
+#~ msgid "%s is empty"
+#~ msgstr "%s está vacío"
 

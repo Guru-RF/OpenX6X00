@@ -56,6 +56,16 @@ int32_t param_i_get(const ParamInt *p) {
     return p->v;
 }
 
+static ParamInt from = {0};     /* Weather from: where the radio is */
+ParamInt       *cfg_meteo_from  = &from;
+ParamText      *cfg_meteo_place = NULL;
+
+size_t param_t_get(const ParamText *p, char *out, size_t size) {
+    (void)p;
+    if (size) out[0] = 0;
+    return 0;
+}
+
 static dialog_t meteo_app;
 dialog_t       *dialog_meteo = &meteo_app;
 
@@ -132,6 +142,12 @@ bool station_position(double *lat, double *lon, const char **src) {
     *lon = 4.3525;
     *src = "GPS";
     return true;
+}
+
+bool station_locator_position(double *lat, double *lon) {
+    (void)lat;
+    (void)lon;
+    return false;
 }
 
 static const country_t belgium = {"BE", 1, "CET-1CEST,M3.5.0,M10.5.0/3", 50.8333f, 4.3333f};

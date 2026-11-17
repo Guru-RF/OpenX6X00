@@ -246,7 +246,7 @@ msgstr "Inconnu"
 #: src/app_sstv.c src/band_plan.c src/button_bar.cpp src/dialog_scan.c
 #: src/ft8_window.c src/knob_info.cpp src/radio_controls.cpp
 msgid "Auto"
-msgstr ""
+msgstr "Auto"
 
 #: src/app_sstv.c
 #, c-format
@@ -924,7 +924,7 @@ msgstr ""
 
 #: src/bt_dev.c
 msgid "pairing open"
-msgstr ""
+msgstr "appairage ouvert"
 
 #: src/bt_dev.c
 #, c-format
@@ -933,15 +933,15 @@ msgstr "Clavier %s"
 
 #: src/bt_dev.c
 msgid "Discoverable"
-msgstr ""
+msgstr "Visible"
 
 #: src/bt_dev.c
 msgid "Pairable"
-msgstr ""
+msgstr "Appairable"
 
 #: src/bt_dev.c
 msgid "pairing closed: hidden, not pairable"
-msgstr ""
+msgstr "appairage fermé : caché, non appairable"
 
 #: src/bt_dev.c
 msgid "Connect: ok"
@@ -949,7 +949,7 @@ msgstr ""
 
 #: src/bt_dev.c
 msgid "FAILED"
-msgstr ""
+msgstr "ÉCHEC"
 
 #: src/bt_dev.c
 #, c-format
@@ -968,7 +968,7 @@ msgstr ""
 
 #: src/bt_dev.c
 msgid "keyboard: classic, paired where Scan found it"
-msgstr ""
+msgstr "clavier : classique, appairé là où le balayage l'a trouvé"
 
 #: src/bt_dev.c
 msgid "press the keyboard's pairing key"
@@ -981,7 +981,7 @@ msgstr ""
 
 #: src/bt_dev.c
 msgid "result: keyboard not found"
-msgstr ""
+msgstr "résultat : clavier introuvable"
 
 #: src/bt_dev.c
 msgid "keyboard not found"
@@ -989,7 +989,7 @@ msgstr "clavier introuvable"
 
 #: src/bt_dev.c
 msgid "result: not found"
-msgstr ""
+msgstr "résultat : introuvable"
 
 #: src/bt_dev.c
 msgid "not found - is it in pairing mode?"
@@ -997,20 +997,20 @@ msgstr "introuvable - est-il en mode appairage ?"
 
 #: src/bt_dev.c
 msgid "Pair: ok"
-msgstr ""
+msgstr "Appairage : ok"
 
 #: src/bt_dev.c
 msgid "Pair: already paired"
-msgstr ""
+msgstr "Appairage : déjà appairé"
 
 #: src/bt_dev.c
 #, c-format
 msgid "result: pair failed (%s)"
-msgstr ""
+msgstr "résultat : échec d'appairage (%s)"
 
 #: src/bt_dev.c
 msgid "no reply"
-msgstr ""
+msgstr "pas de réponse"
 
 #: src/bt_dev.c
 msgid "pairing failed"
@@ -1019,11 +1019,11 @@ msgstr "échec de l'appairage"
 #: src/bt_dev.c
 #, c-format
 msgid "Trusted: %s"
-msgstr ""
+msgstr "De confiance : %s"
 
 #: src/bt_dev.c
 msgid "Trusted"
-msgstr ""
+msgstr "De confiance"
 
 #: src/bt_dev.c
 msgid "btaudio-ctl save failed"
@@ -1031,7 +1031,7 @@ msgstr ""
 
 #: src/bt_dev.c
 msgid "result: connect failed"
-msgstr ""
+msgstr "résultat : échec de connexion"
 
 #: src/bt_dev.c
 msgid "paired, connect failed"
@@ -1040,11 +1040,11 @@ msgstr "appairé, connexion échouée"
 #: src/bt_dev.c
 #, c-format
 msgid "result: connected%s"
-msgstr ""
+msgstr "résultat : connecté%s"
 
 #: src/bt_dev.c
 msgid " (keyboard)"
-msgstr ""
+msgstr " (clavier)"
 
 #: src/bt_dev.c
 msgid "connect failed"
@@ -1134,11 +1134,11 @@ msgstr ""
 
 #: src/btaudio.cpp
 msgid "mute on"
-msgstr ""
+msgstr "muet activé"
 
 #: src/btaudio.cpp
 msgid "mute off"
-msgstr ""
+msgstr "muet désactivé"
 
 #: src/button_bar.cpp
 msgid "Added to VOL encoder"
@@ -1155,13 +1155,13 @@ msgstr "Retiré du bouton MFK"
 #: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
 #: src/screen_main.c src/settings_window.cpp
 msgid "On"
-msgstr ""
+msgstr "Oui"
 
 #: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
 #: src/screen_light.c src/screen_main.c src/settings_window.cpp
 #: src/wifi_window.c src/wspr/wspr_hop.c
 msgid "Off"
-msgstr ""
+msgstr "Non"
 
 #: src/button_bar.cpp src/dialog_scan.c src/knob_info.cpp
 #: src/radio_controls.cpp
@@ -1959,7 +1959,7 @@ msgstr ""
 #: src/cluster_column.c
 #, c-format
 msgid "Cluster %s - %s"
-msgstr ""
+msgstr "Cluster %s - %s"
 
 #: src/cluster_column.c src/dialog_cluster.c src/ft8_window.c src/knob_info.cpp
 #: src/radio_controls.cpp
@@ -3485,7 +3485,7 @@ msgstr "MANIPULÉ"
 
 #: src/dialog_cw_trainer.c
 msgid "SCORE"
-msgstr ""
+msgstr "SCORE"
 
 #: src/dialog_field.c
 msgid "x6100-wavelog sync 2>/dev/null"
@@ -3688,7 +3688,7 @@ msgstr "Choisir"
 
 #: src/dialog_field.c
 msgid "Radio"
-msgstr ""
+msgstr "Radio"
 
 #: src/dialog_field.c
 msgid "Ref..."
@@ -3791,7 +3791,7 @@ msgstr "Spot ?"
 
 #: src/dialog_field.c
 msgid "Spot"
-msgstr ""
+msgstr "Spot"
 
 #: src/dialog_field.c
 msgid ""
@@ -4489,7 +4489,7 @@ msgstr "Vol"
 
 #: src/dialog_flights.c
 msgid "Type"
-msgstr ""
+msgstr "Type"
 
 #: src/dialog_flights.c
 msgid "Altitude"
@@ -5663,7 +5663,7 @@ msgstr ""
 
 #: src/dialog_scan.c src/settings_window.cpp
 msgid "Source"
-msgstr ""
+msgstr "Source"
 
 #: src/dialog_scan.c
 msgid ""
@@ -7951,7 +7951,7 @@ msgstr ""
 
 #: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp src/js8_window.c
 msgid "INFO"
-msgstr ""
+msgstr "INFO"
 
 #: src/js8/directed_msg.cpp src/js8/frame_joiner.cpp src/js8/msg_kind.cpp
 msgid "GRID"
@@ -10169,7 +10169,7 @@ msgstr "Luminosité"
 
 #: src/knob_info.cpp
 msgid "Zoom"
-msgstr ""
+msgstr "Zoom"
 
 #: src/knob_info.cpp
 msgid "Compressor"
@@ -11390,11 +11390,11 @@ msgstr "Copier VFO %s"
 
 #: src/screen_main.c
 msgid "Pre"
-msgstr ""
+msgstr "Pré"
 
 #: src/screen_main.c
 msgid "Att"
-msgstr ""
+msgstr "Att"
 
 #: src/screen_main.c
 msgid "Power off"
@@ -11530,7 +11530,7 @@ msgstr "Affichage"
 
 #: src/settings_window.cpp
 msgid "Audio"
-msgstr ""
+msgstr "Audio"
 
 #: src/settings_window.cpp
 msgid "Wireless"
@@ -11550,7 +11550,7 @@ msgstr "Calib. TX"
 
 #: src/settings_window.cpp
 msgid "Info"
-msgstr ""
+msgstr "Info"
 
 #: src/settings_window.cpp
 msgid "Font: this theme has its own"
@@ -11706,7 +11706,7 @@ msgstr ""
 
 #: src/settings_window.cpp
 msgid " APP Cluster "
-msgstr ""
+msgstr " APP Cluster "
 
 #: src/settings_window.cpp
 msgid " APP CW Trainer "
@@ -11794,7 +11794,7 @@ msgstr "F2 long"
 
 #: src/settings_window.cpp
 msgid "F3 long"
-msgstr ""
+msgstr "F3 long"
 
 #: src/settings_window.cpp
 #, c-format
@@ -12083,7 +12083,7 @@ msgstr ""
 #: src/settings_window.cpp
 #, c-format
 msgid "%s.local/remote, port %d"
-msgstr ""
+msgstr "%s.local/remote, port %d"
 
 #: src/settings_window.cpp
 #, c-format
@@ -12120,7 +12120,7 @@ msgstr "le navigateur tape ce code pour piloter"
 
 #: src/settings_window.cpp
 msgid "Sessions"
-msgstr ""
+msgstr "Sessions"
 
 #: src/settings_window.cpp
 msgid "Forget all"
@@ -12263,7 +12263,7 @@ msgstr "Pour %s seulement. Injectez -73 dBm et réglez la lecture sur S9 sur cha
 #: src/settings_window.cpp
 #, c-format
 msgid "%i traces"
-msgstr ""
+msgstr "%i traces"
 
 #: src/settings_window.cpp
 msgid "3D colours"
@@ -12347,7 +12347,7 @@ msgstr "Talkie-walkie"
 
 #: src/settings_window.cpp
 msgid "TRANSVERTERS"
-msgstr ""
+msgstr "TRANSVERTERS"
 
 #: src/settings_window.cpp
 msgid "WR12 RECEIVER"
@@ -12938,7 +12938,7 @@ msgstr "Lampe d'aiguille"
 
 #: src/settings_window.cpp
 msgid "Birdies"
-msgstr ""
+msgstr "Birdies"
 
 #: src/settings_window.cpp
 msgid ""
@@ -13083,7 +13083,7 @@ msgstr "Gain"
 
 #: src/settings_window.cpp
 msgid "Anti-VOX"
-msgstr ""
+msgstr "Anti-VOX"
 
 #: src/settings_window.cpp
 msgid "Delay"
@@ -13213,7 +13213,7 @@ msgstr ""
 
 #: src/settings_window.cpp
 msgid "Public"
-msgstr ""
+msgstr "Public"
 
 #: src/settings_window.cpp
 msgid "Login"
@@ -13233,7 +13233,7 @@ msgstr ""
 
 #: src/settings_window.cpp
 msgid "ETHERNET"
-msgstr ""
+msgstr "ETHERNET"
 
 #: src/settings_window.cpp
 msgid "Bluetooth service not running"
@@ -13468,7 +13468,7 @@ msgstr "Vérif. quotidienne de la base"
 
 #: src/settings_window.cpp
 msgid "FIRMWARE"
-msgstr ""
+msgstr "FIRMWARE"
 
 #: src/settings_window.cpp
 msgid "Version"
@@ -14638,7 +14638,7 @@ msgstr "WiFi %s : hors de portée, relancez la recherche"
 
 #: src/wifi.cpp
 msgid "WPA Enterprise (802.1X)"
-msgstr ""
+msgstr "WPA Enterprise (802.1X)"
 
 #: src/wifi.cpp
 msgid "Enhanced Open (OWE)"
@@ -15631,6 +15631,778 @@ msgstr "Rayon"
 #. not in the list: a line or a word of a longer text
 msgid "squawk"
 msgstr "squawk"
+
+#. not in the list: a line or a word of a longer text
+msgid " = not a character. "
+msgstr " = pas un caractère. "
+
+#. not in the list: a line or a word of a longer text
+msgid " = not a character. Right: +1 WPM, wrong: -1 WPM."
+msgstr " = pas un caractère. Juste : +1 WPM, faux : -1 WPM."
+
+#. not in the list: a line or a word of a longer text
+msgid " and "
+msgstr " et "
+
+#. not in the list: a line or a word of a longer text
+msgid ", Birdie Cal off the dial"
+msgstr ", calibration birdies hors du cadran"
+
+#. not in the list: a line or a word of a longer text
+msgid ", none since the start"
+msgstr ", aucun depuis le démarrage"
+
+#. not in the list: a line or a word of a longer text
+msgid ", the level back to 0 dB"
+msgstr ", le niveau revient à 0 dB"
+
+#. not in the list: a line or a word of a longer text
+msgid "3D depth:"
+msgstr "Profondeur 3D :"
+
+#. not in the list: a line or a word of a longer text
+msgid "3D floor:"
+msgstr "Sol 3D :"
+
+#. not in the list: a line or a word of a longer text
+msgid "3D tilt:"
+msgstr "Inclinaison 3D :"
+
+#. not in the list: a line or a word of a longer text
+msgid "APP grid overlaps the buttons"
+msgstr "La grille APP recouvre les boutons"
+
+#. not in the list: a line or a word of a longer text
+msgid "AUTO:"
+msgstr "AUTO :"
+
+#. not in the list: a line or a word of a longer text
+msgid "About %.0f min in QRSS3"
+msgstr "Environ %.0f min en QRSS3"
+
+#. not in the list: a line or a word of a longer text
+msgid "About %.0f s at %i WPM"
+msgstr "Environ %.0f s à %i WPM"
+
+#. not in the list: a line or a word of a longer text
+msgid "About %.0f s in QRSS3"
+msgstr "Environ %.0f s en QRSS3"
+
+#. not in the list: a line or a word of a longer text
+msgid "Beacon: %s"
+msgstr "Balise : %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Activ.:"
+msgstr "Activ. :"
+
+#. not in the list: a line or a word of a longer text
+msgid "BEACON"
+msgstr "BALISE"
+
+#. not in the list: a line or a word of a longer text
+msgid "Broadcast"
+msgstr "Radiodiffusion"
+
+#. not in the list: a line or a word of a longer text
+msgid "Bunkers"
+msgstr "Bunkers"
+
+#. not in the list: a line or a word of a longer text
+msgid "On The Air"
+msgstr "On The Air"
+
+#. not in the list: a line or a word of a longer text
+msgid "Keyboard"
+msgstr "Clavier"
+
+#. not in the list: a line or a word of a longer text
+msgid "Ext tune:"
+msgstr "Accord ext. :"
+
+#. not in the list: a line or a word of a longer text
+msgid "HB ACK:"
+msgstr "HB ACK :"
+
+#. not in the list: a line or a word of a longer text
+msgid "History"
+msgstr "Historique"
+
+#. not in the list: a line or a word of a longer text
+msgid "Hold:"
+msgstr "Maintien :"
+
+#. not in the list: a line or a word of a longer text
+msgid "JTTY receiver rate"
+msgstr "Débit de réception JTTY"
+
+#. not in the list: a line or a word of a longer text
+msgid "Lakes and"
+msgstr "Lacs et"
+
+#. not in the list: a line or a word of a longer text
+msgid "Lagoons"
+msgstr "Lagunes"
+
+#. not in the list: a line or a word of a longer text
+msgid "Lighthouses"
+msgstr "Phares"
+
+#. not in the list: a line or a word of a longer text
+msgid "Listen first: %s, %.3f MHz"
+msgstr "Écoutez d'abord : %s, %.3f MHz"
+
+#. not in the list: a line or a word of a longer text
+msgid "Live:"
+msgstr "Direct :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Marks:"
+msgstr "Repères :"
+
+#. not in the list: a line or a word of a longer text
+msgid "+ notch"
+msgstr "+ notch"
+
+#. not in the list: a line or a word of a longer text
+msgid "Mills"
+msgstr "Moulins"
+
+#. not in the list: a line or a word of a longer text
+msgid "Mode:"
+msgstr "Mode :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Modes grid overlaps the buttons"
+msgstr "La grille des modes recouvre les boutons"
+
+#. not in the list: a line or a word of a longer text
+msgid "Nature"
+msgstr "Nature"
+
+#. not in the list: a line or a word of a longer text
+msgid "Olivia input rate"
+msgstr "Débit d'entrée Olivia"
+
+#. not in the list: a line or a word of a longer text
+msgid "Operate"
+msgstr "Opérer"
+
+#. not in the list: a line or a word of a longer text
+msgid "Listen only"
+msgstr "Écoute seulement"
+
+#. not in the list: a line or a word of a longer text
+msgid "PSK receiver rate"
+msgstr "Débit de réception PSK"
+
+#. not in the list: a line or a word of a longer text
+msgid "Pair"
+msgstr "Appairer"
+
+#. not in the list: a line or a word of a longer text
+msgid "Paired"
+msgstr "Appairé"
+
+#. not in the list: a line or a word of a longer text
+msgid "Parks"
+msgstr "Parcs"
+
+#. not in the list: a line or a word of a longer text
+msgid "Parse:"
+msgstr "Analyse :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Re-spot"
+msgstr "Re-spotter"
+
+#. not in the list: a line or a word of a longer text
+msgid "SWR scan: no data from the base for %u ms, stopped"
+msgstr "Balayage ROS : pas de données de la base depuis %u ms, arrêté"
+
+#. not in the list: a line or a word of a longer text
+msgid "Set"
+msgstr "Définir"
+
+#. not in the list: a line or a word of a longer text
+msgid "Span %s"
+msgstr "Plage %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Speed:"
+msgstr "Vitesse :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Summits"
+msgstr "Sommets"
+
+#. not in the list: a line or a word of a longer text
+msgid "TX: no data from the base for %u ms, back to RX"
+msgstr "TX : pas de données de la base depuis %u ms, retour en RX"
+
+#. not in the list: a line or a word of a longer text
+msgid "Test beacon not sent%s%s"
+msgstr "Balise de test non envoyée%s%s"
+
+#. not in the list: a line or a word of a longer text
+msgid "The radio stays on %.4f MHz"
+msgstr "La radio reste sur %.4f MHz"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tiles"
+msgstr "Carrés"
+
+#. not in the list: a line or a word of a longer text
+msgid "Towers"
+msgstr "Tours"
+
+#. not in the list: a line or a word of a longer text
+msgid "Until"
+msgstr "Jusqu'à"
+
+#. not in the list: a line or a word of a longer text
+msgid "World Castle"
+msgstr "World Castle"
+
+#. not in the list: a line or a word of a longer text
+msgid "Award"
+msgstr "Diplôme"
+
+#. not in the list: a line or a word of a longer text
+msgid "activation"
+msgstr "activation"
+
+#. not in the list: a line or a word of a longer text
+msgid "code %s, two minutes"
+msgstr "code %s, deux minutes"
+
+#. not in the list: a line or a word of a longer text
+msgid "connected with a gateway"
+msgstr "connecté avec une passerelle"
+
+#. not in the list: a line or a word of a longer text
+msgid "connected without a gateway"
+msgstr "connecté sans passerelle"
+
+#. not in the list: a line or a word of a longer text
+msgid "east"
+msgstr "est"
+
+#. not in the list: a line or a word of a longer text
+msgid "failed"
+msgstr "échec"
+
+#. not in the list: a line or a word of a longer text
+msgid "gone"
+msgstr "parti"
+
+#. not in the list: a line or a word of a longer text
+msgid "headphones %s disconnected: one pair at a time"
+msgstr "casque %s déconnecté : une paire à la fois"
+
+#. not in the list: a line or a word of a longer text
+msgid "near %s MHz"
+msgstr "près de %s MHz"
+
+#. not in the list: a line or a word of a longer text
+msgid "north"
+msgstr "nord"
+
+#. not in the list: a line or a word of a longer text
+msgid "north-east"
+msgstr "nord-est"
+
+#. not in the list: a line or a word of a longer text
+msgid "north-west"
+msgstr "nord-ouest"
+
+#. not in the list: a line or a word of a longer text
+msgid "nothing"
+msgstr "rien"
+
+#. not in the list: a line or a word of a longer text
+msgid "on %s"
+msgstr "sur %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "open"
+msgstr "ouvert"
+
+#. not in the list: a line or a word of a longer text
+msgid "picture over"
+msgstr "image terminée"
+
+#. not in the list: a line or a word of a longer text
+msgid "retrying"
+msgstr "nouvel essai"
+
+#. not in the list: a line or a word of a longer text
+msgid "sent"
+msgstr "envoyé"
+
+#. not in the list: a line or a word of a longer text
+msgid "south"
+msgstr "sud"
+
+#. not in the list: a line or a word of a longer text
+msgid "south-east"
+msgstr "sud-est"
+
+#. not in the list: a line or a word of a longer text
+msgid "south-west"
+msgstr "sud-ouest"
+
+#. not in the list: a line or a word of a longer text
+msgid "stays on"
+msgstr "reste allumé"
+
+#. not in the list: a line or a word of a longer text
+msgid "stopped"
+msgstr "arrêté"
+
+#. not in the list: a line or a word of a longer text
+msgid "tuned"
+msgstr "accordé"
+
+#. not in the list: a line or a word of a longer text
+msgid "unknown"
+msgstr "inconnu"
+
+#. not in the list: a line or a word of a longer text
+msgid "viewers"
+msgstr "spectateurs"
+
+#. not in the list: a line or a word of a longer text
+msgid "west"
+msgstr "ouest"
+
+#. not in the list: a line or a word of a longer text
+msgid "SETTINGS"
+msgstr "RÉGLAGES"
+
+#. not in the list: a line or a word of a longer text
+msgid "Learn"
+msgstr "Apprendre"
+
+#. not in the list: a line or a word of a longer text
+msgid "NOT CW"
+msgstr "PAS CW"
+
+#. not in the list: a line or a word of a longer text
+msgid "Live"
+msgstr "Direct"
+
+#. not in the list: a line or a word of a longer text
+msgid "Marks"
+msgstr "Repères"
+
+#. not in the list: a line or a word of a longer text
+msgid "NO POS"
+msgstr "PAS DE POS"
+
+#. not in the list: a line or a word of a longer text
+msgid "Linear"
+msgstr "Linéaire"
+
+#. not in the list: a line or a word of a longer text
+msgid "(admin)"
+msgstr "(admin)"
+
+#. not in the list: a line or a word of a longer text
+msgid "- Press Start Auto RX to start Autodecoder."
+msgstr "- Appuyez sur Démarrer RX auto pour lancer le décodeur automatique."
+
+#. not in the list: a line or a word of a longer text
+msgid "All speeds"
+msgstr "Toutes vitesses"
+
+#. not in the list: a line or a word of a longer text
+msgid "Auto RX"
+msgstr "RX auto"
+
+#. not in the list: a line or a word of a longer text
+msgid "Auto call every %i s"
+msgstr "Appel auto toutes les %i s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Auto:"
+msgstr "Auto :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Awaiting signal..."
+msgstr "En attente de signal..."
+
+#. not in the list: a line or a word of a longer text
+msgid "Band up"
+msgstr "Bande haut"
+
+#. not in the list: a line or a word of a longer text
+msgid "Best score %s"
+msgstr "Meilleur score %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Best speed %i WPM"
+msgstr "Meilleure vitesse %i WPM"
+
+#. not in the list: a line or a word of a longer text
+msgid "Browser"
+msgstr "Navigateur"
+
+#. not in the list: a line or a word of a longer text
+msgid "CQ auto:"
+msgstr "CQ auto :"
+
+#. not in the list: a line or a word of a longer text
+msgid "CW peak Q:"
+msgstr "Q pic CW :"
+
+#. not in the list: a line or a word of a longer text
+msgid "CW peak:"
+msgstr "Pic CW :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Calls"
+msgstr "Indicatifs"
+
+#. not in the list: a line or a word of a longer text
+msgid "Change"
+msgstr "Changer"
+
+#. not in the list: a line or a word of a longer text
+msgid "Choose TX action"
+msgstr "Choisir l'action TX"
+
+#. not in the list: a line or a word of a longer text
+msgid "Comp:"
+msgstr "Comp :"
+
+#. not in the list: a line or a word of a longer text
+msgid "DNF auto:"
+msgstr "DNF auto :"
+
+#. not in the list: a line or a word of a longer text
+msgid "DNF freq:"
+msgstr "DNF fréq. :"
+
+#. not in the list: a line or a word of a longer text
+msgid "DNF width:"
+msgstr "DNF largeur :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Decode:"
+msgstr "Décodage :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Decoder:"
+msgstr "Décodeur :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Decoding %s signal"
+msgstr "Décodage du signal %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Denoise"
+msgstr "Débruiter"
+
+#. not in the list: a line or a word of a longer text
+msgid "Directed"
+msgstr "Dirigés"
+
+#. not in the list: a line or a word of a longer text
+msgid "Field"
+msgstr "Terrain"
+
+#. not in the list: a line or a word of a longer text
+msgid "Filter BW:"
+msgstr "Largeur filtre :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Filter high:"
+msgstr "Filtre haut :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Filter low:"
+msgstr "Filtre bas :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Force QSO"
+msgstr "Forcer le QSO"
+
+#. not in the list: a line or a word of a longer text
+msgid "Freq:"
+msgstr "Fréq. :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Full Size"
+msgstr "Taille réelle"
+
+#. not in the list: a line or a word of a longer text
+msgid "Halt"
+msgstr "Arrêter"
+
+#. not in the list: a line or a word of a longer text
+msgid "Hound:"
+msgstr "Hound :"
+
+#. not in the list: a line or a word of a longer text
+msgid "IF shift:"
+msgstr "Décalage FI :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Iambic:"
+msgstr "Iambique :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Interval %i s"
+msgstr "Intervalle %i s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Interval: page 2"
+msgstr "Intervalle : page 2"
+
+#. not in the list: a line or a word of a longer text
+msgid "Level %i"
+msgstr "Niveau %i"
+
+#. not in the list: a line or a word of a longer text
+msgid "Manual RX"
+msgstr "RX manuel"
+
+#. not in the list: a line or a word of a longer text
+msgid "Messages"
+msgstr "Messages"
+
+#. not in the list: a line or a word of a longer text
+msgid "Mic level: keep out of the red"
+msgstr "Niveau micro : restez hors du rouge"
+
+#. not in the list: a line or a word of a longer text
+msgid "My speed"
+msgstr "Ma vitesse"
+
+#. not in the list: a line or a word of a longer text
+msgid "NB level:"
+msgstr "NB niveau :"
+
+#. not in the list: a line or a word of a longer text
+msgid "NB width:"
+msgstr "NB largeur :"
+
+#. not in the list: a line or a word of a longer text
+msgid "NR level:"
+msgstr "NR niveau :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Next call in %i s"
+msgstr "Prochain appel dans %i s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Next level at %i%%"
+msgstr "Niveau suivant à %i%%"
+
+#. not in the list: a line or a word of a longer text
+msgid "Practice"
+msgstr "Entraînement"
+
+#. not in the list: a line or a word of a longer text
+msgid "Preset"
+msgstr "Préréglage"
+
+#. not in the list: a line or a word of a longer text
+msgid "Press Stop Manual RX to render received picture"
+msgstr "Appuyez sur Arrêter RX manuel pour afficher l'image reçue"
+
+#. not in the list: a line or a word of a longer text
+msgid "QSK time:"
+msgstr "Délai QSK :"
+
+#. not in the list: a line or a word of a longer text
+msgid "RBN, beacon"
+msgstr "RBN, balise"
+
+#. not in the list: a line or a word of a longer text
+msgid "RF gain:"
+msgstr "Gain HF :"
+
+#. not in the list: a line or a word of a longer text
+msgid "RX Pics"
+msgstr "Images RX"
+
+#. not in the list: a line or a word of a longer text
+msgid "Ratio:"
+msgstr "Rapport :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Reset"
+msgstr "Réinitialiser"
+
+#. not in the list: a line or a word of a longer text
+msgid "Restart OFF"
+msgstr "Redémarrage NON"
+
+#. not in the list: a line or a word of a longer text
+msgid "Restart ON"
+msgstr "Redémarrage OUI"
+
+#. not in the list: a line or a word of a longer text
+msgid "Retries:"
+msgstr "Essais :"
+
+#. not in the list: a line or a word of a longer text
+msgid "SSTV Autodecoder is running."
+msgstr "Le décodeur automatique SSTV tourne."
+
+#. not in the list: a line or a word of a longer text
+msgid "SSTV Manual decoder is running"
+msgstr "Le décodeur manuel SSTV tourne"
+
+#. not in the list: a line or a word of a longer text
+msgid "SSTV pictures and texts installed"
+msgstr "Images et textes SSTV installés"
+
+#. not in the list: a line or a word of a longer text
+msgid "Scale:"
+msgstr "Échelle :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Screen"
+msgstr "Écran"
+
+#. not in the list: a line or a word of a longer text
+msgid "Searching the line syncs for the SSTV mode"
+msgstr "Recherche des synchros de ligne du mode SSTV"
+
+#. not in the list: a line or a word of a longer text
+msgid "Show:"
+msgstr "Afficher :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Small"
+msgstr "Petite"
+
+#. not in the list: a line or a word of a longer text
+msgid "Span:"
+msgstr "Plage :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Squelch:"
+msgstr "Squelch :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Stand by."
+msgstr "En attente."
+
+#. not in the list: a line or a word of a longer text
+msgid "Start here"
+msgstr "Commencer ici"
+
+#. not in the list: a line or a word of a longer text
+msgid "Stations"
+msgstr "Stations"
+
+#. not in the list: a line or a word of a longer text
+msgid "Step:"
+msgstr "Pas :"
+
+#. not in the list: a line or a word of a longer text
+msgid "TX power:"
+msgstr "Puissance TX :"
+
+#. not in the list: a line or a word of a longer text
+msgid "TX setup"
+msgstr "Réglage TX"
+
+#. not in the list: a line or a word of a longer text
+msgid "Text"
+msgstr "Texte"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tone:"
+msgstr "Tonalité :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Train:"
+msgstr "Entraînement :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Trainer"
+msgstr "Entraîneur"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tuner:"
+msgstr "Coupleur :"
+
+#. not in the list: a line or a word of a longer text
+msgid "Upload"
+msgstr "Envoyer"
+
+#. not in the list: a line or a word of a longer text
+msgid "View"
+msgstr "Vue"
+
+#. not in the list: a line or a word of a longer text
+msgid "Volume:"
+msgstr "Volume :"
+
+#. not in the list: a line or a word of a longer text
+msgid "WF ref:"
+msgstr "Réf. cascade :"
+
+#. not in the list: a line or a word of a longer text
+msgid "logged in"
+msgstr "connecté"
+
+#. not in the list: a line or a word of a longer text
+msgid "not answering, let go"
+msgstr "ne répond pas, relâché"
+
+#. not in the list: a line or a word of a longer text
+msgid "let go"
+msgstr "relâché"
+
+#. not in the list: a line or a word of a longer text
+msgid "one at a time"
+msgstr "un à la fois"
+
+#. not in the list: a line or a word of a longer text
+msgid "paused after wrong keys"
+msgstr "en pause après des clés erronées"
+
+#. not in the list: a line or a word of a longer text
+msgid "prompt: Off"
+msgstr "invite : Non"
+
+#. not in the list: a line or a word of a longer text
+msgid "prompt: On"
+msgstr "invite : Oui"
+
+#. not in the list: a line or a word of a longer text
+msgid "two from the internet already"
+msgstr "déjà deux depuis internet"
+
+#. not in the list: a line or a word of a longer text
+msgid "via Funnel"
+msgstr "par Funnel"
+
+#. not in the list: a line or a word of a longer text
+msgid "hold: down"
+msgstr "maintenir : bas"
+
+#. not in the list: a line or a word of a longer text
+msgid "profile %d"
+msgstr "profil %d"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s line syncs found"
+msgstr "%s synchros de ligne trouvées"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s mode"
+msgstr "mode %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Activation"
+msgstr "Activation"
 
 #~ msgid "Position, time"
 #~ msgstr "Position, heure"
@@ -16788,4 +17560,202 @@ msgstr "squawk"
 
 #~ msgid "GhostNet: nets, translation, RTTY..."
 #~ msgstr "GhostNet : réseaux, traduction, RTTY..."
+
+#~ msgid " on this band"
+#~ msgstr " sur cette bande"
+
+#~ msgid "Back to defaults: all settings with the band memory and the CW messages, app frequencies, DX cluster, FT8 UDP, PSK squelch, TCI server, time zone, headphone volume, Bluetooth CAT."
+#~ msgstr "Retour aux valeurs par défaut : tous les réglages avec la mémoire de bande et les messages CW, fréquences des apps, DX cluster, FT8 UDP, squelch PSK, serveur TCI, fuseau horaire, volume casque, CAT Bluetooth."
+
+#~ msgid "Done %s%s: PRE %i dB, ATT %i dB, RF gain %i.%02i dB a step."
+#~ msgstr "Terminé %s%s : PRE %i dB, ATT %i dB, gain HF %i.%02i dB par pas."
+
+#~ msgid "Done %s%s: PRE %i dB, ATT %i dB."
+#~ msgstr "Terminé %s%s : PRE %i dB, ATT %i dB."
+
+#~ msgid "Done %s%s: PRE %i dB, ATT %i, the top, so %i or more."
+#~ msgstr "Terminé %s%s : PRE %i dB, ATT %i, le maximum, donc %i ou plus."
+
+#~ msgid "Kept: logs (ADIF, QSO, field), memory channels, PSK/Olivia macros, JS8 texts, voice messages, pictures, recordings, themes, CW trainer progress, Bluetooth pairings."
+#~ msgstr "Conservés : journaux (ADIF, QSO, terrain), canaux mémoire, macros PSK/Olivia, textes JS8, messages vocaux, images, enregistrements, thèmes, progrès de l'entraîneur CW, appairages Bluetooth."
+
+#~ msgid "Again sends on %.3f MHz: %i s"
+#~ msgstr "Nouvel envoi sur %.3f MHz : %i s"
+
+#~ msgid "Test beacon again sends: %i s"
+#~ msgstr "La balise de test réémet : %i s"
+
+#~ msgid "Logged"
+#~ msgstr "Enregistré"
+
+#~ msgid "QSO logged: %s %s %s %s"
+#~ msgstr "QSO enregistré : %s %s %s %s"
+
+#~ msgid "QSO logged: %s %s %s, without a mode (no app open): set it on the Logs page"
+#~ msgstr "QSO enregistré : %s %s %s, sans mode (aucune app ouverte) : réglez-le sur la page Logs"
+
+#~ msgid "Spectrum Zoom"
+#~ msgstr "Zoom spectre"
+
+#~ msgid "TX stopped: SWR 6.0"
+#~ msgstr "TX arrêté : ROS 6.0"
+
+#~ msgid "Then the screen goes dark for a few seconds while the radio software restarts."
+#~ msgstr "Puis l'écran s'éteint quelques secondes pendant que le logiciel de la radio redémarre."
+
+#~ msgid "Wifi/BT:"
+#~ msgstr "WiFi/BT :"
+
+#~ msgid "almost full"
+#~ msgstr "presque plein"
+
+#~ msgid "dial locked"
+#~ msgstr "molette verrouillée"
+
+#~ msgid "how do you copy?"
+#~ msgstr "comment me recevez-vous ?"
+
+#~ msgid "not supported"
+#~ msgstr "non pris en charge"
+
+#~ msgid "ready"
+#~ msgstr "prêt"
+
+#~ msgid "GENERAL"
+#~ msgstr "GÉNÉRAL"
+
+#~ msgid "DISPLAY"
+#~ msgstr "AFFICHAGE"
+
+#~ msgid "AUDIO"
+#~ msgstr "AUDIO"
+
+#~ msgid "WIRELESS"
+#~ msgstr "SANS FIL"
+
+#~ msgid "KEYS"
+#~ msgstr "TOUCHES"
+
+#~ msgid "TX CAL"
+#~ msgstr "TX CAL"
+
+#~ msgid "WALKIE"
+#~ msgstr "WALKIE"
+
+#~ msgid "Steady carrier in, S5 to S9+20. PRE, ATT and RF gain are tried, then put back."
+#~ msgstr "Porteuse stable en entrée, S5 à S9+20. PRE, ATT et gain HF sont essayés, puis remis."
+
+#~ msgid "A mode"
+#~ msgstr "Mode A"
+
+#~ msgid "B mode"
+#~ msgstr "Mode B"
+
+#~ msgid "Forecast, alerts"
+#~ msgstr "Prévisions, alertes"
+
+#~ msgid "Stations, ATC"
+#~ msgstr "Stations, ATC"
+
+#~ msgid "Voice channels"
+#~ msgstr "Canaux vocaux"
+
+#~ msgid "Aircraft overhead"
+#~ msgstr "Avions au-dessus"
+
+#~ msgid "Oceanic, VOLMET"
+#~ msgstr "Océanique, VOLMET"
+
+#~ msgid "Channels by band"
+#~ msgstr "Canaux par bande"
+
+#~ msgid "Auto (Region 1)"
+#~ msgstr "Auto (Région 1)"
+
+#~ msgid "Auto (Region 2)"
+#~ msgstr "Auto (Région 2)"
+
+#~ msgid "Auto (Region 3)"
+#~ msgstr "Auto (Région 3)"
+
+#~ msgid "North America"
+#~ msgstr "Amérique du Nord"
+
+#~ msgid "Bridge NA-Europe"
+#~ msgstr "Pont AN-Europe"
+
+#~ msgid "Bridge NA-Australia"
+#~ msgstr "Pont AN-Australie"
+
+#~ msgid "Bridge Europe-Australia"
+#~ msgstr "Pont Europe-Australie"
+
+#~ msgid "Bridge Australia-Pacific"
+#~ msgstr "Pont Australie-Pacifique"
+
+#~ msgid "Spanish net"
+#~ msgstr "Réseau propre"
+
+#~ msgid "%s in Spanish"
+#~ msgstr "%s en français"
+
+#~ msgid "Mo"
+#~ msgstr "lun"
+
+#~ msgid "Tu"
+#~ msgstr "mar"
+
+#~ msgid "We"
+#~ msgstr "mer"
+
+#~ msgid "Th"
+#~ msgstr "jeu"
+
+#~ msgid "Fr"
+#~ msgstr "ven"
+
+#~ msgid "Sa"
+#~ msgstr "sam"
+
+#~ msgid "RTTY 45.45 baud"
+#~ msgstr "RTTY 45,45 bauds"
+
+#~ msgid "Voice, emergencies only"
+#~ msgstr "Voix, urgences seulement"
+
+#~ msgid " manual"
+#~ msgstr " manuel"
+
+#~ msgid "Su"
+#~ msgstr "dim"
+
+#~ msgid "(armed)"
+#~ msgstr "(armé)"
+
+#~ msgid "(listen)"
+#~ msgstr "(écoute)"
+
+#~ msgid "- Press Start Manual RX to start Manual"
+#~ msgstr "- Appuyez sur Démarrer RX manuel pour lancer le mode manuel"
+
+#~ msgid "Moni level:"
+#~ msgstr "Niveau moniteur :"
+
+#~ msgid "No license"
+#~ msgstr "Sans licence"
+
+#~ msgid "Position from %s%s"
+#~ msgstr "Position depuis %s%s"
+
+#~ msgid "Run complete - final score %s"
+#~ msgstr "Série terminée - score final %s"
+
+#~ msgid "Score %d - MFK to call CQ again"
+#~ msgstr "Score %d - MFK pour rappeler CQ"
+
+#~ msgid "Turn the knob to steer - MFK to start"
+#~ msgstr "Tournez la molette pour diriger - MFK pour démarrer"
+
+#~ msgid "%s is empty"
+#~ msgstr "%s est vide"
 

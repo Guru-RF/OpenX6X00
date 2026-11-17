@@ -1,0 +1,74 @@
+#!/bin/sh
+#
+# Is this system one of several on a multiboot card? Xiegu Multi-Boot (SQ6RT's app, "Xiegu Multi Patcher") puts
+# several systems on one card behind a boot menu: its BOOT partition (the card's first) holds the menu, system 1 is
+# on the second partition, the others on the fifth and after, DATA stays the third. The in-radio update works there
+# as on a card of our own: it replaces files of this system only. A new card image does not: written onto the card
+# it erases the menu and the other systems, so it goes through the app, which keeps them and their settings.
+#
+# Worked out once a start, into /tmp/x6100-multiboot, which the GUI (src/image_level.c), x6100-update and through
+# it the web Update page read: no file, a card of its own; the file, one line saying how it was told:
+#   - x6100mb=<key> on the kernel's command line: the menu of the CX8ANM edition's fork of the app says so;
+#   - root= another partition of the card than its second: systems 2 to 5 of a menu;
+#   - bootmenu.env on the card's first partition: the menu's settings, there also with this system first.
+# Our own card has none of the three: root=/dev/mmcblk0p2 on both radios, no bootmenu.env.
+#
+# From the CX8ANM edition of OpenX6X00 (condoruy, Cóndor Tecnológico). MB_CMDLINE, MB_BOOTDEV, MB_BOOTDIR (a folder
+# standing in for the mounted first partition) and MB_OUT are for the host test (tools/multiboot).
+#
+
+CMDLINE=${MB_CMDLINE:-/proc/cmdline}
+BOOTDEV=${MB_BOOTDEV:-/dev/mmcblk0p1}
+OUT=${MB_OUT:-/tmp/x6100-multiboot}
+
+trace() {
+    [ -x /usr/sbin/x6100-starttrace ] && /usr/sbin/x6100-starttrace "S01multiboot: $*"
+}
+
+# How this system was told it is one of a multiboot card's; nothing for a card of its own
+detect() {
+    args=" $(cat "$CMDLINE" 2> /dev/null) "    # the spaces: each argument has one before and after it
+    key=$(echo "$args" | sed -n 's/.* x6100mb=\([0-9][0-9]*\) .*/\1/p')
+    if [ -n "$key" ]; then
+        echo "boot menu key F$key"
+        return
+    fi
+    root=$(echo "$args" | sed -n 's/.* root=\/dev\/mmcblk0p\([0-9][0-9]*\) .*/\1/p')
+    if [ -n "$root" ] && [ "$root" != 2 ]; then
+        echo "root on partition $root"
+        return
+    fi
+    if [ -n "$MB_BOOTDIR" ]; then
+        [ -f "$MB_BOOTDIR/bootmenu.env" ] && echo "boot menu on the card (bootmenu.env)"
+        return
+    fi
+    [ -b "$BOOTDEV" ] || return
+    dir=$(mktemp -d /tmp/.multiboot.XXXXXX) || return
+    if mount -t vfat -o ro "$BOOTDEV" "$dir" 2> /dev/null; then   # read only: nothing of the menu is changed
+        [ -f "$dir/bootmenu.env" ] && echo "boot menu on the card (bootmenu.env)"
+        umount "$dir"
+    fi
+    rmdir "$dir"
+}
+
+start() {
+    how=$(detect)
+    if [ -n "$how" ]; then
+        echo "$how" > "$OUT"
+        echo "Multiboot card: $how"
+        trace "$how"
+    else
+        rm -f "$OUT"
+    fi
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        ;;
+    *)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+esac

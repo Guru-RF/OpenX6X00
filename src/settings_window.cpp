@@ -54,6 +54,7 @@ extern "C" {
     #include "station.h"
     #include "band_plan.h"
     #include "countries.h"
+    #include "meteo.h"
     #include "tci_server.h"
     #include "remote_server.h"
     #include "cluster/client.h"
@@ -3109,12 +3110,45 @@ static void grid_create() {
     lv_obj_align(page, LV_ALIGN_RIGHT_MID, -4, 0);   /* right of the rail */
 }
 
-/* Station: callsign and QTH locator, edited with the on-screen keyboard */
+/* Station: callsign, QTH locator and the weather's place, edited with the on-screen keyboard */
 
 #define ST_CALLSIGN 1
 #define ST_QTH      2
+#define ST_PLACE    3
 
-static int st_kbd;  /* keyboard open for ST_CALLSIGN / ST_QTH */
+static int st_kbd;  /* keyboard open for ST_CALLSIGN / ST_QTH / ST_PLACE */
+
+/* The place typed for the weather: degrees or a locator (meteo_place_parse()), or nothing. A place typed is the one
+ * the weather is for (Weather from: Typed); none typed, where the radio is again */
+static void weather_place_edit(lv_obj_t *text) {
+    char place[METEO_PLACE_MAX];
+
+    /* the digits and signs of degrees, N S E W, the letters of a locator (A to X) */
+    lv_textarea_set_accepted_chars(text, "0123456789.,;+- ABCDEFGHIJKLMNOPQRSTUVWXabcdefghijklmnopqrstuvwx");
+    lv_textarea_set_max_length(text, METEO_PLACE_MAX - 1);
+    lv_textarea_set_placeholder_text(text, "50.85, 4.35 or JO20ft");
+    param_t_get(cfg_meteo_place, place, sizeof(place));
+    textarea_window_set(place);
+}
+
+static bool weather_place_save(const char *val) {
+    char   v[METEO_PLACE_MAX];
+    double lat, lon;
+    size_t n;
+
+    snprintf(v, sizeof(v), "%s", val + strspn(val, " "));
+    for (n = strlen(v); n && v[n - 1] == ' '; n--) v[n - 1] = 0;
+    if (v[0] && !meteo_place_parse(v, &lat, &lon)) {
+        msg_update_text_fmt("Not a place: degrees (50.85, 4.35) or a locator (JO20ft)");
+        return false;
+    }
+    cfg_sm.p_meteo_place.set(v);
+    if (v[0])
+        cfg_sm.p_meteo_from.set(METEO_FROM_TYPED);
+    else if (cfg_sm.p_meteo_from.get() == METEO_FROM_TYPED)
+        cfg_sm.p_meteo_from.set(METEO_FROM_RADIO);
+    return true;
+}
 
 /* The keyboard gets all the keys: the page is built again when it closes */
 static bool st_kbd_close() {
@@ -3126,7 +3160,9 @@ static bool st_kbd_close() {
 
 static bool st_kbd_ok() {
     const char *val = textarea_window_get();
-    bool        ok  = st_kbd == ST_CALLSIGN ? station_callsign_save(val) : station_qth_save(val);
+    bool        ok  = st_kbd == ST_CALLSIGN ? station_callsign_save(val)
+                    : st_kbd == ST_PLACE    ? weather_place_save(val)
+                                            : station_qth_save(val);
 
     return ok && st_kbd_close();
 }
@@ -3137,6 +3173,8 @@ static void st_kbd_open_cb(lv_event_t *e) {
     textarea_window_open(st_kbd_ok, st_kbd_close);
     if (st_kbd == ST_CALLSIGN) {
         station_callsign_edit(textarea_window_text());
+    } else if (st_kbd == ST_PLACE) {
+        weather_place_edit(textarea_window_text());
     } else {
         station_qth_edit(textarea_window_text());
     }
@@ -3222,6 +3260,26 @@ static uint8_t make_country(uint8_t row) {
     return row + 1;
 }
 
+/* Where APP > Weather, its notices and the web Weather page ask the weather for (meteo.h): where the radio is (its GPS,
+ * the phone's, the QTH locator), the QTH locator whatever the GPS says, or the place typed on the row below. Four cells
+ * wide, out to the left as the band plan's */
+static uint8_t make_weather(uint8_t row) {
+    char place[METEO_PLACE_MAX];
+
+    wl_row_label(row, "Weather from");
+    row_choice(row++, 1, 1, SMALL_4, " Auto \n Locator \n Typed ", cfg_sm.p_meteo_from.get(), int_choice_cb,
+               &cfg_sm.p_meteo_from);
+    param_t_get(cfg_meteo_place, place, sizeof(place));
+    wl_row_label(row, "Weather place");
+
+    /* degrees take the band plan's width, out to the left of the column */
+    lv_obj_t *obj = wl_button(row, place[0] ? place : "-", st_kbd_open_cb);
+    lv_obj_set_size(obj, SMALL_4, ROW_H - 4);
+    lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_END, 1, 1, LV_GRID_ALIGN_CENTER, row, 1);
+    lv_obj_set_user_data(obj, (void *)(intptr_t)ST_PLACE);
+    return row + 1;
+}
+
 /* The first-start guide again (first_start.c): Settings gives way to it once this press is over, its window going with
  * the press's own object */
 static void guide_open(void *arg) {
@@ -3243,6 +3301,7 @@ static uint8_t make_station(uint8_t row) {
     row = make_station_row(row, "QTH locator", params.qth.x, ST_QTH);
     row = make_country(row);
     row = make_band_region(row);
+    row = make_weather(row);
     /* The switches in the card's own second column: make_param_switch places them in the
      * seven-column template, past the end of this two-column one */
     /* A and B each on their own band: the VFO key brings the other one's band back */
@@ -5204,7 +5263,7 @@ static bool upd_json_str(const char *json, const char *key, char *out, size_t n)
 }
 
 static void upd_check_done(const char *out, int status, void *user) {
-    char latest[24] = "", s[200];
+    char latest[24] = "", s[280];
 
     upd_busy = false;
     upd_latest[0] = 0;
@@ -5215,8 +5274,13 @@ static void upd_check_done(const char *out, int status, void *user) {
 
         snprintf(upd_latest, sizeof(upd_latest), "%s", latest);
         if (strstr(out, "\"image_needed\": true") && upd_json_str(out, "image_note", note, sizeof(note))) {
-            /* the release also wants a newer card image for this radio (x6100-update reads its image-required) */
-            snprintf(s, sizeof(s), "v%s is out; its card image brings %s", latest, note[0] ? note : "more");
+            /* the release also wants a newer card image for this radio (x6100-update reads its image-required); on a
+               multiboot card through Xiegu Multi-Boot: written onto the card, it would erase the menu */
+            if (strstr(out, "\"multiboot\": true"))
+                snprintf(s, sizeof(s), _("v%s is out; for its card image rebuild the card with Multi-Boot: %s"), latest,
+                         note[0] ? note : _("more"));
+            else
+                snprintf(s, sizeof(s), _("v%s is out; its card image brings %s"), latest, note[0] ? note : _("more"));
         } else {
             snprintf(s, sizeof(s), "v%s is available. Install downloads it and restarts the radio software.", latest);
         }
@@ -5258,7 +5322,7 @@ static void upd_btn_cb(lv_event_t *e) {
 
 static uint8_t make_update(uint8_t row) {
     FILE *f = fopen("/var/lib/x6100-update/pending.json", "r");
-    char  s[96], note[160], t[240];
+    char  s[96], note[160], t[320];
 
     wl_row_label(row, "Update");
     upd_btn = wl_button(row, "Check", upd_btn_cb);
@@ -5274,8 +5338,12 @@ static uint8_t make_update(uint8_t row) {
         upd_say("Updating...");
         if (!upd_timer) upd_timer = lv_timer_create(upd_timer_cb, 500, NULL);
     } else if (image_newer_wanted(note, sizeof(note))) {
-        /* the running version wants a newer card image than the one on the card */
-        snprintf(t, sizeof(t), "New card image for this version: %s", note);
+        /* the running version wants a newer card image than the one on the card; on a multiboot card through Xiegu
+           Multi-Boot, which keeps the menu and the other systems (S01multiboot) */
+        if (card_is_multiboot())
+            snprintf(t, sizeof(t), _("New card image for this version, rebuild the card with Multi-Boot: %s"), note);
+        else
+            snprintf(t, sizeof(t), _("New card image for this version: %s"), note);
         upd_say(t);
     } else {
         snprintf(s, sizeof(s), "Check looks for a newer release on GitHub; installing takes a minute.");

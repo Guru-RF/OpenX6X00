@@ -6,8 +6,8 @@
  *  name and the country's weather service for its warnings (the US NWS, MeteoAlarm, Argentina's SMN, Brazil's INMET),
  *  else works them out from the forecast; it sends the position rounded to 0.1 degree, each service as its terms ask.
  *  Asked when the app opens, with Update, and every 15 minutes while it is open and the screen lit. The position:
- *  meteo_position (the GPS, the phone's, the QTH locator, else the country set in Settings > General). Each source is
- *  named in the status line, as its terms ask.
+ *  meteo_position (the GPS, the phone's, the QTH locator, else the country set in Settings > General; or as Weather
+ *  from there says, the locator alone or a place typed). Each source is named in the status line, as its terms ask.
  *
  *  From condoruy's CX8ANM edition of OpenX6X00 (its Meteo app).
  *
@@ -462,6 +462,8 @@ static void show_status(void) {
     lv_label_set_text(frame.head_left, head);
     if (!strcmp(pos_src, "Locator"))
         snprintf(right, sizeof(right), "%s %s", _("Locator"), params.qth.x);
+    else if (!strcmp(pos_src, "Typed"))     /* Settings > General > STATION > Weather place: its name is at the left */
+        snprintf(right, sizeof(right), "%s", _("Place"));
     else if (!strcmp(pos_src, "Country"))
         snprintf(right, sizeof(right), "%s %s", _("Country"), country_name(country_now()));
     else

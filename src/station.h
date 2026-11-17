@@ -32,6 +32,9 @@ const char *station_qth(void);
  * Field Ops takes them). src: "GPS", "Phone", "Locator". False with none of the three. LVGL thread */
 bool station_position(double *lat, double *lon, const char **src);
 
+/* The centre of the QTH locator alone (4 characters at least), whatever the GPS says; false without one */
+bool station_locator_position(double *lat, double *lon);
+
 #ifdef __cplusplus
 }
 #endif

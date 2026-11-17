@@ -664,6 +664,13 @@ class SettingsManager {
     // own as a notice on any screen. Off by default: it asks the services in the background
     Parameter<int32_t> p_meteo_alerts{"meteo_alerts", 0, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Where the weather is asked for (Settings > General > STATION > Weather from, meteo.c): 0 where the radio is (its
+    // GPS, the phone's, the QTH locator, else the country), 1 the QTH locator whatever the GPS says, 2 the place typed
+    // in p_meteo_place (meteo_place_parse(): degrees or a locator, "" none; at most 40 characters)
+    Parameter<int32_t> p_meteo_from{"meteo_from", 0, 0, 2,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<std::string> p_meteo_place{"meteo_place", "", meteo_place_validate,
+        StorageType::GLOBAL, pending_writes_, {}, &global_params_};
 
     // Waterfall Mode Fixed (Settings > Display > WATERFALL, live, #10): the view moves on when 0 the line (or what is
     // received) is 40% of the span from the centre, 1 the passband's edge 100 Hz from the screen's edge, 2 the line
@@ -1162,6 +1169,7 @@ class SettingsManager {
 
     // A country code as p_country keeps it: two letters in capitals, anything else "" (none set). Pure function
     static std::string country_validate(const std::string &val);
+    static std::string meteo_place_validate(const std::string &val);
 
     // Filter category of a mode (SSB/AM/FM/CW; unknown/default -> SSB).
     enum class FilterMode {
