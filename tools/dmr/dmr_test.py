@@ -15,7 +15,8 @@ through dmr_proto_dump) and checked there.
     password, the ID or the callsign: given up at once, no loop;
   - settings missing, a BrandMeister master: refused before any packet;
   - the password: set and cleared through stdin, for root alone, never in what the helper writes or says;
-  - Test, the web page's; the names from a lookup; the web page's status file.
+  - Test, the web page's; the names from a lookup, asked again when old (30 days; a day for an ID not known), an
+    empty answer never wiping a name known; the web page's status file.
 
     python3 -I -B dmr_test.py
 """
@@ -52,10 +53,15 @@ FAST = {"X6100_DMR_PING": "0.3", "X6100_DMR_DEAD": "1.5", "X6100_DMR_RETRY": "0.
 
 
 class Names(BaseHTTPRequestHandler):
-    """radioid.net's answer for an ID, on 127.0.0.1"""
+    """radioid.net's answer for an ID, on 127.0.0.1: the IDs asked kept in asked; one in unknown has no answer"""
+    asked = []
+    unknown = set()
+
     def do_GET(self):
         i = self.path.rsplit("=", 1)[-1]
-        body = json.dumps({"results": [{"id": int(i), "callsign": "ON4ABC", "fname": "Jan"}]}).encode()
+        Names.asked.append(int(i))
+        res = [] if int(i) in Names.unknown else [{"id": int(i), "callsign": "ON4ABC", "fname": "Jan"}]
+        body = json.dumps({"results": res}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
@@ -283,13 +289,20 @@ class DmrHelper(unittest.TestCase):
         self.assertEqual(s.count("call"), 2)
         s.close()
 
-    def test_names(self):
+    def names_server(self):
+        Names.asked, Names.unknown = [], set()
         httpd = HTTPServer(("127.0.0.1", 0), Names)
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         self.addCleanup(httpd.server_close)
         self.addCleanup(httpd.shutdown)
-        env = dict(self.env, X6100_DMR_RADIOID=f"http://127.0.0.1:{httpd.server_port}/api/dmr/user/?id={{}}")
-        s = self.start("91", env=env)
+        return dict(self.env, X6100_DMR_RADIOID=f"http://127.0.0.1:{httpd.server_port}/api/dmr/user/?id={{}}")
+
+    def names_file(self):
+        with open(os.path.join(self.data, "names.json"), encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_names(self):
+        s = self.start("91", env=self.names_server())
         s.wait_line("state online")
         self.master.call(9990001, 91, 0x8888, 4)
         self.assertEqual(s.wait_line("name 9990001"), "name 9990001 ON4ABC Jan")
@@ -299,6 +312,51 @@ class DmrHelper(unittest.TestCase):
         s.wait_line("end 9990001")
         self.assertEqual(self.parsed(s)["heard"][0], "9990001 ON4ABC Jan 91 0")
         self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.data, "names.json")).st_mode), 0o600)
+        self.assertEqual(Names.asked, [9990001])                # once: the second call had it
+        name, when = self.names_file()["9990001"]
+        self.assertEqual(name, "ON4ABC Jan")
+        self.assertLess(abs(time.time() - when), 60)
+        s.close()
+
+    def test_names_asked_again(self):
+        """Old names are shown and asked again (30 days; a day for an ID radioid.net did not know); a fresh one is
+        not; an empty answer keeps the name known"""
+        now = int(time.time())
+        day = 86400
+        kept = {"9990001": "OLD1 Old",                          # from before the time was kept: old
+                "9990002": ["OLD2 Old", now - 31 * day],        # a name of 31 days
+                "9990003": ["FRESH Name", now - 29 * day],      # of 29 days: not asked
+                "9990004": ["", now - 2 * day],                 # not known two days ago
+                "9990005": ["", now - 3600],                    # not known an hour ago: not asked
+                "9990006": ["GONE Name", now - 40 * day]}       # old, but radioid.net has no answer now
+        os.makedirs(self.data, exist_ok=True)
+        with open(os.path.join(self.data, "names.json"), "w", encoding="utf-8") as f:
+            json.dump(kept, f)
+        env = self.names_server()
+        Names.unknown = {9990006}
+        s = self.start("91", env=env)
+        s.wait_line("state online")
+        calls = [(9990001, "OLD1 Old", "ON4ABC Jan"), (9990002, "OLD2 Old", "ON4ABC Jan"),
+                 (9990003, "FRESH Name", None), (9990004, "", "ON4ABC Jan"), (9990005, "", None),
+                 (9990006, "GONE Name", None)]
+        for n, (i, shown, found) in enumerate(calls):
+            self.master.call(i, 91, 0x1000 + n, 2)
+            line = s.wait_line(f"call {i} ")
+            self.assertEqual(line, f"call {i} 91 group 2" + (f" {shown}" if shown else ""))
+            if found:
+                self.assertEqual(s.wait_line(f"name {i}"), f"name {i} {found}")
+            s.wait_line(f"end {i}")
+            time.sleep(0.3)                                     # the lookup, if any, over before the next call
+        self.assertEqual(Names.asked, [9990001, 9990002, 9990004, 9990006])
+        self.assertEqual(s.count("name 9990006"), 0)            # the empty answer told nothing
+        got = self.names_file()
+        for i, name in ((9990001, "ON4ABC Jan"), (9990002, "ON4ABC Jan"), (9990004, "ON4ABC Jan"),
+                        (9990006, "GONE Name")):
+            self.assertEqual(got[str(i)][0], name)
+            self.assertLess(abs(now - got[str(i)][1]), 60)      # asked now
+        self.assertEqual(got["9990003"], kept["9990003"])
+        self.assertEqual(got["9990005"], kept["9990005"])
+        self.assertEqual(list(got)[-4:], ["9990001", "9990002", "9990004", "9990006"])   # the newest asked last
         s.close()
 
     # ---------- lost and refused ----------

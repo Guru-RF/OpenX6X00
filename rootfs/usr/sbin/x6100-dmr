@@ -38,7 +38,9 @@
 #                         digits), OPTIONS= (with {tg} for the talkgroup chosen), TALKGROUPS=91 World|2061 Belgium
 #   /mnt/dmr/password     the hotspot password, for root alone, written here (set-password); never shown again,
 #                         never in the log, never sent: only its SHA-256 with the master's salt is
-#   /mnt/dmr/names.json   the names radioid.net gave for the DMR IDs heard
+#   /mnt/dmr/names.json   the names radioid.net gave for the DMR IDs heard, each with when it was asked: a name is
+#                         asked again after 30 days (a new callsign or name), an ID radioid.net did not know after
+#                         a day (registered since)
 # The callsign is the radio's (Settings > General, params.db).
 #
 # The log, for a report: /mnt/app_logs/dmr.txt (logins, their ends and why, the calls heard; never the password).
@@ -97,6 +99,8 @@ STEP_SENDS = 3
 CALL_END = 1.0                  # s without voice: the call is over (its terminator lost)
 NAMES_MAX = 3000
 NAME_AGAIN = 3600.0             # s: a lookup that failed is not tried again sooner
+NAME_KEEP = 30 * 86400.0        # s: a name found is asked again after this (the station's new callsign or name)
+EMPTY_KEEP = 86400.0            # s: an ID radioid.net did not know is asked again after this (registered since)
 HEARD_MAX = 20
 OPTIONS_MAX = 255               # bytes: FreeDMR's limit
 HIDDEN = "(hidden)"
@@ -367,8 +371,9 @@ class Link:
 # ---------- the names of the DMR IDs heard ----------
 
 class Names:
-    """radioid.net's callsign and first name for a DMR ID, kept in NAMES; one lookup at a time, in a thread. found(ID,
-    name) is told of one that came after its call started"""
+    """radioid.net's callsign and first name for a DMR ID, kept in NAMES with when it was asked ({ID: [name, time]};
+    a name alone, from before the time was kept, counts as old); one lookup at a time, in a thread. A name too old
+    is shown while it is asked again. found(ID, name) is told of a name that came or changed after its call started"""
 
     def __init__(self, found):
         self.found = found
@@ -383,14 +388,29 @@ class Names:
         if not isinstance(self.db, dict):
             self.db = {}
 
+    def entry(self, i):
+        """The name kept for an ID and when it was asked (0: not known), or None"""
+        e = self.db.get(str(i))
+        if isinstance(e, str):
+            return e, 0.0
+        if isinstance(e, list) and len(e) == 2 and isinstance(e[0], str) and isinstance(e[1], (int, float)):
+            return e[0], float(e[1])
+        return None
+
     def get(self, i):
         with self.lock:
-            name = self.db.get(str(i))
-            if name is None and RADIOID and not self.busy and time.monotonic() - self.failed.get(i, -NAME_AGAIN) \
-                    >= NAME_AGAIN:
+            e = self.entry(i)
+            name = e[0] if e else ""
+            if e is None:
+                due = True
+            else:
+                keep = NAME_KEEP if name else EMPTY_KEEP
+                age = time.time() - e[1]
+                due = not -EMPTY_KEEP <= age < keep     # too old, or asked "in the future" (the clock was wrong)
+            if due and RADIOID and not self.busy and time.monotonic() - self.failed.get(i, -NAME_AGAIN) >= NAME_AGAIN:
                 self.busy = True
                 threading.Thread(target=self.lookup, args=(i,), daemon=True).start()
-        return name or ""
+        return name
 
     def lookup(self, i):
         name = None
@@ -408,14 +428,19 @@ class Names:
             if name is None:
                 self.failed[i] = time.monotonic()
                 return
-            self.db[str(i)] = name
+            e = self.entry(i)
+            old = e[0] if e else ""
+            if not name:
+                name = old                          # gone from radioid.net, or a bad answer: the name known stays
+            self.db.pop(str(i), None)               # to the end: the oldest asked go first when there are too many
+            self.db[str(i)] = [name, int(time.time())]
             while len(self.db) > NAMES_MAX:
                 del self.db[next(iter(self.db))]
             try:
                 write_private(NAMES, json.dumps(self.db))
             except OSError:
                 pass
-        if name:
+        if name and name != old:
             self.found(i, name)
 
 

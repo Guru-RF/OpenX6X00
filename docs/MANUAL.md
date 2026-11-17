@@ -6626,7 +6626,11 @@ The settings are in `/mnt/dmr/dmr.conf`, in the Backup's Apps' lists.
 - **Talking now**: the station's callsign and name as radioid.net has them
   (its DMR ID until they are known), the talkgroup and for how long; a call
   to your own DMR ID says "a private call to you". **Heard**, on the right:
-  the last calls, newest first, with how long ago and how long.
+  the last calls, newest first, with how long ago and how long. The radio
+  asks radioid.net once for each station it hears and keeps the answer on
+  the DATA partition; it asks again when the station is heard after 30 days
+  (a new callsign or name), or after a day for an ID radioid.net did not
+  know yet.
 - The calls play on the speaker at the radio's volume (VOL), or on the
   Bluetooth headphones while they stand in for it, one call at a time: a
   second call while one is on is not heard. Between calls the speaker is the
