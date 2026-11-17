@@ -266,7 +266,8 @@ def extract_file(path, rel):
         if field and SKIP_FIELDS.match(field):
             continue
         s = c_unescape(text)
-        if s is None or not s.strip() or not_shown(s) or trivial(s):
+        marked = fn in ('_', 'N_')      # marked for translation: a word alone too ("ahead", "listening")
+        if s is None or not s.strip() or (not marked and not_shown(s)) or trivial(s):
             continue
         found.append((s, f'{rel}', line))
     return found

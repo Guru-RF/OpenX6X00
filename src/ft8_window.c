@@ -1094,7 +1094,7 @@ static void auto_sync_tick(float sec) {
             {
                 char what[32];
 
-                snprintf(what, sizeof(what), "%d stations", r.stations);
+                snprintf(what, sizeof(what), _("%d stations"), r.stations);   /* shown on GPS / Clock */
                 if (!clock_sync_step(r.step, CLOCK_BY_FT8, what)) {
                     if (!sync_said_fail)
                         msg_schedule_text_fmt("Auto Sync: the clock can't be set (%s)", strerror(errno));

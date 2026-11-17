@@ -2116,7 +2116,7 @@ static void clock_from_phone(client_t *c, const char *ms_s, const char *rtt_s) {
         client_textf(c, "clk ok %lld", diff);
         return;
     }
-    if (!clock_sync_step(diff / 1000.0, CLOCK_BY_HAND, "phone")) {
+    if (!clock_sync_step(diff / 1000.0, CLOCK_BY_HAND, N_("phone"))) {
         client_textf(c, "err clk: %s", strerror(errno));
         return;
     }

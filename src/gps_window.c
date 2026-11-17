@@ -155,11 +155,11 @@ static void clock_row(void) {
                               utc.tm_sec, err_ms);
     else if (keeper != CLOCK_BY_NONE)
         lv_label_set_text_fmt(values[R_CLOCK], "%02d:%02d:%02d UTC, kept by %s", utc.tm_hour, utc.tm_min, utc.tm_sec,
-                              clock_sync_by_name(keeper));
+                              _(clock_sync_by_name(keeper)));
     else if (clock_sync_last(&by, name, sizeof(name), &when, &step)) {
         ago(a, sizeof(a), when);
         lv_label_set_text_fmt(values[R_CLOCK], "%02d:%02d:%02d UTC, %s %+.2f s %s", utc.tm_hour, utc.tm_min,
-                              utc.tm_sec, name, step, a);
+                              utc.tm_sec, _(name), step, a);     /* "phone", "Time Sync"; a station's stays */
     } else {
         lv_label_set_text_fmt(values[R_CLOCK], "%02d:%02d:%02d UTC, clock chip", utc.tm_hour, utc.tm_min, utc.tm_sec);
     }
@@ -216,7 +216,7 @@ static void station_row(void) {
         result_seen = st.result_id;
         if (!clock_sync_allowed(CLOCK_BY_STATION, &keeper)) {
             clock_sync_station_delay_learn(-st.raw);
-            msg_update_text_fmt("%s keeps the clock\nThe marker's delay learned: %.3f s", clock_sync_by_name(keeper),
+            msg_update_text_fmt("%s keeps the clock\nThe marker's delay learned: %.3f s", _(clock_sync_by_name(keeper)),
                                 -st.raw);
         } else if (fabsf(ahead) < STATION_RIGHT_S) {
             msg_update_text_fmt("Clock right by %s\n%+.3f s", ts->name, ahead);
@@ -339,7 +339,7 @@ static void auto_sync_cb(button_data_t *btn) {
     }
     clock_sync_allowed(CLOCK_BY_FT8, &keeper);
     if (keeper != CLOCK_BY_NONE)
-        msg_update_text_fmt("Auto Sync on\n%s keeps the clock for now", clock_sync_by_name(keeper));
+        msg_update_text_fmt("Auto Sync on\n%s keeps the clock for now", _(clock_sync_by_name(keeper)));
     else
         msg_update_text_fmt("Auto Sync on\nFT8 and FT4 set the clock");
 }
