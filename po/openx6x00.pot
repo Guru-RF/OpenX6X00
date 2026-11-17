@@ -14712,7 +14712,7 @@ msgstr ""
 
 #: src/winlink_mail.c
 #, c-format
-msgid "All: every one now. Small: those under Pat's size limit. Later: none now. Waiting: %s"
+msgid "Get all: every one now. Get small: those under Pat's size limit. Later: none now. Waiting: %s"
 msgstr ""
 
 #: src/winlink_mail.c
@@ -15039,7 +15039,15 @@ msgid "Later"
 msgstr ""
 
 #: src/winlink_mail.c
-msgid "Small"
+msgid ""
+"Get\n"
+"all"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid ""
+"Get\n"
+"small"
 msgstr ""
 
 #: src/winlink_mail.c

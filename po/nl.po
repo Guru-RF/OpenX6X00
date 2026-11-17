@@ -723,7 +723,7 @@ msgstr ""
 
 #: src/apps_menu.c
 msgid "Winlink, no phone"
-msgstr ""
+msgstr "Winlink, zonder telefoon"
 
 #: src/apps_menu.c
 msgid "GPS / Clock"
@@ -3245,6 +3245,8 @@ msgid ""
 "Mode:\n"
 "Copy"
 msgstr ""
+"Modus:\n"
+"Nemen"
 
 #: src/dialog_cw_trainer.c src/dialog_scan.c src/first_start.c
 msgid "Skip"
@@ -3385,7 +3387,7 @@ msgstr ""
 #: src/dialog_cw_trainer.c
 #, c-format
 msgid "CW TRAINER - #%06x Copy stats#"
-msgstr ""
+msgstr "CW-TRAINER - #%06x Nemen: statistiek#"
 
 #: src/dialog_cw_trainer.c
 #, c-format
@@ -3404,7 +3406,7 @@ msgstr "Vandaag: %u pogingen, %u%% goed, %u min"
 
 #: src/dialog_cw_trainer.c
 msgid "Last 20 tries per character. Weak ones (red, yellow) come up more often in Copy."
-msgstr ""
+msgstr "Laatste 20 pogingen per teken. Zwakke (rood, geel) komen vaker terug in Nemen."
 
 #: src/dialog_cw_trainer.c
 msgid "Last 20 tries per character. Weak ones (red, yellow) come up more often in Learn."
@@ -3413,7 +3415,7 @@ msgstr "Laatste 20 pogingen per teken. Zwakke (rood, geel) komen vaker terug in 
 #: src/dialog_cw_trainer.c
 #, c-format
 msgid "CW TRAINER - #%06x Copy#"
-msgstr ""
+msgstr "CW-TRAINER - #%06x Nemen#"
 
 #: src/dialog_cw_trainer.c
 #, c-format
@@ -3422,11 +3424,11 @@ msgstr "%i WPM - groep %i"
 
 #: src/dialog_cw_trainer.c
 msgid "Start: groups follow each other, type each one on the keyboard"
-msgstr ""
+msgstr "Start: groepen volgen elkaar op, typ elke groep op het toetsenbord"
 
 #: src/dialog_cw_trainer.c
 msgid "No keyboard found: plug in a USB or Bluetooth one, or use the MFK on the keys"
-msgstr ""
+msgstr "Geen toetsenbord gevonden: sluit een USB- of Bluetooth-toetsenbord aan, of gebruik de MFK op de toetsen"
 
 #: src/dialog_cw_trainer.c
 msgid "The radio keys the group (sidetone only)"
@@ -3434,11 +3436,11 @@ msgstr "De radio seint de groep (alleen meeluistertoon)"
 
 #: src/dialog_cw_trainer.c
 msgid "Type what you hear. Enter: done, Backspace: rub out. Replay: hear it again"
-msgstr ""
+msgstr "Typ wat je hoort. Enter: klaar, Backspace: wissen. Opnieuw: nog eens horen"
 
 #: src/dialog_cw_trainer.c
 msgid "No keyboard: turn the MFK to a key, press it to enter. Replay: hear it again"
-msgstr ""
+msgstr "Geen toetsenbord: draai de MFK naar een toets, druk om in te voeren. Opnieuw: nog eens horen"
 
 #: src/dialog_cw_trainer.c
 msgid "WRONG"
@@ -3450,15 +3452,15 @@ msgstr "Gezonden: "
 
 #: src/dialog_cw_trainer.c
 msgid "Typed: "
-msgstr ""
+msgstr "Getypt: "
 
 #: src/dialog_cw_trainer.c
 msgid "Replay: hear the right one again. Next or Enter: another group"
-msgstr ""
+msgstr "Opnieuw: de juiste nog eens horen. Volgende of Enter: een andere groep"
 
 #: src/dialog_cw_trainer.c
 msgid "Replay: hear the right one again. Next or MFK press: another group"
-msgstr ""
+msgstr "Opnieuw: de juiste nog eens horen. Volgende of MFK drukken: een andere groep"
 
 #: src/dialog_cw_trainer.c
 msgid "Next group follows. Pause: stop after this one"
@@ -3466,11 +3468,11 @@ msgstr "Volgende groep komt. Pauze: stop na deze"
 
 #: src/dialog_cw_trainer.c
 msgid "Start or Enter: the next group"
-msgstr ""
+msgstr "Start of Enter: de volgende groep"
 
 #: src/dialog_cw_trainer.c
 msgid "Start or MFK press: the next group"
-msgstr ""
+msgstr "Start of MFK drukken: de volgende groep"
 
 #: src/dialog_cw_trainer.c
 #, c-format
@@ -3480,10 +3482,14 @@ msgid ""
 "Last %i: %i / %i\n"
 "Next level at %i%%"
 msgstr ""
+"Niveau %i\n"
+"Score  %i / %i\n"
+"Laatste %i: %i / %i\n"
+"Volgend niveau bij %i%%"
 
 #: src/dialog_cw_trainer.c
 msgid "Del"
-msgstr ""
+msgstr "Wis"
 
 #: src/dialog_cw_trainer.c
 #, c-format
@@ -5356,7 +5362,7 @@ msgstr "WEER"
 
 #: src/dialog_meteo.c
 msgid "Place"
-msgstr ""
+msgstr "Plaats"
 
 #: src/dialog_meteo.c
 msgid "No position: plug in a GPS, or set the QTH locator or the country in Settings > General"
@@ -6952,109 +6958,109 @@ msgstr "Een taal gemarkeerd als concept wordt nog nagekeken door een moedertaals
 
 #: src/first_start.c
 msgid "Press the keyboard's pairing key now"
-msgstr ""
+msgstr "Druk nu op de koppeltoets van het toetsenbord"
 
 #: src/first_start.c
 msgid "Looking for the keyboard..."
-msgstr ""
+msgstr "Toetsenbord zoeken..."
 
 #: src/first_start.c
 msgid "Pairing..."
-msgstr ""
+msgstr "Koppelen..."
 
 #: src/first_start.c
 msgid "Bluetooth is busy, a moment..."
-msgstr ""
+msgstr "Bluetooth is bezig, even geduld..."
 
 #: src/first_start.c
 msgid "The keyboard was not seen: press its pairing key, then choose it again"
-msgstr ""
+msgstr "Toetsenbord niet gezien: druk op de koppeltoets en kies het opnieuw"
 
 #: src/first_start.c
 msgid "Paired, but not connected: press a key on it, or choose it again"
-msgstr ""
+msgstr "Gekoppeld, maar niet verbonden: druk op een toets ervan, of kies het opnieuw"
 
 #: src/first_start.c
 msgid "Pairing failed: press its pairing key, then choose it again"
-msgstr ""
+msgstr "Koppelen mislukt: druk op de koppeltoets en kies het opnieuw"
 
 #: src/first_start.c
 msgid "A Bluetooth keyboard can type the WiFi password, the callsign and the locator in the next steps. A USB keyboard needs nothing here: it types once plugged in."
-msgstr ""
+msgstr "Met een Bluetooth-toetsenbord typ je in de volgende stappen het WiFi-wachtwoord, de roepnaam en de locator. Een USB-toetsenbord heeft hier niets nodig: het typt zodra het is aangesloten."
 
 #: src/first_start.c
 msgid "Bluetooth starting..."
-msgstr ""
+msgstr "Bluetooth start..."
 
 #: src/first_start.c
 msgid "Bluetooth is not running on this radio: Skip this step, or plug in a USB keyboard"
-msgstr ""
+msgstr "Bluetooth draait niet op deze radio: sla deze stap over, of sluit een USB-toetsenbord aan"
 
 #: src/first_start.c
 msgid "No Bluetooth adapter found: Skip this step, or plug in a USB keyboard"
-msgstr ""
+msgstr "Geen Bluetooth-adapter gevonden: sla deze stap over, of sluit een USB-toetsenbord aan"
 
 #: src/first_start.c
 msgid "Bluetooth is off with WiFi, they share a chip: Turn on switches both on"
-msgstr ""
+msgstr "Bluetooth staat uit met WiFi, ze delen een chip: Aanzetten zet beide aan"
 
 #: src/first_start.c
 msgid "Bluetooth is off: Turn on switches it on"
-msgstr ""
+msgstr "Bluetooth staat uit: Aanzetten zet het aan"
 
 #: src/first_start.c
 msgid "Put the keyboard in pairing mode, then Scan"
-msgstr ""
+msgstr "Zet het toetsenbord in koppelmodus, dan Scannen"
 
 #: src/first_start.c
 msgid "Looking for keyboards, 16 s..."
-msgstr ""
+msgstr "Toetsenborden zoeken, 16 s..."
 
 #: src/first_start.c
 msgid "Choose your keyboard: the guide pairs it and connects it"
-msgstr ""
+msgstr "Kies je toetsenbord: de gids koppelt en verbindt het"
 
 #: src/first_start.c
 msgid "No keyboard found: is it in pairing mode? Scan looks again"
-msgstr ""
+msgstr "Geen toetsenbord gevonden: staat het in koppelmodus? Scannen zoekt opnieuw"
 
 #: src/first_start.c
 msgid "Type this code on the keyboard, then its Enter key:"
-msgstr ""
+msgstr "Typ deze code op het toetsenbord, dan de Enter-toets:"
 
 #: src/first_start.c
 #, c-format
 msgid "%s connected: waiting for its keys..."
-msgstr ""
+msgstr "%s verbonden: wacht op een toetsaanslag..."
 
 #: src/first_start.c
 #, c-format
 msgid "%s works: type something to try it"
-msgstr ""
+msgstr "%s werkt: typ iets om het te proberen"
 
 #: src/first_start.c
 msgid "A keyboard works: type something to try it"
-msgstr ""
+msgstr "Een toetsenbord werkt: typ iets om het te proberen"
 
 #: src/first_start.c src/meteo.c
 msgid "Typed"
-msgstr ""
+msgstr "Getypt"
 
 #: src/first_start.c
 msgid "Keyboards"
-msgstr ""
+msgstr "Toetsenborden"
 
 #: src/first_start.c
 msgid "paired: press to connect"
-msgstr ""
+msgstr "gekoppeld: druk om te verbinden"
 
 #: src/first_start.c
 msgid "new: press to pair"
-msgstr ""
+msgstr "nieuw: druk om te koppelen"
 
 #: src/first_start.c
 msgid "Turn on"
-msgstr ""
+msgstr "Aanzetten"
 
 #: src/first_start.c
 msgid "WiFi sets the clock, and the DX Cluster, the uploads and the web configurator need it. Networks opens the WiFi window: choose a network there, then ESC or GEN comes back here."
@@ -7231,7 +7237,7 @@ msgstr ""
 
 #: src/first_start.c
 msgid "Keyboard"
-msgstr ""
+msgstr "Toetsenbord"
 
 #: src/first_start.c src/settings_window.cpp src/wifi_window.c
 #: src/winlink_mail.c
@@ -7240,11 +7246,11 @@ msgstr "Verbonden"
 
 #: src/first_start.c
 msgid "Skipped: Settings > Bluetooth > DEVICES pairs one"
-msgstr ""
+msgstr "Overgeslagen: Instellingen > Bluetooth > APPARATEN koppelt er een"
 
 #: src/first_start.c
 msgid "None: Settings > Bluetooth > DEVICES pairs one"
-msgstr ""
+msgstr "Geen: Instellingen > Bluetooth > APPARATEN koppelt er een"
 
 #: src/first_start.c
 #, c-format
@@ -7989,7 +7995,7 @@ msgstr ""
 
 #: src/image_level.c
 msgid "New card image: use Multi-Boot"
-msgstr ""
+msgstr "Nieuwe kaartimage: gebruik Multi-Boot"
 
 #: src/image_level.c
 msgid "New card image out: Settings > Info"
@@ -8403,6 +8409,8 @@ msgid ""
 "Close\n"
 "Chat"
 msgstr ""
+"Gesprek\n"
+"sluiten"
 
 #: src/js8_window.c
 msgid ""
@@ -9056,7 +9064,7 @@ msgstr "Nog niets met %s: Antwoord, Query > of Schrijven..."
 
 #: src/js8_window.c
 msgid "F1, F5 or ESC: back to the board"
-msgstr ""
+msgstr "F1, F5 of ESC: terug naar het overzicht"
 
 #: src/js8_window.c
 #, c-format
@@ -12419,11 +12427,11 @@ msgstr ""
 
 #: src/settings_window.cpp
 msgid "50.85, 4.35 or JO20ft"
-msgstr ""
+msgstr "50.85, 4.35 of JO20ft"
 
 #: src/settings_window.cpp
 msgid "Not a place: degrees (50.85, 4.35) or a locator (JO20ft)"
-msgstr ""
+msgstr "Geen plaats: graden (50.85, 4.35) of een locator (JO20ft)"
 
 #: src/settings_window.cpp
 msgid "Auto ("
@@ -12435,7 +12443,7 @@ msgstr "Bandplan"
 
 #: src/settings_window.cpp
 msgid "Weather from"
-msgstr ""
+msgstr "Weer via"
 
 #: src/settings_window.cpp
 msgid ""
@@ -12443,10 +12451,13 @@ msgid ""
 " Locator \n"
 " Typed "
 msgstr ""
+" Auto \n"
+" Locator \n"
+" Getypt "
 
 #: src/settings_window.cpp
 msgid "Weather place"
-msgstr ""
+msgstr "Weerplaats"
 
 #: src/settings_window.cpp
 msgid "First-start guide"
@@ -13029,7 +13040,7 @@ msgstr "SCHERMVERLICHTING"
 
 #: src/settings_window.cpp
 msgid "Panel stripes fix"
-msgstr ""
+msgstr "Correctie schermstrepen"
 
 #: src/settings_window.cpp
 msgid "SPECTRUM"
@@ -13264,30 +13275,30 @@ msgstr ""
 
 #: src/settings_window.cpp
 msgid "No callsign set: CQ CQ"
-msgstr ""
+msgstr "Geen roepnaam ingesteld: CQ CQ"
 
 #: src/settings_window.cpp
 msgid "No text yet: CQ CQ"
-msgstr ""
+msgstr "Nog geen tekst: CQ CQ"
 
 #: src/settings_window.cpp
 #, c-format
 msgid "Only %.*s, %d WPM"
-msgstr ""
+msgstr "Alleen %.*s, %d WPM"
 
 #: src/settings_window.cpp
 #, c-format
 msgid "First %d characters, %d WPM"
-msgstr ""
+msgstr "Eerste %d tekens, %d WPM"
 
 #: src/settings_window.cpp
 #, c-format
 msgid "Boot sound: only \"%.*s\" fits"
-msgstr ""
+msgstr "Opstartgeluid: alleen \"%.*s\" past"
 
 #: src/settings_window.cpp
 msgid "Boot text"
-msgstr ""
+msgstr "Opstarttekst"
 
 #: src/settings_window.cpp
 msgid "Boot sound"
@@ -13300,6 +13311,10 @@ msgid ""
 " Callsign \n"
 " Own text "
 msgstr ""
+" Uit \n"
+" CQ CQ \n"
+" Roepnaam \n"
+" Eigen tekst "
 
 #: src/settings_window.cpp
 msgid "RX AUDIO"
@@ -13601,11 +13616,11 @@ msgstr "Controle mislukt: %.70s"
 #: src/settings_window.cpp
 #, c-format
 msgid "v%s is out; for its card image rebuild the card with Multi-Boot: %s"
-msgstr ""
+msgstr "v%s is uit; maak voor de kaartimage de kaart opnieuw met Multi-Boot: %s"
 
 #: src/settings_window.cpp
 msgid "more"
-msgstr ""
+msgstr "meer"
 
 #: src/settings_window.cpp
 #, c-format
@@ -13658,7 +13673,7 @@ msgstr "Bijwerken..."
 #: src/settings_window.cpp
 #, c-format
 msgid "New card image for this version, rebuild the card with Multi-Boot: %s"
-msgstr ""
+msgstr "Nieuwe kaartimage voor deze versie, maak de kaart opnieuw met Multi-Boot: %s"
 
 #: src/settings_window.cpp
 #, c-format
@@ -14428,51 +14443,51 @@ msgstr ""
 
 #: src/wefax/plan.c
 msgid "good"
-msgstr ""
+msgstr "goed"
 
 #: src/wefax/plan.c
 msgid "fair"
-msgstr ""
+msgstr "redelijk"
 
 #: src/wefax/plan.c
 msgid "poor"
-msgstr ""
+msgstr "slecht"
 
 #: src/wefax/plan.c
 msgid "Unsorted"
-msgstr ""
+msgstr "Ongesorteerd"
 
 #: src/wefax/plan.c
 msgid "Significant weather"
-msgstr ""
+msgstr "Significant weer"
 
 #: src/wefax/plan.c
 msgid "Analysis, North Atlantic"
-msgstr ""
+msgstr "Analyse, Noord-Atlantische Oceaan"
 
 #: src/wefax/plan.c
 msgid "Analysis"
-msgstr ""
+msgstr "Analyse"
 
 #: src/wefax/plan.c
 msgid "Upper air"
-msgstr ""
+msgstr "Bovenlucht"
 
 #: src/wefax/plan.c
 msgid "Forecast"
-msgstr ""
+msgstr "Verwachting"
 
 #: src/wefax/plan.c
 msgid "Sea and swell"
-msgstr ""
+msgstr "Zee en deining"
 
 #: src/wefax/plan.c
 msgid "Rain and visibility"
-msgstr ""
+msgstr "Regen en zicht"
 
 #: src/wefax/plan.c
 msgid "Ice"
-msgstr ""
+msgstr "IJs"
 
 #: src/wefax/thumb.c
 #, c-format
@@ -14490,17 +14505,17 @@ msgstr ""
 
 #: src/wefax_bulletin.c src/wefax_window.c
 msgid "now"
-msgstr ""
+msgstr "nu"
 
 #: src/wefax_bulletin.c src/wefax_window.c
 #, c-format
 msgid "in %d min"
-msgstr ""
+msgstr "over %d min"
 
 #: src/wefax_bulletin.c src/wefax_window.c
 #, c-format
 msgid "in %d h %02d"
-msgstr ""
+msgstr "over %d h %02d"
 
 #: src/wefax_bulletin.c
 msgid "no preview"
@@ -14513,7 +14528,7 @@ msgstr "een kopie, onleesbaar"
 #: src/wefax_bulletin.c
 #, c-format
 msgid "none yet, %s"
-msgstr ""
+msgstr "nog geen, %s"
 
 #: src/wefax_bulletin.c
 msgid "not in the plan"
@@ -14531,7 +14546,7 @@ msgstr "%s geleden"
 #: src/wefax_bulletin.c
 #, c-format
 msgid "next copy %02d:%02d (%s), %s"
-msgstr ""
+msgstr "volgende kopie %02d:%02d (%s), %s"
 
 #: src/wefax_bulletin.c
 msgid "the last copy after it"
@@ -14540,37 +14555,37 @@ msgstr "daarna de laatste kopie"
 #: src/wefax_bulletin.c
 #, c-format
 msgid "%s   MFK: next"
-msgstr ""
+msgstr "%s   MFK: volgende"
 
 #: src/wefax_bulletin.c
 #, c-format
 msgid "quality: %s (%d)"
-msgstr ""
+msgstr "kwaliteit: %s (%d)"
 
 #: src/wefax_bulletin.c
 #, c-format
 msgid "%s   MFK: next   press: full screen"
-msgstr ""
+msgstr "%s   MFK: volgende   drukken: volledig scherm"
 
 #: src/wefax_bulletin.c
 msgid "older"
-msgstr ""
+msgstr "ouder"
 
 #: src/wefax_bulletin.c
 msgid "none received yet, coming (UTC):"
-msgstr ""
+msgstr "nog niets ontvangen, verwacht (UTC):"
 
 #: src/wefax_bulletin.c
 msgid "Auto Plan takes them by itself   MFK: next"
-msgstr ""
+msgstr "Auto-plan neemt ze vanzelf op   MFK: volgende"
 
 #: src/wefax_bulletin.c
 msgid "Delete this chart?"
-msgstr ""
+msgstr "Deze kaart wissen?"
 
 #: src/wefax_bulletin.c
 msgid "press Delete again (3 s)"
-msgstr ""
+msgstr "druk nog eens op Wissen (3 s)"
 
 #: src/wefax_bulletin.c
 msgid "The plan has no Bulletin"
@@ -14578,35 +14593,43 @@ msgstr "Het plan heeft geen Bulletin"
 
 #: src/wefax_bulletin.c
 msgid "No chart saved yet"
-msgstr ""
+msgstr "Nog geen kaart opgeslagen"
 
 #: src/wefax_night.c
 msgid ""
 "Night\n"
 "On"
 msgstr ""
+"Nacht\n"
+"Aan"
 
 #: src/wefax_night.c
 msgid ""
 "Night\n"
 "Off"
 msgstr ""
+"Nacht\n"
+"Uit"
 
 #: src/wefax_night.c
 msgid ""
 "Night\n"
 "Auto (on)"
 msgstr ""
+"Nacht\n"
+"Auto (aan)"
 
 #: src/wefax_night.c
 msgid ""
 "Night\n"
 "Auto"
 msgstr ""
+"Nacht\n"
+"Auto"
 
 #: src/wefax_viewer.c
 msgid "MFK press: zoom   F3: Fix   F5: back"
-msgstr ""
+msgstr "MFK drukken: zoom   F3: Bijstellen   F5: terug"
 
 #: src/wefax_viewer.c
 msgid "MFK: up, down   VOL: left, right   press: zoom"
@@ -14618,16 +14641,16 @@ msgstr "MFK: op, neer   VOL: links, rechts   drukken: hele kaart"
 
 #: src/wefax_viewer.c
 msgid "Saving the chart..."
-msgstr ""
+msgstr "Kaart opslaan..."
 
 #: src/wefax_viewer.c
 #, c-format
 msgid "#%06x Fix#   Tilt %+d%s   Align %+d      %s"
-msgstr ""
+msgstr "#%06x Bijstellen#   Helling %+d%s   Uitlijnen %+d      %s"
 
 #: src/wefax_viewer.c
 msgid " (searching)"
-msgstr ""
+msgstr " (zoekt)"
 
 #: src/wefax_viewer.c
 msgid " (auto)"
@@ -14635,7 +14658,7 @@ msgstr ""
 
 #: src/wefax_viewer.c
 msgid "MFK: tilt   VOL: align   press: auto tilt   the lines: the frame upright"
-msgstr ""
+msgstr "MFK: helling   VOL: uitlijnen   drukken: auto-helling   de lijnen: kader rechtop"
 
 #: src/wefax_viewer.c
 msgid "whole"
@@ -14647,11 +14670,11 @@ msgstr "Auto-helling: geen duidelijke helling, stel in met de MFK"
 
 #: src/wefax_viewer.c
 msgid "Chart saved"
-msgstr ""
+msgstr "Kaart opgeslagen"
 
 #: src/wefax_viewer.c
 msgid "Saving failed"
-msgstr ""
+msgstr "Opslaan mislukt"
 
 #: src/wefax_window.c
 msgid "Bulletin"
@@ -14662,6 +14685,8 @@ msgid ""
 "All\n"
 "Charts"
 msgstr ""
+"Alle\n"
+"kaarten"
 
 #: src/wefax_window.c
 msgid ""
@@ -14677,45 +14702,51 @@ msgstr ""
 
 #: src/wefax_window.c
 msgid "(All Charts)"
-msgstr ""
+msgstr "(Alle kaarten)"
 
 #: src/wefax_window.c
 msgid "Open"
-msgstr ""
+msgstr "Openen"
 
 #: src/wefax_window.c
 msgid "Newest"
-msgstr ""
+msgstr "Nieuwste"
 
 #: src/wefax_window.c
 msgid ""
 "Full\n"
 "Screen"
 msgstr ""
+"Volledig\n"
+"scherm"
 
 #: src/wefax_window.c
 msgid "Fix"
-msgstr ""
+msgstr "Bijstellen"
 
 #: src/wefax_window.c
 msgid "(Fix)"
-msgstr ""
+msgstr "(Bijstellen)"
 
 #: src/wefax_window.c
 msgid ""
 "Auto\n"
 "Tilt"
 msgstr ""
+"Auto-\n"
+"helling"
 
 #: src/wefax_window.c
 msgid "Undo"
-msgstr ""
+msgstr "Ongedaan"
 
 #: src/wefax_window.c
 msgid ""
 "Save\n"
 "& Back"
 msgstr ""
+"Opslaan\n"
+"& terug"
 
 #: src/wefax_window.c
 msgid "day and night"
@@ -14801,6 +14832,8 @@ msgid ""
 "Plan\n"
 "next --:--"
 msgstr ""
+"Plan\n"
+"volg. --:--"
 
 #: src/wefax_window.c
 #, c-format
@@ -14808,6 +14841,8 @@ msgid ""
 "Plan\n"
 "next %02d:%02d"
 msgstr ""
+"Plan\n"
+"volg. %02d:%02d"
 
 #: src/wefax_window.c
 msgid "Auto Plan off: tuned by hand"
@@ -14839,28 +14874,28 @@ msgstr ""
 
 #: src/wefax_window.c
 msgid "No chart planned"
-msgstr ""
+msgstr "Geen kaart gepland"
 
 #: src/wefax_window.c
 msgid "Auto Plan is off"
-msgstr ""
+msgstr "Auto-plan staat uit"
 
 #: src/wefax_window.c
 msgid "a fax starts by itself with its start tone"
-msgstr ""
+msgstr "een fax start vanzelf met zijn starttoon"
 
 #: src/wefax_window.c
 msgid "Auto Plan (F2 of page 1) takes the day's charts by itself"
-msgstr ""
+msgstr "Auto-plan (F2 op pagina 1) neemt de kaarten van de dag vanzelf op"
 
 #: src/wefax_window.c
 #, c-format
 msgid "then %02d:%02d %s (%s)"
-msgstr ""
+msgstr "daarna %02d:%02d %s (%s)"
 
 #: src/wefax_window.c
 msgid "Waiting for the next chart"
-msgstr ""
+msgstr "Wacht op de volgende kaart"
 
 #: src/wefax_window.c
 msgid "Taking the fax going on"
@@ -14880,17 +14915,19 @@ msgstr "Lopende fax: ontvangen vanaf hier"
 
 #: src/wefax_window.c
 msgid "Page 2: Freq., View   Page 3: Align, Tilt (MFK)   Page 4: Night"
-msgstr ""
+msgstr "Pagina 2: Freq., Beeld   Pagina 3: Uitlijnen, Helling (MFK)   Pagina 4: Nacht"
 
 #: src/wefax_window.c
 msgid "Can't read this chart"
-msgstr ""
+msgstr "Kan deze kaart niet lezen"
 
 #: src/wefax_window.c
 msgid ""
 "Delete?\n"
 "Press again"
 msgstr ""
+"Wissen?\n"
+"Druk opnieuw"
 
 #: src/wefax_window.c
 msgid "WEFAX - stations"
@@ -15260,21 +15297,21 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "Sent"
-msgstr ""
+msgstr "Verzonden"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x %s:# %s did not run"
-msgstr ""
+msgstr "#%06x %s:# %s startte niet"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x %s:# no answer"
-msgstr ""
+msgstr "#%06x %s:# geen antwoord"
 
 #: src/winlink_mail.c
 msgid "Reading the mailbox..."
-msgstr ""
+msgstr "Mailbox lezen..."
 
 #: src/winlink_mail.c
 #, c-format
@@ -15283,38 +15320,41 @@ msgid ""
 "\n"
 "Pat and the modem do not run. Winlink On (page 2) starts them, and they start with the radio from then on. Your callsign is the radio's (Settings > General) unless the web configurator's Operating > Winlink sets another."
 msgstr ""
+"#%06x Winlink staat uit.#\n"
+"\n"
+"Pat en de modem draaien niet. Winlink Aan (pagina 2) start ze, en vanaf dan starten ze mee met de radio. Je roepnaam is die van de radio (Instellingen > Algemeen), tenzij Operating > Winlink in de webconfigurator een andere instelt."
 
 #: src/winlink_mail.c
 msgid "Starting Pat..."
-msgstr ""
+msgstr "Pat wordt gestart..."
 
 #: src/winlink_mail.c
 msgid "No messages. Connect calls a gateway for new mail."
-msgstr ""
+msgstr "Geen berichten. Verbinden roept een gateway op voor nieuwe mail."
 
 #: src/winlink_mail.c
 msgid "Nothing to send. New writes a message."
-msgstr ""
+msgstr "Niets te verzenden. Nieuw schrijft een bericht."
 
 #: src/winlink_mail.c
 msgid "Nothing sent yet."
-msgstr ""
+msgstr "Nog niets verzonden."
 
 #: src/winlink_mail.c
 msgid "Reading Pat's gateway list..."
-msgstr ""
+msgstr "Gatewaylijst van Pat lezen..."
 
 #: src/winlink_mail.c
 msgid "No gateway on this band."
-msgstr ""
+msgstr "Geen gateway op deze band."
 
 #: src/winlink_mail.c
 msgid "From"
-msgstr ""
+msgstr "Van"
 
 #: src/winlink_mail.c
 msgid "To"
-msgstr ""
+msgstr "Aan"
 
 #: src/winlink_mail.c
 msgid "Cc"
@@ -15322,7 +15362,7 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "Attachments, in the web mailbox"
-msgstr ""
+msgstr "Bijlagen, in de webmailbox"
 
 #: src/winlink_mail.c
 msgid ""
@@ -15330,201 +15370,208 @@ msgid ""
 "\n"
 "[the rest is in the web mailbox]"
 msgstr ""
+"\n"
+"\n"
+"[de rest staat in de webmailbox]"
 
 #: src/winlink_mail.c
 msgid "Subject"
-msgstr ""
+msgstr "Onderwerp"
 
 #: src/winlink_mail.c
 msgid "the message: plain text, short is best over HF"
-msgstr ""
+msgstr "het bericht: platte tekst, kort werkt het best via HF"
 
 #: src/winlink_mail.c
 msgid "calls or e-mail addresses, commas between"
-msgstr ""
+msgstr "roepnamen of e-mailadressen, met komma's ertussen"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Pat asks:# %s"
-msgstr ""
+msgstr "#%06x Pat vraagt:# %s"
 
 #: src/winlink_mail.c
 msgid "Someone is on the gateway's frequency. Pat waits for it to clear."
-msgstr ""
+msgstr "Er is iemand op de frequentie van de gateway. Pat wacht tot die vrij is."
 
 #: src/winlink_mail.c
 msgid "The gateway asks for your Winlink password."
-msgstr ""
+msgstr "De gateway vraagt je Winlink-wachtwoord."
 
 #: src/winlink_mail.c
 msgid "Pat could not confirm that your Winlink account is active."
-msgstr ""
+msgstr "Pat kon niet bevestigen dat je Winlink-account actief is."
 
 #: src/winlink_mail.c
 msgid "A new account: its password comes in a message now."
-msgstr ""
+msgstr "Een nieuw account: het wachtwoord komt nu in een bericht."
 
 #: src/winlink_mail.c
 msgid "Messages are waiting at the gateway."
-msgstr ""
+msgstr "Er wachten berichten bij de gateway."
 
 #: src/winlink_mail.c
 msgid "Continue: the account is activated over the air, and a message brings a new password. It is the only key to the account: write it down. Better: create the account first (winlink.org), or set your password (page 2)."
-msgstr ""
+msgstr "Toch doorgaan: het account wordt via de radio geactiveerd en een bericht brengt een nieuw wachtwoord. Dat is de enige sleutel tot het account: schrijf het op. Beter: maak eerst het account aan (winlink.org), of stel je wachtwoord in (pagina 2)."
 
 #: src/winlink_mail.c
 msgid "Download now: the message with the password comes in during this connection. Write the password down and set it on the radio (Password, page 2): it cannot be recovered."
-msgstr ""
+msgstr "Nu downloaden: het bericht met het wachtwoord komt binnen tijdens deze verbinding. Schrijf het wachtwoord op en stel het in op de radio (Wachtwoord, pagina 2): het kan niet worden teruggehaald."
 
 #: src/winlink_mail.c
 #, c-format
-msgid "All: every one now. Small: those under Pat's size limit. Later: none now. Waiting: %s"
-msgstr ""
+msgid "Get all: every one now. Get small: those under Pat's size limit. Later: none now. Waiting: %s"
+msgstr "Alle ophalen: alle berichten nu. Kleine ophalen: die onder de groottelimiet van Pat. Later: nu geen. Wachtend: %s"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Connected# to #%06x %s# on %s kHz"
-msgstr ""
+msgstr "#%06x Verbonden# met #%06x %s# op %s kHz"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Calling# #%06x %s# on %s kHz, %s"
-msgstr ""
+msgstr "#%06x Oproep# #%06x %s# op %s kHz, %s"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "Receiving %s: %d of %d bytes"
-msgstr ""
+msgstr "Ontvangt %s: %d van %d bytes"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "Sending %s: %d of %d bytes"
-msgstr ""
+msgstr "Verzendt %s: %d van %d bytes"
 
 #: src/winlink_mail.c
 msgid "Exchanging mail..."
-msgstr ""
+msgstr "Mail uitwisselen..."
 
 #: src/winlink_mail.c
 msgid "The radio transmits when Pat calls."
-msgstr ""
+msgstr "De radio zendt wanneer Pat oproept."
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x A connection is under way#"
-msgstr ""
+msgstr "#%06x Er loopt een verbinding#"
 
 #: src/winlink_mail.c
 msgid "Started from the web mailbox, or before the app was closed: Abort ends it."
-msgstr ""
+msgstr "Gestart vanuit de webmailbox, of voordat de app werd gesloten: Afbreken beëindigt ze."
 
 #: src/winlink_mail.c
 msgid "No connection"
-msgstr ""
+msgstr "Geen verbinding"
 
 #: src/winlink_mail.c
 msgid "WINLINK MAIL"
-msgstr ""
+msgstr "WINLINK-MAIL"
 
 #: src/winlink_mail.c
 msgid "New message"
-msgstr ""
+msgstr "Nieuw bericht"
 
 #: src/winlink_mail.c
 msgid "CONNECT"
-msgstr ""
+msgstr "VERBINDEN"
 
 #: src/winlink_mail.c
 msgid "CONNECTION"
-msgstr ""
+msgstr "VERBINDING"
 
 #: src/winlink_mail.c
 msgid "Calling"
-msgstr ""
+msgstr "Oproep"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x %d unread#"
-msgstr ""
+msgstr "#%06x %d ongelezen#"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "%d to send"
-msgstr ""
+msgstr "%d te verzenden"
 
 #: src/winlink_mail.c
 msgid "Ready"
-msgstr ""
+msgstr "Gereed"
 
 #: src/winlink_mail.c
 msgid "Starting"
-msgstr ""
+msgstr "Starten"
 
 #: src/winlink_mail.c
 msgid "Winlink off"
-msgstr ""
+msgstr "Winlink uit"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x No Winlink password set:# Password (page 2) sets it"
-msgstr ""
+msgstr "#%06x Geen Winlink-wachtwoord ingesteld:# Wachtwoord (pagina 2) stelt het in"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "Last connection: %s"
-msgstr ""
+msgstr "Laatste verbinding: %s"
 
 #: src/winlink_mail.c
 msgid "Enter or Down: next field - in the text Enter is a new line - Esc: back"
-msgstr ""
+msgstr "Enter of Omlaag: volgend veld - in de tekst is Enter een nieuwe regel - Esc: terug"
 
 #: src/winlink_mail.c
 msgid "MFK: next field - MFK press: type - Send when done"
-msgstr ""
+msgstr "MFK: volgend veld - MFK drukken: typen - Zenden als je klaar bent"
 
 #: src/winlink_mail.c
 msgid "Up / Down or MFK: scroll - R: reply - Esc: back"
-msgstr ""
+msgstr "Omhoog / Omlaag of MFK: scrollen - R: antwoorden - Esc: terug"
 
 #: src/winlink_mail.c
 msgid "+ called lately - Connect twice: the radio transmits"
-msgstr ""
+msgstr "+ onlangs opgeroepen - twee keer Verbinden: de radio zendt"
 
 #: src/winlink_mail.c
 msgid "Pat waits for the answer: a button here, or the web mailbox"
-msgstr ""
+msgstr "Pat wacht op het antwoord: een knop hier, of de webmailbox"
 
 #: src/winlink_mail.c
 msgid "Abort ends the connection; Back leaves it running"
-msgstr ""
+msgstr "Afbreken beëindigt de verbinding; Terug laat ze lopen"
 
 #: src/winlink_mail.c
 msgid "Enter: read - N: new - C: connect - B: next box"
-msgstr ""
+msgstr "Enter: lezen - N: nieuw - C: verbinden - B: volgende map"
 
 #: src/winlink_mail.c
 msgid "MFK: choose - MFK press: read"
-msgstr ""
+msgstr "MFK: kiezen - MFK drukken: lezen"
 
 #: src/winlink_mail.c
 msgid "Box"
-msgstr ""
+msgstr "Map"
 
 #: src/winlink_mail.c
 msgid ""
 "Winlink:\n"
 "On"
 msgstr ""
+"Winlink:\n"
+"Aan"
 
 #: src/winlink_mail.c
 msgid ""
 "Winlink:\n"
 "Off"
 msgstr ""
+"Winlink:\n"
+"Uit"
 
 #: src/winlink_mail.c
 msgid "Connection"
-msgstr ""
+msgstr "Verbinding"
 
 #: src/winlink_mail.c
 msgid "(MAIL 1:2)"
@@ -15536,21 +15583,23 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "Password"
-msgstr ""
+msgstr "Wachtwoord"
 
 #: src/winlink_mail.c
 msgid "(READ 1:1)"
-msgstr ""
+msgstr "(LEZEN 1:1)"
 
 #: src/winlink_mail.c
 msgid ""
 "Next\n"
 "field"
 msgstr ""
+"Volgend\n"
+"veld"
 
 #: src/winlink_mail.c
 msgid "(CONNECT 1:1)"
-msgstr ""
+msgstr "(VERBINDEN 1:1)"
 
 #: src/winlink_mail.c
 msgid "(LINK 1:1)"
@@ -15558,43 +15607,43 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "Abort"
-msgstr ""
+msgstr "Afbreken"
 
 #: src/winlink_mail.c
 msgid "(PAT ASKS)"
-msgstr ""
+msgstr "(PAT VRAAGT)"
 
 #: src/winlink_mail.c
 msgid "Read"
-msgstr ""
+msgstr "Lezen"
 
 #: src/winlink_mail.c
 msgid "Wait, still busy"
-msgstr ""
+msgstr "Wacht, nog bezig"
 
 #: src/winlink_mail.c
 msgid "Deleted"
-msgstr ""
+msgstr "Gewist"
 
 #: src/winlink_mail.c
 msgid "Delete: press again, the message is not sent"
-msgstr ""
+msgstr "Wissen: druk nog eens, het bericht is niet verzonden"
 
 #: src/winlink_mail.c
 msgid "Delete: press again"
-msgstr ""
+msgstr "Wissen: druk nog eens"
 
 #: src/winlink_mail.c
 msgid "The message is not sent: Cancel or Esc again leaves it"
-msgstr ""
+msgstr "Het bericht is niet verzonden: nog eens Annuleren of Esc om het te verlaten"
 
 #: src/winlink_mail.c
 msgid "The message you were writing"
-msgstr ""
+msgstr "Het bericht dat je aan het schrijven was"
 
 #: src/winlink_mail.c
 msgid "Winlink is off: Winlink On (page 2) first"
-msgstr ""
+msgstr "Winlink staat uit: eerst Winlink Aan (pagina 2)"
 
 #: src/winlink_mail.c
 #, c-format
@@ -15603,27 +15652,27 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "Winlink: the message is in the outbox"
-msgstr ""
+msgstr "Winlink: het bericht staat in de outbox"
 
 #: src/winlink_mail.c
 msgid "Winlink: the message was not sent"
-msgstr ""
+msgstr "Winlink: het bericht is niet verzonden"
 
 #: src/winlink_mail.c
 msgid "Not sent"
-msgstr ""
+msgstr "Niet verzonden"
 
 #: src/winlink_mail.c
 msgid "In the outbox: Connect sends it"
-msgstr ""
+msgstr "In de outbox: Verbinden verzendt het"
 
 #: src/winlink_mail.c
 msgid "Line: "
-msgstr ""
+msgstr "Regel: "
 
 #: src/winlink_mail.c
 msgid "To: "
-msgstr ""
+msgstr "Aan: "
 
 #: src/winlink_mail.c
 msgid "Cc: "
@@ -15631,54 +15680,54 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "Subj: "
-msgstr ""
+msgstr "Ond.: "
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Winlink:# %s failed"
-msgstr ""
+msgstr "#%06x Winlink:# %s mislukt"
 
 #: src/winlink_mail.c
 msgid "Wait: reading Winlink's state"
-msgstr ""
+msgstr "Wacht: status van Winlink lezen"
 
 #: src/winlink_mail.c
 msgid "A connection is under way: Abort it first"
-msgstr ""
+msgstr "Er loopt een verbinding: breek die eerst af"
 
 #: src/winlink_mail.c
 msgid "Stopping Pat and the modem..."
-msgstr ""
+msgstr "Pat en de modem stoppen..."
 
 #: src/winlink_mail.c
 msgid "Starting Pat and the modem..."
-msgstr ""
+msgstr "Pat en de modem starten..."
 
 #: src/winlink_mail.c
 msgid "Password set: Pat starts again with it"
-msgstr ""
+msgstr "Wachtwoord ingesteld: Pat herstart ermee"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Password set; Pat did not restart#"
-msgstr ""
+msgstr "#%06x Wachtwoord ingesteld; Pat herstartte niet#"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Password not set:# 1-64 characters"
-msgstr ""
+msgstr "#%06x Wachtwoord niet ingesteld:# 1-64 tekens"
 
 #: src/winlink_mail.c
 msgid "Password set: kept on the radio, never shown"
-msgstr ""
+msgstr "Wachtwoord ingesteld: bewaard op de radio, nooit getoond"
 
 #: src/winlink_mail.c
 msgid "A connection is under way: the password after it"
-msgstr ""
+msgstr "Er loopt een verbinding: het wachtwoord daarna"
 
 #: src/winlink_mail.c
 msgid "Password: "
-msgstr ""
+msgstr "Wachtwoord: "
 
 #: src/winlink_mail.c
 msgid "Gateways"
@@ -15689,46 +15738,62 @@ msgid ""
 "Continue\n"
 "anyway"
 msgstr ""
+"Toch\n"
+"doorgaan"
 
 #: src/winlink_mail.c
 msgid "Type it"
-msgstr ""
+msgstr "Intypen"
 
 #: src/winlink_mail.c
 msgid ""
 "Download\n"
 "now"
 msgstr ""
+"Nu\n"
+"downloaden"
 
 #: src/winlink_mail.c
 msgid "Later"
 msgstr ""
 
 #: src/winlink_mail.c
-msgid "Small"
+msgid ""
+"Get\n"
+"all"
 msgstr ""
+"Alle\n"
+"ophalen"
+
+#: src/winlink_mail.c
+msgid ""
+"Get\n"
+"small"
+msgstr ""
+"Kleine\n"
+"ophalen"
 
 #: src/winlink_mail.c
 msgid "Winlink: Pat asks, see APP > Mail"
-msgstr ""
+msgstr "Winlink: Pat vraagt iets, zie APP > Mail"
 
 #: src/winlink_mail.c
 msgid "Done: 1 message received"
-msgstr ""
+msgstr "Klaar: 1 bericht ontvangen"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "Done: %d messages received"
-msgstr ""
+msgstr "Klaar: %d berichten ontvangen"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "Failed: %s"
-msgstr ""
+msgstr "Mislukt: %s"
 
 #: src/winlink_mail.c
 msgid "Ended"
-msgstr ""
+msgstr "Beëindigd"
 
 #: src/winlink_mail.c
 #, c-format
@@ -15737,33 +15802,33 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "A connection is under way"
-msgstr ""
+msgstr "Er loopt een verbinding"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Connect to %s on %.1f kHz: press again, the radio transmits#"
-msgstr ""
+msgstr "#%06x Verbinden met %s op %.1f kHz: druk nog eens, de radio zendt#"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Connect:# %s did not run"
-msgstr ""
+msgstr "#%06x Verbinden:# %s startte niet"
 
 #: src/winlink_mail.c
 msgid "Ending the connection..."
-msgstr ""
+msgstr "Verbinding beëindigen..."
 
 #: src/winlink_mail.c
 msgid "Ending the connection now"
-msgstr ""
+msgstr "Verbinding wordt nu beëindigd"
 
 #: src/winlink_mail.c
 msgid "Ending the connection (Abort again: at once)"
-msgstr ""
+msgstr "Verbinding beëindigen (nog eens Afbreken: meteen)"
 
 #: src/winlink_mail.c
 msgid "Wait, still busy: Abort again"
-msgstr ""
+msgstr "Wacht, nog bezig: nog eens Afbreken"
 
 #: src/wr12.c
 msgid "ERROR"

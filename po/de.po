@@ -15005,7 +15005,7 @@ msgstr ""
 
 #: src/winlink_mail.c
 #, c-format
-msgid "All: every one now. Small: those under Pat's size limit. Later: none now. Waiting: %s"
+msgid "Get all: every one now. Get small: those under Pat's size limit. Later: none now. Waiting: %s"
 msgstr ""
 
 #: src/winlink_mail.c
@@ -15332,10 +15332,17 @@ msgstr ""
 msgid "Later"
 msgstr ""
 
-#. not in the list: a line or a word of a longer text
 #: src/winlink_mail.c
-msgid "Small"
-msgstr "Klein"
+msgid ""
+"Get\n"
+"all"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid ""
+"Get\n"
+"small"
+msgstr ""
 
 #: src/winlink_mail.c
 msgid "Winlink: Pat asks, see APP > Mail"
@@ -15451,6 +15458,10 @@ msgstr ""
 #: src/zello.c
 msgid "not on a channel yet"
 msgstr ""
+
+#. not in the list: a line or a word of a longer text
+msgid "Small"
+msgstr "Klein"
 
 #. not in the list: a line or a word of a longer text
 msgid "Parse"

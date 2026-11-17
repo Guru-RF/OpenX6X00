@@ -720,11 +720,11 @@ msgstr "边打字边发 CW"
 
 #: src/apps_menu.c src/button_bar.cpp src/screen_main.c src/winlink_mail.c
 msgid "Mail"
-msgstr ""
+msgstr "邮件"
 
 #: src/apps_menu.c
 msgid "Winlink, no phone"
-msgstr ""
+msgstr "Winlink, 无需手机"
 
 #: src/apps_menu.c
 msgid "GPS / Clock"
@@ -3258,6 +3258,8 @@ msgid ""
 "Mode:\n"
 "Copy"
 msgstr ""
+"模式:\n"
+"抄收"
 
 #: src/dialog_cw_trainer.c src/dialog_scan.c src/first_start.c
 msgid "Skip"
@@ -3398,7 +3400,7 @@ msgstr ""
 #: src/dialog_cw_trainer.c
 #, c-format
 msgid "CW TRAINER - #%06x Copy stats#"
-msgstr ""
+msgstr "CW 练习 - #%06x 抄收统计#"
 
 #: src/dialog_cw_trainer.c
 #, c-format
@@ -3417,7 +3419,7 @@ msgstr "今天: %u 次, %u%% 正确, %u 分钟"
 
 #: src/dialog_cw_trainer.c
 msgid "Last 20 tries per character. Weak ones (red, yellow) come up more often in Copy."
-msgstr ""
+msgstr "每个字符最近 20 次. 薄弱的 (红, 黄) 在抄收模式中出现得更多."
 
 #: src/dialog_cw_trainer.c
 msgid "Last 20 tries per character. Weak ones (red, yellow) come up more often in Learn."
@@ -3426,7 +3428,7 @@ msgstr "每个字符最近 20 次. 薄弱的 (红, 黄) 在学习模式中出现
 #: src/dialog_cw_trainer.c
 #, c-format
 msgid "CW TRAINER - #%06x Copy#"
-msgstr ""
+msgstr "CW 练习 - #%06x 抄收#"
 
 #: src/dialog_cw_trainer.c
 #, c-format
@@ -3435,11 +3437,11 @@ msgstr "%i WPM - 字组 %i"
 
 #: src/dialog_cw_trainer.c
 msgid "Start: groups follow each other, type each one on the keyboard"
-msgstr ""
+msgstr "开始: 一组接一组播放, 每组都用键盘输入"
 
 #: src/dialog_cw_trainer.c
 msgid "No keyboard found: plug in a USB or Bluetooth one, or use the MFK on the keys"
-msgstr ""
+msgstr "未找到键盘: 请插入 USB 或蓝牙键盘, 或用 MFK 操作屏幕按键"
 
 #: src/dialog_cw_trainer.c
 msgid "The radio keys the group (sidetone only)"
@@ -3447,11 +3449,11 @@ msgstr "电台拍发字组 (仅侧音)"
 
 #: src/dialog_cw_trainer.c
 msgid "Type what you hear. Enter: done, Backspace: rub out. Replay: hear it again"
-msgstr ""
+msgstr "输入你听到的内容. Enter: 完成, Backspace: 删除. 重播: 再听一遍"
 
 #: src/dialog_cw_trainer.c
 msgid "No keyboard: turn the MFK to a key, press it to enter. Replay: hear it again"
-msgstr ""
+msgstr "无键盘: 转动 MFK 选择按键, 按下输入. 重播: 再听一遍"
 
 #: src/dialog_cw_trainer.c
 msgid "WRONG"
@@ -3463,15 +3465,15 @@ msgstr "发送:   "
 
 #: src/dialog_cw_trainer.c
 msgid "Typed: "
-msgstr ""
+msgstr "输入: "
 
 #: src/dialog_cw_trainer.c
 msgid "Replay: hear the right one again. Next or Enter: another group"
-msgstr ""
+msgstr "重播: 再听一遍正确的. \"下一步\"或 Enter: 换一组"
 
 #: src/dialog_cw_trainer.c
 msgid "Replay: hear the right one again. Next or MFK press: another group"
-msgstr ""
+msgstr "重播: 再听一遍正确的. \"下一步\"或按 MFK: 换一组"
 
 #: src/dialog_cw_trainer.c
 msgid "Next group follows. Pause: stop after this one"
@@ -3479,11 +3481,11 @@ msgstr "下一组即将开始. 暂停: 本组后停止"
 
 #: src/dialog_cw_trainer.c
 msgid "Start or Enter: the next group"
-msgstr ""
+msgstr "开始或 Enter: 下一组"
 
 #: src/dialog_cw_trainer.c
 msgid "Start or MFK press: the next group"
-msgstr ""
+msgstr "开始或按 MFK: 下一组"
 
 #: src/dialog_cw_trainer.c
 #, c-format
@@ -3493,10 +3495,14 @@ msgid ""
 "Last %i: %i / %i\n"
 "Next level at %i%%"
 msgstr ""
+"等级 %i\n"
+"得分  %i / %i\n"
+"最近 %i: %i / %i\n"
+"%i%% 时升级"
 
 #: src/dialog_cw_trainer.c
 msgid "Del"
-msgstr ""
+msgstr "删除"
 
 #: src/dialog_cw_trainer.c
 #, c-format
@@ -5401,7 +5407,7 @@ msgstr "天气"
 
 #: src/dialog_meteo.c
 msgid "Place"
-msgstr ""
+msgstr "地点"
 
 #: src/dialog_meteo.c
 msgid "No position: plug in a GPS, or set the QTH locator or the country in Settings > General"
@@ -7005,109 +7011,109 @@ msgstr "标为\"草稿\"的语言仍在由母语者校对."
 
 #: src/first_start.c
 msgid "Press the keyboard's pairing key now"
-msgstr ""
+msgstr "现在按键盘的配对键"
 
 #: src/first_start.c
 msgid "Looking for the keyboard..."
-msgstr ""
+msgstr "正在查找键盘..."
 
 #: src/first_start.c
 msgid "Pairing..."
-msgstr ""
+msgstr "正在配对..."
 
 #: src/first_start.c
 msgid "Bluetooth is busy, a moment..."
-msgstr ""
+msgstr "蓝牙忙, 请稍候..."
 
 #: src/first_start.c
 msgid "The keyboard was not seen: press its pairing key, then choose it again"
-msgstr ""
+msgstr "未发现键盘: 请按其配对键, 然后重新选择"
 
 #: src/first_start.c
 msgid "Paired, but not connected: press a key on it, or choose it again"
-msgstr ""
+msgstr "已配对但未连接: 请按键盘上任一键, 或重新选择"
 
 #: src/first_start.c
 msgid "Pairing failed: press its pairing key, then choose it again"
-msgstr ""
+msgstr "配对失败: 请按其配对键, 然后重新选择"
 
 #: src/first_start.c
 msgid "A Bluetooth keyboard can type the WiFi password, the callsign and the locator in the next steps. A USB keyboard needs nothing here: it types once plugged in."
-msgstr ""
+msgstr "蓝牙键盘可在后续步骤中输入 WiFi 密码, 呼号和网格. USB 键盘无需在此设置: 插上即可输入."
 
 #: src/first_start.c
 msgid "Bluetooth starting..."
-msgstr ""
+msgstr "蓝牙启动中..."
 
 #: src/first_start.c
 msgid "Bluetooth is not running on this radio: Skip this step, or plug in a USB keyboard"
-msgstr ""
+msgstr "此电台未运行蓝牙: 请跳过此步, 或插入 USB 键盘"
 
 #: src/first_start.c
 msgid "No Bluetooth adapter found: Skip this step, or plug in a USB keyboard"
-msgstr ""
+msgstr "未找到蓝牙适配器: 请跳过此步, 或插入 USB 键盘"
 
 #: src/first_start.c
 msgid "Bluetooth is off with WiFi, they share a chip: Turn on switches both on"
-msgstr ""
+msgstr "蓝牙随 WiFi 关闭 (共用一个芯片): \"开启\"会同时打开两者"
 
 #: src/first_start.c
 msgid "Bluetooth is off: Turn on switches it on"
-msgstr ""
+msgstr "蓝牙已关: \"开启\"将其打开"
 
 #: src/first_start.c
 msgid "Put the keyboard in pairing mode, then Scan"
-msgstr ""
+msgstr "让键盘进入配对模式, 然后按\"扫描\""
 
 #: src/first_start.c
 msgid "Looking for keyboards, 16 s..."
-msgstr ""
+msgstr "正在查找键盘, 16 s..."
 
 #: src/first_start.c
 msgid "Choose your keyboard: the guide pairs it and connects it"
-msgstr ""
+msgstr "选择你的键盘: 向导会配对并连接它"
 
 #: src/first_start.c
 msgid "No keyboard found: is it in pairing mode? Scan looks again"
-msgstr ""
+msgstr "未找到键盘: 它是否处于配对模式? 按\"扫描\"重新查找"
 
 #: src/first_start.c
 msgid "Type this code on the keyboard, then its Enter key:"
-msgstr ""
+msgstr "在键盘上输入此代码, 然后按其 Enter 键:"
 
 #: src/first_start.c
 #, c-format
 msgid "%s connected: waiting for its keys..."
-msgstr ""
+msgstr "%s 已连接: 等待其按键..."
 
 #: src/first_start.c
 #, c-format
 msgid "%s works: type something to try it"
-msgstr ""
+msgstr "%s 可用: 输入一些内容试试"
 
 #: src/first_start.c
 msgid "A keyboard works: type something to try it"
-msgstr ""
+msgstr "键盘可用: 输入一些内容试试"
 
 #: src/first_start.c src/meteo.c
 msgid "Typed"
-msgstr ""
+msgstr "输入"
 
 #: src/first_start.c
 msgid "Keyboards"
-msgstr ""
+msgstr "键盘"
 
 #: src/first_start.c
 msgid "paired: press to connect"
-msgstr ""
+msgstr "已配对: 按下连接"
 
 #: src/first_start.c
 msgid "new: press to pair"
-msgstr ""
+msgstr "新设备: 按下配对"
 
 #: src/first_start.c
 msgid "Turn on"
-msgstr ""
+msgstr "开启"
 
 #: src/first_start.c
 msgid "WiFi sets the clock, and the DX Cluster, the uploads and the web configurator need it. Networks opens the WiFi window: choose a network there, then ESC or GEN comes back here."
@@ -7280,11 +7286,11 @@ msgstr "时钟"
 #: src/first_start.c
 #, c-format
 msgid "%s, Bluetooth"
-msgstr ""
+msgstr "%s, 蓝牙"
 
 #: src/first_start.c
 msgid "Keyboard"
-msgstr ""
+msgstr "键盘"
 
 #: src/first_start.c src/settings_window.cpp src/wifi_window.c
 #: src/winlink_mail.c
@@ -7293,11 +7299,11 @@ msgstr "已连接"
 
 #: src/first_start.c
 msgid "Skipped: Settings > Bluetooth > DEVICES pairs one"
-msgstr ""
+msgstr "已跳过: 可在 设置 > 蓝牙 > 设备 配对"
 
 #: src/first_start.c
 msgid "None: Settings > Bluetooth > DEVICES pairs one"
-msgstr ""
+msgstr "无: 可在 设置 > 蓝牙 > 设备 配对"
 
 #: src/first_start.c
 #, c-format
@@ -8042,7 +8048,7 @@ msgstr ""
 
 #: src/image_level.c
 msgid "New card image: use Multi-Boot"
-msgstr ""
+msgstr "新的 SD 卡镜像: 请用 Multi-Boot"
 
 #: src/image_level.c
 msgid "New card image out: Settings > Info"
@@ -8456,6 +8462,8 @@ msgid ""
 "Close\n"
 "Chat"
 msgstr ""
+"关闭\n"
+"聊天"
 
 #: src/js8_window.c
 msgid ""
@@ -9115,7 +9123,7 @@ msgstr "与 %s 尚无对话: 用\"回复\", \"查询 >\"或\"编写...\""
 
 #: src/js8_window.c
 msgid "F1, F5 or ESC: back to the board"
-msgstr ""
+msgstr "F1, F5 或 ESC: 返回看板"
 
 #: src/js8_window.c
 #, c-format
@@ -11967,7 +11975,7 @@ msgstr " APP CW 键盘 "
 
 #: src/settings_window.cpp
 msgid " APP Mail "
-msgstr ""
+msgstr " APP 邮件 "
 
 #: src/settings_window.cpp
 msgid " APP Field Ops "
@@ -12482,11 +12490,11 @@ msgstr ""
 
 #: src/settings_window.cpp
 msgid "50.85, 4.35 or JO20ft"
-msgstr ""
+msgstr "50.85, 4.35 或 JO20ft"
 
 #: src/settings_window.cpp
 msgid "Not a place: degrees (50.85, 4.35) or a locator (JO20ft)"
-msgstr ""
+msgstr "不是地点: 请用度数 (50.85, 4.35) 或网格 (JO20ft)"
 
 #: src/settings_window.cpp
 msgid "Auto ("
@@ -12498,7 +12506,7 @@ msgstr "波段规划"
 
 #: src/settings_window.cpp
 msgid "Weather from"
-msgstr ""
+msgstr "天气位置来源"
 
 #: src/settings_window.cpp
 msgid ""
@@ -12506,10 +12514,13 @@ msgid ""
 " Locator \n"
 " Typed "
 msgstr ""
+" 自动 \n"
+" 网格 \n"
+" 手动输入 "
 
 #: src/settings_window.cpp
 msgid "Weather place"
-msgstr ""
+msgstr "天气地点"
 
 #: src/settings_window.cpp
 msgid "First-start guide"
@@ -13092,7 +13103,7 @@ msgstr "背光"
 
 #: src/settings_window.cpp
 msgid "Panel stripes fix"
-msgstr ""
+msgstr "屏幕条纹修正"
 
 #: src/settings_window.cpp
 msgid "SPECTRUM"
@@ -13327,30 +13338,30 @@ msgstr ""
 
 #: src/settings_window.cpp
 msgid "No callsign set: CQ CQ"
-msgstr ""
+msgstr "未设置呼号: CQ CQ"
 
 #: src/settings_window.cpp
 msgid "No text yet: CQ CQ"
-msgstr ""
+msgstr "尚无文字: CQ CQ"
 
 #: src/settings_window.cpp
 #, c-format
 msgid "Only %.*s, %d WPM"
-msgstr ""
+msgstr "仅 %.*s, %d WPM"
 
 #: src/settings_window.cpp
 #, c-format
 msgid "First %d characters, %d WPM"
-msgstr ""
+msgstr "前 %d 个字符, %d WPM"
 
 #: src/settings_window.cpp
 #, c-format
 msgid "Boot sound: only \"%.*s\" fits"
-msgstr ""
+msgstr "开机音: 只容得下 \"%.*s\""
 
 #: src/settings_window.cpp
 msgid "Boot text"
-msgstr ""
+msgstr "开机文字"
 
 #: src/settings_window.cpp
 msgid "Boot sound"
@@ -13363,6 +13374,10 @@ msgid ""
 " Callsign \n"
 " Own text "
 msgstr ""
+" 关 \n"
+" CQ CQ \n"
+" 呼号 \n"
+" 自定义文字 "
 
 #: src/settings_window.cpp
 msgid "RX AUDIO"
@@ -13664,11 +13679,11 @@ msgstr "检查失败: %.70s"
 #: src/settings_window.cpp
 #, c-format
 msgid "v%s is out; for its card image rebuild the card with Multi-Boot: %s"
-msgstr ""
+msgstr "v%s 已发布; 要用其 SD 卡镜像, 请用 Multi-Boot 重建 SD 卡: %s"
 
 #: src/settings_window.cpp
 msgid "more"
-msgstr ""
+msgstr "更多"
 
 #: src/settings_window.cpp
 #, c-format
@@ -13721,7 +13736,7 @@ msgstr "正在更新..."
 #: src/settings_window.cpp
 #, c-format
 msgid "New card image for this version, rebuild the card with Multi-Boot: %s"
-msgstr ""
+msgstr "此版本有新的 SD 卡镜像, 请用 Multi-Boot 重建 SD 卡: %s"
 
 #: src/settings_window.cpp
 #, c-format
@@ -14499,51 +14514,51 @@ msgstr ""
 
 #: src/wefax/plan.c
 msgid "good"
-msgstr ""
+msgstr "好"
 
 #: src/wefax/plan.c
 msgid "fair"
-msgstr ""
+msgstr "一般"
 
 #: src/wefax/plan.c
 msgid "poor"
-msgstr ""
+msgstr "差"
 
 #: src/wefax/plan.c
 msgid "Unsorted"
-msgstr ""
+msgstr "未分类"
 
 #: src/wefax/plan.c
 msgid "Significant weather"
-msgstr ""
+msgstr "重要天气"
 
 #: src/wefax/plan.c
 msgid "Analysis, North Atlantic"
-msgstr ""
+msgstr "分析图, 北大西洋"
 
 #: src/wefax/plan.c
 msgid "Analysis"
-msgstr ""
+msgstr "分析图"
 
 #: src/wefax/plan.c
 msgid "Upper air"
-msgstr ""
+msgstr "高空图"
 
 #: src/wefax/plan.c
 msgid "Forecast"
-msgstr ""
+msgstr "预报图"
 
 #: src/wefax/plan.c
 msgid "Sea and swell"
-msgstr ""
+msgstr "海浪和涌浪"
 
 #: src/wefax/plan.c
 msgid "Rain and visibility"
-msgstr ""
+msgstr "降水和能见度"
 
 #: src/wefax/plan.c
 msgid "Ice"
-msgstr ""
+msgstr "海冰"
 
 #: src/wefax/thumb.c
 #, c-format
@@ -14561,17 +14576,17 @@ msgstr ""
 
 #: src/wefax_bulletin.c src/wefax_window.c
 msgid "now"
-msgstr ""
+msgstr "现在"
 
 #: src/wefax_bulletin.c src/wefax_window.c
 #, c-format
 msgid "in %d min"
-msgstr ""
+msgstr "%d 分钟后"
 
 #: src/wefax_bulletin.c src/wefax_window.c
 #, c-format
 msgid "in %d h %02d"
-msgstr ""
+msgstr "%d h %02d 后"
 
 #: src/wefax_bulletin.c
 msgid "no preview"
@@ -14584,7 +14599,7 @@ msgstr "有副本, 无法读取"
 #: src/wefax_bulletin.c
 #, c-format
 msgid "none yet, %s"
-msgstr ""
+msgstr "尚无, %s"
 
 #: src/wefax_bulletin.c
 msgid "not in the plan"
@@ -14602,7 +14617,7 @@ msgstr "%s前"
 #: src/wefax_bulletin.c
 #, c-format
 msgid "next copy %02d:%02d (%s), %s"
-msgstr ""
+msgstr "下次播发 %02d:%02d (%s), %s"
 
 #: src/wefax_bulletin.c
 msgid "the last copy after it"
@@ -14611,37 +14626,37 @@ msgstr "之后显示最近一份"
 #: src/wefax_bulletin.c
 #, c-format
 msgid "%s   MFK: next"
-msgstr ""
+msgstr "%s   MFK: 下一张"
 
 #: src/wefax_bulletin.c
 #, c-format
 msgid "quality: %s (%d)"
-msgstr ""
+msgstr "质量: %s (%d)"
 
 #: src/wefax_bulletin.c
 #, c-format
 msgid "%s   MFK: next   press: full screen"
-msgstr ""
+msgstr "%s   MFK: 下一张   按下: 全屏"
 
 #: src/wefax_bulletin.c
 msgid "older"
-msgstr ""
+msgstr "更早"
 
 #: src/wefax_bulletin.c
 msgid "none received yet, coming (UTC):"
-msgstr ""
+msgstr "尚未收到, 即将播发 (UTC):"
 
 #: src/wefax_bulletin.c
 msgid "Auto Plan takes them by itself   MFK: next"
-msgstr ""
+msgstr "自动计划会自动接收   MFK: 下一张"
 
 #: src/wefax_bulletin.c
 msgid "Delete this chart?"
-msgstr ""
+msgstr "删除此天气图?"
 
 #: src/wefax_bulletin.c
 msgid "press Delete again (3 s)"
-msgstr ""
+msgstr "再按\"删除\" (3 s)"
 
 #: src/wefax_bulletin.c
 msgid "The plan has no Bulletin"
@@ -14649,35 +14664,43 @@ msgstr "计划中没有公报"
 
 #: src/wefax_bulletin.c
 msgid "No chart saved yet"
-msgstr ""
+msgstr "尚未保存天气图"
 
 #: src/wefax_night.c
 msgid ""
 "Night\n"
 "On"
 msgstr ""
+"夜间\n"
+"开"
 
 #: src/wefax_night.c
 msgid ""
 "Night\n"
 "Off"
 msgstr ""
+"夜间\n"
+"关"
 
 #: src/wefax_night.c
 msgid ""
 "Night\n"
 "Auto (on)"
 msgstr ""
+"夜间\n"
+"自动 (开)"
 
 #: src/wefax_night.c
 msgid ""
 "Night\n"
 "Auto"
 msgstr ""
+"夜间\n"
+"自动"
 
 #: src/wefax_viewer.c
 msgid "MFK press: zoom   F3: Fix   F5: back"
-msgstr ""
+msgstr "按 MFK: 缩放   F3: 校正   F5: 返回"
 
 #: src/wefax_viewer.c
 msgid "MFK: up, down   VOL: left, right   press: zoom"
@@ -14689,24 +14712,24 @@ msgstr "MFK: 上下   VOL: 左右   按下: 全图"
 
 #: src/wefax_viewer.c
 msgid "Saving the chart..."
-msgstr ""
+msgstr "正在保存天气图..."
 
 #: src/wefax_viewer.c
 #, c-format
 msgid "#%06x Fix#   Tilt %+d%s   Align %+d      %s"
-msgstr ""
+msgstr "#%06x 校正#   倾斜 %+d%s   对齐 %+d      %s"
 
 #: src/wefax_viewer.c
 msgid " (searching)"
-msgstr ""
+msgstr " (搜索中)"
 
 #: src/wefax_viewer.c
 msgid " (auto)"
-msgstr ""
+msgstr " (自动)"
 
 #: src/wefax_viewer.c
 msgid "MFK: tilt   VOL: align   press: auto tilt   the lines: the frame upright"
-msgstr ""
+msgstr "MFK: 倾斜   VOL: 对齐   按下: 自动倾斜   辅助线: 让图框竖直"
 
 #: src/wefax_viewer.c
 msgid "whole"
@@ -14718,11 +14741,11 @@ msgstr "自动倾斜: 无明显倾斜, 用 MFK 设置"
 
 #: src/wefax_viewer.c
 msgid "Chart saved"
-msgstr ""
+msgstr "天气图已保存"
 
 #: src/wefax_viewer.c
 msgid "Saving failed"
-msgstr ""
+msgstr "保存失败"
 
 #: src/wefax_window.c
 msgid "Bulletin"
@@ -14733,6 +14756,8 @@ msgid ""
 "All\n"
 "Charts"
 msgstr ""
+"全部\n"
+"天气图"
 
 #: src/wefax_window.c
 msgid ""
@@ -14748,45 +14773,51 @@ msgstr "(公报)"
 
 #: src/wefax_window.c
 msgid "(All Charts)"
-msgstr ""
+msgstr "(全部天气图)"
 
 #: src/wefax_window.c
 msgid "Open"
-msgstr ""
+msgstr "打开"
 
 #: src/wefax_window.c
 msgid "Newest"
-msgstr ""
+msgstr "最新"
 
 #: src/wefax_window.c
 msgid ""
 "Full\n"
 "Screen"
 msgstr ""
+"全屏\n"
+"查看"
 
 #: src/wefax_window.c
 msgid "Fix"
-msgstr ""
+msgstr "校正"
 
 #: src/wefax_window.c
 msgid "(Fix)"
-msgstr ""
+msgstr "(校正)"
 
 #: src/wefax_window.c
 msgid ""
 "Auto\n"
 "Tilt"
 msgstr ""
+"自动\n"
+"倾斜"
 
 #: src/wefax_window.c
 msgid "Undo"
-msgstr ""
+msgstr "撤销"
 
 #: src/wefax_window.c
 msgid ""
 "Save\n"
 "& Back"
 msgstr ""
+"保存\n"
+"并返回"
 
 #: src/wefax_window.c
 msgid "day and night"
@@ -14872,6 +14903,8 @@ msgid ""
 "Plan\n"
 "next --:--"
 msgstr ""
+"计划\n"
+"下次 --:--"
 
 #: src/wefax_window.c
 #, c-format
@@ -14879,6 +14912,8 @@ msgid ""
 "Plan\n"
 "next %02d:%02d"
 msgstr ""
+"计划\n"
+"下次 %02d:%02d"
 
 #: src/wefax_window.c
 msgid "Auto Plan off: tuned by hand"
@@ -14910,28 +14945,28 @@ msgstr "自动接收"
 
 #: src/wefax_window.c
 msgid "No chart planned"
-msgstr ""
+msgstr "没有计划的天气图"
 
 #: src/wefax_window.c
 msgid "Auto Plan is off"
-msgstr ""
+msgstr "自动计划已关"
 
 #: src/wefax_window.c
 msgid "a fax starts by itself with its start tone"
-msgstr ""
+msgstr "传真听到起始音会自动开始"
 
 #: src/wefax_window.c
 msgid "Auto Plan (F2 of page 1) takes the day's charts by itself"
-msgstr ""
+msgstr "自动计划 (第 1 页的 F2) 会自动接收当天的天气图"
 
 #: src/wefax_window.c
 #, c-format
 msgid "then %02d:%02d %s (%s)"
-msgstr ""
+msgstr "然后 %02d:%02d %s (%s)"
 
 #: src/wefax_window.c
 msgid "Waiting for the next chart"
-msgstr ""
+msgstr "等待下一张天气图"
 
 #: src/wefax_window.c
 msgid "Taking the fax going on"
@@ -14951,17 +14986,19 @@ msgstr "传真正在播送: 从此处开始接收"
 
 #: src/wefax_window.c
 msgid "Page 2: Freq., View   Page 3: Align, Tilt (MFK)   Page 4: Night"
-msgstr ""
+msgstr "第 2 页: 频率, 显示   第 3 页: 对齐, 倾斜 (MFK)   第 4 页: 夜间"
 
 #: src/wefax_window.c
 msgid "Can't read this chart"
-msgstr ""
+msgstr "无法读取此天气图"
 
 #: src/wefax_window.c
 msgid ""
 "Delete?\n"
 "Press again"
 msgstr ""
+"删除?\n"
+"再按一次"
 
 #: src/wefax_window.c
 msgid "WEFAX - stations"
@@ -15329,25 +15366,25 @@ msgstr "驻波比过高 (%s), %d 分钟后解除"
 
 #: src/winlink_mail.c
 msgid "Outbox"
-msgstr ""
+msgstr "发件箱"
 
 #: src/winlink_mail.c
 msgid "Sent"
-msgstr ""
+msgstr "已发送"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x %s:# %s did not run"
-msgstr ""
+msgstr "#%06x %s:# %s 未运行"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x %s:# no answer"
-msgstr ""
+msgstr "#%06x %s:# 无应答"
 
 #: src/winlink_mail.c
 msgid "Reading the mailbox..."
-msgstr ""
+msgstr "正在读取邮箱..."
 
 #: src/winlink_mail.c
 #, c-format
@@ -15356,46 +15393,49 @@ msgid ""
 "\n"
 "Pat and the modem do not run. Winlink On (page 2) starts them, and they start with the radio from then on. Your callsign is the radio's (Settings > General) unless the web configurator's Operating > Winlink sets another."
 msgstr ""
+"#%06x Winlink 已关.#\n"
+"\n"
+"Pat 和调制解调器未运行. 按\"Winlink 开\" (第 2 页) 启动它们, 此后它们会随电台一起启动. 你的呼号就是电台的呼号 (设置 > 常规), 除非在网页配置的 Operating > Winlink 中另设."
 
 #: src/winlink_mail.c
 msgid "Starting Pat..."
-msgstr ""
+msgstr "正在启动 Pat..."
 
 #: src/winlink_mail.c
 msgid "No messages. Connect calls a gateway for new mail."
-msgstr ""
+msgstr "没有消息. 按\"连接\"呼叫网关收取新邮件."
 
 #: src/winlink_mail.c
 msgid "Nothing to send. New writes a message."
-msgstr ""
+msgstr "没有要发送的. 按\"新建\"写消息."
 
 #: src/winlink_mail.c
 msgid "Nothing sent yet."
-msgstr ""
+msgstr "尚未发送任何消息."
 
 #: src/winlink_mail.c
 msgid "Reading Pat's gateway list..."
-msgstr ""
+msgstr "正在读取 Pat 的网关列表..."
 
 #: src/winlink_mail.c
 msgid "No gateway on this band."
-msgstr ""
+msgstr "此波段没有网关."
 
 #: src/winlink_mail.c
 msgid "From"
-msgstr ""
+msgstr "发件人"
 
 #: src/winlink_mail.c
 msgid "To"
-msgstr ""
+msgstr "收件人"
 
 #: src/winlink_mail.c
 msgid "Cc"
-msgstr ""
+msgstr "抄送"
 
 #: src/winlink_mail.c
 msgid "Attachments, in the web mailbox"
-msgstr ""
+msgstr "附件在网页邮箱中"
 
 #: src/winlink_mail.c
 msgid ""
@@ -15403,271 +15443,280 @@ msgid ""
 "\n"
 "[the rest is in the web mailbox]"
 msgstr ""
+"\n"
+"\n"
+"[其余内容在网页邮箱中]"
 
 #: src/winlink_mail.c
 msgid "Subject"
-msgstr ""
+msgstr "主题"
 
 #: src/winlink_mail.c
 msgid "the message: plain text, short is best over HF"
-msgstr ""
+msgstr "正文: 纯文本, 在 HF 上越短越好"
 
 #: src/winlink_mail.c
 msgid "calls or e-mail addresses, commas between"
-msgstr ""
+msgstr "呼号或邮件地址, 用逗号分隔"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Pat asks:# %s"
-msgstr ""
+msgstr "#%06x Pat 询问:# %s"
 
 #: src/winlink_mail.c
 msgid "Someone is on the gateway's frequency. Pat waits for it to clear."
-msgstr ""
+msgstr "网关频率上有人在用. Pat 等待频率空闲."
 
 #: src/winlink_mail.c
 msgid "The gateway asks for your Winlink password."
-msgstr ""
+msgstr "网关要求输入你的 Winlink 密码."
 
 #: src/winlink_mail.c
 msgid "Pat could not confirm that your Winlink account is active."
-msgstr ""
+msgstr "Pat 无法确认你的 Winlink 账户已激活."
 
 #: src/winlink_mail.c
 msgid "A new account: its password comes in a message now."
-msgstr ""
+msgstr "新账户: 其密码马上会通过一条消息发来."
 
 #: src/winlink_mail.c
 msgid "Messages are waiting at the gateway."
-msgstr ""
+msgstr "网关上有消息等待收取."
 
 #: src/winlink_mail.c
 msgid "Continue: the account is activated over the air, and a message brings a new password. It is the only key to the account: write it down. Better: create the account first (winlink.org), or set your password (page 2)."
-msgstr ""
+msgstr "继续: 账户将通过无线方式激活, 新密码会通过一条消息发来. 它是账户的唯一凭据: 请记下来. 更好的做法: 先创建账户 (winlink.org), 或设置你的密码 (第 2 页)."
 
 #: src/winlink_mail.c
 msgid "Download now: the message with the password comes in during this connection. Write the password down and set it on the radio (Password, page 2): it cannot be recovered."
-msgstr ""
+msgstr "立即下载: 含密码的消息会在本次连接中收到. 请记下密码并在电台上设置 (密码, 第 2 页): 密码无法找回."
 
 #: src/winlink_mail.c
 #, c-format
-msgid "All: every one now. Small: those under Pat's size limit. Later: none now. Waiting: %s"
-msgstr ""
+msgid "Get all: every one now. Get small: those under Pat's size limit. Later: none now. Waiting: %s"
+msgstr "全部收取: 现在全部收取. 只收小邮件: 只收 Pat 大小限制以内的. 稍后: 现在都不收. 等待中: %s"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Connected# to #%06x %s# on %s kHz"
-msgstr ""
+msgstr "#%06x 已连接#到 #%06x %s#, %s kHz"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Calling# #%06x %s# on %s kHz, %s"
-msgstr ""
+msgstr "#%06x 正在呼叫# #%06x %s#, %s kHz, %s"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "Receiving %s: %d of %d bytes"
-msgstr ""
+msgstr "正在接收 %s: %d / %d 字节"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "Sending %s: %d of %d bytes"
-msgstr ""
+msgstr "正在发送 %s: %d / %d 字节"
 
 #: src/winlink_mail.c
 msgid "Exchanging mail..."
-msgstr ""
+msgstr "正在交换邮件..."
 
 #: src/winlink_mail.c
 msgid "The radio transmits when Pat calls."
-msgstr ""
+msgstr "Pat 呼叫时电台会发射."
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x A connection is under way#"
-msgstr ""
+msgstr "#%06x 连接正在进行#"
 
 #: src/winlink_mail.c
 msgid "Started from the web mailbox, or before the app was closed: Abort ends it."
-msgstr ""
+msgstr "由网页邮箱发起, 或在应用关闭前发起: 按\"中止\"结束."
 
 #: src/winlink_mail.c
 msgid "No connection"
-msgstr ""
+msgstr "无连接"
 
 #: src/winlink_mail.c
 msgid "WINLINK MAIL"
-msgstr ""
+msgstr "WINLINK 邮件"
 
 #: src/winlink_mail.c
 msgid "New message"
-msgstr ""
+msgstr "新消息"
 
 #: src/winlink_mail.c
 msgid "CONNECT"
-msgstr ""
+msgstr "连接"
 
 #: src/winlink_mail.c
 msgid "CONNECTION"
-msgstr ""
+msgstr "连接状态"
 
 #: src/winlink_mail.c
 msgid "Calling"
-msgstr ""
+msgstr "正在呼叫"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x %d unread#"
-msgstr ""
+msgstr "#%06x %d 条未读#"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "%d to send"
-msgstr ""
+msgstr "%d 条待发"
 
 #: src/winlink_mail.c
 msgid "Ready"
-msgstr ""
+msgstr "就绪"
 
 #: src/winlink_mail.c
 msgid "Starting"
-msgstr ""
+msgstr "正在启动"
 
 #: src/winlink_mail.c
 msgid "Winlink off"
-msgstr ""
+msgstr "Winlink 关"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x No Winlink password set:# Password (page 2) sets it"
-msgstr ""
+msgstr "#%06x 未设置 Winlink 密码:# 在\"密码\" (第 2 页) 设置"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "Last connection: %s"
-msgstr ""
+msgstr "上次连接: %s"
 
 #: src/winlink_mail.c
 msgid "Enter or Down: next field - in the text Enter is a new line - Esc: back"
-msgstr ""
+msgstr "Enter 或下键: 下一栏位 - 正文中 Enter 为换行 - Esc: 返回"
 
 #: src/winlink_mail.c
 msgid "MFK: next field - MFK press: type - Send when done"
-msgstr ""
+msgstr "MFK: 下一栏位 - 按 MFK: 输入 - 完成后按\"发送\""
 
 #: src/winlink_mail.c
 msgid "Up / Down or MFK: scroll - R: reply - Esc: back"
-msgstr ""
+msgstr "上 / 下键或 MFK: 滚动 - R: 回复 - Esc: 返回"
 
 #: src/winlink_mail.c
 msgid "+ called lately - Connect twice: the radio transmits"
-msgstr ""
+msgstr "+ 最近呼叫过 - 按两次\"连接\": 电台发射"
 
 #: src/winlink_mail.c
 msgid "Pat waits for the answer: a button here, or the web mailbox"
-msgstr ""
+msgstr "Pat 等待回答: 用这里的按钮, 或网页邮箱"
 
 #: src/winlink_mail.c
 msgid "Abort ends the connection; Back leaves it running"
-msgstr ""
+msgstr "\"中止\"结束连接; \"返回\"让它继续运行"
 
 #: src/winlink_mail.c
 msgid "Enter: read - N: new - C: connect - B: next box"
-msgstr ""
+msgstr "Enter: 阅读 - N: 新建 - C: 连接 - B: 下一个邮箱"
 
 #: src/winlink_mail.c
 msgid "MFK: choose - MFK press: read"
-msgstr ""
+msgstr "MFK: 选择 - 按 MFK: 阅读"
 
 #: src/winlink_mail.c
 msgid "Box"
-msgstr ""
+msgstr "邮箱"
 
 #: src/winlink_mail.c
 msgid ""
 "Winlink:\n"
 "On"
 msgstr ""
+"Winlink:\n"
+"开"
 
 #: src/winlink_mail.c
 msgid ""
 "Winlink:\n"
 "Off"
 msgstr ""
+"Winlink:\n"
+"关"
 
 #: src/winlink_mail.c
 msgid "Connection"
-msgstr ""
+msgstr "连接状态"
 
 #: src/winlink_mail.c
 msgid "(MAIL 1:2)"
-msgstr ""
+msgstr "(邮件 1:2)"
 
 #: src/winlink_mail.c
 msgid "(MAIL 2:2)"
-msgstr ""
+msgstr "(邮件 2:2)"
 
 #: src/winlink_mail.c
 msgid "Password"
-msgstr ""
+msgstr "密码"
 
 #: src/winlink_mail.c
 msgid "(READ 1:1)"
-msgstr ""
+msgstr "(阅读 1:1)"
 
 #: src/winlink_mail.c
 msgid ""
 "Next\n"
 "field"
 msgstr ""
+"下一个\n"
+"栏位"
 
 #: src/winlink_mail.c
 msgid "(CONNECT 1:1)"
-msgstr ""
+msgstr "(连接 1:1)"
 
 #: src/winlink_mail.c
 msgid "(LINK 1:1)"
-msgstr ""
+msgstr "(链路 1:1)"
 
 #: src/winlink_mail.c
 msgid "Abort"
-msgstr ""
+msgstr "中止"
 
 #: src/winlink_mail.c
 msgid "(PAT ASKS)"
-msgstr ""
+msgstr "(PAT 询问)"
 
 #: src/winlink_mail.c
 msgid "Read"
-msgstr ""
+msgstr "读取"
 
 #: src/winlink_mail.c
 msgid "Wait, still busy"
-msgstr ""
+msgstr "请稍候, 仍在处理"
 
 #: src/winlink_mail.c
 msgid "Deleted"
-msgstr ""
+msgstr "已删除"
 
 #: src/winlink_mail.c
 msgid "Delete: press again, the message is not sent"
-msgstr ""
+msgstr "删除: 再按一次, 此消息尚未发送"
 
 #: src/winlink_mail.c
 msgid "Delete: press again"
-msgstr ""
+msgstr "删除: 再按一次"
 
 #: src/winlink_mail.c
 msgid "The message is not sent: Cancel or Esc again leaves it"
-msgstr ""
+msgstr "消息尚未发送: 再按\"取消\"或 Esc 放弃"
 
 #: src/winlink_mail.c
 msgid "The message you were writing"
-msgstr ""
+msgstr "你正在写的消息"
 
 #: src/winlink_mail.c
 msgid "Winlink is off: Winlink On (page 2) first"
-msgstr ""
+msgstr "Winlink 已关: 请先按\"Winlink 开\" (第 2 页)"
 
 #: src/winlink_mail.c
 #, c-format
@@ -15676,132 +15725,148 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "Winlink: the message is in the outbox"
-msgstr ""
+msgstr "Winlink: 消息已在发件箱"
 
 #: src/winlink_mail.c
 msgid "Winlink: the message was not sent"
-msgstr ""
+msgstr "Winlink: 消息未发送"
 
 #: src/winlink_mail.c
 msgid "Not sent"
-msgstr ""
+msgstr "未发送"
 
 #: src/winlink_mail.c
 msgid "In the outbox: Connect sends it"
-msgstr ""
+msgstr "已在发件箱: 按\"连接\"发送"
 
 #: src/winlink_mail.c
 msgid "Line: "
-msgstr ""
+msgstr "正文: "
 
 #: src/winlink_mail.c
 msgid "To: "
-msgstr ""
+msgstr "收件人: "
 
 #: src/winlink_mail.c
 msgid "Cc: "
-msgstr ""
+msgstr "抄送: "
 
 #: src/winlink_mail.c
 msgid "Subj: "
-msgstr ""
+msgstr "主题: "
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Winlink:# %s failed"
-msgstr ""
+msgstr "#%06x Winlink:# %s 失败"
 
 #: src/winlink_mail.c
 msgid "Wait: reading Winlink's state"
-msgstr ""
+msgstr "请稍候: 正在读取 Winlink 状态"
 
 #: src/winlink_mail.c
 msgid "A connection is under way: Abort it first"
-msgstr ""
+msgstr "连接正在进行: 请先中止"
 
 #: src/winlink_mail.c
 msgid "Stopping Pat and the modem..."
-msgstr ""
+msgstr "正在停止 Pat 和调制解调器..."
 
 #: src/winlink_mail.c
 msgid "Starting Pat and the modem..."
-msgstr ""
+msgstr "正在启动 Pat 和调制解调器..."
 
 #: src/winlink_mail.c
 msgid "Password set: Pat starts again with it"
-msgstr ""
+msgstr "密码已设置: Pat 将用它重新启动"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Password set; Pat did not restart#"
-msgstr ""
+msgstr "#%06x 密码已设置; Pat 未能重启#"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Password not set:# 1-64 characters"
-msgstr ""
+msgstr "#%06x 密码未设置:# 需 1-64 个字符"
 
 #: src/winlink_mail.c
 msgid "Password set: kept on the radio, never shown"
-msgstr ""
+msgstr "密码已设置: 保存在电台上, 不会显示"
 
 #: src/winlink_mail.c
 msgid "A connection is under way: the password after it"
-msgstr ""
+msgstr "连接正在进行: 结束后再设密码"
 
 #: src/winlink_mail.c
 msgid "Password: "
-msgstr ""
+msgstr "密码: "
 
 #: src/winlink_mail.c
 msgid "Gateways"
-msgstr ""
+msgstr "网关"
 
 #: src/winlink_mail.c
 msgid ""
 "Continue\n"
 "anyway"
 msgstr ""
+"仍然\n"
+"继续"
 
 #: src/winlink_mail.c
 msgid "Type it"
-msgstr ""
+msgstr "输入"
 
 #: src/winlink_mail.c
 msgid ""
 "Download\n"
 "now"
 msgstr ""
+"立即\n"
+"下载"
 
 #: src/winlink_mail.c
 msgid "Later"
-msgstr ""
+msgstr "稍后"
 
 #: src/winlink_mail.c
-msgid "Small"
+msgid ""
+"Get\n"
+"all"
 msgstr ""
+"全部\n"
+"收取"
+
+#: src/winlink_mail.c
+msgid ""
+"Get\n"
+"small"
+msgstr ""
+"只收\n"
+"小邮件"
 
 #: src/winlink_mail.c
 msgid "Winlink: Pat asks, see APP > Mail"
-msgstr ""
+msgstr "Winlink: Pat 有询问, 请看 APP > 邮件"
 
 #: src/winlink_mail.c
 msgid "Done: 1 message received"
-msgstr ""
+msgstr "完成: 收到 1 条消息"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "Done: %d messages received"
-msgstr ""
+msgstr "完成: 收到 %d 条消息"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "Failed: %s"
-msgstr ""
+msgstr "失败: %s"
 
 #: src/winlink_mail.c
 msgid "Ended"
-msgstr ""
+msgstr "已结束"
 
 #: src/winlink_mail.c
 #, c-format
@@ -15810,33 +15875,33 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "A connection is under way"
-msgstr ""
+msgstr "连接正在进行"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Connect to %s on %.1f kHz: press again, the radio transmits#"
-msgstr ""
+msgstr "#%06x 连接 %s, %.1f kHz: 再按一次, 电台将发射#"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Connect:# %s did not run"
-msgstr ""
+msgstr "#%06x 连接:# %s 未运行"
 
 #: src/winlink_mail.c
 msgid "Ending the connection..."
-msgstr ""
+msgstr "正在结束连接..."
 
 #: src/winlink_mail.c
 msgid "Ending the connection now"
-msgstr ""
+msgstr "正在立即结束连接"
 
 #: src/winlink_mail.c
 msgid "Ending the connection (Abort again: at once)"
-msgstr ""
+msgstr "正在结束连接 (再按\"中止\": 立即结束)"
 
 #: src/winlink_mail.c
 msgid "Wait, still busy: Abort again"
-msgstr ""
+msgstr "请稍候, 仍在处理: 再按\"中止\""
 
 #: src/wr12.c
 msgid "ERROR"
