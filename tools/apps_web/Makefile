@@ -14,7 +14,7 @@ all: test
 test:
 	rm -rf build && mkdir -p build
 	$(CC) -std=gnu11 -Wall -Wextra -O1 -I $(TOP)/src -DCTY_SD='"/nonexistent/cty.dat"' \
-	      -DCTY_IMAGE='"$(abspath $(TOP))/third-party/cty/cty.dat"' -o build/dxcc_calls dxcc_calls.c $(TOP)/src/dxcc.c \
+	      -DCTY_IMAGE='"$(abspath $(TOP))/third-party/cty/cty.dat"' -o build/dxcc_calls dxcc_calls.c $(TOP)/src/dxcc.c $(TOP)/src/cb.c \
 	      -lpthread -lm
 	BOTTLE=$(if $(BOTTLE),$(abspath $(BOTTLE))) python3 -I -B apps_web_test.py
 
