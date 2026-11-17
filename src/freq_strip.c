@@ -6,7 +6,8 @@
  *  FT8/FT4/WSPR (the big digits stay on the dial, as WSJT-X). Always shown; the app dialogs start
  *  below it. A line under the digit the tuning step changes, and NR NB DNF (RIT XIT when set)
  *  over the locator, as upstream v1.0.0's step marker and indicators row. LOCK in front of the frequency while
- *  the user's frequency lock is on.
+ *  the user's frequency lock is on. The callsign in front of the locator with Settings > Display > MAIN SCREEN >
+ *  Callsign on (#292).
  */
 
 #include <stdbool.h>
@@ -38,6 +39,7 @@ int freq_strip_step_char(const char *text, int32_t step, bool *big) {
 #include "cfg/cfg_api.h"
 #include "cluster/spots.h"
 #include "info.h"
+#include "main_call.h"
 #include "main_screen.h"
 #include "params/params.h"
 #include "station.h"
@@ -56,6 +58,7 @@ static char      app[16];
 static lv_obj_t *strip, *band_label, *freq_label, *mode_label, *qth_dot, *qth_label, *tx_label;
 static lv_obj_t *nr_label, *nb_label, *dnf_label, *rit_label, *xit_label;
 static lv_obj_t *wr12_label;        /* WR12 while the X6200's WR12 is in use, kept over a new strip */
+static lv_obj_t *call_label;        /* the callsign, in front of the locator (main_call.h) */
 static bool      wr12_shown;
 static lv_obj_t *freq_small, *other_label, *vfo_badge;   /* deck: the 10 Hz digits, the other VFO, A or B */
 static lv_obj_t *mid, *col;
@@ -68,6 +71,7 @@ static bool      dialog_open;       /* deck: an app window over the strip's lowe
 #define LOCK_GAP 12
 
 static void vision_fit(void);
+static void call_fit(void);
 static void lock_place(void);
 static char      bc[260];           /* the broadcast on air on the VFO, "" none */
 static int32_t   bc_freq = -1;
@@ -139,6 +143,7 @@ static void ind_update_cb(Subject *subj, void *user_data) {
     else lv_obj_add_flag(rit_label, LV_OBJ_FLAG_HIDDEN);
     if (param_i_get(cfg_xit)) lv_obj_clear_flag(xit_label, LV_OBJ_FLAG_HIDDEN);
     else lv_obj_add_flag(xit_label, LV_OBJ_FLAG_HIDDEN);
+    call_fit();
     vision_fit();
 }
 
@@ -263,6 +268,52 @@ static void vision_fit(void) {
     }
 }
 
+/* VISION: what the band label takes with its text whole, as vision_fit() lays it out before it shortens it (an app's
+ * two lines measured as one, the most they take). A broadcast name all the room it has: the callsign gives way */
+static lv_coord_t band_room(void) {
+    if (bc_tagged) return LV_COORD_MAX;
+    lv_label_set_long_mode(band_label, LV_LABEL_LONG_WRAP);     /* no dots: vision_fit() puts them back */
+
+    const char *t = lv_label_get_text(band_label);
+
+    return lv_txt_get_width(t, strlen(t), lv_obj_get_style_text_font(band_label, 0),
+                            lv_obj_get_style_text_letter_space(band_label, 0), LV_TEXT_FLAG_RECOLOR) +
+           12 + lock_room();
+}
+
+/* The callsign in front of the locator while the frequency leaves it the room: in a split the two frequencies take
+ * it, and it is back when they are one again. VISION's big digits move left for it (vision_fit()) as far as the band
+ * label keeps its text whole. Not in deck themes, where the locator's row is hidden: the top bar has it there
+ * (info_bar.c) */
+static void call_fit(void) {
+    const char *call = main_call();
+
+    if (!call_label || theme_shape.deck) return;
+    if (strcmp(lv_label_get_text(call_label), call)) (lv_label_set_text)(call_label, call);   /* not translated */
+    if (!call[0]) {
+        lv_obj_add_flag(call_label, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    lv_obj_clear_flag(call_label, LV_OBJ_FLAG_HIDDEN);
+    if (theme_shape.vision) lv_obj_align(mid, LV_ALIGN_CENTER, 0, 0);   /* where vision_fit() starts from */
+    lv_obj_update_layout(strip);
+
+    lv_coord_t col_x = lv_obj_get_x(col);
+    lv_coord_t over  = lv_obj_get_x(mid) + lv_obj_get_width(mid) + 12 - col_x;
+
+    if (over <= 0) return;
+    if (theme_shape.vision && lv_obj_get_x(mid) - over - lv_obj_get_x(band_label) >= band_room()) return;
+    /* In the way: hidden, unless the column is as wide without it (VISION's row over it, the apps' TX offset) */
+    lv_obj_add_flag(call_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_update_layout(strip);
+    if (lv_obj_get_x(col) == col_x) lv_obj_clear_flag(call_label, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void call_cb(Subject *subj, void *user_data) {
+    call_fit();
+    vision_fit();
+}
+
 static void update_cb(Subject *subj, void *user_data) {
     (void)subj;
     (void)user_data;
@@ -334,6 +385,7 @@ static void update_cb(Subject *subj, void *user_data) {
     }
     bc_tagged = band == bc;
     if (!theme_shape.deck && !theme_shape.vision && !bc_tagged) band_fit(band);
+    call_fit();
     vision_fit();
     if (lock_tag) lock_place();
 }
@@ -398,7 +450,11 @@ static void qth_update_cb(lv_timer_t *t) {
     (void)t;
     const char *qth = station_qth();
 
-    lv_label_set_text(qth_label, qth);
+    if (strcmp(lv_label_get_text(qth_label), qth)) {
+        lv_label_set_text(qth_label, qth);
+        call_fit();     /* the column's width */
+        vision_fit();
+    }
     if (time(NULL) / 60 != bc_minute) update_cb(NULL, NULL);   /* a station starts or stops */
     if (qth != params.qth.x) {
         lv_obj_clear_flag(qth_dot, LV_OBJ_FLAG_HIDDEN);
@@ -420,6 +476,7 @@ lv_obj_t *freq_strip_init(lv_obj_t *parent) {
     bool again = strip != NULL;   /* a theme change: the timer stays */
 
     lock_tag    = NULL;
+    call_label  = NULL;           /* made again below: the old one went with the old strip */
     dialog_open = false;          /* the frequency in its full size again */
 
     strip = lv_obj_create(parent);
@@ -510,6 +567,12 @@ lv_obj_t *freq_strip_init(lv_obj_t *parent) {
      * locator's "pg") sat on it in DejaVu and Roboto, on Outdoor's 2 px border */
     if (!v) lv_obj_set_style_translate_y(right, 2, 0);
 
+    /* The callsign (#292): smaller than the locator, in the colour of the theme for what is secondary */
+    call_label = make_label(right, LV_ALIGN_DEFAULT, 0, v ? &sony_24 : &sony_20, theme_hex(TC_text_dim));
+    lv_obj_set_style_pad_right(call_label, 4, 0);
+    lv_label_set_text(call_label, "");
+    lv_obj_add_flag(call_label, LV_OBJ_FLAG_HIDDEN);
+
     qth_dot = lv_obj_create(right);
     lv_obj_remove_style_all(qth_dot);
     lv_obj_set_size(qth_dot, 10, 10);
@@ -559,6 +622,7 @@ lv_obj_t *freq_strip_init(lv_obj_t *parent) {
     subject_subscribe_delayed((Subject *)cfg_mode_freq_step, step_change_cb, NULL);
     lv_obj_add_event_cb(freq_label, step_mark_draw_cb, LV_EVENT_DRAW_POST, NULL);
     lock_create(right);
+    subject_subscribe_delayed((Subject *)main_call_subject, call_cb, NULL);
     update_cb(NULL, NULL);
     qth_update_cb(NULL);
     if (!again) lv_timer_create(qth_update_cb, QTH_POLL_MS, NULL);
@@ -610,6 +674,7 @@ void freq_strip_set_wr12(bool in_use) {
     if (!wr12_label) return;
     if (in_use) lv_obj_clear_flag(wr12_label, LV_OBJ_FLAG_HIDDEN);
     else lv_obj_add_flag(wr12_label, LV_OBJ_FLAG_HIDDEN);
+    call_fit();
     vision_fit();
 }
 

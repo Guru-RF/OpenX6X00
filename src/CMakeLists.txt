@@ -43,7 +43,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     dialog_cw_trainer.c cw_trainer_score.c
     dialog_cw_kbd.c recolor_rows.c
     theme.c
-    freq_strip.c
+    freq_strip.c main_call.c boot_cw.c
     lcd_panel.c
     panel_stripes.c
     freq_scale.c

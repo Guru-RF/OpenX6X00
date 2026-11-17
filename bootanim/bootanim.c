@@ -16,7 +16,11 @@
  *  that is missing, damaged or not 800x480 gives ours, never a dark start.
  *
  *  With Settings > Audio > Boot sound on (read from the GUI's params.db),
- *  "CQ CQ" in CW plays on the speaker with the animation.
+ *  CW plays on the speaker with the animation: "CQ CQ", the callsign or the
+ *  owner's own text (#289; src/boot_cw.h has how long and how fast).
+ *
+ *  With Settings > Display > MAIN SCREEN > Callsign on, the callsign is drawn
+ *  over the ring, the last thing to fade in (boot_call.c, #292).
  *
  *  Started in the background by /etc/init.d/S00bootanim. Any failure just
  *  skips that part: the boot never waits for it.
@@ -45,12 +49,16 @@
 #include <signal.h>
 #include <sqlite3.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <time.h>
 #include <unistd.h>
+
+#include "boot_call.h"
+#include "../src/boot_cw.h"     /* the GUI's: Settings shows what it will play */
 
 #define W        800    /* the logo, landscape */
 #define H        480
@@ -74,11 +82,12 @@ static int64_t now_ms(void) {
 
 /* ---- Boot sound ----------------------------------------------------------- */
 
+#ifndef PARAMS_DB
 #define PARAMS_DB   "/mnt/params.db"
+#endif
 #define AUDIO_BUSY  "/tmp/x6100-bootanim.audio" /* while the codec is open: S49bootanim waits */
 #define RATE        44100
 #define TONE_HZ     600
-#define DIT_MS      60        /* 20 WPM */
 #define EDGE_MS     5         /* raised-cosine keying edges */
 #define AMPL        20675     /* -4 dBFS */
 #define LEAD_MS     1500      /* silence first: the base opens its speaker path late (400 ms still cut the first C) */
@@ -89,7 +98,8 @@ static int64_t now_ms(void) {
 #else
 #define VOL_MAX     55
 #endif
-#define SOUND_MAX_MS 5700     /* CQ CQ is 5.16 s with the lead: the sound never runs longer than this */
+#define SOUND_MAX_MS 5700     /* CQ CQ is 5.16 s with the lead, any text 5.4 s at most (BOOT_CW_MAX_MS): the sound
+                               * never runs longer than this */
 
 /* The base unit, through the GUI's own control library: base_control_init()
  * sends every register with the library's defaults (RX, PTT off), as the GUI
@@ -124,8 +134,9 @@ static int key_up(void) {
     key_line = l;
     return 1;
 }
-static int16_t cq[RATE * 6];  /* "CQ CQ" is 5.16 s with the lead */
+static int16_t cq[RATE * 6];  /* the CW with the lead: 5.4 s at most */
 static int     cq_len;
+static int     dit_ms;        /* its speed: BOOT_CW_DIT_MS, or faster for a long text */
 
 /* A setting as saved by the GUI (def when it has none), -1 when the DB can't be read */
 static int saved(const char *name, int def) {
@@ -143,9 +154,25 @@ static int saved(const char *name, int def) {
     return val;
 }
 
-/* "-.-. --.-" keyed: ' ' adds 2 dits to the 1 after each element (3 between letters, 7 for "   ") */
+/* A text setting as saved by the GUI ("" when it has none or the DB can't be read), after the CX8ANM edition's */
+static void saved_text(const char *name, char *out, size_t size) {
+    sqlite3      *db;
+    sqlite3_stmt *st;
+
+    *out = 0;
+    if (sqlite3_open_v2(PARAMS_DB, &db, SQLITE_OPEN_READONLY, NULL) == SQLITE_OK &&
+        sqlite3_prepare_v2(db, "SELECT val FROM params WHERE name = ?", -1, &st, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(st, 1, name, -1, SQLITE_STATIC);
+        if (sqlite3_step(st) == SQLITE_ROW && sqlite3_column_text(st, 0))
+            snprintf(out, size, "%s", (const char *)sqlite3_column_text(st, 0));
+        sqlite3_finalize(st);
+    }
+    sqlite3_close(db);
+}
+
+/* "-.-. --.-" keyed (boot_cw_t's code): ' ' adds 2 dits to the 1 after each element (3 between letters, 7 for "   ") */
 static void cw(const char *code) {
-    const int dit = RATE * DIT_MS / 1000, edge = RATE * EDGE_MS / 1000;
+    const int dit = RATE * dit_ms / 1000, edge = RATE * EDGE_MS / 1000;
 
     cq_len = RATE * LEAD_MS / 1000;
     for (const char *c = code; *c; c++) {
@@ -220,9 +247,23 @@ static void *sound_thread(void *arg) {
     return NULL;
 }
 
+/* The boot sound's text as CW (src/boot_cw.c): the callsign or the own text when set, else CQ CQ */
+static void cw_plan(int choice) {
+    char      call[32], own[BOOT_CW_TEXT_MAX + 1];
+    boot_cw_t plan;
+
+    saved_text("callsign", call, sizeof(call));
+    saved_text("boot_text", own, sizeof(own));
+    if (!boot_cw_plan(boot_cw_text(choice, call, own), &plan)) boot_cw_plan(BOOT_CW_CQ, &plan);
+    dit_ms = plan.dit_ms;
+    cw(plan.code);
+}
+
 /* True when the sound started: codec running, base in play mode */
 static int sound_start(pthread_t *th) {
-    if (saved("boot_sound", 0) != 1 || saved("speaker_off", 0) == 1) return 0;   /* Speaker always off: a remote station */
+    int choice = saved("boot_sound", 0);
+
+    if (choice <= BOOT_SOUND_OFF || saved("speaker_off", 0) == 1) return 0;   /* Speaker always off: a remote station */
     user_vol = saved("vol", VOL_DEFAULT);
     if (user_vol < 0 || user_vol > VOL_MAX) return 0;
     close(open(AUDIO_BUSY, O_CREAT | O_WRONLY, 0644));
@@ -238,7 +279,7 @@ static int sound_start(pthread_t *th) {
     if (!base_control_init()) goto no_sound;   /* once: no retries */
     base_rxvol_set(user_vol < MIN_VOL ? MIN_VOL : user_vol);
     base_record_set(true);
-    cw("-.-. --.-   -.-. --.-");
+    cw_plan(choice);
     deadline = now_ms() + SOUND_MAX_MS;
     if (pthread_create(th, NULL, sound_thread, NULL) == 0) return 1;
     base_record_set(false);
@@ -267,6 +308,7 @@ static void sound_end(pthread_t th) {
  * top (y 48..238): its ring is gold, the signal through it blue (b > r); then the name (y 258..340),
  * the rule (y 352), the subtitle (y 372..400) and the maintainer's line at the foot (y 424..466). */
 static int start_ms(int x, int y, const uint8_t *p) {
+    if (y < BOOT_CALL_BOTTOM) return 1820 + abs(x - 400) * 120 / 200;   /* the callsign, last, from the centre */
     if (y >= 415) return 1760 + (x - 230) * 240 / 340;               /* the foot, left to right */
     if (y < 250) {
         double r = hypot(x - CX, y - CY);
@@ -325,6 +367,13 @@ int main(int argc, char **argv) {
     if (!own && !logo_read(OUR_LOGO, logo)) return 1;
     int fade = own ? OWN_FADE_MS : FADE_MS;
 
+    if (!own && saved("callsign_show", 0) == 1) {
+        char call[32];
+
+        saved_text("callsign", call, sizeof(call));
+        boot_call_draw(logo, W, H, call);
+    }
+
     /* The panel is 480x800 portrait: landscape (x, y) is fb (y, 799 - x), as the kernel logo */
     int fd = open("/dev/fb0", O_RDWR);
     struct fb_var_screeninfo v;
@@ -361,7 +410,7 @@ int main(int argc, char **argv) {
     int       sound = sound_start(&th);
     /* With the sound the animation starts later, so the last element ends on the full logo
      * (cq_len has one dit of silence at the end; 100 ms is the codec buffer) */
-    int64_t   start = now_ms() + (sound ? (cq_len - RATE * DIT_MS / 1000) * 1000LL / RATE + 100 - end : 0);
+    int64_t   start = now_ms() + (sound ? (cq_len - RATE * dit_ms / 1000) * 1000LL / RATE + 100 - end : 0);
     int64_t   wait0 = start - now_ms();
     if (wait0 > 0) usleep(wait0 * 1000);
     for (int t = 0;; t += FRAME_MS) {

@@ -571,7 +571,7 @@ languages, the hook that passes every text to LVGL through the language and
 the matching line by line, with the first Spanish, French, German and Italian
 lists, and the first-start guide's language and country, the Weather,
 Internet radio, Zello, Flights, HF Air Band and CB apps, GhostNet in JS8,
-the spectrum's fill by level, more German, Italian, French and Spanish from
+the spectrum's fill by level, the callsign on the boot logo, more German, Italian, French and Spanish from
 their v1.1.7 lists, the multiboot card's warning before a new card image and
 the weather from the locator or a place typed; OlivLoze NOTA, XOTA, the map of a reference's surroundings, the phone's
 position and clock from the Panel, the WeFax commands of the browser remote,

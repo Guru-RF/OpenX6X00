@@ -1806,7 +1806,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | BACKLIGHT | Timeout (0 off), Brightness (see below), buttons brightness (Always Off, Always On, Temporarily On), Screensaver (None, Matrix rain), Screensaver (min) (with a screensaver: 1-120 minutes without use), Rain speed (Normal, Slow, Very slow), Screen off (min) (minutes without use, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser, no screensaver; POWER shows it for the blank time, a minute at least); see [Screensaver](#screensaver); Panel stripes fix (off by default; see [Panel stripes fix](#panel-stripes-fix)) |
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Fill by level, Filter colour, Filter shade, Shaded part, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
-| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
+| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see below) |
 | INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Keep knob lines, Knob press: next control, Theme, Font, Language, Decoder text, FT8/FT4 info |
 
 - Timeout (0 off), Brightness: the seconds without a key or a knob before
@@ -1858,6 +1858,26 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
   the frequency strip shows "BC <station name>" in a light blue box instead
   of the band name. The names come from the broadcast list (see the
   [Info tab](#info-tab)).
+- Callsign (off by default, from v0.3.13; issue #292): your callsign
+  (Settings > General > STATION, a CB call too) small on the main screen,
+  in the theme's dim text colour: a reminder of the call you use, portable
+  or in a park, and for anyone looking at the radio or a photo of the
+  screen. It comes at once, and follows a new callsign within 2 seconds.
+  Where it sits:
+  - Most themes: in the frequency strip, on the right in front of the
+    locator. When the strip needs the room (a split, with its second
+    frequency) it hides until the room is back. VISION moves its big digits
+    a little left for it, as far as the band name keeps its room.
+  - Black Metal and Total Black: in the second row at the top, between
+    BW IF STEP and the battery; it hides while that row leaves it no room
+    (a wide filter, a big step, a long callsign).
+  - Amber Trey: under the display, in the middle of the bottom line.
+  - With it on, the built-in boot logo also shows the callsign over its
+    ring, the last thing to come in, from the next start (after the CX8ANM
+    edition, condoruy). A picture of your own (see
+    [Boot picture](#boot-picture)) is shown as it is.
+
+  No callsign set: nothing is shown.
 
 All these options are also on the web configurator's Display page.
 
@@ -2005,7 +2025,7 @@ are. Leave it off on a screen without stripes.
 
 | Card | Options |
 |---|---|
-| RX AUDIO | Speaker mode, Line-in / Line-out, Play / Rec gain, Boot sound (CQ CQ in CW with the boot logo, quiet; at volume 28 when your VOL is lower; off by default), Speaker always off |
+| RX AUDIO | Speaker mode, Line-in / Line-out, Play / Rec gain, Boot sound (Off, CQ CQ, Callsign, Own text: CW with the boot logo; see below; off by default), Speaker always off |
 | TX AUDIO | compressor (threshold, makeup), TX filter, FM pre/de-emphasis |
 | MICROPHONE | Input (Built-in, Hand, Auto), Hand mic gain, Built-in gain, Moni level (0-100, 0 by default) |
 | VOX | On, Gain, Anti-VOX, Delay |
@@ -2016,6 +2036,25 @@ speaker and the TX monitor stay silent whatever the volume, and there is no
 boot sound. The sound to the browser, TCI and Bluetooth headphones goes on as
 before. Turning VOL says so on the screen. The CW sidetone keeps its own level
 (Key volume). Also on the web configurator's Display page, Remote station card.
+
+Boot sound: CW on the speaker while the boot logo comes in, its last
+character as the logo is whole; quiet, at volume 28 when your VOL is lower.
+Off by default. What it plays (issue #289, from v0.3.13; up to v0.3.12 it
+was a switch, and on it played CQ CQ, which it still does after the update):
+- CQ CQ, at 20 WPM.
+- Callsign: your callsign (Settings > General > STATION). With none set,
+  CQ CQ.
+- Own text: Boot text below it opens the keyboard: up to 16 letters,
+  figures, spaces and . , ? / = - and a prosign such as `<SK>`; small
+  letters become capitals, what CW has no code for is left out. With no
+  text, CQ CQ.
+
+The note beside the choice says what it plays and how fast. The CW lasts
+3.9 s at most, a little longer than CQ CQ: a longer text is sent faster to
+fit, up to 40 WPM; one still too long then is cut after the last character
+that fits (not on a stroke: EA8/ON6URE/P plays EA8/ON6URE), and Settings
+says so when you enter it. The boot is never longer for it. Not on the web
+configurator.
 
 Line-in and Play / Rec gain are separate settings:
 
@@ -7000,7 +7039,7 @@ them.
 | Backlight | Brightness, Brightness when idle (greyed with Idle after Off), Idle after (Off, 5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver); Panel stripes fix (see [Panel stripes fix](#panel-stripes-fix)) |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX ranges (Ham bands, South Korea, Own list), TX outside ham bands (Settings > TX Cal), and the own list as a text field: Save writes `tx_ranges.conf` and the radio reads it at once, the ranges it took and a line it could not read said under it (see [Amateur bands only](#amateur-bands-only)) |
-| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
+| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see [Display tab](#display-tab)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate
@@ -7050,8 +7089,10 @@ card. No SSH needed.
   RGBA, not a palette) and it is taken.
 - It fades in as a whole over about 3 seconds, from the colour of its
   top-left pixel; the built-in logo's steps are made for that logo alone.
-  With the [boot sound](#audio-tab) on it ends with "CQ CQ", as the logo
-  does. What is transparent in it shows black.
+  With the [boot sound](#audio-tab) on it ends with the sound's last
+  character, as the logo does. What is transparent in it shows black. The
+  callsign of Settings > Display > MAIN SCREEN > Callsign goes on the
+  built-in logo only, not on yours.
 - It is kept on the card's DATA partition (`/mnt/bootlogo.png`), so updates,
   which put the built-in logo back with the rest of the system, leave it as
   it is, and so does a new card image that keeps the DATA partition. The

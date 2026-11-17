@@ -60,6 +60,7 @@ extern "C" {
     #include "cluster/client.h"
     #include "cluster/spots.h"
     #include "broadcast_db.h"
+    #include "boot_cw.h"
 
     #include "lvgl/lvgl.h"
     #include <sys/time.h>
@@ -4459,6 +4460,8 @@ static void make_display_page() {
     /* The box at the top right: the charge and the time left or to full, the voltages, the two in turn, or
      * the charge and the supply's voltage */
     row = make_param_choice(row, "Power display", " % + time \n Volts \n Alternate \n % + V ", cfg_sm.p_power_display);
+    /* The callsign of General > STATION small on the main screen (main_call.h) and on the boot logo (#292) */
+    row = make_param_switch(row, "Callsign", cfg_sm.p_callsign_show);
     card_end(row);
 
     row = card_begin("INTERFACE");
@@ -4485,6 +4488,110 @@ static void make_display_page() {
     card_end(row);
 }
 
+/* Boot sound (#289): Off, CQ CQ (the switch's on up to v0.3.12), the callsign or an own text, in CW with the boot
+ * logo (bootanim/bootanim.c, boot_cw.h). The own text's row only with Own text: the page again after the event, as
+ * for the spectrum. The note says what it plays and how fast */
+static lv_obj_t *boot_sound_dd;
+static bool      boot_kbd;      /* the own text's keyboard open */
+
+static void boot_note(lv_obj_t *note) {
+    int         choice = cfg_sm.p_boot_sound.get();
+    std::string own    = cfg_sm.p_boot_text.get();
+    const char *text   = boot_cw_text(choice, params.callsign.x, own.c_str());
+    boot_cw_t   cw;
+
+    if (!text || !boot_cw_plan(text, &cw)) {
+        lv_label_set_text(note, "");
+    } else if (choice == BOOT_SOUND_CALL && !strcmp(text, BOOT_CW_CQ)) {
+        lv_label_set_text(note, "No callsign set: CQ CQ");
+    } else if (choice == BOOT_SOUND_TEXT && !strcmp(text, BOOT_CW_CQ)) {
+        lv_label_set_text(note, "No text yet: CQ CQ");
+    } else if (cw.used < strlen(text) && choice == BOOT_SOUND_CALL) {
+        lv_label_set_text_fmt(note, "Only %.*s, %d WPM", (int)cw.used, text, 1200 / cw.dit_ms);
+    } else if (cw.used < strlen(text)) {     /* the text is on the row under it: its part as a number, on two lines */
+        lv_label_set_text_fmt(note, "First %d characters, %d WPM", (int)cw.used, 1200 / cw.dit_ms);
+    } else if (choice == BOOT_SOUND_CALL) {
+        lv_label_set_text_fmt(note, "%s, %d WPM", text, 1200 / cw.dit_ms);
+    } else {
+        lv_label_set_text_fmt(note, "%d WPM", 1200 / cw.dit_ms);
+    }
+}
+
+static void boot_sound_page(void *arg) {
+    if (!page) {
+        return;
+    }
+    make_audio_page();
+    lv_group_focus_obj(boot_sound_dd);
+}
+
+static void boot_sound_cb(lv_event_t *e) {
+    lv_async_call(boot_sound_page, NULL);
+}
+
+static bool boot_kbd_close() {
+    boot_kbd = false;
+    textarea_window_close();
+    make_audio_page();
+    return true;
+}
+
+static bool boot_kbd_ok() {
+    char      text[BOOT_CW_TEXT_MAX + 1];
+    boot_cw_t cw;
+
+    boot_cw_clean(textarea_window_get(), text);
+    cfg_sm.p_boot_text.set(text);
+    if (boot_cw_plan(text, &cw) && cw.used < strlen(text)) {
+        msg_update_text_fmt("Boot sound: only \"%.*s\" fits", (int)cw.used, text);
+    }
+    return boot_kbd_close();
+}
+
+static void boot_text_cb(lv_event_t *e) {
+    boot_kbd = true;
+    lv_group_remove_all_objs(keyboard_group);
+    textarea_window_open(boot_kbd_ok, boot_kbd_close);
+    lv_textarea_set_max_length(textarea_window_text(), BOOT_CW_TEXT_MAX);
+    lv_textarea_set_accepted_chars(textarea_window_text(), BOOT_CW_TEXT_CHARS "abcdefghijklmnopqrstuvwxyz");
+    lv_textarea_set_placeholder_text(textarea_window_text(), "Boot text");
+    textarea_window_set(cfg_sm.p_boot_text.get().c_str());
+}
+
+/* Settings closed with the keyboard open */
+static void boot_delete_cb(lv_event_t *e) {
+    if (boot_kbd) {
+        boot_kbd = false;
+        textarea_window_close();
+    }
+}
+
+static uint8_t make_boot_sound(uint8_t row) {
+    wl_row_label(row, "Boot sound");
+    boot_sound_dd = row_choice(row, 1, 3, SMALL_3, " Off \n CQ CQ \n Callsign \n Own text ", cfg_sm.p_boot_sound.get(),
+                               int_choice_cb, &cfg_sm.p_boot_sound);
+    lv_obj_add_event_cb(boot_sound_dd, boot_sound_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    boot_note(wl_note(row++));
+    if (cfg_sm.p_boot_sound.get() == BOOT_SOUND_TEXT) {
+        std::string own = cfg_sm.p_boot_text.get();
+        lv_obj_t   *btn;
+        lv_obj_t   *label;
+
+        wl_row_label(row, "Boot text");
+        /* Four cells: 16 characters were cut at both ends in three */
+        btn   = wl_button(row, "", boot_text_cb);
+        label = lv_obj_get_child(btn, 0);
+        lv_obj_set_size(btn, SMALL_4, ROW_H - 4);
+        lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_END, 3, 4, LV_GRID_ALIGN_CENTER, row++, 1);
+        lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
+        lv_obj_set_size(label, SMALL_4 - 16, lv_font_get_line_height(lv_obj_get_style_text_font(label, 0)));
+        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+        (lv_label_set_text)(label, own.empty() ? "-" : own.c_str());   /* the user's, not translated */
+    }
+    lv_obj_add_event_cb(grid, boot_delete_cb, LV_EVENT_DELETE, NULL);
+    return row;
+}
+
 static void make_audio_page() {
     uint32_t caps = radio_caps();
     uint8_t  row;
@@ -4494,7 +4601,7 @@ static void make_audio_page() {
     row = make_sp_mode(row);
     row = make_line_gain(row);
     row = make_audio_gain(row);
-    row = make_param_switch(row, "Boot sound", cfg_sm.p_boot_sound);   /* CQ CQ in CW with the boot logo */
+    row = make_boot_sound(row);
     row = make_param_switch(row, "Speaker always off", cfg_sm.p_speaker_off);   /* a remote station */
     card_end(row);
 
