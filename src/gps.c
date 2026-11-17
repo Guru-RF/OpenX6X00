@@ -70,6 +70,10 @@ static int64_t              heard;          /* the last report from gpsd, or the
 static char                 port[sizeof(gpsdata.dev.path)];    /* where the last report came from */
 static gps_mask_t           win_set;        /* the flags of the reports not yet in a copy for the GPS window */
 static int64_t              win_at;         /* the last copy */
+static char                 line[512];      /* the start of the last line gpsd sent: a SKY's counts come early in it */
+static int                  sats_seen;      /* the last count of the satellites gpsd gave, for the GPS window */
+static int                  sats_used;
+static bool                 sats_known;     /* one came */
 #endif
 static volatile gps_status_t status = GPS_STATUS_WAITING;
 
@@ -153,9 +157,29 @@ static void report(void) {
     win_set |= gpsdata.set;
 }
 
+/* The satellites seen and used, from the SKYs that count them (#237). Once a fix is in, gpsd also sends a SKY with
+ * only the DOPs for each sentence that gives them, every second, besides the ones with the satellites; libgps reads
+ * such a SKY as 0 seen and 0 used, and the GPS window showed 0/0 with a fix. Those leave the count as it was, the
+ * used one taken from their uSat when they carry one. A count of none that gpsd gives (nSat 0) is shown as it is */
+static void satellites(void) {
+    if (!strstr(line, "\"class\":\"SKY\"")) {
+        return;
+    }
+    if (gpsdata.set & SATELLITE_SET) {          /* nSat and the list: libgps counted the list */
+        sats_seen = gpsdata.satellites_visible;
+        sats_used = gpsdata.satellites_used;
+    } else if (strstr(line, "\"uSat\":")) {
+        sats_used = gpsdata.satellites_used;
+    } else {
+        return;
+    }
+    sats_known = true;
+}
+
 /* The GPS window's copy of what gpsd said, with the flags of every report since the last copy: once no more lines
  * are waiting, at most every WINDOW_MS. A TPV and its SKY come as one; and the GUI's queue (63) is not filled when
- * lines come faster than ever before, the 100 ms sleep a line having held the copies to ten a second (#237) */
+ * lines come faster than ever before, the 100 ms sleep a line having held the copies to ten a second (#237). Its
+ * satellites are the last count (SATELLITE_SET once one came), not what the last SKY left in gpsdata */
 static void window_copy(int64_t now) {
     if (!win_set || now - win_at < WINDOW_MS) {
         return;
@@ -165,7 +189,12 @@ static void window_copy(int64_t now) {
 
         if (msg) {
             memcpy(msg, &gpsdata, sizeof(*msg));
-            msg->set |= win_set;
+            msg->set = (msg->set | win_set) & ~SATELLITE_SET;
+            if (sats_known) {
+                msg->satellites_visible = sats_seen;
+                msg->satellites_used = sats_used;
+                msg->set |= SATELLITE_SET;
+            }
             event_send(dialog_gps->obj, EVENT_GPS, msg);
         }
     }
@@ -202,13 +231,16 @@ static int data_receive(bool *talked) {
     int64_t last = now_ms();
 
     while (true) {
-        int     r = gps_read(&gpsdata, NULL, 0);
+        int     r = gps_read(&gpsdata, line, sizeof(line));
         int64_t now;
 
         if (r < 0) {
             return RX_GONE;     /* closed, failed, or a line longer than libgps's buffer: this connection is done */
         }
         now = now_ms();
+        if (r > 0) {
+            satellites();
+        }
         /* Any line once a TPV has come (libgps keeps its MODE_SET): the SKYs too, for the window's satellites */
         if (r > 0 && (gpsdata.set & MODE_SET)) {
             if (!*talked) {

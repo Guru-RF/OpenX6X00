@@ -98,7 +98,8 @@ static void coord_text(char *buf, size_t size, double v, const char *pos, const 
     snprintf(buf, size, "%d %s %02d.%06d'", deg, side, min, (int)((x - min) * 1000000.0));
 }
 
-/* One report from gpsd (gps.c); the position rows only with a 2D or 3D fix */
+/* One report from gpsd (gps.c); the satellites its last count, once gpsd gave one; the position rows only with a 2D
+ * or 3D fix */
 static void report_cb(lv_event_t *e) {
 #if HAVE_LIBGPS
     struct gps_data_t   *g = lv_event_get_param(e);
