@@ -1,16 +1,18 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  OpenX6X00 - the first-start guide: five steps over the main screen, the language, WiFi, the callsign and locator,
- *  the country, the clock and its time zone, each with Back, Skip and Next, then a last screen with what was set and
- *  where the manual and the web configurator are. An app window like the others: F1-F5 for its buttons, the MFK walks
- *  its controls and a press chooses, a touch does the same. The radio receives under it all the while, the main knob
- *  tunes and VOL is the volume. It reuses what Settings has: the language list, the WiFi window for the network, the
- *  station's checked keyboard entry for the callsign and locator, the country list (countries.h), the clock's time
- *  zones and date and time fields. The language comes first and is taken at once: the screen is built again in it,
- *  the guide with it, so the steps after it are in that language. The country is offered from the callsign, and
- *  gives the clock its time zone when none was chosen (the language and country steps after the CX8ANM edition's
- *  first-start wizard, condoruy).
+ *  OpenX6X00 - the first-start guide: six steps over the main screen, the language, a Bluetooth keyboard, WiFi, the
+ *  callsign and locator, the country, the clock and its time zone, each with Back, Skip and Next, then a last screen
+ *  with what was set and where the manual and the web configurator are. An app window like the others: F1-F5 for its
+ *  buttons, the MFK walks its controls and a press chooses, a touch does the same. The radio receives under it all the
+ *  while, the main knob tunes and VOL is the volume. It reuses what Settings has: the language list, Settings >
+ *  Bluetooth's scan and pairing (bt_dev.h), the WiFi window for the network, the station's checked keyboard entry for
+ *  the callsign and locator, the country list (countries.h), the clock's time zones and date and time fields. The
+ *  language comes first and is taken at once: the screen is built again in it, the guide with it, so the steps after
+ *  it are in that language. The keyboard comes before the first step that types (the WiFi password), so a radio with
+ *  only a Bluetooth keyboard needs no USB one (#291). The country is offered from the callsign, and gives the clock
+ *  its time zone when none was chosen (the language and country steps after the CX8ANM edition's first-start wizard,
+ *  condoruy).
  *
  *  It comes up by itself once (first_start_rule.h): a new card, or the settings reset. Settings > General > STATION >
  *  First-start guide runs it again.
@@ -21,7 +23,11 @@
 #include "first_start.h"
 
 #include "first_start_rule.h"
+#include "first_start_kbd.h"
 #include "band_plan.h"
+#include "board.h"
+#include "bt_dev.h"
+#include "btaudio.h"
 #include "button_bar.h"
 #include "cfg/cfg_api.h"
 #include "clock.h"
@@ -49,6 +55,7 @@
 #include "lvgl/lvgl.h"
 #include <pthread.h>
 #include <stdatomic.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -63,7 +70,7 @@
 #define GPS_AGE_S   10      /* a fix this recent is where the radio is, as station_qth() takes it */
 #define TIME_SYNC   "/var/run/time-sync"    /* ntpdate set the clock when the network came up (99-ntp-sync.sh) */
 
-enum { STEP_LANG, STEP_WIFI, STEP_STATION, STEP_COUNTRY, STEP_TIME, STEP_DONE, STEPS };
+enum { STEP_LANG, STEP_KEYBOARD, STEP_WIFI, STEP_STATION, STEP_COUNTRY, STEP_TIME, STEP_DONE, STEPS };
 enum { KBD_NONE, KBD_CALLSIGN, KBD_QTH };
 
 static void construct_cb(lv_obj_t *parent);
@@ -119,12 +126,12 @@ static lv_obj_t   *dt_spin[6];
 static lv_timer_t *tick;
 
 /* What a step was built with: looked at again as the clock ticks, and the step built again when one changed */
-static char        gps_grid[7];         /* the locator of a current fix, "" none: step 3 offers it */
-static char        suggest_shown[3];    /* step 4: the callsign's country offered, "" none */
-static const char *kept_shown;          /* step 5: what keeps the clock */
+static char        gps_grid[7];         /* the locator of a current fix, "" none: the station step offers it */
+static char        suggest_shown[3];    /* the country step: the callsign's country offered, "" none */
+static const char *kept_shown;          /* the clock step: what keeps the clock */
 static bool        zone_by_country;     /* the clock's zone was set from the country in this guide */
 
-static struct tm dt_tm;                 /* step 3: the date and time fields */
+static struct tm dt_tm;                 /* the clock step: the date and time fields */
 static bool      dt_changed;            /* the clock set by them, not yet in the clock chip */
 static bool      dt_refresh;            /* the fields being set from the clock: not an edit */
 
@@ -193,7 +200,7 @@ static bool net_address(char *ip, size_t size) {
     return false;
 }
 
-/* Step 1's line: as the WiFi window says it, with the network and the address once joined */
+/* The WiFi step's line: as the WiFi window says it, with the network and the address once joined */
 static bool wifi_line(char *buf, size_t size) {
     char name[33], ip[20];
 
@@ -388,7 +395,271 @@ static void build_lang(void) {
     }
 }
 
-/* ---- step 2: WiFi ---- */
+/* ---- step 2: a Bluetooth keyboard ---- */
+
+#define BTK_REFRESH 4           /* ticks: bt_dev's list asked for again every 2 s, as Settings > Bluetooth does */
+#define TURN_ON_MS  30000       /* after Turn on, this long for the adapter to come: the chip, bluetoothd, hci0 */
+#define BT_ON       "/usr/sbin/btcat-ctl bt on >/dev/null"    /* as Settings > Bluetooth's switch */
+#define BT_FAKE     BOARD_DATA "/first_start_bt.conf"  /* the PC build's screenshots (first_start_kbd.h) */
+
+static void build(void);
+
+static fsk_kept_t btk_kept;             /* the keyboards a scan found, until the next one */
+static fsk_in_t   btk_in;               /* what the step was last decided from */
+static fsk_out_t  btk_out;              /* and what it shows */
+static char       btk_shown[400];       /* the same as a text: the step is built again when it changes */
+static bool       btk_scan_asked;       /* Scan pressed on this step */
+static bool       btk_pair_asked;       /* a keyboard chosen on this step */
+static uint32_t   btk_turn_on_at;       /* Turn on pressed (LVGL's tick), 0 not */
+static char       btk_typed[48];        /* what was typed to try the keyboard */
+static lv_obj_t  *btk_echo;             /* its line */
+
+/* What Bluetooth and the keyboard say now, and the keyboards found */
+static void btk_read(void) {
+    bt_dev_t now[BT_DEV_MAX];
+    int      n = 0;
+
+#ifdef HOST_BUILD
+    if (fsk_fake_load(BT_FAKE, &btk_in, btk_typed[0] ? NULL : btk_typed, sizeof(btk_typed))) {
+        return;
+    }
+#endif
+    memset(&btk_in, 0, sizeof(btk_in));
+    bt_dev_adapter(&btk_in.adapter);
+    btk_in.chip_on    = params.wifi_enabled.x;
+    btk_in.turning_on = btk_turn_on_at && lv_tick_elaps(btk_turn_on_at) < TURN_ON_MS;
+    btk_in.scanning   = bt_dev_scanning();
+    btk_in.busy       = bt_dev_busy();
+    btk_in.scan_asked = btk_scan_asked;
+    btk_in.pair_asked = btk_pair_asked;
+    btk_in.kbd_ready  = keyboard_ready();
+    bt_dev_activity(btk_in.activity, sizeof(btk_in.activity));
+    while (n < BT_DEV_MAX && bt_dev_get(n, &now[n])) {
+        n++;
+    }
+    btk_in.n = fsk_merge(&btk_kept, now, n, btk_in.devs);
+}
+
+/* What the step shows, as a text: the state, and the keyboards listed by their address, name and pairing */
+static void btk_signature(char *buf, size_t size) {
+    size_t n = snprintf(buf, size, "%i %i %i %s|%s", btk_out.state, btk_out.fail, btk_out.pairing, btk_out.code,
+                        btk_out.name);
+
+    for (int i = 0; i < btk_out.n_shown && n < size; i++) {
+        const bt_dev_t *d = &btk_in.devs[btk_out.shown[i]];
+
+        n += snprintf(buf + n, size - n, "|%s %s %i", d->addr, d->name, d->paired);
+    }
+}
+
+/* Bluetooth on and nothing running: Scan can start */
+static bool btk_can_scan(void) {
+    const bt_adapter_t *a = &btk_in.adapter;
+
+    return a->seen && a->bluez && a->present && a->powered && !btk_in.busy && !btk_in.scanning;
+}
+
+static bool btk_can_turn_on(void) {
+    return btk_out.state == FSK_CHIP_OFF || btk_out.state == FSK_BT_OFF;
+}
+
+/* As Settings > Bluetooth's Scan: 16 s, LE and classic in turns; what an earlier scan found goes */
+static void btk_scan(void) {
+    if (!btk_can_scan()) {
+        return;
+    }
+    first_start_esc_reset(&esc);
+    btk_kept.n     = 0;
+    btk_scan_asked = true;
+    btk_pair_asked = false;
+    bt_dev_scan();
+}
+
+/* The chip off: on with WiFi, which the next step wants on too. The adapter off: on as Settings > Bluetooth's switch
+ * does it, kept on for the next starts */
+static void btk_turn_on(void) {
+    if (btk_out.state == FSK_CHIP_OFF) {
+        wifi_power_on();
+    } else if (btk_out.state == FSK_BT_OFF) {
+        sh_run(BT_ON, NULL, NULL);
+    } else {
+        return;
+    }
+    first_start_esc_reset(&esc);
+    btk_turn_on_at = lv_tick_get() | 1;     /* 0 is "not pressed" */
+    bt_dev_refresh();
+}
+
+static void btk_scan_cb(lv_event_t *e) {
+    btk_scan();
+}
+
+static void btk_turn_on_cb(lv_event_t *e) {
+    btk_turn_on();
+}
+
+/* A keyboard chosen: bt_dev pairs it (its pairing key pressed again for one that takes a new address each time, the
+ * code to type shown), trusts it so it comes back by itself at the next starts, and connects it. One paired before
+ * is only connected */
+static void btk_pick_cb(lv_event_t *e) {
+    int i = (intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
+
+    if (i < 0 || i >= btk_out.n_shown || bt_dev_busy()) {
+        return;
+    }
+    first_start_esc_reset(&esc);
+    btk_pair_asked = true;
+    bt_dev_connect(btk_in.devs[btk_out.shown[i]].addr);
+}
+
+/* What bt_dev's worker does with the keyboard chosen */
+static const char *btk_pairing_line(void) {
+    switch (btk_out.pairing) {
+        case FSK_PAIR_KEY:          return "Press the keyboard's pairing key now";
+        case FSK_PAIR_SEARCH:       return "Looking for the keyboard...";
+        case FSK_PAIR_PAIRING:      return "Pairing...";
+        case FSK_PAIR_CONNECTING:   return "Connecting...";
+        default:                    return "Bluetooth is busy, a moment...";
+    }
+}
+
+/* How the pairing failed, and what to do */
+static const char *btk_failed_line(void) {
+    switch (btk_out.fail) {
+        case FSK_FAIL_NOT_FOUND:    return "The keyboard was not seen: press its pairing key, then choose it again";
+        case FSK_FAIL_CONNECT:      return "Paired, but not connected: press a key on it, or choose it again";
+        default:                    return "Pairing failed: press its pairing key, then choose it again";
+    }
+}
+
+static void btk_echo_show(void) {
+    if (btk_echo) {
+        lv_label_set_text_fmt(btk_echo, "%s_", btk_typed);
+    }
+}
+
+static void build_keyboard(void) {
+    char        line[128];
+    const char *say   = line;
+    lv_color_t  color = TC(text_value);
+    bool        list  = false, scan = false;
+
+    btk_read();
+    fsk_decide(&btk_in, &btk_out);
+    btk_signature(btk_shown, sizeof(btk_shown));
+    bt_dev_refresh();
+
+    para(&sony_22, TC(text), "A Bluetooth keyboard can type the WiFi password, the callsign and the locator in the "
+                             "next steps. A USB keyboard needs nothing here: it types once plugged in.");
+    switch (btk_out.state) {
+        case FSK_STARTING:
+            say = "Bluetooth starting...";
+            break;
+        case FSK_NO_SERVICE:
+            say   = "Bluetooth is not running on this radio: Skip this step, or plug in a USB keyboard";
+            color = TC(warn);
+            break;
+        case FSK_NO_ADAPTER:
+            say   = "No Bluetooth adapter found: Skip this step, or plug in a USB keyboard";
+            color = TC(warn);
+            break;
+        case FSK_CHIP_OFF:
+            say = "Bluetooth is off with WiFi, they share a chip: Turn on switches both on";
+            break;
+        case FSK_BT_OFF:
+            say = "Bluetooth is off: Turn on switches it on";
+            break;
+        case FSK_READY:
+            say  = "Put the keyboard in pairing mode, then Scan";
+            scan = true;
+            break;
+        case FSK_SCANNING:
+            say  = "Looking for keyboards, 16 s...";
+            list = true;
+            break;
+        case FSK_LIST:
+            say  = "Choose your keyboard: the guide pairs it and connects it";
+            list = scan = true;
+            break;
+        case FSK_NONE_FOUND:
+            say   = "No keyboard found: is it in pairing mode? Scan looks again";
+            color = TC(warn);
+            scan  = true;
+            break;
+        case FSK_PAIRING:
+            say = btk_pairing_line();
+            break;
+        case FSK_PASSKEY:
+            say = "Type this code on the keyboard, then its Enter key:";
+            break;
+        case FSK_FAILED:
+            say   = btk_failed_line();
+            color = TC(warn);
+            list  = scan = true;
+            break;
+        case FSK_CONNECTED:
+            snprintf(line, sizeof(line), _("%s connected: waiting for its keys..."), btk_out.name);
+            color = TC(ok);
+            break;
+        case FSK_WORKS:
+            if (btk_out.name[0]) {
+                snprintf(line, sizeof(line), _("%s works: type something to try it"), btk_out.name);
+            } else {
+                say = "A keyboard works: type something to try it";
+            }
+            color = TC(ok);
+            list  = btk_scan_asked && !btk_out.name[0];     /* Scan pressed with a USB keyboard in: what it found */
+            break;
+    }
+    status = para(&sony_24, color, say);
+
+    if (btk_out.state == FSK_PASSKEY) {
+        lv_obj_t *l = text(body, &sony_60, TC(accent), btk_out.code);
+
+        lv_obj_set_style_text_letter_space(l, 8, 0);
+    } else if (btk_out.state == FSK_WORKS) {
+        btk_echo = text(row("Typed"), &sony_24, TC(text_value), "");
+        btk_echo_show();
+    }
+    for (int i = 0; list && i < btk_out.n_shown; i++) {
+        const bt_dev_t *d = &btk_in.devs[btk_out.shown[i]];
+        lv_obj_t       *r = row(i ? "" : "Keyboards");
+        lv_obj_t       *b = button(r, d->name, 340, btk_pick_cb);
+
+        lv_obj_set_user_data(b, (void *)(intptr_t)i);
+        text(r, &sony_20, TC(text_dim), d->paired ? "paired: press to connect" : "new: press to pair");
+    }
+    if (scan && !(list && btk_out.n_shown)) {      /* under a list it would be out of sight: F2 has it */
+        button(row(NULL), "Scan", 220, btk_scan_cb);
+    } else if (btk_can_turn_on()) {
+        button(row(NULL), "Turn on", 220, btk_turn_on_cb);
+    }
+}
+
+/* Twice a second on the step: built again when what it shows changed, the MFK on the same control */
+static void btk_tick(void) {
+    static int ticks;
+    char       now[sizeof(btk_shown)];
+
+    if (++ticks % BTK_REFRESH == 0) {
+        bt_dev_refresh();
+    }
+    btk_read();
+    fsk_decide(&btk_in, &btk_out);
+    btk_signature(now, sizeof(now));
+    if (strcmp(now, btk_shown)) {
+        lv_obj_t *f = lv_group_get_focused(keyboard_group);
+
+        for (int i = 0; i < items_n; i++) {
+            if (items[i] == f) {
+                focus_back = i;
+            }
+        }
+        build();
+    }
+}
+
+/* ---- step 3: WiFi ---- */
 
 /* The WiFi window closed: the guide again on its step, unless an app was opened in its place (APP), which stays; the
  * guide is then left */
@@ -429,9 +700,7 @@ static void build_wifi(void) {
     button(row(NULL), "Networks", 220, networks_cb);
 }
 
-/* ---- step 3: callsign and locator ---- */
-
-static void build(void);
+/* ---- step 4: callsign and locator ---- */
 
 /* The keyboard gets all the keys: the step is built again when it closes */
 static bool kbd_close(void) {
@@ -502,7 +771,7 @@ static void build_station(void) {
     }
 }
 
-/* ---- step 4: the country ---- */
+/* ---- step 5: the country ---- */
 
 /* The callsign's country (countries.h), on a worker: cty.dat is read on the first lookup, about 0.1 s. suggest_for is
  * the callsign asked last, suggest its country ("" none), good once suggest_busy is down again */
@@ -649,7 +918,7 @@ static void build_country(void) {
     status = para(&sony_22, cc[0] ? TC(ok) : TC(text_value), line);
 }
 
-/* ---- step 5: the clock and its time zone ---- */
+/* ---- step 6: the clock and its time zone ---- */
 
 static void clock_show(void) {
     time_t      now = time(NULL);
@@ -831,6 +1100,19 @@ static void build_done(void) {
                                           : _("Not set by NTP or a GPS"), clock_zones[clock_zone_now()].label);
     summary("Clock", kept ? TC(ok) : TC(text_value), s);
 
+    /* The keyboard: one whose keys come, by its name when it is a Bluetooth one */
+    btk_read();
+    fsk_decide(&btk_in, &btk_out);
+    if (btk_out.state == FSK_WORKS || btk_out.state == FSK_CONNECTED) {
+        if (btk_out.name[0]) {
+            snprintf(s, sizeof(s), _("%s, Bluetooth"), btk_out.name);
+        }
+        summary("Keyboard", TC(ok), btk_out.name[0] ? s : "Connected");
+    } else {
+        summary("Keyboard", TC(text_dim), skipped[STEP_KEYBOARD] ? "Skipped: Settings > Bluetooth > DEVICES pairs one"
+                                                                 : "None: Settings > Bluetooth > DEVICES pairs one");
+    }
+
     settings_network_name(name, sizeof(name));
     if (net_address(ip, sizeof(ip))) {
         snprintf(s, sizeof(s), _("http://%s.local or http://%s, in a browser on the same network"), name, ip);
@@ -844,8 +1126,8 @@ static void build_done(void) {
 
 /* ---- the window ---- */
 
-static const char *const titles[STEPS] = {"Language", "WiFi", "Callsign and locator", "Country", "Clock and time zone",
-                                          "Done"};
+static const char *const titles[STEPS] = {"Language", "Keyboard", "WiFi", "Callsign and locator", "Country",
+                                          "Clock and time zone", "Done"};
 
 static void build(void) {
     lv_obj_t *head;
@@ -857,7 +1139,7 @@ static void build(void) {
         lv_obj_del(body);
     }
     items_n = 0;
-    status = clock_now = clock_date = zone_dd = lang_dd = country_dd = NULL;
+    status = clock_now = clock_date = zone_dd = lang_dd = country_dd = btk_echo = NULL;
     memset(dt_spin, 0, sizeof(dt_spin));
 
     body = lv_obj_create(dialog.obj);
@@ -881,6 +1163,7 @@ static void build(void) {
 
     switch (step) {
         case STEP_LANG:     build_lang(); break;
+        case STEP_KEYBOARD:      build_keyboard(); break;
         case STEP_WIFI:     build_wifi(); break;
         case STEP_STATION:  build_station(); break;
         case STEP_COUNTRY:  build_country(); break;
@@ -922,6 +1205,10 @@ static void tick_cb(lv_timer_t *t) {
         return;
     }
     switch (step) {
+        case STEP_KEYBOARD:
+            btk_tick();
+            break;
+
         case STEP_WIFI:
             if (status && odd) {
                 bool ok = wifi_line(line, sizeof(line));
@@ -1019,7 +1306,17 @@ static void key_cb(lv_event_t *e) {
         case KEY_VOL_RIGHT_SELECT:
             radio_change_vol(1);
             break;
+        case LV_KEY_BACKSPACE:
+            if (btk_echo && fsk_echo_back(btk_typed)) {
+                btk_echo_show();
+            }
+            break;
         default:
+            /* The keyboard step, once a keyboard works: what is typed on it shows */
+            if (btk_echo && fsk_echo_add(btk_typed, sizeof(btk_typed), key)) {
+                first_start_esc_reset(&esc);
+                btk_echo_show();
+            }
             break;
     }
 }
@@ -1031,6 +1328,10 @@ static void construct_cb(lv_obj_t *parent) {
         step = STEP_LANG;
         memset(skipped, 0, sizeof(skipped));
         zone_by_country = false;
+        btk_scan_asked  = btk_pair_asked = false;
+        btk_kept.n      = 0;
+        btk_turn_on_at  = 0;
+        btk_typed[0]    = 0;
     }
     detour   = false;
     finished = false;
@@ -1053,9 +1354,10 @@ static void destruct_cb(void) {
     }
     dt_save();
     lv_group_remove_obj(dialog.obj);
-    shown   = false;
-    body    = NULL;
-    items_n = 0;
+    shown    = false;
+    body     = NULL;
+    btk_echo = NULL;
+    items_n  = 0;
     if (!detour) {
         mark_done();
         if (!finished) {
@@ -1073,6 +1375,7 @@ static const char *back_label(void) {
 static const char *act1_label(void) {
     switch (step) {
         case STEP_LANG:     return "Language";
+        case STEP_KEYBOARD:      return btk_can_turn_on() ? "Turn on" : btk_can_scan() ? "Scan" : "";
         case STEP_WIFI:     return "Networks";
         case STEP_STATION:  return "Callsign";
         case STEP_COUNTRY:  return "Country";
@@ -1107,6 +1410,13 @@ static void act1_press(button_data_t *b) {
     switch (step) {
         case STEP_LANG:
             list_show(lang_dd);
+            break;
+        case STEP_KEYBOARD:
+            if (btk_can_turn_on()) {
+                btk_turn_on();
+            } else {
+                btk_scan();
+            }
             break;
         case STEP_WIFI:
             lv_async_call(wifi_open, NULL);
