@@ -577,13 +577,15 @@ static button_data_t btn_p4     = PAGE_BUTTON("(JS8 4:4)", &page_1, &page_3);
 static button_data_t btn_transl = {.type = BTN_TEXT, .label = "Trans-\nlate", .press = translate_cb};
 static buttons_page_t page_4    = {{&btn_p4, &btn_transl, &btn_map}};
 
-/* The conversation with a station (press on its row): F1 back to the list */
+/* The conversation with a station (press on its row): F1 and F5 back to the board, as ESC; Heartbeat stays on the
+ * board's page 1 */
 static const char *conv_label_getter(void);
 static void        conv_back_cb(button_data_t *btn);
 static void        conv_msg_cb(button_data_t *btn);
-static button_data_t btn_conv     = {.type = BTN_TEXT_FN, .label_fn = conv_label_getter, .press = conv_back_cb};
-static button_data_t btn_conv_msg = {.type = BTN_TEXT, .label = "Write...", .press = conv_msg_cb};
-static buttons_page_t page_conv   = {{&btn_conv, &btn_hb_main, &btn_reply, &btn_query, &btn_conv_msg}};
+static button_data_t btn_conv       = {.type = BTN_TEXT_FN, .label_fn = conv_label_getter, .press = conv_back_cb};
+static button_data_t btn_conv_msg   = {.type = BTN_TEXT, .label = "Write...", .press = conv_msg_cb};
+static button_data_t btn_conv_close = {.type = BTN_TEXT, .label = "Close\nChat", .press = conv_back_cb};
+static buttons_page_t page_conv     = {{&btn_conv, &btn_reply, &btn_query, &btn_conv_msg, &btn_conv_close}};
 
 /* Not on a page: the Settings list presses them (settings_open), their labels are its rows */
 static button_data_t btn_hb     = {.type = BTN_TEXT, .label = "Heart-\nbeat", .press = heartbeat_cb};
@@ -4019,7 +4021,7 @@ static void settings_cb(button_data_t *b) {
  * a HB of ours they heard), newest first, their flag, last words and the messages for us not read; on the right
  * the one chosen: every message from them, to them and ours to them, theirs on the left and ours on the right in
  * blue, their flag, country, locator, distance and signal on top. The MFK goes from one station to the next, its
- * press opens Query > for it; F1 back to the board. The lane and the TX line stay above it, the TX line moved
+ * press opens Query > for it; F1, F5 or ESC back to the board. The lane and the TX line stay above it, the TX line moved
  * up over the waterfall. */
 
 #define CONV_HEAD_H 40
@@ -4374,9 +4376,16 @@ static void conv_open(void)
     lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
     tx_line_up(true);
 
+    /* the way back, under the stations */
+    lv_obj_t *back = lv_label_create(r);
+    lv_label_set_text(back, "F1, F5 or ESC: back to the board");
+    lv_obj_set_style_text_font(back, &sony_14, LV_PART_MAIN);
+    lv_obj_set_style_text_color(back, TC(text_mute), LV_PART_MAIN);
+    lv_obj_set_pos(back, 6, h - 18);
+
     lv_obj_t *l = conv_left = lv_obj_create(r);
     lv_obj_remove_style_all(l);
-    lv_obj_set_size(l, CONV_LEFT_W, h);
+    lv_obj_set_size(l, CONV_LEFT_W, h - 20);
     lv_obj_set_pos(l, 0, 0);
     lv_obj_clear_flag(l, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
 
@@ -4420,7 +4429,7 @@ static void conv_open(void)
     buttons_load_page(&page_conv);
 }
 
-static const char *conv_label_getter(void) { return "(Board)"; } /* F1: back to the cards */
+static const char *conv_label_getter(void) { return "< Board"; } /* F1: back to the cards, as F5 and ESC */
 
 static void conv_back_cb(button_data_t *b) {
     (void)b;

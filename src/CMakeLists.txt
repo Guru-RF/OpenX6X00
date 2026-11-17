@@ -60,8 +60,8 @@ target_sources(${PROJECT_NAME} PUBLIC
     sstv/sstv_tx.c
     sstv/sstv_png.c
     sstv/denoise.c
-    wefax_window.c wefax_bulletin.c wefax_viewer.c wefax/decoder.c wefax/encoder.c wefax/plan.c wefax/quality.c
-    wefax/thumb.c wefax/tilt.c clock_sync.c clock_rule.c time_station.c
+    wefax_window.c wefax_bulletin.c wefax_viewer.c wefax_night.c wefax/decoder.c wefax/encoder.c wefax/plan.c
+    wefax/quality.c wefax/thumb.c wefax/tilt.c wefax/night.c clock_sync.c clock_rule.c time_station.c
     navtex_window.c navtex/sitorb.c navtex/dsc.c
     dialog_freedv.c freedv_rx.c freedv_text.c freedv_tx.c
     channel_list.c broadcast_db.c cJSON.c

@@ -6,6 +6,8 @@
 
 #include "thumb.h"
 
+#include "tilt.h"
+
 #include <dirent.h>
 #include <errno.h>
 #include <png.h>
@@ -100,6 +102,60 @@ uint8_t *wefax_png_read_grey(const char *path, unsigned *w_out, unsigned *h_out)
     *w_out = w;
     *h_out = h;
     return img;
+}
+
+bool wefax_png_write_fixed(const char *path, const uint8_t *img, unsigned w, unsigned h, int align, int tilt)
+{
+    char tmp[512];
+
+    if (snprintf(tmp, sizeof(tmp), "%s.part", path) >= (int)sizeof(tmp) || !w || !h)
+        return false;
+
+    FILE *fp = fopen(tmp, "wb");
+
+    if (!fp) {
+        printf("WEFAX: can't write %s: %s\n", tmp, strerror(errno));
+        return false;
+    }
+
+    png_structp png  = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    png_infop   info = png ? png_create_info_struct(png) : NULL;
+    uint8_t *volatile line = malloc(w);     /* freed after a longjmp */
+    volatile bool ok = false;
+
+    if (png && info && line && !setjmp(png_jmpbuf(png))) {
+        png_init_io(png, fp);
+        png_set_IHDR(png, info, w, h, 8, PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
+                     PNG_FILTER_TYPE_DEFAULT);
+        png_write_info(png, info);
+        for (unsigned y = 0; y < h; y++) {
+            const uint8_t *src = img + (size_t)y * w;
+            /* Tilt's shift of this row, from the newest; then where its pixel x comes from */
+            int64_t        sh  = ((int64_t)y - (int64_t)(h - 1)) * tilt * WEFAX_TILT_UNIT_W / (1000LL * w);
+            int            off = (int)((-(int64_t)align - sh) % (int64_t)w);
+
+            if (off < 0)
+                off += (int)w;
+            for (unsigned x = 0; x < w; x++) {
+                unsigned from = x + (unsigned)off;
+
+                line[x] = src[from >= w ? from - w : from];
+            }
+            png_write_row(png, line);
+        }
+        png_write_end(png, NULL);
+        ok = true;
+    }
+    png_destroy_write_struct(&png, info ? &info : NULL);
+    free(line);
+    if (fclose(fp) != 0)
+        ok = false;
+    if (!ok || rename(tmp, path) != 0) {
+        remove(tmp);
+        printf("WEFAX: writing %s failed\n", path);
+        return false;
+    }
+    return true;
 }
 
 /* dir/thumbs/<name without .png>.prv */

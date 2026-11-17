@@ -5,6 +5,7 @@
  *  Run with TZ=UTC: the names are in local time, as the radio writes them.
  */
 
+#include "wefax/night.h"
 #include "wefax/plan.h"
 #include "wefax/quality.h"
 #include "wefax/thumb.h"
@@ -297,7 +298,7 @@ static void test_bulletin(void)
 {
     wefax_plan_load();
 
-    const wefax_bulletin_t *analysis = NULL, *ice = NULL, *days = NULL;
+    const wefax_bulletin_t *analysis = NULL, *ice = NULL, *days = NULL, *sigwx = NULL;
 
     for (int k = 0; k < wefax_plan_bulletin_count(); k++) {
         const wefax_bulletin_t *b = wefax_plan_bulletin(k);
@@ -308,14 +309,43 @@ static void test_bulletin(void)
             ice = b;
         if (!strcmp(b->name, "Forecast 3-5 days"))
             days = b;
+        if (!strcmp(b->name, "Significant weather"))
+            sigwx = b;
     }
-    CHECK(analysis && ice && days, "the kinds Analysis, Ice, Forecast 3-5 days");
-    if (!analysis || !ice || !days)
+    CHECK(analysis && ice && days && sigwx, "the kinds Analysis, Ice, Forecast 3-5 days, Significant weather");
+    if (!analysis || !ice || !days || !sigwx)
         return;
     CHECK(wefax_bulletin_has(analysis, "NW-surface-analysis-00Z") &&
               wefax_bulletin_has(analysis, "DWD-surface-analysis-06Z") &&
               !wefax_bulletin_has(analysis, "NW-surface-forecast-24h-00Z"),
           "Analysis takes both stations' analyses only");
+
+    /* DWD's 05:25 and 18:00 charts are the North Atlantic surface analysis (their titles), not significant weather */
+    CHECK(!strcmp(product_of(slot_at(5, 25)), "DWD-surface-analysis-Atlantic-00Z") &&
+              !strcmp(product_of(slot_at(18, 0)), "DWD-surface-analysis-Atlantic-12Z"),
+          "05:25 and 18:00: %s, %s", product_of(slot_at(5, 25)), product_of(slot_at(18, 0)));
+    CHECK(wefax_bulletin_has(analysis, product_of(slot_at(18, 0))) && !wefax_bulletin_has(sigwx, product_of(slot_at(18, 0))),
+          "the Atlantic analysis is an Analysis");
+    CHECK(wefax_bulletin_has(sigwx, product_of(slot_at(9, 36))), "Northwood's upper-air SIGWX is Significant weather");
+
+    /* Northwood's slots named from the charts received: 10:00, 10:12, 18:24-18:48 no longer unknown nor fillers;
+     * only 09:00 is (noise was all that was heard) */
+    CHECK(!strcmp(product_of(slot_at(10, 0)), "NW-surface-analysis-06Z") &&
+              !strcmp(product_of(slot_at(10, 12)), "NW-surface-forecast-24h-06Z") &&
+              !strcmp(product_of(slot_at(18, 36)), "NW-surface-forecast-24h-12Z"),
+          "10:00 %s, 10:12 %s, 18:36 %s", product_of(slot_at(10, 0)), product_of(slot_at(10, 12)),
+          product_of(slot_at(18, 36)));
+    CHECK(!strcmp(product_of(slot_at(1, 48)), "NW-sea-swell-12h-18Z"), "01:48's swell is T+12: %s",
+          product_of(slot_at(1, 48)));
+
+    int unknown = 0, fillers = 0;
+
+    for (int i = 0; i < wefax_plan_count(); i++) {
+        unknown += wefax_plan_product_unique(wefax_plan_slot(i)->product);
+        fillers += wefax_plan_slot(i)->fill;
+    }
+    CHECK(unknown == 1 && wefax_plan_product_unique(product_of(slot_at(9, 0))) && !fillers,
+          "unknown slots %d (09:00 only), fillers %d", unknown, fillers);
     CHECK(wefax_bulletin_has(days, "NW-surface-forecast-120h-12Z") && !wefax_bulletin_has(days, "NW-surface-forecast-24h-12Z"),
           "Forecast 3-5 days takes 120 h, not 24 h");
 
@@ -338,6 +368,91 @@ static void test_bulletin(void)
           product_of(i), wait);
     i = wefax_plan_next_of_kind(ice, hms(22, 0, 0), &wait);
     CHECK(i == slot_at(15, 20) && wait == hms(17, 20, 0), "after 22:00 tomorrow's: %s", product_of(i));
+}
+
+/* What comes next of a kind, of a chart, of any; a chart in words; the quality in words; the copy the Bulletin shows */
+static void test_words(void)
+{
+    wefax_plan_load();
+
+    const wefax_bulletin_t *ice = NULL;
+
+    for (int k = 0; k < wefax_plan_bulletin_count(); k++)
+        if (!strcmp(wefax_plan_bulletin(k)->name, "Ice"))
+            ice = wefax_plan_bulletin(k);
+
+    int slot[4], wait[4], n = wefax_plan_coming(ice, NULL, hms(5, 0, 0), slot, wait, 4);
+
+    CHECK(n == 4 && slot[0] == slot_at(15, 20) && slot[1] == slot_at(15, 40) && slot[2] == slot_at(21, 0) &&
+              slot[3] == slot_at(21, 15) && wait[0] == hms(10, 20, 0) && wait[3] == hms(16, 15, 0),
+          "the ice charts after 05:00, soonest first: %d of them", n);
+    n = wefax_plan_coming(NULL, "NW-surface-analysis-12Z", hms(12, 0, 0), slot, wait, 4);
+    CHECK(n == 4 && slot[0] == slot_at(14, 36) && slot[1] == slot_at(15, 0) && slot[2] == slot_at(16, 0) &&
+              slot[3] == slot_at(17, 0),
+          "Northwood's 12Z analysis after 12:00: %s first", n ? product_of(slot[0]) : "none");
+    n = wefax_plan_coming(NULL, NULL, hms(23, 50, 0), slot, wait, 3);
+    CHECK(n == 3 && slot[0] == slot_at(0, 0) && wait[0] == 600 && slot[1] == slot_at(0, 12) && slot[2] == slot_at(0, 36),
+          "any chart after 23:50: tomorrow's 00:00 in %d s", n ? wait[0] : -1);
+    CHECK(wefax_plan_coming(NULL, "XX-none", 0, slot, wait, 4) == 0, "a chart not in the plan: none coming");
+    n = wefax_plan_coming(NULL, NULL, hms(4, 30, 0), slot, wait, 1);
+    CHECK(n == 1 && slot[0] == slot_at(4, 30) && wait[0] == 0, "starting now: wait 0");
+
+    /* every chart of the firmware's plan has words */
+    char        hours[16];
+    const char *kind;
+
+    for (int i = 0; i < wefax_plan_count(); i++) {
+        kind = wefax_plan_chart_kind(product_of(i), hours, sizeof(hours));
+        CHECK(kind != NULL, "%s has words", product_of(i));
+    }
+
+    static const struct {
+        const char *product, *kind, *hours;
+    } words[] = {
+        {"NW-surface-analysis-12Z", "Analysis", ""},
+        {"DWD-surface-analysis-Atlantic-00Z", "Analysis, North Atlantic", ""},
+        {"NW-surface-forecast-24h-06Z", "Forecast", "24 h"},
+        {"DWD-pressure-forecast-108h-00Z", "Forecast", "108 h"},
+        {"DWD-850hPa-forecast-36-48h-00Z", "Upper air", "36-48 h"},     /* not "850 h" */
+        {"NW-sea-swell-12h-18Z", "Sea and swell", "12 h"},
+        {"DWD-waves-48h-12Z", "Sea and swell", "48 h"},
+        {"NW-surface-wind-24h-06Z", "Wind", "24 h"},
+        {"NW-rain-visibility-12h-00Z", "Rain and visibility", "12 h"},
+        {"NW-upper-sigwx-18Z", "Significant weather", ""},
+        {"DWD-sigwx-analysis-12Z", "Significant weather", ""},          /* saved before its slot was renamed */
+        {"DWD-ice-NW-Atlantic-12Z", "Ice", ""},
+        {"NW-unknown", "Unsorted", ""},
+        {"", "Unsorted", ""},
+    };
+
+    for (size_t i = 0; i < sizeof(words) / sizeof(words[0]); i++) {
+        kind = wefax_plan_chart_kind(words[i].product, hours, sizeof(hours));
+        CHECK(kind && !strcmp(kind, words[i].kind) && !strcmp(hours, words[i].hours), "%s: %s %s",
+              words[i].product, kind ? kind : "(none)", hours);
+    }
+    CHECK(!wefax_plan_chart_kind("XX-something-else", hours, sizeof(hours)) && !hours[0], "a name it does not know");
+
+    CHECK(!strcmp(wefax_plan_quality_word(91), "good") && !strcmp(wefax_plan_quality_word(70), "good") &&
+              !strcmp(wefax_plan_quality_word(69), "fair") && !strcmp(wefax_plan_quality_word(30), "fair") &&
+              !strcmp(wefax_plan_quality_word(29), "poor") && !strcmp(wefax_plan_quality_word(0), "poor") &&
+              !wefax_plan_quality_word(-1)[0],
+          "the quality in words: good from 70, fair from 30, poor under");
+
+    /* the Bulletin's copy: the newest of fair mark, a poor one only when there is no other */
+    const char *old_good = "wefax-20261116-062315-NW-surface-analysis-00Z-q91.png";
+    const char *new_poor = "wefax-20261116-120112-NW-surface-analysis-06Z-q12.png";
+    const char *new_fair = "wefax-20261116-123012-DWD-surface-analysis-06Z-q35.png";
+    const char *older_poor = "wefax-20261116-050000-NW-surface-analysis-00Z-q8.png";
+
+    CHECK(wefax_plan_bulletin_prefers(new_poor, ""), "anything rather than none");
+    CHECK(!wefax_plan_bulletin_prefers(new_poor, old_good) && wefax_plan_bulletin_prefers(old_good, new_poor),
+          "an older good copy rather than a newer poor one");
+    CHECK(wefax_plan_bulletin_prefers(new_fair, old_good) && !wefax_plan_bulletin_prefers(old_good, new_fair),
+          "the newer of two fair or better");
+    CHECK(wefax_plan_bulletin_prefers(new_poor, older_poor) && !wefax_plan_bulletin_prefers(older_poor, new_poor),
+          "the newer of two poor ones");
+    CHECK(wefax_plan_bulletin_prefers(new_poor, "wefax-20261101-120000.png"),
+          "a poor copy and one from before the marks: the newer");
 }
 
 /* ---- previews ---- */
@@ -557,6 +672,70 @@ static void test_tilt(void)
     CHECK(!wefax_station_tilt("Bad name", &t) && !wefax_station_tilt("", &t), "a name with a space is not kept");
 }
 
+/* A chart written with Align and Tilt (Fix, Auto Plan's save) comes out as the app shows it */
+static void test_write_fixed(void)
+{
+    srand(3);
+
+    unsigned w = WIDTH, h = 600, rw = 0, rh = 0;
+    uint8_t *straight = chart(h, 10, 0), *raw = sheared(straight, w, h, -185), *back;
+    char     path[600], part[620];
+    struct stat st;
+
+    snprintf(path, sizeof(path), "%s/wefax/wefax-20261117-101500-NW-surface-analysis-06Z-q80.png", BOARD_DATA);
+    snprintf(part, sizeof(part), "%s.part", path);
+    CHECK(wefax_png_write_fixed(path, raw, w, h, 0, -185), "written with Tilt -185");
+    CHECK(stat(part, &st) != 0, "no .part left");
+    back = wefax_png_read_grey(path, &rw, &rh);
+    CHECK(back && rw == w && rh == h && !memcmp(back, straight, (size_t)w * h), "Tilt straightens the received chart");
+    free(back);
+
+    /* Align: each row moved right by it, round the width */
+    CHECK(wefax_png_write_fixed(path, straight, w, h, 100, 0), "written with Align +100");
+    back = wefax_png_read_grey(path, &rw, &rh);
+    CHECK(back && back[(size_t)10 * w + 150] == straight[(size_t)10 * w + 50] &&
+              back[(size_t)10 * w + 20] == straight[(size_t)10 * w + w - 80],
+          "Align +100 moves the chart 100 px right");
+    free(back);
+    CHECK(!wefax_png_write_fixed("/nonexistent/dir/x.png", straight, w, h, 0, 0), "an unwritable folder: false");
+    unlink(path);
+    free(raw);
+    free(straight);
+}
+
+/* Night: On and Off whatever the sun, Auto by the sun at the locator (6 degrees under), never without a locator or a
+ * set clock; the dimming */
+static void test_night(void)
+{
+    struct tm tm = {.tm_year = 2026 - 1900, .tm_mon = 10, .tm_mday = 17, .tm_hour = 12};
+    time_t    noon = timegm(&tm), t;
+
+    /* JO20 (Belgium) in November: day at 12 UTC, night at 21 UTC, still light at 16:15 UTC (sunset about 15:50,
+     * 6 degrees under some 40 min later) */
+    CHECK(!wefax_night_at(WEFAX_NIGHT_AUTO, "JO20", noon), "Auto at noon in JO20: day");
+    CHECK(wefax_night_at(WEFAX_NIGHT_AUTO, "JO20", noon + 9 * 3600), "Auto at 21 UTC in JO20: night");
+    CHECK(!wefax_night_at(WEFAX_NIGHT_AUTO, "JO20ab", noon + 4 * 3600 + 15 * 60), "16:15 UTC: dusk, not yet night");
+    CHECK(wefax_night_at(WEFAX_NIGHT_AUTO, "JO20ab", noon + 5 * 3600), "17:00 UTC: night");
+    /* the other side of the world: night at noon UTC in New Zealand's winter? November is its summer, noon UTC is
+     * 01:00 there: night */
+    CHECK(wefax_night_at(WEFAX_NIGHT_AUTO, "RF73", noon), "Auto at 01 local in RF73: night");
+    CHECK(!wefax_night_at(WEFAX_NIGHT_AUTO, "RF73", noon - 10 * 3600), "Auto at 15 local in RF73: day");
+
+    CHECK(wefax_night_at(WEFAX_NIGHT_ON, "JO20", noon) && wefax_night_at(WEFAX_NIGHT_ON, NULL, 0), "On: always");
+    CHECK(!wefax_night_at(WEFAX_NIGHT_OFF, "JO20", noon + 9 * 3600), "Off: never");
+    CHECK(!wefax_night_at(WEFAX_NIGHT_AUTO, NULL, noon + 9 * 3600) &&
+              !wefax_night_at(WEFAX_NIGHT_AUTO, "", noon + 9 * 3600) &&
+              !wefax_night_at(WEFAX_NIGHT_AUTO, "ZZ99", noon + 9 * 3600),
+          "Auto without a valid locator: never");
+    t = 86400 * 3 + 21 * 3600;      /* 4 Jan 1970, 21 UTC: the clock not set */
+    CHECK(!wefax_night_at(WEFAX_NIGHT_AUTO, "JO20", t), "Auto with the clock not set: never");
+    CHECK(!wefax_night_at(7, "JO20", noon + 9 * 3600), "an unknown setting: never");
+
+    CHECK(wefax_night_grey(255, false) == 255 && wefax_night_grey(255, true) == 106 &&
+              wefax_night_grey(0, true) == 0 && wefax_night_grey(128, true) == 53,
+          "white dims to %d, black stays", wefax_night_grey(255, true));
+}
+
 int main(void)
 {
     test_load();
@@ -565,9 +744,12 @@ int main(void)
     test_names();
     test_slot_of_file();
     test_bulletin();
+    test_words();
     test_previews();
     test_quality();
     test_tilt();
+    test_write_fixed();
+    test_night();
     printf("wefax plan: %d checks, %d failed\n", checks, fails);
     return fails != 0;
 }

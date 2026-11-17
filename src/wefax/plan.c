@@ -11,7 +11,9 @@
 
 #include "../board.h"
 #include "../cJSON.h"
+#include "../i18n.h"        /* N_(): the chart words are translated where they show */
 
+#include <ctype.h>
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -399,17 +401,109 @@ bool wefax_bulletin_has(const wefax_bulletin_t *b, const char *product)
 
 int wefax_plan_next_of_kind(const wefax_bulletin_t *b, int sod, int *wait)
 {
-    int next = -1, best = 0;
+    int next, w = 0;
 
-    for (int i = 0; i < slots_n; i++) {
-        int d = (slots[i].min * 60 - sod + DAY_S) % DAY_S;
+    if (!b || !wefax_plan_coming(b, NULL, sod, &next, &w, 1))
+        next = -1, w = 0;
+    if (wait)
+        *wait = w;
+    return next;
+}
 
-        if (wefax_bulletin_has(b, slots[i].product) && (next < 0 || d < best)) {
-            next = i;
-            best = d;
+int wefax_plan_coming(const wefax_bulletin_t *b, const char *product, int sod, int *slot, int *wait, int max)
+{
+    int n = 0;
+
+    for (int i = 0; max > 0 && i < slots_n; i++) {
+        if (b ? !wefax_bulletin_has(b, slots[i].product) : product && strcmp(product, slots[i].product))
+            continue;
+
+        int d  = ((slots[i].min * 60 - sod) % DAY_S + DAY_S) % DAY_S;
+        int at = n < max ? n : max - 1;
+
+        if (n == max && d >= wait[max - 1])
+            continue;
+        while (at > 0 && wait[at - 1] > d) {        /* in order, soonest first */
+            wait[at] = wait[at - 1];
+            slot[at] = slot[at - 1];
+            at--;
+        }
+        wait[at] = d;
+        slot[at] = i;
+        if (n < max)
+            n++;
+    }
+    return n;
+}
+
+/* ---- the copies ---- */
+
+const char *wefax_plan_quality_word(int q)
+{
+    return q < 0 ? "" : q >= WEFAX_MARK_GOOD ? N_("good") : q >= WEFAX_MARK_FAIR ? N_("fair") : N_("poor");
+}
+
+bool wefax_plan_bulletin_prefers(const char *cand, const char *have)
+{
+    if (!have || !have[0])
+        return true;
+
+    bool cand_fair = wefax_plan_name_mark(cand) >= WEFAX_MARK_FAIR;
+    bool have_fair = wefax_plan_name_mark(have) >= WEFAX_MARK_FAIR;
+
+    if (cand_fair != have_fair)
+        return cand_fair;
+    return strcmp(cand, have) > 0;     /* the names sort by time */
+}
+
+/* The hours in a name's "-48h" or "-36-48h" (an "h" closing the part, so not "-850hPa"); "" none */
+static void hours_of(const char *p, char *out, size_t size)
+{
+    out[0] = '\0';
+    for (const char *s = p; *s; s++) {
+        if (*s != '-' || !isdigit((unsigned char)s[1]))
+            continue;
+
+        const char *e = s + 1;
+
+        while (isdigit((unsigned char)*e) || (*e == '-' && isdigit((unsigned char)e[1])))
+            e++;
+        if (*e == 'h' && (e[1] == '-' || !e[1])) {
+            snprintf(out, size, "%.*s h", (int)(e - (s + 1)), s + 1);
+            return;
         }
     }
-    if (wait)
-        *wait = best;
-    return next;
+}
+
+const char *wefax_plan_chart_kind(const char *product, char *hours, size_t size)
+{
+    const char *p = product ? product : "";
+
+    hours_of(p, hours, size);
+    if (!p[0] || strstr(p, "unknown")) {
+        hours[0] = '\0';
+        return N_("Unsorted");
+    }
+    if (strstr(p, "sigwx"))
+        return N_("Significant weather");
+    if (strstr(p, "surface-analysis-Atlantic"))
+        return N_("Analysis, North Atlantic");
+    if (strstr(p, "analysis"))
+        return N_("Analysis");
+    if (strstr(p, "hPa"))
+        return N_("Upper air");
+    if (strstr(p, "forecast"))
+        return N_("Forecast");
+    if (strstr(p, "sea-swell") || strstr(p, "waves"))
+        return N_("Sea and swell");
+    if (strstr(p, "wind"))
+        return N_("Wind");
+    if (strstr(p, "rain-visibility"))
+        return N_("Rain and visibility");
+    if (strstr(p, "-ice-") || !strncmp(p, "ice-", 4)) {
+        hours[0] = '\0';
+        return N_("Ice");
+    }
+    hours[0] = '\0';
+    return NULL;
 }
