@@ -2,6 +2,7 @@
 
 #include "smeter_att.h"
 #include "../wfm_filter.h"
+#include "../boot_cw.h"
 
 #include <algorithm>
 #include <chrono>
@@ -1226,6 +1227,13 @@ std::string SettingsManager::country_validate(const std::string &val) {
         return "";
     return {static_cast<char>(toupper(static_cast<unsigned char>(val[0]))),
             static_cast<char>(toupper(static_cast<unsigned char>(val[1])))};
+}
+
+std::string SettingsManager::boot_text_validate(const std::string &val) {
+    char out[BOOT_CW_TEXT_MAX + 1];
+
+    boot_cw_clean(val.c_str(), out);
+    return out;
 }
 
 /* Where the base's spectrum is centred, Hz from the dial: the X6100's in CW and CW-R on the oscillator the tone is

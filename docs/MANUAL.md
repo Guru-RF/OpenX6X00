@@ -1945,7 +1945,7 @@ at 4, as it would have.
 
 | Card | Options |
 |---|---|
-| RX AUDIO | Speaker mode, Line-in / Line-out, Play / Rec gain, Boot sound (CQ CQ in CW with the boot logo, quiet; at volume 28 when your VOL is lower; off by default), Speaker always off |
+| RX AUDIO | Speaker mode, Line-in / Line-out, Play / Rec gain, Boot sound (Off, CQ CQ, Callsign, Own text: CW with the boot logo; see below; off by default), Speaker always off |
 | TX AUDIO | compressor (threshold, makeup), TX filter, FM pre/de-emphasis |
 | MICROPHONE | Input (Built-in, Hand, Auto), Hand mic gain, Built-in gain, Moni level (0-100, 0 by default) |
 | VOX | On, Gain, Anti-VOX, Delay |
@@ -1956,6 +1956,25 @@ speaker and the TX monitor stay silent whatever the volume, and there is no
 boot sound. The sound to the browser, TCI and Bluetooth headphones goes on as
 before. Turning VOL says so on the screen. The CW sidetone keeps its own level
 (Key volume). Also on the web configurator's Display page, Remote station card.
+
+Boot sound: CW on the speaker while the boot logo comes in, its last
+character as the logo is whole; quiet, at volume 28 when your VOL is lower.
+Off by default. What it plays (issue #289, from v0.3.13; up to v0.3.12 it
+was a switch, and on it played CQ CQ, which it still does after the update):
+- CQ CQ, at 20 WPM.
+- Callsign: your callsign (Settings > General > STATION). With none set,
+  CQ CQ.
+- Own text: Boot text below it opens the keyboard: up to 16 letters,
+  figures, spaces and . , ? / = - and a prosign such as `<SK>`; small
+  letters become capitals, what CW has no code for is left out. With no
+  text, CQ CQ.
+
+The note beside the choice says what it plays and how fast. The CW lasts
+3.9 s at most, a little longer than CQ CQ: a longer text is sent faster to
+fit, up to 40 WPM; one still too long then is cut after the last character
+that fits (not on a stroke: EA8/ON6URE/P plays EA8/ON6URE), and Settings
+says so when you enter it. The boot is never longer for it. Not on the web
+configurator.
 
 Line-in and Play / Rec gain are separate settings:
 
@@ -6895,8 +6914,8 @@ card. No SSH needed.
   RGBA, not a palette) and it is taken.
 - It fades in as a whole over about 3 seconds, from the colour of its
   top-left pixel; the built-in logo's steps are made for that logo alone.
-  With the [boot sound](#audio-tab) on it ends with "CQ CQ", as the logo
-  does. What is transparent in it shows black.
+  With the [boot sound](#audio-tab) on it ends with the sound's last
+  character, as the logo does. What is transparent in it shows black.
 - It is kept on the card's DATA partition (`/mnt/bootlogo.png`), so updates,
   which put the built-in logo back with the rest of the system, leave it as
   it is, and so does a new card image that keeps the DATA partition. The

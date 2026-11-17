@@ -364,9 +364,13 @@ class SettingsManager {
     // VOX
     Parameter<int32_t> p_vox_en{"vox_en", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    // Settings > Audio > Boot sound: "CQ CQ" in CW with the boot animation (bootanim/bootanim.c reads it from the DB)
-    Parameter<int32_t> p_boot_sound{"boot_sound", false, 0, 1,
+    // Settings > Audio > Boot sound: CW with the boot animation (bootanim/bootanim.c reads it from the DB), a
+    // boot_sound_t (boot_cw.h): 0 off, 1 "CQ CQ" (the switch's on up to v0.3.12), 2 the callsign, 3 boot_text (#289)
+    Parameter<int32_t> p_boot_sound{"boot_sound", false, 0, 3,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Its own text (Boot sound Own text): capitals, figures, the stops and spaces the keyer has codes for
+    Parameter<std::string> p_boot_text{"boot_text", "", boot_text_validate,
+        StorageType::GLOBAL, pending_writes_, {}, &global_params_};
     // Settings > Audio > Speaker always off: a remote station's speaker and TX monitor stay silent, whatever the
     // volume (radio.c radio_vol_refresh); the audio to a browser, TCI and headphones goes on
     Parameter<int32_t> p_speaker_off{"speaker_off", false, 0, 1,
@@ -1151,6 +1155,9 @@ class SettingsManager {
 
     // A country code as p_country keeps it: two letters in capitals, anything else "" (none set). Pure function
     static std::string country_validate(const std::string &val);
+
+    // The boot sound's own text as p_boot_text keeps it (boot_cw_clean). Pure function
+    static std::string boot_text_validate(const std::string &val);
 
     // Filter category of a mode (SSB/AM/FM/CW; unknown/default -> SSB).
     enum class FilterMode {
