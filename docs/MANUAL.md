@@ -4042,11 +4042,18 @@ tone, and is not saved (a chart is about 1300 rows); Save does save it.
 | 1 | Auto Plan (Plan next HH:MM), Bulletin, All Charts, Close |
 | 2 | Freq., RX Auto / Cont, View, Clear |
 | 3 | Align, Tilt, Save, Power |
+| 4 | Night Auto / On / Off |
 
 Waiting for a fax in Auto, the picture is dark and says what comes next: the
 chart Auto Plan takes, its station and frequency, when ("21:36 UTC, in 19
 min") and the two after it; with Auto Plan off, that a fax starts by itself
 at its start tone. The chart shows as soon as its first rows come in.
+
+Night (page 4) dims the charts at night, white paper would dazzle: Auto dims
+them when the sun is down at the station's locator (6 degrees under the
+horizon, by the clock; never without a locator or a set clock), "Night Auto
+(on)" says it is; On and Off force it. The live picture, the tiles and the
+full screen are dimmed alike, a saved chart is not changed.
 
 The Bulletin, All Charts, a chart large, the full screen and Fix have their
 own buttons; wherever the app is, F5 goes one level up (ESC too), F1 back to

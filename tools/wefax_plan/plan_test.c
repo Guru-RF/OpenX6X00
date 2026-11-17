@@ -5,6 +5,7 @@
  *  Run with TZ=UTC: the names are in local time, as the radio writes them.
  */
 
+#include "wefax/night.h"
 #include "wefax/plan.h"
 #include "wefax/quality.h"
 #include "wefax/thumb.h"
@@ -702,6 +703,39 @@ static void test_write_fixed(void)
     free(straight);
 }
 
+/* Night: On and Off whatever the sun, Auto by the sun at the locator (6 degrees under), never without a locator or a
+ * set clock; the dimming */
+static void test_night(void)
+{
+    struct tm tm = {.tm_year = 2026 - 1900, .tm_mon = 10, .tm_mday = 17, .tm_hour = 12};
+    time_t    noon = timegm(&tm), t;
+
+    /* JO20 (Belgium) in November: day at 12 UTC, night at 21 UTC, still light at 16:15 UTC (sunset about 15:50,
+     * 6 degrees under some 40 min later) */
+    CHECK(!wefax_night_at(WEFAX_NIGHT_AUTO, "JO20", noon), "Auto at noon in JO20: day");
+    CHECK(wefax_night_at(WEFAX_NIGHT_AUTO, "JO20", noon + 9 * 3600), "Auto at 21 UTC in JO20: night");
+    CHECK(!wefax_night_at(WEFAX_NIGHT_AUTO, "JO20ab", noon + 4 * 3600 + 15 * 60), "16:15 UTC: dusk, not yet night");
+    CHECK(wefax_night_at(WEFAX_NIGHT_AUTO, "JO20ab", noon + 5 * 3600), "17:00 UTC: night");
+    /* the other side of the world: night at noon UTC in New Zealand's winter? November is its summer, noon UTC is
+     * 01:00 there: night */
+    CHECK(wefax_night_at(WEFAX_NIGHT_AUTO, "RF73", noon), "Auto at 01 local in RF73: night");
+    CHECK(!wefax_night_at(WEFAX_NIGHT_AUTO, "RF73", noon - 10 * 3600), "Auto at 15 local in RF73: day");
+
+    CHECK(wefax_night_at(WEFAX_NIGHT_ON, "JO20", noon) && wefax_night_at(WEFAX_NIGHT_ON, NULL, 0), "On: always");
+    CHECK(!wefax_night_at(WEFAX_NIGHT_OFF, "JO20", noon + 9 * 3600), "Off: never");
+    CHECK(!wefax_night_at(WEFAX_NIGHT_AUTO, NULL, noon + 9 * 3600) &&
+              !wefax_night_at(WEFAX_NIGHT_AUTO, "", noon + 9 * 3600) &&
+              !wefax_night_at(WEFAX_NIGHT_AUTO, "ZZ99", noon + 9 * 3600),
+          "Auto without a valid locator: never");
+    t = 86400 * 3 + 21 * 3600;      /* 4 Jan 1970, 21 UTC: the clock not set */
+    CHECK(!wefax_night_at(WEFAX_NIGHT_AUTO, "JO20", t), "Auto with the clock not set: never");
+    CHECK(!wefax_night_at(7, "JO20", noon + 9 * 3600), "an unknown setting: never");
+
+    CHECK(wefax_night_grey(255, false) == 255 && wefax_night_grey(255, true) == 106 &&
+              wefax_night_grey(0, true) == 0 && wefax_night_grey(128, true) == 53,
+          "white dims to %d, black stays", wefax_night_grey(255, true));
+}
+
 int main(void)
 {
     test_load();
@@ -715,6 +749,7 @@ int main(void)
     test_quality();
     test_tilt();
     test_write_fixed();
+    test_night();
     printf("wefax plan: %d checks, %d failed\n", checks, fails);
     return fails != 0;
 }

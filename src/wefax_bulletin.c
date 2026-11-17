@@ -16,6 +16,7 @@
 #include "i18n.h"
 #include "key_input.h"
 #include "theme.h"
+#include "wefax_night.h"
 #include "wefax/decoder.h"
 #include "wefax/plan.h"
 #include "wefax/thumb.h"
@@ -414,10 +415,11 @@ static void wait_text(char *out, size_t n, int wait)
 /* ---- drawing ---- */
 
 /* src (sw x sh grey) into dst (dw x dh), each pixel the mean of its box; crop: fill dst and cut the rest (the
- * middle kept), else the whole of src. Rows from `upto` on are dark (the chart coming in) */
+ * middle kept), else the whole of src. Rows from `upto` on are dark (the chart coming in). Dimmed at night */
 static void blit(const uint8_t *src, unsigned sw, unsigned sh, unsigned upto, lv_color_t *dst, int dw, int dh,
                  bool crop)
 {
+    bool   night = wefax_night();
     double sx = (double)sw / dw, sy = (double)sh / dh, s = crop ? (sx < sy ? sx : sy) : (sx > sy ? sx : sy);
     double ox = (sw - dw * s) / 2, oy = (sh - dh * s) / 2;
 
@@ -439,7 +441,7 @@ static void blit(const uint8_t *src, unsigned sw, unsigned sh, unsigned upto, lv
                         n++;
                     }
 
-            uint8_t g = n ? (uint8_t)(sum / n) : 0;
+            uint8_t g = n ? wefax_night_grey((uint8_t)(sum / n), night) : 0;
 
             dst[(size_t)y * dw + x] = n ? lv_color_make(g, g, g) : TC(panel);
         }

@@ -15,6 +15,7 @@
 #include "wefax_window.h"
 #include "wefax_bulletin.h"
 #include "wefax_viewer.h"
+#include "wefax_night.h"
 #include "freq_list.h"
 #include "wefax/decoder.h"
 #include "wefax/encoder.h"
@@ -76,6 +77,7 @@ static void audio_cb(unsigned int n, float *samples);
 static void page_1_cb(button_data_t *data);
 static void page_2_cb(button_data_t *data);
 static void page_3_cb(button_data_t *data);
+static void page_4_cb(button_data_t *data);
 static void viewer_back_cb(button_data_t *data);
 static void close_cb(button_data_t *data);
 static void freq_cb(button_data_t *data);
@@ -103,6 +105,8 @@ static void fix_auto_cb(button_data_t *data);
 static void fix_undo_cb(button_data_t *data);
 static void fix_cancel_cb(button_data_t *data);
 static void fix_save_cb(button_data_t *data);
+static void night_cb(button_data_t *data);
+static const char *night_label(void);
 
 static void draw_live(void);
 static void idle_update(void);
@@ -188,31 +192,35 @@ static time_t      join_t0;         /* the start of the chart joined */
 
 
 /* ---- buttons ----
- * Page 1 what the app is for off-grid, 2 reception by hand, 3 the live picture's settings and TX power. The tiles, a
- * chart large and the full screen have their own buttons, F5 one level up there */
+ * Page 1 what the app is for off-grid, 2 reception by hand, 3 the live picture's settings and TX power, 4 the
+ * charts at night. The tiles, a chart large and the full screen have their own buttons, F5 one level up there */
 
-static button_data_t btn_page_1   = {.type = BTN_TEXT, .label = "(FAX 1:3)", .press = page_2_cb};
+static button_data_t btn_page_1   = {.type = BTN_TEXT, .label = "(FAX 1:4)", .press = page_2_cb};
 static button_data_t btn_plan     = {.type = BTN_TEXT_FN, .label_fn = plan_label, .press = plan_cb};
 static button_data_t btn_bulletin = {.type = BTN_TEXT, .label = "Bulletin", .press = bulletin_cb};
 static button_data_t btn_all      = {.type = BTN_TEXT, .label = "All\nCharts", .press = all_charts_cb};
 static button_data_t btn_close    = {.type = BTN_TEXT, .label = "Close", .press = close_cb};
 
-static button_data_t btn_page_2  = {.type = BTN_TEXT, .label = "(FAX 2:3)", .press = page_3_cb};
+static button_data_t btn_page_2  = {.type = BTN_TEXT, .label = "(FAX 2:4)", .press = page_3_cb};
 static button_data_t btn_freq    = {.type = BTN_TEXT, .label = "Freq.", .press = freq_cb};
 static button_data_t btn_rx_mode = {.type = BTN_TEXT_FN, .label_fn = rx_mode_label, .press = rx_mode_cb};
 static button_data_t btn_view    = {.type = BTN_TEXT, .label = "View\nBig", .press = view_cb};
 static button_data_t btn_clear   = {.type = BTN_TEXT, .label = "Clear", .press = clear_cb};
 
-static button_data_t btn_page_3 = {.type = BTN_TEXT, .label = "(FAX 3:3)", .press = page_1_cb};
+static button_data_t btn_page_3 = {.type = BTN_TEXT, .label = "(FAX 3:4)", .press = page_4_cb};
 static button_data_t btn_align  = {.type = BTN_TEXT_FN, .label_fn = align_label, .press = align_cb,
                                    .ctrl = CTRL_WEFAX_ALIGN, .encoder_allowed = true};
 static button_data_t btn_tilt   = {.type = BTN_TEXT_FN, .label_fn = tilt_label, .press = tilt_cb,
                                    .ctrl = CTRL_WEFAX_TILT, .encoder_allowed = true};
 static button_data_t btn_save   = {.type = BTN_TEXT, .label = "Save", .press = save_cb};
 
+static button_data_t btn_page_4 = {.type = BTN_TEXT, .label = "(FAX 4:4)", .press = page_1_cb};
+static button_data_t btn_night  = {.type = BTN_TEXT_FN, .label_fn = night_label, .press = night_cb};
+
 static buttons_page_t page_1 = {.items = {&btn_page_1, &btn_plan, &btn_bulletin, &btn_all, &btn_close}};
 static buttons_page_t page_2 = {.items = {&btn_page_2, &btn_freq, &btn_rx_mode, &btn_view, &btn_clear}};
 static buttons_page_t page_3 = {.items = {&btn_page_3, &btn_align, &btn_tilt, &btn_save, &btn_dig_pwr}};
+static buttons_page_t page_4 = {.items = {&btn_page_4, &btn_night, NULL, NULL, NULL}};
 
 /* The tiles: the Bulletin's and All Charts' */
 static button_data_t btn_bul_page = {.type = BTN_TEXT, .label = "(Bulletin)", .press = page_1_cb};
@@ -403,8 +411,11 @@ static void fill_view(lv_color_t c)
         view_buf[i] = c;
 }
 
+static bool night_now;      /* the drawing under way dims its rows (wefax_night.h) */
+
 static void put_px(unsigned x, unsigned y, uint8_t g)
 {
+    g = wefax_night_grey(g, night_now);
     view_buf[y * VIEW_W + x] = lv_color_make(g, g, g);
 }
 
@@ -459,6 +470,7 @@ static void draw_full(void)
     if (!canvas)
         return;
 
+    night_now = wefax_night();
     fill_view(TC(panel));
     if (!store || !store_n) {
         lv_obj_invalidate(canvas);
@@ -512,6 +524,7 @@ static void draw_live(void)
     unsigned first = (shown_head + VIEW_H - shown_n) % VIEW_H;
     unsigned y0    = VIEW_H - shown_n;
 
+    night_now = wefax_night();
     fill_view(TC(panel));
     for (unsigned r = 0; r < shown_n; r++) {
         const uint8_t *src   = shown[(first + r) % VIEW_H];
@@ -971,6 +984,13 @@ static void plan_timer_cb(lv_timer_t *t)
 {
     (void)t;
     idle_update();          /* "in 19 min", a TX over */
+
+    static const char *night_shown;     /* Auto turns on at dusk: the button follows */
+
+    if (btn_night.disp_btn && wefax_night_label() != night_shown) {
+        night_shown = wefax_night_label();
+        buttons_refresh(&btn_night);
+    }
     if (!plan_on || !decoder || tx_running)
         return;
     if (plan_dial && cparam_i_get(cfg_fg_freq) != plan_dial) {
@@ -1336,7 +1356,7 @@ static void apply_view(void)
 }
 
 /* The status line: what the buttons and the MFK do where the app is */
-#define HINT_RX     "Page 2: Freq., View   Page 3: Align, Tilt (MFK)"
+#define HINT_RX     "Page 2: Freq., View   Page 3: Align, Tilt (MFK)   Page 4: Night"
 
 static void hint(const char *text)
 {
@@ -1566,6 +1586,14 @@ static void page_3_cb(button_data_t *data)
     buttons_load_page(&page_3);
 }
 
+static void page_4_cb(button_data_t *data)
+{
+    (void)data;
+    bulletin_hide();
+    align_on = tilt_on = false;
+    buttons_load_page(&page_4);
+}
+
 /* The chart Auto Plan is taking, for its tile */
 static void bulletin_live(wefax_bulletin_live_t *out)
 {
@@ -1748,6 +1776,20 @@ static void fix_save_cb(button_data_t *data)
 {
     (void)data;
     wefax_viewer_save();
+}
+
+static const char *night_label(void)
+{
+    return wefax_night_label();
+}
+
+/* Night Auto -> On -> Off: the live picture drawn again at once */
+static void night_cb(button_data_t *data)
+{
+    (void)data;
+    wefax_night_next();
+    buttons_refresh(&btn_night);
+    draw_live();
 }
 
 static void close_cb(button_data_t *data)

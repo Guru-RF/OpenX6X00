@@ -6,14 +6,15 @@
 # words, the quality in words and the copy the Bulletin shows; the charts' previews (src/wefax/thumb.c: made, read,
 # swept); the mark of charts made up here (clean, noisy, cut short, noise); Auto Tilt (src/wefax/tilt.c) on such a
 # chart sheared as a station's line rate shears it, and a station's tilt learned; a chart written with Align and Tilt
-# (thumb.c) as the app shows it.
+# (thumb.c) as the app shows it; Night (src/wefax/night.c with src/sun.c): on, off, by the sun at a locator.
 TOP    := ../..
 SRC    := $(TOP)/src
 DATA   := $(CURDIR)/build/data
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -I $(SRC) -DBOARD_DATA='"$(DATA)"'
-OURS   := $(SRC)/wefax/plan.c $(SRC)/wefax/quality.c $(SRC)/wefax/thumb.c $(SRC)/wefax/tilt.c $(SRC)/cJSON.c
+OURS   := $(SRC)/wefax/plan.c $(SRC)/wefax/quality.c $(SRC)/wefax/thumb.c $(SRC)/wefax/tilt.c $(SRC)/wefax/night.c \
+          $(SRC)/sun.c $(SRC)/qth/qth.c $(SRC)/cJSON.c
 HDRS   := $(SRC)/wefax/plan.h $(SRC)/wefax/plan_default.h $(SRC)/wefax/quality.h $(SRC)/wefax/thumb.h \
-          $(SRC)/wefax/tilt.h $(SRC)/i18n.h
+          $(SRC)/wefax/tilt.h $(SRC)/wefax/night.h $(SRC)/sun.h $(SRC)/qth/qth.h $(SRC)/i18n.h
 
 all: test
 

@@ -18,6 +18,7 @@
 #include "key_input.h"
 #include "screen_main.h"
 #include "theme.h"
+#include "wefax_night.h"
 #include "wefax/thumb.h"
 #include "wefax/tilt.h"
 
@@ -124,6 +125,7 @@ static void draw(void)
     int        ah = area_h();
     double     s = scale(), x0 = cx - SCR_W / s / 2, y0 = cy - ah / s / 2;
     lv_color_t back = TC(frame), guide = TC(text_head);
+    bool       night = wefax_night();
 
     for (int y = 0; y < ah; y++) {
         int sy0 = (int)(y0 + y / s), sy1 = (int)(y0 + (y + 1) / s);
@@ -149,7 +151,7 @@ static void draw(void)
                     }
                 }
 
-            uint8_t    g = n ? (uint8_t)(sum / n) : 0;
+            uint8_t    g = n ? wefax_night_grey((uint8_t)(sum / n), night) : 0;
             lv_color_t c = n ? lv_color_make(g, g, g) : back;
 
             if (fixing && n && x % GUIDE_PITCH == GUIDE_PITCH / 2)
@@ -499,6 +501,8 @@ bool wefax_viewer_open(const char *dir, const char *name, const char *t, bool fi
 
     map_buf = malloc(sizeof(lv_color_t) * MAP_W * mh);
     if (map_buf) {      /* each pixel the mean of its box: a chart's thin lines stay */
+        bool night = wefax_night();
+
         lv_canvas_set_buffer(mc, map_buf, MAP_W, mh, LV_IMG_CF_TRUE_COLOR);
         for (int y = 0; y < mh; y++) {
             unsigned y0 = (unsigned)((uint64_t)y * img_h / mh), y1 = (unsigned)((uint64_t)(y + 1) * img_h / mh);
@@ -511,7 +515,7 @@ bool wefax_viewer_open(const char *dir, const char *name, const char *t, bool fi
                     for (unsigned xx = x0; xx < (x1 > x0 ? x1 : x0 + 1) && xx < img_w; xx++, n++)
                         sum += img[(size_t)yy * img_w + xx];
 
-                uint8_t g = n ? (uint8_t)(sum / n) : 0;
+                uint8_t g = n ? wefax_night_grey((uint8_t)(sum / n), night) : 0;
 
                 map_buf[(size_t)y * MAP_W + x] = lv_color_make(g, g, g);
             }
