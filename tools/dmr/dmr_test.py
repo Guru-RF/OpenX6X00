@@ -239,24 +239,24 @@ class DmrHelper(unittest.TestCase):
     def test_call(self):
         s = self.online()
         payloads = [bytes([i] * 33) for i in range(6)]
-        sent = self.master.call(2061234, 91, 0x1111, 12, payloads=payloads)
-        s.wait_line("end 2061234")
-        self.assertEqual(s.wait_line("call"), "call 2061234 91 group 2")
+        sent = self.master.call(9990001, 91, 0x1111, 12, payloads=payloads)
+        s.wait_line("end 9990001")
+        self.assertEqual(s.wait_line("call"), "call 9990001 91 group 2")
         self.assertEqual(s.voice, sent)                         # byte for byte, in order
         secs = float(s.wait_line("end").split()[2])
         self.assertTrue(0.4 < secs < 2.0, secs)
         p = self.parsed(s)
         self.assertEqual((p["calls"], p["ends"], p["talking"]), (["1"], ["1"], ["0"]))
-        self.assertEqual(p["heard"], [f"2061234 2061234 91 {round(secs)}"])
+        self.assertEqual(p["heard"], [f"9990001 9990001 91 {round(secs)}"])
         s.close()
 
     def test_late_entry(self):
         """No voice header: the call starts with its first voice frame and ends after a second of silence"""
         s = self.online()
-        self.master.call(2061234, 91, 0x2222, 5, header=False, terminator=False)
-        self.assertEqual(s.wait_line("call"), "call 2061234 91 group 2")
+        self.master.call(9990001, 91, 0x2222, 5, header=False, terminator=False)
+        self.assertEqual(s.wait_line("call"), "call 9990001 91 group 2")
         t0 = time.monotonic()
-        s.wait_line("end 2061234")
+        s.wait_line("end 9990001")
         self.assertGreater(time.monotonic() - t0, 0.6)
         self.assertEqual(len(s.voice), 5)
         s.close()
@@ -264,14 +264,14 @@ class DmrHelper(unittest.TestCase):
     def test_dropped(self):
         s = self.online()
         m = self.master
-        m.dmrd(2061234, 91, 0x80 | 0x20 | 1, 0x3333)                       # a call starts
-        m.dmrd(2061234, 91, 0x80 | 0x10, 0x3333, bytes([1] * 33))
+        m.dmrd(9990001, 91, 0x80 | 0x20 | 1, 0x3333)                       # a call starts
+        m.dmrd(9990001, 91, 0x80 | 0x10, 0x3333, bytes([1] * 33))
         m.dmrd(4444444, 92, 0x80 | 0x10, 0x4444, bytes([2] * 33))           # another over it: dropped
-        seq = m.dmrd(2061234, 91, 0x80 | 0x01, 0x3333, bytes([3] * 33))
-        m.dmrd(2061234, 91, 0x80 | 0x01, 0x3333, bytes([3] * 33), seq=seq)  # the same frame again: dropped
-        m.dmrd(2061234, 91, 0x80 | 0x20 | 3, 0x3333, bytes([4] * 33))       # data in the call: not voice
-        m.dmrd(2061234, 91, 0x80 | 0x20 | 2, 0x3333)                       # its terminator
-        s.wait_line("end 2061234")
+        seq = m.dmrd(9990001, 91, 0x80 | 0x01, 0x3333, bytes([3] * 33))
+        m.dmrd(9990001, 91, 0x80 | 0x01, 0x3333, bytes([3] * 33), seq=seq)  # the same frame again: dropped
+        m.dmrd(9990001, 91, 0x80 | 0x20 | 3, 0x3333, bytes([4] * 33))       # data in the call: not voice
+        m.dmrd(9990001, 91, 0x80 | 0x20 | 2, 0x3333)                       # its terminator
+        s.wait_line("end 9990001")
         self.assertEqual(s.voice, [bytes([1] * 33), bytes([3] * 33)])
         m.dmrd(5555555, 1234567, 0x80 | 0x40 | 0x10, 0x5555, bytes([5] * 33))   # private, not to us: dropped
         m.dmrd(6666666, int(DMR_ID), 0x40 | 0x10, 0x6666, bytes([6] * 33))     # private, to our ID: heard
@@ -291,13 +291,13 @@ class DmrHelper(unittest.TestCase):
         env = dict(self.env, X6100_DMR_RADIOID=f"http://127.0.0.1:{httpd.server_port}/api/dmr/user/?id={{}}")
         s = self.start("91", env=env)
         s.wait_line("state online")
-        self.master.call(2061234, 91, 0x8888, 4)
-        self.assertEqual(s.wait_line("name 2061234"), "name 2061234 ON4ABC Jan")
-        s.wait_line("end 2061234")
-        self.master.call(2061234, 91, 0x9999, 2)
-        self.assertEqual(s.wait_line("call 2061234 91 group 2 "), "call 2061234 91 group 2 ON4ABC Jan")
-        s.wait_line("end 2061234")
-        self.assertEqual(self.parsed(s)["heard"][0], "2061234 ON4ABC Jan 91 0")
+        self.master.call(9990001, 91, 0x8888, 4)
+        self.assertEqual(s.wait_line("name 9990001"), "name 9990001 ON4ABC Jan")
+        s.wait_line("end 9990001")
+        self.master.call(9990001, 91, 0x9999, 2)
+        self.assertEqual(s.wait_line("call 9990001 91 group 2 "), "call 9990001 91 group 2 ON4ABC Jan")
+        s.wait_line("end 9990001")
+        self.assertEqual(self.parsed(s)["heard"][0], "9990001 ON4ABC Jan 91 0")
         self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.data, "names.json")).st_mode), 0o600)
         s.close()
 
@@ -418,8 +418,8 @@ class DmrHelper(unittest.TestCase):
         with open(path) as f:
             self.assertEqual(f.read(), PASSWORD + "\n")             # a refused one leaves it
         s = self.online()
-        self.master.call(2061234, 91, 0xaaaa, 3)
-        s.wait_line("end 2061234")
+        self.master.call(9990001, 91, 0xaaaa, 3)
+        s.wait_line("end 9990001")
         self.assertEqual(s.close(), 0)
         for line in s.lines:
             self.assertNotIn(PASSWORD, line)

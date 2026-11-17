@@ -29,8 +29,8 @@ static void test_states(void) {
     dmr_proto_init(&s);
     CHECK(s.conn == DMR_CONN_OFF);
     CHECK(dmr_proto_line(&s, "state connecting", 0) == DMR_EV_NONE && s.conn == DMR_CONN_CONNECTING);
-    CHECK(dmr_proto_line(&s, "state online 127.0.0.1 206123401 2062", 0) == DMR_EV_ONLINE);
-    CHECK(s.conn == DMR_CONN_ONLINE && !strcmp(s.master, "127.0.0.1") && s.hotspot == 206123401 && s.tg == 2062);
+    CHECK(dmr_proto_line(&s, "state online 127.0.0.1 999000101 2062", 0) == DMR_EV_ONLINE);
+    CHECK(s.conn == DMR_CONN_ONLINE && !strcmp(s.master, "127.0.0.1") && s.hotspot == 999000101 && s.tg == 2062);
     CHECK(dmr_proto_line(&s, "state retry 20 the master stopped answering", 0) == DMR_EV_NONE);
     CHECK(s.conn == DMR_CONN_RETRY && s.retry_s == 20 && !strcmp(s.why, "the master stopped answering"));
     CHECK(dmr_proto_line(&s, "state connecting", 0) == DMR_EV_NONE && s.why[0] == 0);
@@ -43,30 +43,30 @@ static void test_call(void) {
     char        who[64];
 
     dmr_proto_init(&s);
-    dmr_proto_line(&s, "state online m.example 206123401 91", 0);
-    CHECK(dmr_proto_line(&s, "call 2061234 91 group 2", 1000) == DMR_EV_CALL);
-    CHECK(s.talking && s.talker.id == 2061234 && s.talker.dst == 91 && s.talker.slot == 2 && !s.talker.private_call);
+    dmr_proto_line(&s, "state online m.example 999000101 91", 0);
+    CHECK(dmr_proto_line(&s, "call 9990001 91 group 2", 1000) == DMR_EV_CALL);
+    CHECK(s.talking && s.talker.id == 9990001 && s.talker.dst == 91 && s.talker.slot == 2 && !s.talker.private_call);
     CHECK(s.talker.start_ms == 1000 && s.talker.name[0] == 0);
-    CHECK(!strcmp(dmr_proto_who(&s.talker, who, sizeof(who)), "2061234"));
-    dmr_proto_line(&s, "name 2061234 ON4ABC Jan", 0);
+    CHECK(!strcmp(dmr_proto_who(&s.talker, who, sizeof(who)), "9990001"));
+    dmr_proto_line(&s, "name 9990001 ON4ABC Jan", 0);
     CHECK(!strcmp(s.talker.name, "ON4ABC Jan"));
     CHECK(!strcmp(dmr_proto_who(&s.talker, who, sizeof(who)), "ON4ABC Jan"));
     CHECK(dmr_proto_line(&s, "end 9999999 3.0", 0) == DMR_EV_NONE && s.talking);    /* not this call's */
-    CHECK(dmr_proto_line(&s, "end 2061234 12.4", 0) == DMR_EV_END && !s.talking);
-    CHECK(s.n_heard == 1 && s.heard[0].id == 2061234 && s.heard[0].secs == 12 && !strcmp(s.heard[0].name, "ON4ABC Jan"));
+    CHECK(dmr_proto_line(&s, "end 9990001 12.4", 0) == DMR_EV_END && !s.talking);
+    CHECK(s.n_heard == 1 && s.heard[0].id == 9990001 && s.heard[0].secs == 12 && !strcmp(s.heard[0].name, "ON4ABC Jan"));
 
     /* A private call to this hotspot, with its name at once */
-    CHECK(dmr_proto_line(&s, "call 3101234 2061234 private 1 K1ABC Al", 0) == DMR_EV_CALL);
+    CHECK(dmr_proto_line(&s, "call 9990002 9990001 private 1 K1ABC Al", 0) == DMR_EV_CALL);
     CHECK(s.talker.private_call && s.talker.slot == 1 && !strcmp(s.talker.name, "K1ABC Al"));
-    dmr_proto_line(&s, "end 3101234 0.6", 0);
-    CHECK(s.n_heard == 2 && s.heard[0].id == 3101234 && s.heard[0].secs == 1 && s.heard[1].id == 2061234);
+    dmr_proto_line(&s, "end 9990002 0.6", 0);
+    CHECK(s.n_heard == 2 && s.heard[0].id == 9990002 && s.heard[0].secs == 1 && s.heard[1].id == 9990001);
 
     /* The same station again: on top, once */
-    dmr_proto_line(&s, "call 2061234 91 group 2", 0);
-    dmr_proto_line(&s, "end 2061234 2", 0);
-    CHECK(s.n_heard == 2 && s.heard[0].id == 2061234 && s.heard[0].secs == 2 && s.heard[1].id == 3101234);
+    dmr_proto_line(&s, "call 9990001 91 group 2", 0);
+    dmr_proto_line(&s, "end 9990001 2", 0);
+    CHECK(s.n_heard == 2 && s.heard[0].id == 9990001 && s.heard[0].secs == 2 && s.heard[1].id == 9990002);
     /* a name that comes later reaches the heard list too */
-    dmr_proto_line(&s, "name 3101234 K1ABC Albert", 0);
+    dmr_proto_line(&s, "name 9990002 K1ABC Albert", 0);
     CHECK(!strcmp(s.heard[1].name, "K1ABC Albert"));
 
     /* The link lost during a call: the call is over, not heard */
