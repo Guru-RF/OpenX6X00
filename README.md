@@ -561,7 +561,7 @@ Propagation and Scanner apps (#184), APPS and Modes over the whole strip, the CW
 bars off the band plan and Settings' switches in the theme's colours (#185), the
 Codec and Ops Room themes (#186, #187) and the performance overlay (#181);
 jochenhammes the RADE app (#129,
-#130); MAVProxyUser the X6200's base firmware updater, from the radio's screen
+#130) and APP > Mail, Winlink mail read, written and sent on the radio (#295); MAVProxyUser the X6200's base firmware updater, from the radio's screen
 and over SSH, Xiegu's UPGRADE steps with their tests (#259), which also writes
 the X6100's base, by the way in of Franco Venturi's (fventuri)
 x6100-base-experiments flasher.
