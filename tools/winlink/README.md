@@ -122,11 +122,32 @@ lately on another band not put on top. It prints `MAIL OK` (2026-11-16: about
 Also here, in Python alone: `winlink_test.py`, the tests of the supervisor
 (`rootfs/usr/sbin/x6100-winlink`: the settings, Pat's config, Mercury's and
 XARA's, XARA's callsign, its speed and the VARA HF licence tick, the outcome of
-each connection from the logs in `fixtures/`), and `winlink_web_test.py`, the web
+each connection from the logs in `fixtures/`, and Pat's own switch of the modem,
+#296), and `winlink_web_test.py`, the web
 configurator's Winlink page and its API, which needs bottle 0.13
 (`PYTHONPATH=<a directory with bottle.py>`; 0.12 does not import on Python 3.13
-and later). Both run with `python3 -B <file>`. The web test also runs
+and later). Both run with `python3 -B <file>`, and `make` (`make test`) runs them
+after the protocol test: the supervisor's in a network namespace of its own
+(`unshare -rn`, `WINLINK_NETNS=1`), the page's with `BOTTLE=<a directory with
+bottle.py>`. The switch (`x6100-winlink switch ardop|varahf`, which our Pat runs
+before it dials, `tools/pat` 0008): with a stand-in for the supervisor, VARA HF
+while ARDOP runs (XARA, at its bandwidth), ARDOP while XARA runs, Mercury when it
+was the last of the two (also as the page leaves it), Mercury when XARA is not
+there, no switch when the right modem runs (the settings file untouched, no
+line), only the modem changed in the file, the modem failing to start and not
+ready in time (a line in Pat's log, Pat does not call, the setting stays), its
+TNC port not open yet, XARA without a callsign (no switch), a change of the
+page's under way first (waited for, and Pat restarting with it: not for ever),
+the page changing the modem meanwhile, no supervisor, other transports refused,
+one switch at a time, the command line as Pat runs it, and the failure line as
+the last connection. With the supervisor itself (`x6100-winlink run`, in the
+namespace only): stand-ins for Pat (its mailbox's status on 8080) and the three
+modems (their TNC ports, their lines on the GUI's socket); VARA HF from ARDOP,
+then ARDOP again, Pat not restarted for either, then the page's own choice of
+Mercury, for which Pat restarts as before (about 10 s). The web test also runs
 `winlink_page_test.js` when Node is there: the page's own script on the audit's
 small DOM (`docs/audit/repro-2026-10-24/browser-dom.js`), its Power row from the
 radio file, the Filter row for XARA's bandwidths, XARA's speed in the Modem row
-and the Station card's rows for the modem chosen.
+and the Station card's rows for the modem chosen; and the whole page, whose
+Station card's Modem row follows the radio's choice (a switch of Pat's) unless
+a choice made on the page is not saved yet.

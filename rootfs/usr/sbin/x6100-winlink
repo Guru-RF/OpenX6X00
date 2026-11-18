@@ -20,12 +20,17 @@
 #   x6100-winlink logs          the logs as one text file on stdout, for a bug report (the web page's
 #                               download): every password in them masked
 #   x6100-winlink stop          stop the supervisor and wait for it, the setting kept (S98winlink stop)
+#   x6100-winlink switch ardop|varahf
+#                               our Pat, before it dials through that transport (tools/pat, 0008): the modem for
+#                               it running and ready, switched to when the other one ran; bw=<Hz> on stdout for
+#                               VARA HF. Exit status 1, the reason in Pat's log, when it could not
 #   x6100-winlink run           the supervisor itself, started by the commands above
 #
 # The settings are in /mnt/winlink.conf (enabled=0|1, mycall=, locator=, bandwidth=200|500|1000|2000,
-# modem=ardop|mercury|xara, mercury_bandwidth=500|2300|2750, xara_bandwidth=500|2300|2750, vara_licence=0|1), written
-# by the web page; an empty callsign or locator is the radio's own (Settings > General: callsign and QTH). The
-# bandwidth is the widest ARDOP may use: our Pat lowers a gateway list's wider bw= to it (tools/pat, 0003).
+# modem=ardop|mercury|xara, mercury_bandwidth=500|2300|2750, xara_bandwidth=500|2300|2750, vara_licence=0|1,
+# varahf_modem=mercury|xara), written by the web page; an empty callsign or locator is the radio's own (Settings >
+# General: callsign and QTH). The bandwidth is the widest ARDOP may use: our Pat lowers a gateway list's wider bw= to
+# it (tools/pat, 0003).
 # modem=mercury runs Mercury in place of ardopcf, with its settings in /run/winlink/mercury.ini; modem=xara runs XARA,
 # with its settings in /run/winlink/xara.conf. Pat reaches either as its VARA HF transport (varahf) on
 # 127.0.0.1:8300, at the modem's bandwidth unless a connection asks another. XARA runs at VARA's free speed levels
@@ -35,6 +40,17 @@
 # Pat asks its VARA HF modem for a CW ID (CWID ON) as it starts it: XARA then identifies as each session closes and
 # after a call with no answer, whatever the callsign (our patch 0004; XARA alone only with a US one), and at once
 # after a call Pat cancels (0005), Mercury not (not one of its commands).
+#
+# Pat's own Connect chooses the modem too (#296): our Pat runs `x6100-winlink switch <transport>` before it dials
+# through ARDOP or VARA HF (tools/pat, 0008; OPENX6X00_MODEM_SWITCH in its environment names this file). When the
+# other modem runs, the switch writes the new choice into /mnt/winlink.conf, so the Winlink page shows it and it stays,
+# and pokes the supervisor, which stops the modem that runs and starts the other one as for a choice made on the page,
+# but goes on with Pat (the switch file in RUN says it is Pat's own switch), so the connection that asked is not
+# ended. The switch waits until the new modem is on the radio's audio with its TNC port open, then Pat dials. ARDOP
+# for ardop; for varahf the last of Mercury and XARA chosen (varahf_modem=, the page's or a switch's), XARA when
+# neither was. A change the page made just before is the supervisor's to finish first. One switch at a time (our Pat
+# and a lock), none while a connection through the other transport is under way (our Pat). Nothing else changes: the
+# bandwidths, the VARA HF licence tick and the CW ID stay as the page set them.
 # Pat's config.json holds the password, so it lives on the root filesystem (/var/lib/winlink/pat), where the
 # web pages cannot read it. It is merged, not written whole: our keys are set (the password when the page has
 # one), every other one is kept, since Pat's own Settings page edits the file too. The mailbox is on the DATA
@@ -76,6 +92,9 @@ STATE = os.path.join(LIB, "state")    # XDG_STATE_HOME: Pat's account check and 
 STATUS = os.path.join(RUN, "status")
 LOCK = os.path.join(RUN, "lock")
 CONFIG_LOCK = os.path.join(RUN, "config.lock")
+CONF_LOCK = os.path.join(RUN, "conf.lock")       # the writers of /mnt/winlink.conf here: on, off and the switch
+SWITCH = os.path.join(RUN, "switch")             # Pat's own modem switch under way: the supervisor goes on with Pat
+SWITCH_LOCK = os.path.join(RUN, "switch.lock")
 PAT_LOG = os.path.join(RUN, "pat.log")
 PAT_OWN_LOG = os.path.join(RUN, "pat-own.log")   # Pat's --log: the mailbox's log pane; our notes go in it too
 ARDOP_LOG = os.path.join(RUN, "ardopcf.log")
@@ -112,6 +131,14 @@ MODEM_NAMES = {"ardop": "ARDOP", "mercury": "Mercury", "xara": "XARA"}
 MODEM_PROGRAMS = {"ardop": ARDOPCF, "mercury": MERCURY, "xara": XARA}
 TRANSPORTS = {"ardop": "ardop", "mercury": "varahf", "xara": "varahf"}   # Pat's transport for each modem
 TRANSPORT_NAMES = {"ardop": "ARDOP", "varahf": "VARA HF"}   # as Pat's Connect dialog names them
+VARA_MODEMS = ("mercury", "xara")      # the ones Pat reaches as VARA HF
+TNC_PORTS = {"ardop": ARDOP_PORT, "mercury": MERCURY_PORT, "xara": MERCURY_PORT}   # where Pat reaches each
+SWITCH_ENV = "OPENX6X00_MODEM_SWITCH"  # in Pat's environment: this file, its modem switch (tools/pat, 0008)
+SWITCH_SETTLE = 20                     # s for a change the Winlink page made just before to be done
+SWITCH_WAIT = 45                       # s for the modem switched to to be ready: the other stops (Mercury up to 10 s)
+SWITCH_LOOK = 0.5                      # s between looks at the status meanwhile
+# Our line in Pat's log when a switch did not come about: Pat did not dial (cmd_switch)
+SWITCH_FAILED_RE = re.compile(r"OpenX6X00: no connection through (ARDOP|VARA HF): (.*)$")
 MERCURY_BEHIND = 600                   # s: one of MERCURY_BEHIND_SAID this recent marks the modem behind
 # Mercury's warnings that its receiver fell behind (modem/modem.c): a decoder thread dropped audio, or the capture
 # backlog passed its cap and was thrown away undecoded
@@ -163,30 +190,32 @@ def stopping():
 
 # ---- the settings ----------------------------------------------------------------------------
 
-def read_conf():
-    conf = {}
+def read_kv(path):
+    """A file of key=value lines as a dict, {} when there is none"""
+    kv = {}
     try:
-        with open(CONF) as f:
+        with open(path) as f:
             for line in f:
                 k, sep, v = line.strip().partition("=")
                 if sep:
-                    conf[k.strip()] = v.strip()
+                    kv[k.strip()] = v.strip()
     except OSError:
         pass
-    return conf
+    return kv
+
+
+def read_conf():
+    return read_kv(CONF)
 
 
 def enabled():
     return read_conf().get("enabled") == "1"
 
 
-def set_enabled(on):
-    """enabled= changed, the other settings kept (the web page writes them)"""
-    conf = read_conf()
-    if conf.get("enabled") == ("1" if on else "0"):
-        return
-    conf = {"mycall": "", "locator": "", "bandwidth": "500", "modem": "ardop", "mercury_bandwidth": "2300",
-            "xara_bandwidth": "2300", "vara_licence": "0", **conf, "enabled": "1" if on else "0"}
+def write_conf(conf):
+    """The settings file with these: the web page's keys first, as it writes them, every other one kept"""
+    conf = {"enabled": "0", "mycall": "", "locator": "", "bandwidth": "500", "modem": "ardop",
+            "mercury_bandwidth": "2300", "xara_bandwidth": "2300", "vara_licence": "0", **conf}
     first = ["enabled", "mycall", "locator", "bandwidth", "modem", "mercury_bandwidth", "xara_bandwidth",
              "vara_licence"]
     tmp = f"{CONF}.{os.getpid()}"
@@ -195,6 +224,23 @@ def set_enabled(on):
         f.flush()
         os.fsync(f.fileno())                       # /mnt is FAT on the SD card
     os.replace(tmp, CONF)
+
+
+def conf_lock():
+    """Held while a command here reads the settings file and writes it again: on and off, and Pat's switch"""
+    os.makedirs(RUN, exist_ok=True)
+    lock = open(CONF_LOCK, "a")
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    return lock
+
+
+def set_enabled(on):
+    """enabled= changed, the other settings kept (the web page writes them)"""
+    with conf_lock():
+        conf = read_conf()
+        if conf.get("enabled") == ("1" if on else "0"):
+            return
+        write_conf({**conf, "enabled": "1" if on else "0"})
 
 
 _station = (None, ("", ""))           # (params.db's mtimes, (callsign, QTH)) of the last read
@@ -547,6 +593,7 @@ def start_pat(pat, want):
     # Pat takes PAT_* variables over its config file: none from outside
     env = {k: v for k, v in os.environ.items() if not k.startswith(("PAT_", "ARDOP_", "XDG_"))}
     env.update(XDG_CONFIG_HOME=LIB, XDG_DATA_HOME=DATA, XDG_STATE_HOME=STATE)
+    env[SWITCH_ENV] = os.path.abspath(__file__)    # our Pat runs `<this> switch ardop|varahf` before it dials
     # Pat empties its log as it opens it, a moment after it starts: emptied here first, so that the Watch, which
     # reads it from the start from now on, does not take the last run's lines for new ones meanwhile
     try:
@@ -688,6 +735,7 @@ class Connection:
         self.accepted = self.receiving = 0         # Pat's log: proposals the gateway accepted, messages coming in
         self.sent = self.received = None           # the event log's exchange: the true counts
         self.refused = ""                          # the radio's own "no TX" reason meanwhile (the GUI)
+        self.switch = ""                           # why the modem switch for it did not come about: not dialed
         self.noted = False                         # its outcome is in Pat's log
 
 
@@ -750,6 +798,11 @@ class Outcome:
             via = "ardop" if text.startswith("ARDOP") else "varahf" if text.startswith("vara") else self.qsy_via
             c = self._new("", at, via)             # before any "Connecting"
             c.stage, c.failed_in, c.error = "failed", "dial", text
+            return
+        q = SWITCH_FAILED_RE.match(text)
+        if q:                                      # ours (cmd_switch), with what to do: not said again
+            c = self._new("", at, "ardop" if q.group(1) == "ARDOP" else "varahf")
+            c.stage, c.failed_in, c.error, c.switch, c.noted = "failed", "dial", "switch", q.group(2), True
             return
         c = self.last
         if c is None:
@@ -877,6 +930,8 @@ def judge(c, chosen="ardop"):
         if sent or received:
             return "delivered", f"Done with {gw}{at}: {sent} sent, {received} received", ""
         return "done", f"Done with {gw}{at}: nothing to send or receive", ""
+    if c.switch:
+        return "failed", c.switch, ""
     if low == "pat stopped":
         return "failed", f"Pat stopped during the connection to {gw}", "Connect again once Pat runs again"
     if c.failed_in == "exchange":
@@ -966,6 +1021,14 @@ def read_radio():
         return {}
 
 
+def radio_written():
+    """When the GUI last wrote its radio file, 0 for none"""
+    try:
+        return os.stat(RADIO).st_mtime
+    except OSError:
+        return 0.0
+
+
 def pat_status():
     """Pat's own status (GET /api/status, which its guard lets through from 127.0.0.1): dialing, connected, and the
     browsers with the mailbox open; None when it does not answer within a second"""
@@ -992,6 +1055,7 @@ class Watch:
         self.events = Tail(EVENT_LOG)
         self.outcome = Outcome()
         self.modem = False                         # the modem on the GUI's audio socket, as its log says
+        self.modem_since = 0.0                     # when it started
         self.behind = 0.0                          # Mercury or XARA last fell behind the receiver, as its log says
         self.behind_noted = 0.0                    # and when that went into Pat's log
         self.seen = {}                             # the radio file's refused_seq and qsy_seq read last
@@ -1005,6 +1069,7 @@ class Watch:
 
     def modem_started(self):
         self.modem = False
+        self.modem_since = time.time()
         self.behind = 0.0
         self.outcome.xara_full = None              # said again after Pat's MYCALL
 
@@ -1104,7 +1169,10 @@ class Watch:
             o.event(line)
         radio = read_radio()
         if radio:
-            self.modem = radio.get("modem") == "connected"     # the GUI's word over the modem's log
+            # The GUI's word over the modem's log, once written since this modem started: just after another one
+            # was chosen (a switch of Pat's) it may still say connected for the one that stopped
+            if radio_written() >= self.modem_since:
+                self.modem = radio.get("modem") == "connected"
             self.radio_said(radio)
         up = pat.alive() and pat.answered
         behind = kind in ("mercury", "xara") and time.time() - self.behind < MERCURY_BEHIND
@@ -1155,6 +1223,19 @@ def report(pat, modem, want, keys, refused=""):
         say("running", call + gui, **st)
 
 
+def pats_switch(settings, now):
+    """Pat started with settings, the supervisor has now: they differ in the modem alone, and the switch file says Pat
+    asked for that one lately (cmd_switch)"""
+    if not settings or settings[1] != now[1] or dict(settings[0], modem=now[0]["modem"]) != now[0]:
+        return False
+    asked = read_kv(SWITCH)
+    try:
+        lately = time.time() - float(asked.get("at", "")) < SWITCH_SETTLE + SWITCH_WAIT
+    except ValueError:
+        return False
+    return lately and asked.get("modem") == now[0]["modem"]
+
+
 def run():
     # The handlers before the pid is in the lock: a SIGUSR1 from a command would end the process otherwise
     signal.signal(signal.SIGTERM, lambda *_: _stop.append(1))
@@ -1193,6 +1274,10 @@ def run():
             now = (want, hashlib.sha256(read_password().encode()).hexdigest())
             for p in (*modems.values(), pat):
                 p.reap()                           # stopped by itself: tried again later
+            # Pat's own switch (cmd_switch): the modem alone changed, as it asked. Pat goes on, its connection waiting
+            # for the modem; the switch gives it the VARA HF bandwidth, its config file has it at Pat's next start
+            if pat.alive() and pat.settings != now and pats_switch(pat.settings, now):
+                pat.settings = now
             if pat.alive() and pat.settings != now:
                 say("starting", "Restarting Pat with the new settings...", pat="starting", **modem_states(modems, kind))
                 stop_pat(pat.proc)
@@ -1464,10 +1549,166 @@ def cmd_stop():
     return 0
 
 
+# ---- Pat's own choice of the modem (#296) ----------------------------------------------------------------------
+
+def write_kv(path, kv):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = f"{path}.{os.getpid()}"
+    with open(tmp, "w") as f:
+        f.write("".join(f"{k}={v}\n" for k, v in kv.items()))
+    os.replace(tmp, path)
+
+
+def listening(port):
+    """A program listens on that TCP port, as /proc/net/tcp and tcp6 say: the modem's TNC port open for Pat, seen
+    without connecting to it (a modem could take that for its host)"""
+    for name in ("tcp", "tcp6"):
+        try:
+            with open(f"/proc/net/{name}") as f:
+                rows = f.read().splitlines()[1:]
+        except OSError:
+            continue
+        for row in rows:
+            col = row.split()
+            try:
+                if len(col) > 3 and col[3] == "0A" and int(col[1].rsplit(":", 1)[1], 16) == port:
+                    return True
+            except ValueError:
+                pass
+    return False
+
+
+def conf_modem(conf):
+    """The modem chosen in the settings"""
+    return conf.get("modem") if conf.get("modem") in MODEMS else "ardop"
+
+
+def varahf_modem(conf):
+    """The modem a VARA HF connection switches to from ARDOP: the last of Mercury and XARA chosen (varahf_modem=),
+    XARA when neither was, Mercury when XARA is not on this radio"""
+    m = conf.get("modem") if conf.get("modem") in VARA_MODEMS else conf.get("varahf_modem")
+    m = m if m in VARA_MODEMS else "xara"
+    if m == "xara" and not os.access(XARA, os.X_OK) and os.access(MERCURY, os.X_OK):
+        return "mercury"
+    return m
+
+
+def modem_settled(st, kind):
+    """The status says the supervisor runs Pat and the modem chosen (perhaps starting it again after a stop): no
+    change the Winlink page made is under way (Pat restarting with it, the other modem not started yet)"""
+    return st.get("pat") == "running" and st.get(kind) in ("running", "stopped")
+
+
+def modem_ready(st, kind):
+    """The status says that modem runs, alone, on the radio's audio, and its TNC port is open"""
+    return (st.get(kind) == "running" and st.get("modem") in ("ready", "behind")
+            and all(st.get(m) == "off" for m in MODEMS if m != kind) and listening(TNC_PORTS[kind]))
+
+
+def switch_modem(via):
+    """(went ahead, VARA HF's bandwidth or "") for a connection Pat is about to dial through via: the modem for it
+    running and ready, switched to when the other one ran (the header says how). When it did not go ahead the
+    reason went into Pat's log; nothing when Pat itself is gone meanwhile"""
+    parent = os.getppid()                          # Pat: gone when it was restarted, and nobody waits then
+    name = TRANSPORT_NAMES[via]
+
+    def bw(kind):
+        if via != "varahf":
+            return ""
+        want = wanted()
+        return str(want["xara_bandwidth"] if kind == "xara" else want["mercury_bandwidth"])
+
+    def fail(why, then=""):
+        note(f"no connection through {name}: {why}; Pat did not call" + (f". {then}" if then else ""))
+        return False, ""
+
+    conf = read_conf()
+    if TRANSPORTS[conf_modem(conf)] == via:
+        return True, bw(conf_modem(conf))
+    # A change the page made just before (apply) is the supervisor's to finish first: it may restart Pat
+    end = time.time() + SWITCH_SETTLE
+    while True:
+        conf, st = read_conf(), read_kv(STATUS)
+        kind = conf_modem(conf)
+        if TRANSPORTS[kind] == via:
+            return True, bw(kind)                  # the page chose one for it meanwhile
+        if conf.get("enabled") != "1":
+            return fail("Winlink is being turned off")
+        if not supervisor_pid():
+            return fail("Winlink's supervisor does not run", "Turn Winlink off and on again (Operating > Winlink)")
+        if modem_settled(st, kind):
+            break
+        if os.getppid() != parent:
+            return False, ""
+        if time.time() >= end:
+            return fail(f"the radio is still busy with the Winlink page's last change ({st.get('text') or '-'})",
+                        "Connect again once that page says the modem is ready")
+        time.sleep(SWITCH_LOOK)
+    target = "ardop" if via == "ardop" else varahf_modem(conf)
+    if not os.access(MODEM_PROGRAMS[target], os.X_OK):
+        return fail(f"{MODEM_NAMES[target]} is not on this radio")
+    refused = xara_refused(dict(wanted(), modem=target)) if target == "xara" else ""
+    if refused:
+        return fail(refused)
+    note(f"switching the modem from {MODEM_NAMES[kind]} to {MODEM_NAMES[target]} for this connection through {name}")
+    # The switch file before the setting: the supervisor that reads the setting goes on with Pat
+    write_kv(SWITCH, {"modem": target, "at": f"{time.time():.3f}"})
+    try:
+        with conf_lock():
+            conf = read_conf()
+            if conf_modem(conf) != kind:
+                return fail(f"the modem was changed on the Winlink page meanwhile, to {MODEM_NAMES[conf_modem(conf)]}")
+            # Only the modem changes, and which of Mercury and XARA was the last
+            write_conf({**conf, "modem": target, "varahf_modem": target if target in VARA_MODEMS else kind})
+        if not poke():
+            return fail("Winlink's supervisor does not run", "Turn Winlink off and on again (Operating > Winlink)")
+        end = time.time() + SWITCH_WAIT
+        while True:
+            time.sleep(SWITCH_LOOK)
+            if os.getppid() != parent:
+                return False, ""
+            conf, st = read_conf(), read_kv(STATUS)
+            if conf.get("enabled") != "1":
+                return fail("Winlink was turned off")
+            if conf_modem(conf) != target:
+                return fail(f"the modem was changed on the Winlink page meanwhile, to {MODEM_NAMES[conf_modem(conf)]}")
+            if modem_ready(st, target):
+                break
+            then = (f"The Winlink page (Operating > Winlink) says how {MODEM_NAMES[target]} is doing: connect again "
+                    "once it says the modem is ready, or choose another modem there")
+            if st.get(target) == "stopped" and st.get("state") == "error":
+                return fail(f"{MODEM_NAMES[target]} did not start ({st.get('text') or '-'})", then)
+            if time.time() >= end:
+                return fail(f"{MODEM_NAMES[target]} was not ready within {SWITCH_WAIT} s ({st.get('text') or '-'})",
+                            then)
+    finally:
+        try:
+            os.remove(SWITCH)
+        except OSError:
+            pass
+    note(f"{MODEM_NAMES[target]} is ready and the connection goes ahead; the modem stays {MODEM_NAMES[target]}, as "
+         "the Winlink page (Operating > Winlink) now shows")
+    return True, bw(target)
+
+
+def cmd_switch(args):
+    """Our Pat, before it dials through ARDOP or VARA HF (tools/pat, 0008): exit status 0 to go ahead, with bw=<Hz>
+    for VARA HF; 1 not to, the reason in Pat's log. One at a time"""
+    if len(args) != 1 or args[0] not in TRANSPORT_NAMES:
+        raise Fail("usage: x6100-winlink switch ardop|varahf")
+    os.makedirs(RUN, exist_ok=True)
+    with open(SWITCH_LOCK, "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        ok, bw = switch_modem(args[0])
+    if bw:
+        print(f"bw={bw}")
+    return 0 if ok else 1
+
+
 def main(argv):
     cmds = {"on": cmd_on, "off": cmd_off, "apply": cmd_apply, "set-password": cmd_set_password,
             "clear-password": cmd_clear_password, "status": cmd_status, "logs": cmd_logs, "stop": cmd_stop,
-            "run": run}
+            "switch": lambda: cmd_switch(argv[1:]), "run": run}
     if argv and argv[0] not in cmds:
         print("usage: x6100-winlink [" + "|".join(cmds) + "]", file=sys.stderr)
         return 1

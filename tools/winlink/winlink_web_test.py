@@ -101,8 +101,37 @@ class Modem(Web):
         self.assertEqual((st["modem_choice"], st["mercury_bandwidth"]), ("mercury", 2750))
         self.assertEqual(self.conf(), {"enabled": "0", "mycall": "", "locator": "", "bandwidth": "500",
                                        "modem": "mercury", "mercury_bandwidth": "2750", "xara_bandwidth": "2300",
-                                       "vara_licence": "0"})
+                                       "vara_licence": "0", "varahf_modem": "mercury"})
         self.assertEqual(self.calls, [])                # saved only: nothing runs
+
+    def test_the_last_vara_hf_modem_kept(self):
+        """The last of Mercury and XARA chosen: the one Pat's VARA HF connection switches to from ARDOP (#296)"""
+        for choice, last in (("mercury", "mercury"), ("ardop", "mercury"), ("xara", "xara"), ("ardop", "xara"),
+                             ("ardop", "xara"), ("mercury", "mercury")):
+            self.assertEqual(self.req("POST", "/api/winlink", {"modem_choice": choice})[0], 200)
+            self.assertEqual(self.conf().get("varahf_modem"), last, choice)
+        # Mercury chosen before there was varahf_modem=: kept as it is left for ARDOP
+        with open(apps.WINLINK_CONF, "w") as f:
+            f.write("enabled=1\nmodem=mercury\n")
+        self.req("POST", "/api/winlink", {"modem_choice": "ardop"})
+        self.assertEqual((self.conf()["modem"], self.conf()["varahf_modem"]), ("ardop", "mercury"))
+        # Written on its own it changes nothing that runs: no restart of Pat for it
+        with open(apps.WINLINK_CONF, "w") as f:
+            f.write("enabled=1\nmycall=\nlocator=\nbandwidth=500\nmodem=xara\nmercury_bandwidth=2300\n"
+                    "xara_bandwidth=2300\nvara_licence=0\n")
+        self.calls.clear()
+        self.req("POST", "/api/winlink", {"modem_choice": "xara"})
+        self.assertEqual((self.calls, self.conf()["varahf_modem"]), ([["on"]], "xara"))
+
+    def test_the_modem_row_follows(self):
+        """A switch of Pat's (x6100-winlink switch) changes the setting: the page's choice is what it says"""
+        with open(apps.WINLINK_CONF, "w") as f:
+            f.write("enabled=1\nmodem=xara\nvarahf_modem=xara\n")
+        self.assertEqual(self.req("GET", "/api/winlink")[1]["modem_choice"], "xara")
+        page = self.req("GET", "/winlink")[1]
+        self.assertIn("One runs at a time: a connection in Pat through the other transport switches to it (VARA HF: "
+                      "the last of Mercury and XARA chosen, XARA at first), and this row follows", page)
+        self.assertIn("followModem(st);", page)
 
     def test_chosen_while_on(self):
         """Pat restarts with it (apply), and the supervisor changes the modem"""
@@ -170,7 +199,7 @@ class Xara(Web):
         self.assertEqual((st["modem_choice"], st["xara_bandwidth"], st["vara_licence"]), ("xara", 500, True))
         self.assertEqual(self.conf(), {"enabled": "0", "mycall": "", "locator": "", "bandwidth": "500",
                                        "modem": "xara", "mercury_bandwidth": "2300", "xara_bandwidth": "500",
-                                       "vara_licence": "1"})
+                                       "vara_licence": "1", "varahf_modem": "xara"})
         self.assertEqual(self.calls, [])
 
     def test_the_tick_applied_while_on(self):
