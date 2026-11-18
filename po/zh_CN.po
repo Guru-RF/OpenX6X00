@@ -12849,6 +12849,18 @@ msgid "HAND MIC KEYS"
 msgstr "手咪按键"
 
 #: src/settings_window.cpp
+msgid "Hand mic UP/DOWN"
+msgstr "手咪 UP/DOWN"
+
+#: src/settings_window.cpp
+msgid ""
+" Channels \n"
+" Tune "
+msgstr ""
+" 频道 \n"
+" 调谐 "
+
+#: src/settings_window.cpp
 msgid "PADDLE"
 msgstr "自动键"
 

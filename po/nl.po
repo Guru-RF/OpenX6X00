@@ -12786,6 +12786,18 @@ msgid "HAND MIC KEYS"
 msgstr "TOETSEN HANDMICRO"
 
 #: src/settings_window.cpp
+msgid "Hand mic UP/DOWN"
+msgstr "Handmicro UP/DOWN"
+
+#: src/settings_window.cpp
+msgid ""
+" Channels \n"
+" Tune "
+msgstr ""
+" Kanalen \n"
+" Afstemmen "
+
+#: src/settings_window.cpp
 msgid "PADDLE"
 msgstr ""
 

@@ -12832,6 +12832,18 @@ msgid "HAND MIC KEYS"
 msgstr "TECLAS DEL MICRÓFONO DE MANO"
 
 #: src/settings_window.cpp
+msgid "Hand mic UP/DOWN"
+msgstr "Mic. de mano UP/DOWN"
+
+#: src/settings_window.cpp
+msgid ""
+" Channels \n"
+" Tune "
+msgstr ""
+" Canales \n"
+" Sintonizar "
+
+#: src/settings_window.cpp
 msgid "PADDLE"
 msgstr "PALETA"
 

@@ -12820,6 +12820,18 @@ msgid "HAND MIC KEYS"
 msgstr "TOUCHES DU MICRO À MAIN"
 
 #: src/settings_window.cpp
+msgid "Hand mic UP/DOWN"
+msgstr "Micro à main UP/DOWN"
+
+#: src/settings_window.cpp
+msgid ""
+" Channels \n"
+" Tune "
+msgstr ""
+" Canaux \n"
+" Accorder "
+
+#: src/settings_window.cpp
 msgid "PADDLE"
 msgstr "MANIPULATEUR"
 
