@@ -1047,6 +1047,7 @@ WINLINK_CALL_RE = re.compile(r"[A-Z0-9]{3,12}(-[0-9]{1,2})?")   # as x6100-winli
 WINLINK_LOCATOR_RE = re.compile(r"[A-R]{2}[0-9]{2}([A-X]{2})?", re.I)
 WINLINK_BANDWIDTHS = (200, 500, 1000, 2000)           # ARDOP's, the widest Pat may use (as x6100-winlink's)
 WINLINK_MODEMS = ("ardop", "mercury", "xara")         # the modem= choice (as x6100-winlink's), ardop the default
+WINLINK_VARA_MODEMS = ("mercury", "xara")             # the ones Pat reaches as VARA HF (varahf_modem=, the last)
 WINLINK_MERCURY_BANDWIDTHS = (500, 2300, 2750)        # Mercury's, VARA's three (as x6100-winlink's), 2300 the default
 WINLINK_XARA_BANDWIDTHS = (500, 2300, 2750)           # XARA's, VARA HF's own three, 2300 the default
 winlink_lock = threading.Lock()                       # one change at a time: Off may take 20 s
@@ -1205,6 +1206,11 @@ def set_winlink():
             if data["modem_choice"] not in WINLINK_MODEMS:
                 return api_error(400, "Modem: ARDOP, Mercury or XARA")
             new["modem"] = data["modem_choice"]
+            # The last of Mercury and XARA chosen: the one a VARA HF connection in Pat switches to from ARDOP (#296)
+            for m in (new["modem"], conf["modem"]):
+                if m in WINLINK_VARA_MODEMS:
+                    new["varahf_modem"] = m
+                    break
         if "mercury_bandwidth" in data:
             mbw = data["mercury_bandwidth"]
             if mbw not in WINLINK_MERCURY_BANDWIDTHS or isinstance(mbw, bool):

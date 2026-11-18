@@ -55,10 +55,10 @@ reports itself as Pat 1.0.1 with the upstream revision `2ad31e8` (`pat version`:
 
 ## Local patches (`patches/`)
 
-Each one made with `git format-patch` against `v1.0.1`; `git apply` takes them in order. On
-the way from `v1.0.0`: 0001 to 0004 rebased as they were (line offsets only); 0005 and 0006
-rebased onto v1.0.1's own changes to the same files (below); 0007 is new, for a v1.0.1
-regression.
+Each one made with `git format-patch` against `v1.0.1` (0008 against a stand-in, below); `git
+apply` takes them in order. On the way from `v1.0.0`: 0001 to 0004 rebased as they were (line
+offsets only); 0005 and 0006 rebased onto v1.0.1's own changes to the same files (below); 0007 is
+new, for a v1.0.1 regression; 0008 is new, for #296.
 
 - `0001-http-guard.patch`: a guard around Pat's HTTP handler (`api/guard.go`, wrapped in
   `api.ListenAndServe`). Pat has no login, and a plain GET of `/api/connect` keys the
@@ -203,6 +203,27 @@ regression.
   takes the mailbox's root, as `PostFormDataHandler` does; `in-reply-to` stays inside it
   (`IsInPath`). With a test (`internal/forms/template_reply_test.go`). Should go upstream (not
   reported).
+
+- `0008-modem-switch.patch`: a connection through ARDOP or VARA HF switches the radio's modem
+  first (#296). The radio runs one modem at a time, ARDOP, or Mercury or XARA (Pat's VARA HF), the
+  one chosen on the radio's Winlink page; a connection through the other transport (Pat's Connect
+  dialog, its API, APP > Mail, a schedule) went nowhere. `Connect()` now runs the command named in
+  `OPENX6X00_MODEM_SWITCH` (the supervisor sets it to `x6100-winlink`) as `<command> switch
+  ardop|varahf` before it sets up the TNC: that switches the modem when the other one runs, waits
+  until it is ready and exits 0, with `bw=<Hz>` for VARA HF (the radio's bandwidth for the modem
+  that runs, which the config Pat read at its start may not have; a connection's own `bw=` stays);
+  exit status 1, nothing dialed, the reason in Pat's log. One switch at a time, and none while a
+  connection through the other transport is under way. Without the variable, and for every other
+  transport, as upstream. Not Pat's prehook: that runs once the link is up, on it (for a node's
+  commands), and only for a URL that names it: too late to choose the modem. With a test
+  (`app/radio_modem_test.go`, with a stand-in switch). The radio's own: not for upstream.
+
+  Written on a PC without Pat's source at hand (no network but loopback in that round): the
+  `connect.go` hunk goes by the lines 0003 leaves there, so it has no `index` line, which
+  `git apply` does without. `radio_modem.go` and its test were built and run against wl2k-go
+  v1.0.1 from the module cache (`go vet`, `go test -race`, an ARMv7 build), with a stand-in for
+  `Connect()` around the hunk. Not built into Pat yet: `build.sh` builds it the first time and runs
+  no tests, so `go test ./app/` in the patched tree is the check to make then.
 
 `pat_ui_test.js` (ours, not in a patch) runs Pat's mailbox and configuration pages and their
 scripts from a patched source in jsdom, against a stand-in for Pat's server that answers with such

@@ -67,7 +67,7 @@
     <div class="dp-ctl"><input id="password" type="password" autocomplete="new-password" maxlength="64" placeholder="New password (empty = keep)"> <button type="button" id="pw-clear">Clear</button></div>
   </div>
   <div class="dp-row">
-    <div class="dp-lbl"><label for="modem"><b>Modem</b></label><span>ARDOP: the gateways in Pat's list. Mercury: faster on a good path, but only with a station that runs Mercury 1.9.20 or later (station to station, or one of the few gateways that run it), dialled by hand in Pat as VARA HF. XARA: speaks VARA HF, so the VARA HF gateways in Pat's list answer it (Connect, VARA HF), at VARA's free speed unless you tick your VARA HF licence below. Mercury and XARA cost the radio more processor and heat. One runs at a time</span></div>
+    <div class="dp-lbl"><label for="modem"><b>Modem</b></label><span>ARDOP: the gateways in Pat's list. Mercury: faster on a good path, but only with a station that runs Mercury 1.9.20 or later (station to station, or one of the few gateways that run it), dialled by hand in Pat as VARA HF. XARA: speaks VARA HF, so the VARA HF gateways in Pat's list answer it (Connect, VARA HF), at VARA's free speed unless you tick your VARA HF licence below. Mercury and XARA cost the radio more processor and heat. One runs at a time: a connection in Pat through the other transport switches to it (VARA HF: the last of Mercury and XARA chosen, XARA at first), and this row follows</span></div>
     <div class="dp-ctl"><select id="modem"><option value="ardop">ARDOP</option><option value="mercury">Mercury (experimental)</option><option value="xara">XARA (experimental, VARA-compatible)</option></select></div>
   </div>
   <div class="dp-row" id="row-bandwidth">
@@ -224,8 +224,22 @@ var renderConnections = function(st) {
 }
 const form = EditFlow.form($("#conf"), $("#status"), $("#conf button[type=submit]"));
 
+// The Modem row follows the radio's choice: a connection through the other transport in Pat switches the modem
+// (#296). Not while a choice made here is not saved yet; other fields being edited stay as they are
+var shownModem = null;
+var followModem = function(st) {
+  const now = st.modem_choice || "ardop";
+  if (shownModem === null || now === shownModem || $("#modem").val() !== shownModem) return;
+  const clean = !EditFlow.dirty($("#conf"));
+  $("#modem").val(now);
+  showModem();
+  if (clean) form.reset(); else form.check();
+  shownModem = now;
+}
+
 // The status, the switch and the notes: every two seconds, without touching what is being typed below
 var renderState = function(st) {
+  followModem(st);
   if (!busy) $("#enabled").prop("checked", !!st.enabled);
   $("#enabled").prop("disabled", busy);
   $("#text").text(st.text || st.state);
@@ -259,6 +273,7 @@ var render = function(st) {
   $("#password").val("");
   $("#bandwidth").val(String(st.bandwidth));
   $("#modem").val(st.modem_choice || "ardop");
+  shownModem = st.modem_choice || "ardop";
   $("#mercury_bandwidth").val(String(st.mercury_bandwidth || 2300));
   $("#xara_bandwidth").val(String(st.xara_bandwidth || 2300));
   $("#vara_licence").prop("checked", !!st.vara_licence);

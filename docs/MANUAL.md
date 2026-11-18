@@ -7364,6 +7364,20 @@ Connecting to a gateway:
   RMS list): the gateways that run ARDOP, with their callsign, frequency and
   distance. Pick one on a band that suits the time of day and your antenna,
   and Connect.
+- The transport you connect through chooses the modem (from v0.3.13; issue
+  #296): ARDOP while Mercury or XARA runs makes the modem ARDOP, VARA HF while
+  ARDOP runs makes it XARA, or Mercury when that was the last of the two you
+  chose on the Winlink page. The same from Pat's API and from
+  [APP > Mail](#mail-on-the-radio). Pat waits the few seconds until the new
+  modem is on the radio's audio, then calls; its log says so ("OpenX6X00:
+  switching the modem from ARDOP to XARA for this connection through VARA
+  HF"). The Winlink page's Modem follows and stays there afterwards; the
+  bandwidths, the VARA HF licence tick and the rest stay as set. When the
+  modem does not come up, Pat does not call and its log says why ("OpenX6X00:
+  no connection through VARA HF: XARA did not start ..."). No switch while
+  a connection through the other transport is under way; telnet and the
+  other transports are not touched. Up to v0.3.12 such a connection went
+  nowhere until the modem was changed on the Winlink page.
 - Pat gives the radio the gateway's dial frequency: the radio tunes there,
   switches to USB-D (unless it is in USB or USB-D already), and tunes back
   after the session. The power is the radio's setting, at most 7 W, as for

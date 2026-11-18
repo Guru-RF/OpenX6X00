@@ -1,0 +1,443 @@
+From 9667afd62012d69d47e3cac074d738d69bf9d6c5 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Wed, 18 Nov 2026 12:00:00 +0100
+Subject: [PATCH] app: a connection through ARDOP or VARA HF switches the
+ radio's modem (OpenX6X00)
+
+The radio runs one modem at a time on its audio: ARDOP (ardopcf), or
+Mercury or XARA, which Pat reaches as VARA HF, the one chosen on the
+radio's Winlink page. A connection through Pat's other transport went
+nowhere: the user had to change the modem on that page first (#296).
+
+Connect() now runs the switch command the radio's supervisor names in
+OPENX6X00_MODEM_SWITCH (itself, x6100-winlink) before it sets up the
+TNC for an ardop or varahf connection: `<command> switch ardop|varahf`
+makes the radio run a modem for that transport, waits until it is
+ready, and answers bw=<Hz> for VARA HF, the bandwidth set on the radio
+for the modem that runs, which the config read at Pat's start may not
+have; a connection's own bw= stays. When it exits 1 nothing is dialed;
+it put its reason into Pat's log, and its stderr's last line goes there
+too. One switch at a time, and none while a connection through the
+other transport is under way. Without the variable, and for every
+other transport, Connect() is as upstream.
+
+Not Pat's prehook: that runs once the connection is up, too late to
+choose the modem, and only for a URL that names it.
+
+With a test (app/radio_modem_test.go, with a stand-in switch).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ app/connect.go          |   8 ++
+ app/radio_modem.go      | 139 ++++++++++++++++++++++++
+ app/radio_modem_test.go | 234 ++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 381 insertions(+)
+ create mode 100644 app/radio_modem.go
+ create mode 100644 app/radio_modem_test.go
+
+diff --git a/app/connect.go b/app/connect.go
+--- a/app/connect.go
++++ b/app/connect.go
+@@ -77,6 +77,14 @@ func (a *App) Connect(connectStr string) (success bool) {
+ 			url.Params.Get("bw"), asked)
+ 	}
+ 
++	// OpenX6X00: the radio runs one modem at a time; a connection through the other one's transport
++	// switches it first (radio_modem.go)
++	modemDone, modemOK := radioModemFor(url)
++	if !modemOK {
++		return false
++	}
++	defer modemDone()
++
+ 	// Init TNCs
+ 	switch url.Scheme {
+ 	case MethodAX25AGWPE:
+diff --git a/app/radio_modem.go b/app/radio_modem.go
+new file mode 100644
+index 0000000..f5577b4
+--- /dev/null
++++ b/app/radio_modem.go
+@@ -0,0 +1,139 @@
++// Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF (OpenX6X00).
++// Use of this source code is governed by the MIT-license that can be
++// found in the LICENSE file.
++
++package app
++
++import (
++	"bytes"
++	"context"
++	"errors"
++	"fmt"
++	"log"
++	neturl "net/url"
++	"os"
++	"os/exec"
++	"strings"
++	"sync"
++	"time"
++
++	"github.com/la5nta/wl2k-go/transport"
++)
++
++// radioModemEnv names the radio's modem switch (OpenX6X00 patch): the supervisor that runs Pat on
++// the radio (x6100-winlink) sets it to itself. Unset, as anywhere else, Pat connects as upstream.
++const radioModemEnv = "OPENX6X00_MODEM_SWITCH"
++
++// radioModemWait is the longest a switch may take. The modem that runs stops (Mercury takes up to
++// 10 s), the other one starts and comes onto the radio's audio; the switch gives up well before.
++var radioModemWait = 90 * time.Second
++
++// The connections through the radio's modem under way: their transport, and how many
++var radioModem struct {
++	sync.Mutex
++	via   string
++	count int
++}
++
++// radioModemFor makes the radio run a modem for the connection's transport before Pat dials
++// (OpenX6X00 patch, #296). The radio runs one modem at a time on its audio: ARDOP (ardopcf), or
++// Mercury or XARA, which Pat reaches as VARA HF, the one chosen on the radio's Winlink page. A
++// connection through the other transport went nowhere.
++//
++// The switch command, run as `<command> switch ardop` or `<command> switch varahf`, switches the
++// modem when the other one runs, waits until the new one is ready, and exits 0, with "bw=<Hz>" on
++// its output for VARA HF: the bandwidth set on the radio for the modem that runs, which the config
++// Pat read at its start may not have (Mercury's and XARA's are set apart). A connection that names
++// its own bw= keeps it. The command exits 1 when it could not; it said why in Pat's log, as its
++// other "OpenX6X00: " lines, and what it wrote to its stderr goes there too. Nothing is dialed then.
++//
++// One switch at a time, and none while a connection through the other transport is under way: it
++// would stop the modem that connection uses. A second connection through the same transport
++// meanwhile is left to Pat and the modem, as upstream. Other transports (telnet, ...) are not
++// touched. ok false: no connection. done: called once the connection is over.
++func radioModemFor(url *transport.URL) (done func(), ok bool) {
++	cmd := os.Getenv(radioModemEnv)
++	if cmd == "" || (url.Scheme != "ardop" && url.Scheme != "varahf") { // Pat's MethodArdop and MethodVaraHF
++		return func() {}, true
++	}
++	radioModem.Lock()
++	defer radioModem.Unlock()
++	if radioModem.count > 0 && radioModem.via != url.Scheme {
++		log.Printf("OpenX6X00: no connection through %s: one through %s is under way, and the radio runs one "+
++			"modem at a time", radioModemName(url.Scheme), radioModemName(radioModem.via))
++		return nil, false
++	}
++	if radioModem.count == 0 {
++		bw, err := runRadioModemSwitch(cmd, url.Scheme)
++		if err != nil {
++			if msg := err.Error(); msg != "" {
++				log.Printf("OpenX6X00: %s", msg)
++			}
++			return nil, false
++		}
++		if url.Scheme == "varahf" && bw != "" && url.Params.Get("bw") == "" {
++			if url.Params == nil {
++				url.Params = neturl.Values{}
++			}
++			url.Params.Set("bw", bw)
++		}
++	}
++	radioModem.via = url.Scheme
++	radioModem.count++
++	var once sync.Once
++	return func() {
++		once.Do(func() {
++			radioModem.Lock()
++			radioModem.count--
++			radioModem.Unlock()
++		})
++	}, true
++}
++
++// runRadioModemSwitch runs the switch for the transport: the bandwidth it gave for VARA HF ("" for
++// none), or an error, whose text goes into Pat's log ("" when the switch put its own reason there)
++func runRadioModemSwitch(cmd, via string) (bw string, err error) {
++	ctx, cancel := context.WithTimeout(context.Background(), radioModemWait)
++	defer cancel()
++	var stdout, stderr bytes.Buffer
++	c := exec.CommandContext(ctx, cmd, "switch", via)
++	c.Stdout, c.Stderr = &stdout, &stderr
++	c.WaitDelay = 2 * time.Second // a child left holding its output does not keep the connect waiting
++	err = c.Run()
++	if ctx.Err() == context.DeadlineExceeded {
++		return "", fmt.Errorf("no connection through %s: the modem switch did not end within %s",
++			radioModemName(via), radioModemWait)
++	}
++	var exit *exec.ExitError
++	if errors.As(err, &exit) {
++		return "", errors.New(radioModemLastLine(stderr.String()))
++	}
++	if err != nil {
++		return "", fmt.Errorf("no connection through %s: the modem switch could not run (%v)", radioModemName(via), err)
++	}
++	for _, line := range strings.Split(stdout.String(), "\n") {
++		if v, found := strings.CutPrefix(strings.TrimSpace(line), "bw="); found && v != "" &&
++			strings.Trim(v, "0123456789") == "" {
++			bw = v
++		}
++	}
++	return bw, nil
++}
++
++// radioModemName is a transport as Pat's Connect dialog names it
++func radioModemName(scheme string) string {
++	switch scheme {
++	case "ardop":
++		return "ARDOP"
++	case "varahf":
++		return "VARA HF"
++	}
++	return scheme
++}
++
++// radioModemLastLine is the last line of what the switch wrote to its stderr, without the "error "
++// its commands begin a failure with
++func radioModemLastLine(text string) string {
++	lines := strings.Split(strings.TrimSpace(text), "\n")
++	return strings.TrimPrefix(strings.TrimSpace(lines[len(lines)-1]), "error ")
++}
+diff --git a/app/radio_modem_test.go b/app/radio_modem_test.go
+new file mode 100644
+index 0000000..c9e36df
+--- /dev/null
++++ b/app/radio_modem_test.go
+@@ -0,0 +1,234 @@
++package app
++
++import (
++	"bytes"
++	"log"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++	"time"
++
++	"github.com/la5nta/wl2k-go/transport"
++)
++
++// fakeSwitch puts a switch command in place that logs its arguments to a file, and runs body (a
++// shell script's lines) after that; it returns that file's path
++func fakeSwitch(t *testing.T, body string) (calls string) {
++	t.Helper()
++	dir := t.TempDir()
++	calls = filepath.Join(dir, "calls")
++	script := filepath.Join(dir, "x6100-winlink")
++	text := "#!/bin/sh\necho \"$@\" >> " + calls + "\n" + body + "\n"
++	if err := os.WriteFile(script, []byte(text), 0o755); err != nil {
++		t.Fatal(err)
++	}
++	t.Setenv(radioModemEnv, script)
++	return calls
++}
++
++func callsOf(t *testing.T, path string) []string {
++	t.Helper()
++	b, err := os.ReadFile(path)
++	if os.IsNotExist(err) {
++		return nil
++	} else if err != nil {
++		t.Fatal(err)
++	}
++	return strings.Split(strings.TrimSpace(string(b)), "\n")
++}
++
++func parse(t *testing.T, s string) *transport.URL {
++	t.Helper()
++	url, err := transport.ParseURL(s)
++	if err != nil {
++		t.Fatal(err)
++	}
++	return url
++}
++
++// logged catches what the standard logger writes during the test
++func logged(t *testing.T) *bytes.Buffer {
++	var buf bytes.Buffer
++	log.SetOutput(&buf)
++	t.Cleanup(func() { log.SetOutput(os.Stderr) })
++	return &buf
++}
++
++func TestRadioModemNotOnTheRadio(t *testing.T) {
++	t.Setenv(radioModemEnv, "")
++	url := parse(t, "varahf:///N0BBB?freq=7101.5")
++	done, ok := radioModemFor(url)
++	if !ok || url.Params.Get("bw") != "" {
++		t.Fatalf("without %s: ok=%v bw=%q, want as upstream", radioModemEnv, ok, url.Params.Get("bw"))
++	}
++	done()
++}
++
++func TestRadioModemOtherTransportsUntouched(t *testing.T) {
++	calls := fakeSwitch(t, "exit 1")
++	for _, s := range []string{"telnet:///N0BBB", "varafm:///N0BBB", "ax25:///N0BBB", "ptc:///N0BBB"} {
++		done, ok := radioModemFor(parse(t, s))
++		if !ok {
++			t.Errorf("%s: refused", s)
++			continue
++		}
++		done()
++	}
++	if c := callsOf(t, calls); c != nil {
++		t.Errorf("the switch ran for another transport: %v", c)
++	}
++}
++
++func TestRadioModemVaraHFTakesTheBandwidth(t *testing.T) {
++	calls := fakeSwitch(t, "echo bw=500")
++	url := parse(t, "varahf:///N0BBB?freq=7101.5")
++	done, ok := radioModemFor(url)
++	if !ok {
++		t.Fatal("refused")
++	}
++	done()
++	if got := callsOf(t, calls); len(got) != 1 || got[0] != "switch varahf" {
++		t.Errorf("calls %v, want [switch varahf]", got)
++	}
++	if url.Params.Get("bw") != "500" || url.Params.Get("freq") != "7101.5" {
++		t.Errorf("params %v, want bw=500 and the freq kept", url.Params)
++	}
++	// A bw= of the connection's own stays
++	url = parse(t, "varahf:///N0BBB?bw=2750")
++	done, ok = radioModemFor(url)
++	if !ok || url.Params.Get("bw") != "2750" {
++		t.Errorf("bw=2750 asked: ok=%v bw=%q", ok, url.Params.Get("bw"))
++	}
++	done()
++	// Anything but a number is not taken
++	fakeSwitch(t, "echo 'bw=2300 Hz'")
++	url = parse(t, "varahf:///N0BBB")
++	done, ok = radioModemFor(url)
++	if !ok || url.Params.Get("bw") != "" {
++		t.Errorf("a bw= that is not a number: ok=%v bw=%q", ok, url.Params.Get("bw"))
++	}
++	done()
++}
++
++func TestRadioModemArdop(t *testing.T) {
++	calls := fakeSwitch(t, "")
++	url := parse(t, "ardop:///N0BBB?bw=500MAX&freq=7101.5")
++	done, ok := radioModemFor(url)
++	if !ok || url.Params.Get("bw") != "500MAX" {
++		t.Fatalf("ok=%v bw=%q", ok, url.Params.Get("bw"))
++	}
++	done()
++	if got := callsOf(t, calls); len(got) != 1 || got[0] != "switch ardop" {
++		t.Errorf("calls %v, want [switch ardop]", got)
++	}
++}
++
++func TestRadioModemSwitchFailed(t *testing.T) {
++	// It said why in Pat's log itself: nothing more here
++	fakeSwitch(t, "exit 1")
++	buf := logged(t)
++	if _, ok := radioModemFor(parse(t, "varahf:///N0BBB")); ok {
++		t.Fatal("went ahead")
++	}
++	if buf.Len() != 0 {
++		t.Errorf("logged %q, want nothing", buf.String())
++	}
++	// Its error line, without "error "
++	fakeSwitch(t, "echo 'error no supervisor' >&2; exit 1")
++	if _, ok := radioModemFor(parse(t, "ardop:///N0BBB")); ok {
++		t.Fatal("went ahead")
++	}
++	if !strings.Contains(buf.String(), "OpenX6X00: no supervisor\n") {
++		t.Errorf("logged %q", buf.String())
++	}
++	// Not there
++	t.Setenv(radioModemEnv, filepath.Join(t.TempDir(), "none"))
++	buf.Reset()
++	if _, ok := radioModemFor(parse(t, "ardop:///N0BBB")); ok {
++		t.Fatal("went ahead")
++	}
++	if !strings.Contains(buf.String(), "OpenX6X00: no connection through ARDOP: the modem switch could not run") {
++		t.Errorf("logged %q", buf.String())
++	}
++	// No answer in time
++	fakeSwitch(t, "exec sleep 10")
++	old := radioModemWait
++	radioModemWait = 300 * time.Millisecond
++	t.Cleanup(func() { radioModemWait = old })
++	buf.Reset()
++	start := time.Now()
++	if _, ok := radioModemFor(parse(t, "varahf:///N0BBB")); ok {
++		t.Fatal("went ahead")
++	}
++	if time.Since(start) > 3*time.Second {
++		t.Errorf("gave up after %v", time.Since(start))
++	}
++	if !strings.Contains(buf.String(), "OpenX6X00: no connection through VARA HF: the modem switch did not end within 300ms") {
++		t.Errorf("logged %q", buf.String())
++	}
++}
++
++func TestRadioModemOneTransportAtATime(t *testing.T) {
++	calls := fakeSwitch(t, "")
++	buf := logged(t)
++	done1, ok := radioModemFor(parse(t, "ardop:///N0BBB"))
++	if !ok {
++		t.Fatal("first refused")
++	}
++	// The other transport while ARDOP's connection is under way: refused, the switch not run
++	if _, ok := radioModemFor(parse(t, "varahf:///N0CCC")); ok {
++		t.Fatal("a VARA HF connection during ARDOP's went ahead")
++	}
++	if !strings.Contains(buf.String(), "OpenX6X00: no connection through VARA HF: one through ARDOP is under way") {
++		t.Errorf("logged %q", buf.String())
++	}
++	// The same transport: left to Pat and the modem, no switch run for it
++	done2, ok := radioModemFor(parse(t, "ardop:///N0CCC"))
++	if !ok {
++		t.Fatal("a second ARDOP connection refused")
++	}
++	if got := callsOf(t, calls); len(got) != 1 {
++		t.Errorf("calls %v, want the first one's only", got)
++	}
++	done1()
++	done1() // once only
++	if _, ok := radioModemFor(parse(t, "varahf:///N0CCC")); ok {
++		t.Fatal("VARA HF went ahead while the second ARDOP connection was under way")
++	}
++	done2()
++	done, ok := radioModemFor(parse(t, "varahf:///N0CCC"))
++	if !ok {
++		t.Fatal("VARA HF refused once the ARDOP connections were over")
++	}
++	done()
++	if got := callsOf(t, calls); len(got) != 2 || got[1] != "switch varahf" {
++		t.Errorf("calls %v, want [switch ardop switch varahf]", got)
++	}
++}
++
++func TestRadioModemOneSwitchAtATime(t *testing.T) {
++	// Two connections at once: the second one's switch runs after the first one's is over, never beside it
++	dir := t.TempDir()
++	lock, overlap := filepath.Join(dir, "lock"), filepath.Join(dir, "overlap")
++	calls := fakeSwitch(t, "mkdir "+lock+" || touch "+overlap+"; sleep 0.3; rmdir "+lock)
++	res := make(chan bool, 2)
++	for _, s := range []string{"varahf:///N0BBB", "ardop:///N0CCC"} {
++		go func(s string) {
++			done, ok := radioModemFor(parse(t, s))
++			if ok {
++				done()
++			}
++			res <- ok
++		}(s)
++	}
++	if !<-res || !<-res {
++		t.Fatal("refused")
++	}
++	if _, err := os.Stat(overlap); err == nil {
++		t.Error("two switches ran at once")
++	}
++	if got := callsOf(t, calls); len(got) != 2 {
++		t.Errorf("calls %v, want two", got)
++	}
++}
+-- 
+2.56.0
+

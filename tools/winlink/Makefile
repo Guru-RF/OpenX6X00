@@ -1,5 +1,6 @@
 # Host test of the Winlink modem bridge (src/winlink.c): `make` builds it against the stubs and runs the
-# protocol test; `make modems` runs the real modems against it; `make mail` APP > Mail's helper. See README.md.
+# protocol test, then the supervisor's and the page's (below); `make modems` runs the real modems against it;
+# `make mail` APP > Mail's helper. See README.md.
 # The sources are copied to build/ first: a quoted #include looks beside the including file before the -I
 # paths, and the shims in stub_include must win over src/. The band table (cluster/spots.c, the SWR hold's bands)
 # is the real one, in build/cluster/.
@@ -28,8 +29,13 @@ winlink_host: stubs.c build/.copied $(wildcard stub_include/*.h stub_include/*/*
 clockskip.so: clockskip.c
 	$(CC) -std=gnu11 -Wall -Wextra -O1 -pthread -shared -fPIC -o $@ $< -ldl
 
+# Also the supervisor's tests (winlink_test.py) in a network namespace of their own with loopback only, where the
+# switch of Pat's runs the supervisor with stand-ins on Pat's and the modems' ports, and the Winlink page's
+# (winlink_web_test.py) when BOTTLE names a folder with bottle.py 0.13 (test_tree.sh gives one)
 test: winlink_host
 	python3 -I winlink_proto_test.py
+	unshare -rn sh -c 'ip link set lo up && WINLINK_NETNS=1 python3 -B winlink_test.py'
+	$(if $(BOTTLE),PYTHONPATH=$(abspath $(BOTTLE)) python3 -B winlink_web_test.py)
 
 # In a network namespace of its own with loopback only (unshare -rn): Pat reaches nothing outside it, no
 # Winlink web service, no CMS

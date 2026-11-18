@@ -5,7 +5,9 @@
  * transverter's TX power limit (#104), 0.5 W, said as such. The SWR hold row: none, on the radio's band (red), on
  * another band (the radio transmits), and from a GUI before #147 (every band held). The Filter row for XARA's
  * three bandwidths, the Connections card's Modem row with XARA's speed, and the Station card's rows for the modem
- * chosen (XARA's bandwidth and the VARA HF licence tick box with XARA only).
+ * chosen (XARA's bandwidth and the VARA HF licence tick box with XARA only). The whole page, its first answer and
+ * its refreshes: the Station card's Modem row follows the radio's choice, which Pat's connection through the other
+ * transport changes (#296), unless a choice made on the page is not saved yet.
  * Prints PAGE OK; exits 1 at the first failure. Run from winlink_web_test.py, or `node winlink_page_test.js` */
 'use strict';
 const {page, between} = require('../../docs/audit/repro-2026-10-24/browser-dom.js');
@@ -124,6 +126,43 @@ row = shown('mercury');
 check("Mercury: its bandwidth only", row === '#row-mercury-bandwidth', row);
 row = shown('xara');
 check("XARA: its bandwidth and the VARA HF licence", row === '#row-xara-bandwidth #row-vara-licence', row);
+
+/* The whole page, as a browser runs it: edit_flow.js, then its script; the answers to its requests given here */
+const q = page('winlink.html');
+q.run('static/js/edit_flow.js');
+q.run(q.script, 'views/winlink.html');
+const ST = {state: 'running', text: 'Running as N0AAA', pat: 'running', enabled: true, mycall: '', locator: '',
+            bandwidth: 500, modem_choice: 'ardop', mercury_bandwidth: 2300, xara_bandwidth: 2300, vara_licence: false,
+            installed: true, xara_installed: true, host_ok: true, port: 8080, password: 'page', radio: {}};
+function answer(st) {
+  const r = q.$.requests.pop();
+  r.ok(Object.assign({}, ST, st));
+}
+function station() {
+  const rows = ROWS.filter(r => q.$(r)[0].style.display !== 'none').join(' ');
+  return q.$('#modem').val() + ' (' + rows + ')' + (q.$('#status').hasClass('form-unsaved') ? ', Unsaved' : '');
+}
+function refreshed(st) {
+  q.eval('refresh()');
+  answer(st);
+  return station();
+}
+answer({});
+row = station();
+check('the first answer: ARDOP', row === 'ardop (#row-bandwidth)', row);
+row = refreshed({modem_choice: 'xara'});
+check("Pat's VARA HF connection switched to XARA: the row follows, nothing to save",
+      row === 'xara (#row-xara-bandwidth #row-vara-licence)', row);
+q.$('#modem').val('mercury').trigger('change');
+row = refreshed({modem_choice: 'ardop'});
+check('Mercury chosen here, not saved: kept as chosen', row === 'mercury (#row-mercury-bandwidth), Unsaved', row);
+q.$('#modem').val('xara').trigger('change');
+row = refreshed({modem_choice: 'ardop'});
+check("the choice back to the radio's: the row follows again", row === 'ardop (#row-bandwidth)', row);
+q.$('#mycall').val('N0AAA').trigger('input');
+row = refreshed({modem_choice: 'mercury'});
+check('another field being edited: the row follows, the edit kept and unsaved',
+      row === 'mercury (#row-mercury-bandwidth), Unsaved' && q.$('#mycall').val() === 'N0AAA', row);
 
 if (failed) process.exit(1);
 console.log('PAGE OK');
