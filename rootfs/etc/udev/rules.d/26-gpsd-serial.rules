@@ -1,0 +1,8 @@
+# GPS mice behind a USB-serial bridge of the newer series whose older chip gpsd lists (067b:2303 in
+# /lib/udev/rules.d/25-gpsd.rules): 067b:23a3, 23b3, 23c3, 23d3, 23e3 and 23f3. The kernel's driver for them is in the
+# image, so such a mouse got its serial port (ttyUSB), but no /dev/gps link and no hotplug call: nothing read it
+# (#301, a GNSS mouse at 115200 baud). As gpsd's own line for the older chip: the port is linked as /dev/gpsN, which
+# S50gpsd hands gpsd at boot, and the hotplug script hands it over when it is plugged in later; its removal is gpsd's
+# own rule's (the /dev/gps link). A serial cable on the same chip (a TNC's) is taken for a GPS too, as one on the
+# older chip always was.
+SUBSYSTEM=="tty", ACTION!="remove", ATTRS{idVendor}=="067b", ATTRS{idProduct}=="23[a-f]3", SYMLINK+="gps%n", RUN+="/lib/udev/gpsd.hotplug"

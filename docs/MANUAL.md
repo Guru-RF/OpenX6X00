@@ -9584,6 +9584,16 @@ it stays grey, unplug the GPS and plug it in again. The radio's log
 `gps:` for each of these steps. Up to v0.3.10 the radio could stop reading the
 GPS after a while until it was restarted (issue #237).
 
+#### A USB GPS mouse shows nothing
+
+The radio reads a GPS through gpsd. A mouse with a USB port of its own (a
+`ttyACM` port) is read as soon as it is plugged in. One behind a USB-serial
+bridge (a `ttyUSB` port) is read when its bridge is one gpsd takes for a GPS:
+the common ones, and the newer series of the most common bridge (USB IDs
+067b:23a3 to 23f3, issue #301). For another bridge, hand the port over by hand
+over SSH (`gpsdctl add /dev/ttyUSB0`) and open an issue with the mouse's USB
+ID, so it can be added.
+
 #### The ALC reads about 1 in FT8 or JS8. Is it too high?
 
 No. The TX level settles with the ALC working a little, with the power at the
