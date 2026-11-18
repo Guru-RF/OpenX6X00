@@ -29,7 +29,7 @@ function power(radio) {
   return p.$('#r-pwr').text() + ', ' + p.$('#r-pwr-n').text();
 }
 
-const UNDER = "The radio's PWR; Winlink at most ", BATTERY = ', as the X6200 runs on its battery';
+const UNDER = "The radio's PWR; Winlink at most ", BATTERY = ', as the radio runs on its battery';
 const XVTR = ", the transverter's TX power limit";
 let row = power({});
 check('PWR 5 W: 5.0 W, Winlink at most 7 W', row === '5.0 W, ' + UNDER + '7 W', row);
