@@ -3766,7 +3766,10 @@ static void make_keys_page() {
     row = make_key_rows(row, 0, KEY_ROWS_FRONT);
     card_end(row);
 
+    /* UP/DOWN: the channels, or the VFO a step as the main knob (#300, mic_updown.h); screen_main.c reads it at each
+     * press */
     row = card_begin("HAND MIC KEYS");
+    row = make_param_choice(row, "Hand mic UP/DOWN", " Channels \n Tune ", cfg_sm.p_mic_updown);
     row = make_key_rows(row, KEY_ROWS_FRONT, sizeof(key_rows) / sizeof(key_rows[0]));
     card_end(row);
 

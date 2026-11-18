@@ -363,7 +363,8 @@ Hide buttons. With Settings > Display > INTERFACE > Hide buttons at After
 3 s, After 5 s or After 10 s (Off by default), the five buttons and the two
 knob lines over them hide on the main screen once that long has gone by
 without a key, and the waterfall shows down to the bottom of the screen.
-- Any key brings them back: a front key, a hand mic key, a keyboard key. It
+- Any key brings them back: a front key, a hand mic key, a keyboard key
+  (not the hand mic's UP and DOWN set to Tune: they are the main knob). It
   also does its usual job (ATU switches the tuner), except F1-F5: their
   press only brings the buttons back, so a button you can't see is never
   pressed. Press it again to use it. F1-F5 from a browser (the Panel's Keys
@@ -441,8 +442,9 @@ While it is on, LOCK shows in the frequency strip, the main knob and F-INP
 do not tune, the step mark under the frequency goes and the frequency scale
 greys out, and the browser panel, TCI programs, Pat's QSY (Winlink) and Field
 Ops' band tune are refused. The band keys, memories, channels (the
-CHANNELS window and the hand mic's UP/DOWN), cluster spots and CAT still
-tune: they are chosen, and LOCK is there against a knob turned by accident.
+CHANNELS window and the hand mic's UP/DOWN on Channels), cluster spots and CAT
+still tune: they are chosen, and LOCK is there against a knob turned by
+accident. The hand mic's UP/DOWN on Tune are the knob: LOCK stops them.
 LOCK stays on after them. Up to v0.3.11 LOCK refused channels too
 (issue #111).
 - LOCK is left of the frequency; in VISION in front of the locator; in Black
@@ -471,7 +473,7 @@ one second.
 | F-INP (H-22: the red F-INP/ENT) | both | the frequency box, see below | |
 | F1, F2 | both | the action set in Settings > Keys > HAND MIC KEYS: F1 steps up, F2 does nothing until it has one | F1 steps down, F2 as set |
 | F3 | H-22 | as F2, with its own action (X6200: Settings > Keys > HAND MIC KEYS) | as set |
-| UP, DOWN (H-22: the arrow keys) | both | the [channel](#channels) before or after the last one tuned, its name shown (not while an app holds the frequency or the mode; LOCK lets it through) | band up or down |
+| UP, DOWN (H-22: the arrow keys) | both | as Settings > Keys > HAND MIC KEYS > Hand mic UP/DOWN has it. Channels (the default): the [channel](#channels) before or after the last one tuned, its name shown (not while an app holds the frequency or the mode; LOCK lets it through). Tune: the frequency one step up or down, as one click of the main knob (see below) | band up or down, with either |
 | MODE | both | the next mode: LSB, USB, CW, CW-R, AM, NFM (and SAM, WFM on the X6200) | DIG on or off in SSB, like a long press of the front SSB key |
 | V/M | both | the [CHANNELS](#channels) window (not over an app that has the screen) | |
 | VOL+, VOL- | H-22 | the RX volume one step up or down, shown like the VOL knob's | held: on by itself from 0.4 s, before the long press, about ten steps a second until let go |
@@ -490,6 +492,18 @@ one second.
   it only closes it.
 - In a list or a text box (the WiFi password) the digits, the dot and CE type
   instead.
+- Hand mic UP/DOWN on Tune: each press of UP or DOWN moves the frequency one
+  tuning step, as one click of the main knob, as on the stock firmware. Tune
+  along a band without looking, counting the presses: with a 500 Hz step,
+  three presses of UP are 1.5 kHz up. The key goes the knob's way in all:
+  the step of the mode and zoom (FST changes it), no speed-up, the VFO you
+  are on, Mode from band plan, LOCK and an app holding the frequency stop
+  it, the cluster spot snap holds it on a spot as a slowly turned knob
+  (Spot snap hold), and in an app that uses the main knob for itself (FT8's
+  TX offset) a press moves that. A press acts as the key is let go; held a
+  second it is band up or down instead, and held longer it does not repeat.
+  Hidden buttons stay hidden, as with the knob. Up to v0.3.12 UP and DOWN
+  always recalled channels (issue #300).
 - The H-22's UP and DOWN keys on its side change band like the BAND keys.
 - The X6100's hand mic works on the X6200 too, its keys as in this table: the
   digits go to the bands printed on them (3 = 40 m) and its dot to none. The
@@ -2241,7 +2255,7 @@ by itself. The 20 MHz and channel 12 and 13 settings in `x6100-wifi.conf` are
 | Card | Options |
 |---|---|
 | FRONT KEYS, LONG PRESS | the long-press action of GEN, APP, KEY, MSG, DFN, DFL and FST (see [Buttons and knobs](#buttons-and-knobs)) |
-| HAND MIC KEYS | F1, F2, F1 long, F2 long; on the X6200 F3 and F3 long too, for the H-22's F3 (see [Hand mic](#hand-mic)) |
+| HAND MIC KEYS | Hand mic UP/DOWN (Channels, the default: UP and DOWN recall the channels; Tune: they move the frequency a step, as the main knob), F1, F2, F1 long, F2 long; on the X6200 F3 and F3 long too, for the H-22's F3 (see [Hand mic](#hand-mic)) |
 | PADDLE | USB paddles: Connected, the dit/dah of each kind, Learn dit and dah, Swap dit and dah, Serial port (see [USB paddle](#usb-paddle)) |
 | KEYBOARD | Layout of a USB or Bluetooth keyboard: US by default, UK, German, French and others (see [Keyboard](#keyboard)) |
 
