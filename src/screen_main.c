@@ -37,6 +37,7 @@
 #include "screen_rec.h"
 #include "key_input.h"
 #include "mic_keys.h"
+#include "mic_updown.h"
 #include "app_window.h"
 #include "band_keep.h"
 #include "settings_window.h"
@@ -1107,13 +1108,21 @@ static void mic_vol_repeat_cb(lv_timer_t *t) {
     lv_timer_set_period(t, MIC_VOL_REPEAT_MS);
 }
 
+static void knob_turn(int16_t diff, uint16_t dt);     /* the main knob turned (below) */
+
 /* Hand mic keys */
 static void mic_key_cb(lv_event_t *e) {
     event_hkey_t   *ev   = lv_event_get_param(e);
     bool            tap  = ev->state == HKEY_RELEASE;
     bool            hold = ev->state == HKEY_LONG;
+    bool            updown = ev->key == HKEY_UP || ev->key == HKEY_DOWN;
+    bool            tune   = updown && param_i_get(cfg_mic_updown) == MIC_UPDOWN_TUNE;
 
-    main_screen_buttons_wake();     /* a key: the buttons back (Hide buttons) */
+    /* A key: the buttons back (Hide buttons). Not UP/DOWN on Tune, the main knob's detents, which leave them as the
+     * knob does; held, the band, they come back */
+    if (!tune || hold) {
+        main_screen_buttons_wake();
+    }
     switch (ev->key) {
         /* The band printed on the key; digits only in F-INP (dialog_freq.c). Long: memory 1-9 */
         case HKEY_0: case HKEY_1: case HKEY_2: case HKEY_3: case HKEY_4:
@@ -1160,15 +1169,18 @@ static void mic_key_cb(lv_event_t *e) {
             }
             break;
 
-        /* Hand mic UP/DOWN: the channel before/after the last one tuned, its name shown;
-         * long press: band up/down */
+        /* Hand mic UP/DOWN (Settings > Keys > HAND MIC KEYS > Hand mic UP/DOWN, mic_updown.h): on Channels the channel
+         * before/after the last one tuned, its name shown; on Tune a detent of the main knob, up/down, by the knob's
+         * own path: its step, LOCK, an app's hold, an app's own use of the knob (#300). Long press: band up/down */
         case HKEY_UP:
         case HKEY_DOWN: {
-            bool up = ev->key == HKEY_UP;
+            mic_ud_t ud = mic_updown(param_i_get(cfg_mic_updown), ev->key == HKEY_UP, tap, hold);
 
-            if (hold) {
-                band_step(up);
-            } else if (tap && dialog_channels_recall_relative(up ? -1 : +1)) {
+            if (ud.what == MIC_UD_BAND) {
+                band_step(ud.dir > 0);
+            } else if (ud.what == MIC_UD_TUNE) {
+                knob_turn(ud.dir, 0);
+            } else if (ud.what == MIC_UD_CHANNEL && dialog_channels_recall_relative(ud.dir)) {
                 channel_overlay_show(dialog_channels_last_recalled_name());
             }
             break;
@@ -1362,11 +1374,17 @@ static void plan_mode(int32_t old, int32_t freq) {
     }
 }
 
+/* diff detents of the main knob, dt ms each (0: a key, one step a detent): the frequency, and the open app's own use
+ * of the knob (FT8's TX offset). The hand mic's UP/DOWN on Tune come here too */
+static void knob_turn(int16_t diff, uint16_t dt) {
+    freq_shift(diff, dt);
+    dialog_rotary(diff);
+}
+
 static void main_knob_cb(lv_event_t *e) {
     rotary_data_t *turn = lv_event_get_param(e);
 
-    freq_shift(turn->diff, turn->dt);
-    dialog_rotary(turn->diff);
+    knob_turn(turn->diff, turn->dt);
     free(turn);     /* rotary.c allocates one per event */
 }
 

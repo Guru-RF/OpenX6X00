@@ -385,6 +385,11 @@ class SettingsManager {
     // list (0 US, as up to v0.3.9); key_input.c follows it (#236)
     Parameter<int32_t> p_kbd_layout{"kbd_layout", 0, 0, KBD_LAYOUTS - 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Settings > Keys > HAND MIC KEYS > Hand mic UP/DOWN (#300), mic_updown.h's values: 0 Channels (the default, as up
+    // to v0.3.12), a press recalls the channel before or after the last one tuned; 1 Tune, a press moves the VFO a
+    // step, as a detent of the main knob. Held, band up or down with both (screen_main.c, live)
+    Parameter<int32_t> p_mic_updown{"mic_updown", 0, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_vox_gain{"vox_gain", 0, 0, 100,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_vox_ag{"vox_ag", 0, 0, 100,
