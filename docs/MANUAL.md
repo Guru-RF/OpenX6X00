@@ -7875,7 +7875,11 @@ When it does not work:
   log), and its connections fail. The radio's processor is short for it: use
   ARDOP, and send the logs download on
   [#120](https://github.com/Guru-RF/OpenX6X00/issues/120), it helps the
-  measurement.
+  measurement. "audio: no receiver audio from the GUI for ... ms" in XARA's
+  log is something else: the radio's audio stopped for a moment and came
+  back all at once. XARA hears silence for that moment, drops the audio that
+  came late, so its timing stays the air's, and does not count it as falling
+  behind.
 - XARA's log is `/run/winlink/xara.log` (in the logs download too), its
   settings `/run/winlink/xara.conf`, written at each start: its commands on
   127.0.0.1:8300 and its data on 8301 (which Tailscale's userspace mode also

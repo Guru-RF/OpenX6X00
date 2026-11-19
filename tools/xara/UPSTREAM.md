@@ -144,17 +144,30 @@ Made with `git format-patch`; `build.sh` applies them in order with `git apply`.
   about 5 ms with the GUI's 20 ms blocks; NR5P's daemon takes the latency once, at the start). The capture waiting to
   be read is said in 0.1.3's words past 100 ms and at each doubling ("xara is falling behind real time"), which
   NR5P's pump does not say; it has "audio loop slow" lines of its own, which come at the start of many keys too,
-  where a read still waits for an R the GUI no longer sends (0.1.3 waited the same, and said nothing). The PTT comes
-  from the backend through a new `Audio::ptt()`. `daemon.rs` checks the options together, as for the (tr)uSDX. With
-  `--audio x6x00` the station starts with listening off (`listen_at_start`): it answers no call until its host sends
-  `LISTEN ON`, which Pat sends only to listen, never on the radio. Upstream starts listening, until a host says
-  `LISTEN OFF` or goes; on the radio XARA runs from the start with no host until Pat calls out, and an answer would
-  key the radio with nobody there. With unit tests on a fake GUI (the hello, R paced and resampled, zeros while keyed
-  and without the GUI, T only between P 1 and P 0, the held first block, a GUI that goes and comes back, one that
-  closes at once tried once a second and not more, XARA's stop sending P 0, the latency, the backlog said) and
-  `daemon.rs`'s own (a call to a station made for the radio is not answered; the same station with another backend
-  answers it). Rewritten on NR5P's audio interface from the patch v0.3.9 had on 0.1.3 (its `path()`, `backlog()` and
-  `queued()` are not in NR5P's), its socket code the same.
+  where a read still waits for an R the GUI no longer sends (0.1.3 waited the same, and said nothing). The receiver
+  late: when no R comes for 60 ms while XARA listens, the read gives silence in its place and the reads go on at the
+  wall clock's pace; when that audio comes after all, in a rush (the GUI, PulseAudio or the system stalled), its time
+  has been counted already, so as much of it as there was silence is dropped, the oldest first, and for 100 ms the
+  reads keep the wall clock, not the rush's pace; a block and one R of it stay. XARA's clock stays the air's, and it
+  says "audio: no receiver audio from the GUI for N ms (XARA heard silence in its place); M ms of it came late, all
+  at once, and was dropped", not the falling-behind line. Before, the rush was kept: XARA's clock ran ahead of the
+  air by the stall, and the rush, waiting to be read, was said as falling behind real time, which the supervisor
+  takes for the processor short for XARA ("Ready, but it fell behind the receiver lately"). On the bench X6100
+  (November 2026: 30 m, a dummy load, Pat calling over VARA HF) XARA said 107, 207, 407 and 817 ms of capture
+  waiting in a row, with 6 % of the processor and 1 ms to process a block; on the PC a fake GUI that holds its R for
+  1 s and sends them at once gives the same ("1010 ms of capture waiting"), and with the drop the new line. Our own
+  key is not counted (no R comes then by design, nor in the GUI's turn back to the receiver), nor a GUI that is
+  away. The PTT comes from the backend through a new `Audio::ptt()`. `daemon.rs` checks the options together, as for
+  the (tr)uSDX. With `--audio x6x00` the station starts with listening off (`listen_at_start`): it answers no call
+  until its host sends `LISTEN ON`, which Pat sends only to listen, never on the radio. Upstream starts listening,
+  until a host says `LISTEN OFF` or goes; on the radio XARA runs from the start with no host until Pat calls out, and
+  an answer would key the radio with nobody there. With unit tests on a fake GUI (the hello, R paced and resampled,
+  zeros while keyed and without the GUI, T only between P 1 and P 0, the held first block, a GUI that goes and comes
+  back, one that closes at once tried once a second and not more, XARA's stop sending P 0, the latency, the backlog
+  said, late audio after silence dropped and not said as falling behind, a GUI back on time losing nothing, our own
+  key not counted) and `daemon.rs`'s own (a call to a station made for the radio is not answered; the same station
+  with another backend answers it). Rewritten on NR5P's audio interface from the patch v0.3.9 had on 0.1.3 (its
+  `path()`, `backlog()` and `queued()` are not in NR5P's), its socket code the same.
 - `0004-cwid-from-the-host.patch` (MIT, as XARA): XARA acts on its host's `CWID ON` and `CWID OFF`, which it answers
   OK and drops (below). `CWID ON` sets the HF session's `cwid`, so XARA identifies in CW as each session closes,
   whatever the callsign; `CWID OFF` clears it. Without either nothing changes, and a US call identifies after `CWID
