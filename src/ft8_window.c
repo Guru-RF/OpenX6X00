@@ -1802,7 +1802,8 @@ static void list_pressed(const cell_data_t *cd) {
         tx_call_off();
         return;
     }
-    if (!cd || cd->cell_type == CELL_TX_MSG || cd->cell_type == CELL_RX_INFO || cd->cell_type == CELL_START_QSO) {
+    if (!cd || cd->cell_type == CELL_TX_MSG || cd->cell_type == CELL_RX_INFO || cd->cell_type == CELL_START_QSO ||
+        cd->cell_type == CELL_SLOT_SEP) {   /* a slot's line: no station (in Hound it said "Select the Fox's CQ") */
         msg_schedule_text_fmt("What should I do about it?");
         return;
     }
