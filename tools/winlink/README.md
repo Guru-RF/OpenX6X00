@@ -139,9 +139,14 @@ ready in time (a line in Pat's log, Pat does not call, the setting stays), its
 TNC port not open yet, XARA without a callsign (no switch), a change of the
 page's under way first (waited for, and Pat restarting with it: not for ever),
 the page changing the modem meanwhile, no supervisor, other transports refused,
-one switch at a time, the command line as Pat runs it, and the failure line as
-the last connection. With the supervisor itself (`x6100-winlink run`, in the
-namespace only): stand-ins for Pat (its mailbox's status on 8080) and the three
+one switch at a time, the command line as Pat runs it, Pat's Abort (SIGTERM,
+`tools/pat` 0010: before anything changed, and while the new modem starts,
+which goes on; also to the command as Pat runs it, with a stand-in holding the
+supervisor's lock), and the failure line as the last connection: a refusal
+while another connection is under way shows until that one comes to something
+(the bench's order of 19 Nov; also when it connects, with ardopcf's word for
+it, and with Pat restarted). With the supervisor itself (`x6100-winlink run`,
+in the namespace only): stand-ins for Pat (its mailbox's status on 8080) and the three
 modems (their TNC ports, their lines on the GUI's socket); VARA HF from ARDOP,
 then ARDOP again, Pat not restarted for either, then the page's own choice of
 Mercury, for which Pat restarts as before (about 10 s). The web test also runs

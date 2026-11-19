@@ -1025,6 +1025,19 @@ def status_of(kind, state="running", modem="ready", pat="running", text="Running
     return "".join(f"{k}={v}\n" for k, v in st.items())
 
 
+# A stand-in supervisor for the command run as Pat runs it: the lock held with its pid in it, a poke taken
+SUPERVISOR_LOCK = """import fcntl, os, signal, sys, time
+signal.signal(signal.SIGUSR1, lambda *_: None)
+f = open(sys.argv[1], "a+")
+fcntl.flock(f, fcntl.LOCK_EX)
+f.truncate(0)
+f.write(f"{os.getpid()}\\n")
+f.flush()
+print("holding", flush=True)
+time.sleep(60)
+"""
+
+
 class Switch(Root):
     """switch_modem() with a stand-in for the supervisor: a poke makes it answer, as the real one does, with the
     status of the modem now chosen"""
@@ -1248,6 +1261,64 @@ class Switch(Root):
                                env=dict(os.environ, X6100_WINLINK_ROOT=self.root), timeout=30)
             self.assertEqual((r.returncode, r.stdout, r.stderr), (0, out, ""), modem)
 
+    def test_abort_before_anything_changed(self):
+        """Pat's Abort (SIGTERM) while the switch waits for the page's last change: nothing changed, nothing said
+        (Pat says it)"""
+        self.conf(enabled=1, mycall="N0AAA", modem="ardop")
+        self.status("ardop", pat="starting", text="Restarting Pat with the new settings...")
+        before = read(self.wl.CONF)
+        timer = threading.Timer(0.1, self.wl._given_up.append, (1,))
+        timer.start()
+        self.addCleanup(timer.cancel)
+        start = time.time()
+        self.assertEqual(self.wl.switch_modem("varahf"), (False, ""))
+        self.assertLess(time.time() - start, 0.6)
+        self.assertEqual((read(self.wl.CONF), self.pokes, self.notes()), (before, [], []))
+        self.assertFalse(os.path.exists(self.wl.SWITCH))
+
+    def test_abort_during_the_switch(self):
+        """Pat's Abort while the new modem starts: the switch stops waiting, the modem goes on to the new one (the
+        setting and the switch file stay, for a supervisor that has not read them yet)"""
+        self.conf(enabled=1, mycall="N0AAA", modem="ardop")
+        self.status("ardop")
+        self.then = "waits"
+        timer = threading.Timer(0.2, self.wl._given_up.append, (1,))
+        timer.start()
+        self.addCleanup(timer.cancel)
+        start = time.time()
+        self.assertEqual(self.wl.switch_modem("varahf"), (False, ""))
+        self.assertLess(time.time() - start, 0.8)
+        self.assertEqual(self.wl.read_conf()["modem"], "xara")
+        self.assertEqual(self.notes(), [
+            "switching the modem from ARDOP to XARA for this connection through VARA HF",
+            "Abort: the switch to XARA goes on without that connection, and the modem stays XARA, as the Winlink "
+            "page (Operating > Winlink) now shows"])
+        now = (dict(WANT, modem="xara"), "hash")
+        self.assertTrue(self.wl.pats_switch((dict(WANT, modem="ardop"), "hash"), now))
+
+    def test_abort_as_pat_sends_it(self):
+        """The command as our Pat runs it, and SIGTERM as Pat sends it on its Abort: exit status 1 at once, with the
+        stand-in supervisor never making the new modem ready"""
+        self.conf(enabled=1, mycall="N0AAA", modem="ardop")
+        self.status("ardop")
+        holder = subprocess.Popen([sys.executable, "-I", "-c", SUPERVISOR_LOCK, self.wl.LOCK], stdout=subprocess.PIPE,
+                                  text=True)
+        self.addCleanup(holder.wait, 10)
+        self.addCleanup(holder.kill)
+        self.assertEqual(holder.stdout.readline(), "holding\n")
+        sw = subprocess.Popen([sys.executable, "-I", SUPERVISOR, "switch", "varahf"], stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True, env=dict(os.environ, X6100_WINLINK_ROOT=self.root))
+        self.addCleanup(sw.kill)
+        end = time.time() + 20
+        while not any(n.startswith("switching the modem") for n in self.notes()) and time.time() < end:
+            time.sleep(0.05)
+        time.sleep(0.2)                                      # past the setting and the poke, in its wait
+        sw.terminate()
+        out, err = sw.communicate(timeout=3)
+        self.assertEqual((sw.returncode, out, err), (1, "", ""))
+        self.assertEqual(self.wl.read_conf()["modem"], "xara")
+        self.assertTrue(self.notes()[-1].startswith("Abort: the switch to XARA goes on without that connection"))
+
     def test_listening(self):
         """/proc/net/tcp read as it is: a port listened on, and one that is not"""
         s = socket.socket()
@@ -1308,6 +1379,74 @@ class SwitchOutcome(Logs):
                           "connection through VARA HF\n2026/11/18 10:00:04 OpenX6X00: XARA is ready and the "
                           "connection goes ahead\n2026/11/18 10:00:05 Connecting to N0BBB (varahf)...")
         self.assertEqual((k["last_result"], k["last_gateway"]), ("dialing", "N0BBB"))
+
+    REFUSED = ("2026/11/19 11:41:53 OpenX6X00: no connection through ARDOP: one through VARA HF is under way, and the "
+               "radio runs one modem at a time")
+
+    def test_a_refusal_during_a_dial_then_its_outcome(self):
+        """The bench's order (19 Nov): an ARDOP connection refused while the VARA HF one waits for a clear channel is
+        shown while it is the latest, and the VARA HF one's outcome replaces it"""
+        k = self.poll(pat="2026/11/19 11:40:13 VARA modem (VARA HF v4.9.0) initialized\n"
+                          "2026/11/19 11:40:13 Connecting to N0CALL (varahf)...\n"
+                          "2026/11/19 11:40:13 Waiting for clear channel...", kind="xara")
+        self.assertEqual((k["last_result"], k["last_gateway"]), ("dialing", "N0CALL"))
+        k = self.poll(pat="2026/11/19 11:41:43 Got abort signal while dialing varahf, cancelling...\n" + self.REFUSED,
+                      kind="xara")
+        self.assertEqual((k["last_result"], k["last_gateway"]), ("failed", ""))
+        self.assertEqual(k["last_text"], "one through VARA HF is under way, and the radio runs one modem at a time")
+        self.assertEqual(self.notes(), [self.REFUSED])       # Pat's own line only
+        k = self.poll(pat="2026/11/19 11:45:13 Unable to establish connection to remote: aborted while waiting for "
+                          "clear channel", kind="xara")
+        self.assertEqual((k["last_result"], k["last_gateway"]), ("failed", "N0CALL"))
+        self.assertEqual(k["last_text"], "The frequency stayed busy, or Abort was chosen while Pat waited for it to "
+                                         "clear")
+        self.assertEqual(k["last_next"], "Try again later, another gateway or another band")
+        self.assertEqual(len(self.notes()), 2)               # its outcome said once
+        self.assertTrue(self.notes()[-1].endswith(" OpenX6X00: " + k["last_text"] + ". " + k["last_next"]))
+        # The next connection, as before
+        k = self.poll(pat="2026/11/19 11:45:26 Connecting to N0CALL (ardop)...")
+        self.assertEqual((k["last_result"], k["last_text"]), ("dialing", "Calling N0CALL"))
+        k = self.poll(pat="2026/11/19 11:46:04 Unable to establish connection to remote: Connect timeout")
+        self.assertEqual((k["last_result"], k["last_text"]), ("failed", "No answer from N0CALL"))
+
+    def test_a_refusal_during_a_dial_that_connects(self):
+        """The ARDOP connection under way connects after the refusal, and goes on to the end: its lines and
+        ardopcf's are its own"""
+        self.poll(pat="2026/11/19 11:40:13 Connecting to N0BBB (ardop)...")
+        k = self.poll(pat="2026/11/19 11:40:20 OpenX6X00: no connection through VARA HF: one through ARDOP is under "
+                          "way, and the radio runs one modem at a time", ardop=ESTABLISHED.format("N0BBB", 500))
+        self.assertEqual((k["last_result"], k["last_bw"]), ("failed", ""))
+        k = self.poll(pat="2026/11/19 11:40:21 Connected to N0BBB (ardop)\nRemote accepted ABC123")
+        self.assertEqual((k["last_result"], k["last_gateway"], k["last_bw"]), ("connected", "N0BBB", 500))
+        k = self.poll(pat="2026/11/19 11:41:00 Disconnected.")
+        self.assertEqual(k["last_text"], "Done with N0BBB at 500 Hz: 1 sent, 0 received")
+
+    def test_a_refusal_during_a_dial_with_no_answer(self):
+        """ardopcf's word for the call under way counts for it, not for the refusal shown meanwhile"""
+        self.poll(pat="2026/11/19 11:40:10 QSY ardop: 7101.5\n2026/11/19 11:40:13 Connecting to N0BBB (ardop)...")
+        self.poll(pat="2026/11/19 11:40:20 OpenX6X00: no connection through VARA HF: one through ARDOP is under way, "
+                      "and the radio runs one modem at a time")
+        k = self.poll(pat="2026/11/19 11:41:00 Unable to establish connection to remote: Connect timeout",
+                      ardop="[STATUS: ARQ CONNECTION REJECTED BY N0BBB, REMOTE STATION BUSY.]")
+        self.assertEqual((k["last_gateway"], k["last_freq"]), ("N0BBB", 7101500))
+        self.assertEqual(k["last_text"], "N0BBB is busy with another station")
+
+    def test_a_refusal_and_pat_restarted(self):
+        """Pat restarted with the dial under way behind a refusal: that dial ends there, shown"""
+        self.poll(pat="2026/11/19 11:40:13 Connecting to N0BBB (ardop)...\n" + self.REFUSED)
+        self.watch.pat_started()
+        open(self.wl.PAT_OWN_LOG, "w").close()
+        k = self.poll()
+        self.assertEqual((k["last_result"], k["last_text"]), ("failed", "Pat stopped during the connection to N0BBB"))
+
+    def test_a_refusal_alone_stays(self):
+        """With nothing under way, a refusal is the last connection until the next one"""
+        self.poll(pat="2026/11/19 11:40:13 Connecting to N0BBB (ardop)...\n"
+                      "2026/11/19 11:41:00 Unable to establish connection to remote: Connect timeout")
+        k = self.poll(pat=self.REFUSED)
+        self.assertEqual(k["last_text"], "one through VARA HF is under way, and the radio runs one modem at a time")
+        k = self.poll(pat="2026/11/19 11:42:00 Waiting for clear channel...")
+        self.assertEqual(k["last_text"], "one through VARA HF is under way, and the radio runs one modem at a time")
 
     def test_the_old_modems_radio_file_left_out(self):
         """Just after a switch the GUI's file may still say connected for the modem that stopped"""

@@ -7357,7 +7357,10 @@ Setting it up:
      | The link dropped during the exchange | What was delivered counts; connect again, narrower on a weak path |
      | Pat could not tune the radio (Unable to QSY) | The radio's screen says why |
 
-     The same line goes into Pat's log, so the mailbox shows it too.
+     The same line goes into Pat's log, so the mailbox shows it too. A
+     connection refused while another is under way ("no connection through
+     ARDOP: one through VARA HF is under way") shows until the one under
+     way comes to something, which then takes its place.
    - Logs, Download: Pat's log, its output, ARDOP's, Mercury's, XARA's (and
      its settings), Pat's event log, the radio's state and the status, as one
      text file to attach to a bug
@@ -7396,10 +7399,23 @@ Connecting to a gateway:
   HF"). The Winlink page's Modem follows and stays there afterwards; the
   bandwidths, the VARA HF licence tick and the rest stay as set. When the
   modem does not come up, Pat does not call and its log says why ("OpenX6X00:
-  no connection through VARA HF: XARA did not start ..."). No switch while
+  no connection through VARA HF: XARA did not start ..."). APP > Mail's
+  Abort while Pat waits for the modem ends the connection there (the
+  mailbox's status line offers Abort only once Pat calls): Pat does not call
+  ("OpenX6X00: no connection through VARA HF: Abort was chosen while the
+  modem switched"), and the modem goes on to the new one, which the Winlink
+  page shows. No switch while
   a connection through the other transport is under way; telnet and the
   other transports are not touched. Up to v0.3.12 such a connection went
   nowhere until the modem was changed on the Winlink page.
+- When the modem hears the frequency in use, Pat waits for it to clear
+  before it calls ("Waiting for clear channel...") and asks in the mailbox
+  and on APP > Mail: Continue anyway, or Abort. After 5 minutes it gives up.
+  Abort on the mailbox's status line ("Dialing..."), or on APP > Mail's
+  Connection page, ends that wait at once too, with ARDOP and with VARA HF
+  (Mercury, XARA): no call goes out, and the next connection can go. Up to
+  v0.3.12 the call went on until the 5 minutes were up, and with ARDOP it
+  could still go out once the frequency cleared.
 - Pat gives the radio the gateway's dial frequency: the radio tunes there,
   switches to USB-D (unless it is in USB or USB-D already), and tunes back
   after the session. The power is the radio's setting, at most 7 W, as for
@@ -7667,7 +7683,8 @@ web mailbox.
   it. Abort ends the connection; pressed again, at once.
 - Pat's questions during a connection come up on the buttons, as in the web
   mailbox: a busy channel (Continue anyway or Abort; Pat waits for it to
-  clear meanwhile), the password when none is set (typed in a hidden field),
+  clear meanwhile, and the Connection page's Abort ends that wait too), the
+  password when none is set (typed in a hidden field),
   an account Pat cannot confirm (Continue anyway: the account is activated
   over the air and a message brings its password, the only key to it, so
   write it down), a new account's password message (Download now or Later)
