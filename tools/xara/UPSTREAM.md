@@ -65,7 +65,7 @@ What the radio relies on is otherwise as in 0.1.3: the host interface on 8300 an
 (`   12.345 < REGISTERED`, which the supervisor reads), the `registered` feature and the levels and bandwidths
 (`xara-phy`'s tables and `UNREGISTERED_MAX_LEVEL`, the same; NR5P adds the names), every setting the supervisor
 writes. Neither acts on `CWID ON` nor gives a cancelled call up at once: 0004 and 0005 stay, and their tests fail on
-NR5P's main without them. NR5P's BUSY detector, which 0.1.3 does not have, needs 0006 behind a radio's filter.
+NR5P's main without them. NR5P's BUSY detector, which 0.1.3 does not have, needs 0006 and 0007 on a radio.
 `--version` says `xara 0.1.2`.
 
 ## The build (`build.sh`)
@@ -93,7 +93,7 @@ NR5P's main without them. NR5P's BUSY detector, which 0.1.3 does not have, needs
   glibc 2.36 at most (it needs 2.35). Stripped, the build's directories left out of it
   (`--remap-path-prefix`): 2726788 bytes, SHA-256 `2713555fa2d96c847620edaa82df0a22db25083b21e36ee49c83c7d3e8e553c7`
   with the five patches, the same with the X6100 tree's gcc and the X6200 tree's, from builds in different
-  directories (2026-11-09); with the six, not measured yet (the ARM build is `buildroot/local-build.sh`'s). Under
+  directories (2026-11-09); with the seven, not measured yet (the ARM build is `buildroot/local-build.sh`'s). Under
   qemu with either radio's libraries it starts, `--version` says `xara 0.1.2`, and it takes the settings the
   supervisor writes.
 - Kept as `$HOME/.cache/openx6x00/xara/xara-0.1.2-bd8300a36e4f-rust1.99.1-<target>-<hash>/xara`, the hash being that
@@ -194,12 +194,18 @@ Made with `git format-patch`; `build.sh` applies them in order with `git apply`.
   `crates/xara/tests/station_busy.rs` (a passband rolling off, two low-passes at 300 Hz, through the station: on
   with its reason, the shape taken, off in under 5 s, a carrier busy with its frequency); the passband tests and
   the station's fail without it, BUSY on all the time.
+- `0007-busy-signature-over-40-rows.patch` (MIT, as XARA): the BUSY detector's VARA signature test sums 40 rows (427
+  ms) where NR5P's summed 20 (213 ms), so a receiver's noise no longer passes it now and then by chance: on the bench
+  X6100 on a dummy load XARA said "busy: a VARA signal (level 5)" every 3 to 40 s, each with 1.4 s of BUSY (below).
+  Its test (`a_receivers_noise_is_not_a_vara_signal` in `crates/xara-phy/tests/busy.rs`): 262 s of noise at
+  300-2700 Hz without BUSY (with 20 rows, three times a VARA signal), then VARA transmissions at the noise's level
+  and 3 dB under it busy within 0.8 s, as VARA signals.
 
-`cargo test` with the six patches (Rust 1.99.1, 2026-11-19): the workspace with pulse, alsa, registered and x6x00,
-452 passed (7 ignored); the `xara` crate with `registered` and `x6x00` alone, 173 (5 ignored). With the five
+`cargo test` with the seven patches (Rust 1.99.1, 2026-11-19): the workspace with pulse, alsa, registered and x6x00,
+453 passed (7 ignored); the `xara` crate with `registered` and `x6x00` alone, 173 (5 ignored). With the five
 (2026-11-09): 444 and 169. `make test` here (`build.sh --test`: the pinned source unpacked, `patches/` applied,
 offline from the cache) runs `xara-arq`, `xara-phy` and `xara-host` and the `xara` crate as the radios have it,
-without PulseAudio or ALSA: 386 passed (7 ignored), in 80 s on this PC.
+without PulseAudio or ALSA: 387 passed (7 ignored), in 80 s on this PC.
 
 `tools/winlink`'s `make modems` has not run on this pin yet: it needs a Pat for the PC. Its parts without Pat, and a
 session driven on XARA's host ports as Pat drives it, did on 9 November: two stations through `winlink_host`, started
@@ -236,8 +242,25 @@ after it starts, and off 1.48 s after it stops. Unpatched: on at 0.06 s, never o
 
 What it does not do: a wide signal that is not VARA's and is there more than three quarters of the warm-up is
 learned as the passband, and reads busy less until NR5P's learning has moved past it; a filter changed during a
-session leaves the shape of the old one, as in NR5P's main, until the learning has followed; the signature test
-stays on the raw spectrum, as NR5P has it, and trips now and then on band-limited noise for a hang's length.
+session leaves the shape of the old one, as in NR5P's main, until the learning has followed.
+
+The signature test (patch 0007): every 32 samples of the 3 kHz baseband a 64-bin spectrum (46.9 Hz a bin), the last
+rows of them summed, and for each PSK level the carrier bins it would fill and the gap bins between them: it passes
+when each carrier bin is over twice the strongest gap bin (3.1 times at 500 Hz), at the shift of a bin either way that
+gives the carriers the most. NR5P sums 20 rows, 213 ms, about ten independent spectra. A sum of noise that short still
+varies enough to pass now and then: on the bench X6100 on a dummy load (30 m, November 2026) XARA said "busy: a VARA
+signal (level 5)" every 3 to 40 s, each time BUSY for 1.4 s, with nothing on the air and nothing in the recording of
+its receiver at those moments. It is not the radio: Gaussian noise does the same, flat at 300-2700 Hz or shaped like
+the radio's passband (0 to 4 trips in 90 s, as the recording; its lines at 781, 1561 and 2342 Hz notched out, the
+same). The test, its threshold and its levels are pinned by NR5P's vector tests and stay as they are; 0007 sums 40
+rows, 427 ms. Then noise stays under the threshold: its ratio 1.79 at most where the test asks 2 (2.45 where it asks
+3.1) over half an hour of it, the recording's 1.71. A VARA signal's carriers are there for its whole transmission (a
+frame is about 4 s), so the longer sum brings it out better. In noise at 300-2700 Hz, VARA transmissions at the
+noise's level and under it trip it after (20 rows, then 40): level 5 0.09 and 0.24 s, level 5 3 dB under 0.14 and
+0.27 s, 6 dB under 0.37 and 0.56 s; level 6 3 dB under 0.75 and 0.57 s; level 8 0.21 and 0.44 s; level 9 0.82 and
+0.81 s; at 500 Hz level 4 0.07 and 0.25 s. The recording played to XARA through a fake GUI in real time: six "VARA
+signals" in its 90 s with 20 rows, none with 40. Counting passes instead (more than 20 of the last 96 tests, which one
+burst of noise cannot give) also kept noise out, but weak signals tripped seconds late or not at all.
 
 The log says why BUSY came on (not for our own key or link, which hold it by design), here the PC's run above:
 
@@ -327,7 +350,8 @@ x0rro's 0.1.4 ("libxara") will not come. A new pin is NR5P's main at a newer com
 `tools/winlink`'s `make modems`, the bench radios, then the air. Drop 0001 once NR5P merges `upstream-0.1.3-fixes`
 into main (0003 to 0005 are made on top of it), 0002 once its resampler is 0.1.2's, 0004 once it acts on `CWID ON`
 itself (with that patch or a change of its own), 0005 once a cancelled call gives up at once there (it waits the same
-way with a US call), 0006 once NR5P's BUSY reads a sloped passband as clear (its tests show it); 0004 to 0006 are not
-offered to NR5P yet. Keep `make modems`' CW ID checks. Change the commit,
-the tar's SHA-256 and the version its `Cargo.toml` says in `build.sh` (and the Rust version and its four hashes if
-the fork's needs move past 1.99.1), rebase `patches/`, and update this file.
+way with a US call), 0006 once NR5P's BUSY reads a sloped passband as clear (its tests show it), 0007 once its
+signature test leaves noise out (`a_receivers_noise_is_not_a_vara_signal`); 0004 to 0007 are not offered to NR5P yet.
+Keep `make modems`' CW ID checks. Change the commit, the tar's SHA-256 and the version its `Cargo.toml` says in
+`build.sh` (and the Rust version and its four hashes if the fork's needs move past 1.99.1), rebase `patches/`, and
+update this file.
