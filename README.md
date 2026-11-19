@@ -580,12 +580,15 @@ their v1.1.7 lists, the multiboot card's warning before a new card image,
 the weather from the locator or a place typed and DMR heard over the internet
 with mbelib; OlivLoze NOTA, XOTA, the map of a reference's surroundings, the phone's
 position and clock from the Panel, the WeFax commands of the browser remote,
-WeFax's Auto Plan and its plan named from the charts received, Bulletin (the
-newest copy of fair quality), All Charts as tiles, full-screen viewer, Fix over
-the full screen, Auto Tilt, the view waiting for the next chart and Night, the
-clock from a time station's minute marker and ntpd's own word, JS8's board of
-stations, its lane over the waterfall and its conversations with their way
-back, and the browser's Apps pages:
+WeFax's Auto Plan and its plan named from the charts received (Northwood's
+night charts on 2618.5 kHz too), Bulletin (the newest copy of fair quality), All
+Charts as tiles, full-screen viewer, Fix over the full screen, Auto Tilt, the
+view waiting for the next chart and Night, the clock from a time station's
+minute marker and ntpd's own word, JS8's board of stations (red for 3 minutes
+after an answer), its lane over the waterfall and its conversations with their
+way back, FT8's tiles, the calls over its waterfall, its list by slot with the
+CQs standing out and its buttons by task, and the browser's Apps pages, which
+open their app on the radio:
 FT8, JS8 with its chat and WeFax, their waterfalls, maps, flags and countries; Chris Lawson (cjlawson02) the spectrum's dB without powf and log10f
 and the paddle keyer's start after the settings.
 
