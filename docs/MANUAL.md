@@ -7304,7 +7304,12 @@ Setting it up:
    - Frequency: where the radio listens, and whether it transmits there too
      ("No TX: split would send on 14.200.000, not 14.105.000", XIT, RIT, a
      TX shift, outside the amateur bands, "No TX: no data from the base").
-   - Mode: Pat's QSY to a gateway sets USB-D (USB is kept).
+   - Mode: Pat's QSY to a gateway sets USB-D (USB is kept), and so does the
+     modem's first key in any other mode, for a connection with no
+     frequency in it (a call typed in): up to v0.3.12 it keyed in the
+     dial's mode, in CW with almost no power. While an app holds the mode
+     (the CW Trainer, an SSTV transmission) it does not key: "Winlink: no
+     TX, the radio is in CW, not USB-D (an app holds the mode)".
    - Filter: whether the RX filter (and the TX filter, on a base that has
      one) covers ARDOP's passband at the page's bandwidth: 1250-1750 Hz at
      500 Hz, 500-2500 Hz at 2000 Hz. Mercury's: 450-2550 Hz at 2300 and

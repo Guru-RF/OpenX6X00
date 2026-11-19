@@ -547,6 +547,38 @@ def main():
         finally:
             host.stop()
 
+        print("a key in CW with no QSY before it: USB-D set for it, then keyed")
+        host = Host(tmp, "f", rig_port=14537, env={"WL_MODE": "4"})
+        try:
+            m = Modem(host.sock)
+            m.send("H", 2, [12000, 30])
+            check(host.wait_log("protocol 2, 12000 Hz"), "the hello")
+            ok, radio = host.wait_radio({"modem": "connected", "mode": "CW"})
+            check(ok, f"the radio file says CW before the key ({radio})")
+            m.transmit(12000, 0.5)
+            check(host.wait_log("winlink: CW to USB-D for the modem's key"), "USB-D set for the key, the log says so")
+            ok, radio = host.wait_radio({"mode": "USB-D"})
+            check(ok, f"the radio file says USB-D after it ({radio})")
+            check(host.wait_played(1) and "not keyed" not in host.text(), "the key went out")
+            m.close()
+        finally:
+            host.stop()
+
+        print("a key in CW while an app holds the mode: refused, the page told why")
+        host = Host(tmp, "g", rig_port=14538, env={"WL_MODE": "4", "WL_MODE_LOCKED": "1"})
+        try:
+            m = Modem(host.sock)
+            m.send("H", 2, [12000, 30])
+            check(host.wait_log("protocol 2, 12000 Hz"), "the hello")
+            why = "the radio is in CW, not USB-D (an app holds the mode)"
+            m.transmit(12000, 0.5)
+            check(host.wait_log("winlink: not keyed, " + why), "the key refused, the log says why")
+            ok, radio = host.wait_radio({"refused": why, "mode": "CW"})
+            check(ok and host.played_count() == 0, f"the page's refused line says it, CW kept, nothing played ({radio})")
+            m.close()
+        finally:
+            host.stop()
+
         print("a transverter's TX power limit of 0.5 W: PWR no higher, and said as the transverter's (#104)")
         host = Host(tmp, "c", rig_port=14534, env={"WL_PWR_MAX": "0.5", "WL_PWR_XVTR": "0.5"})
         try:

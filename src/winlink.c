@@ -96,6 +96,7 @@
 #define RIG_CLIENTS     4
 #define RIG_LINE        256
 #define TUNE_WAIT_MS    700             /* \set_freq waits this long for the LVGL thread (Pat reads for 1 s) */
+#define MODE_WAIT_MS    500             /* a key waits this long for the LVGL thread's USB-D (key_mode) */
 #define PENDING_MS      (30 * 1000)     /* a QSY asked on the air is done at the end of it, if within this */
 #define REF_MS          (60 * 1000)     /* Pat's tune or the modem's key this recent: a connection under way */
 
@@ -567,6 +568,46 @@ bool winlink_busy(void) {
     return atomic_load(&keying) || (atomic_load(&ref_hz) && at && now_ms() - at < REF_MS);
 }
 
+static atomic_uint mode_done;   /* the last key_mode() request mode_cb went through */
+
+/* LVGL thread: USB-D for the modem's key, as Pat's QSY sets it (tune_cb), unless an app has the mode locked */
+static void mode_cb(void *arg) {
+    unsigned id   = *(unsigned *)arg;
+    int32_t  mode = cparam_i_get(cfg_cur_mode);
+
+    if (mode != radio_mode_usb && mode != radio_mode_usb_dig && !main_screen_mode_locked()) {
+        cparam_i_set(cfg_cur_mode, radio_mode_usb_dig);
+        LV_LOG_USER("winlink: %s to USB-D for the modem's key", channels_mode_name(mode));
+    }
+    atomic_store(&mode_done, id);
+}
+
+/* Why the key would not go out in a mode the modem's audio goes out in; NULL: USB or USB-D, as it was or as set now.
+ * Only Pat's QSY set USB-D: a connection with no frequency in it (a call typed in, a gateway without one) keyed in
+ * the dial's mode, in CW 0.0 to 0.4 W at full ALC on the bench X6100, in AM or FM not what the gateway listens for.
+ * The worker, keying set */
+static const char *key_mode(void) {
+    static char     why[64];
+    static unsigned last;
+    int32_t         mode = cparam_i_get(cfg_cur_mode);
+
+    if (mode == radio_mode_usb || mode == radio_mode_usb_dig)
+        return NULL;
+    if (!++last)
+        last = 1;
+    unsigned id = last;
+
+    if (scheduler_put(mode_cb, &id, sizeof(id)))
+        for (int ms = 0; atomic_load(&mode_done) != id && ms < MODE_WAIT_MS; ms += 5)
+            usleep(5000);
+    mode = cparam_i_get(cfg_cur_mode);
+    if (mode == radio_mode_usb || mode == radio_mode_usb_dig)
+        return NULL;
+    snprintf(why, sizeof(why), "the radio is in %s, not USB-D%s", channels_mode_name(mode),
+             main_screen_mode_locked() ? " (an app holds the mode)" : "");
+    return why;
+}
+
 /* Why the modem's key would not go out where the radio listens, on the connection's frequency; NULL: it would, on
  * ses.key_hz. Winlink is simplex, the gateway answers on the frequency it is called on. The key goes out on
  * radio_tx_freq() (tx_player), in split the other VFO or the shifted one, and the X6100's base adds the XIT
@@ -627,6 +668,8 @@ static const char *tx_off_freq(void) {
     }
     if (radio_no_data())
         return "no data from the base";
+    if ((no = key_mode()))
+        return no;
     ses.key_hz = rx;
     return NULL;
 }

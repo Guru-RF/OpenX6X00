@@ -163,7 +163,7 @@ var renderRadio = function(st) {
   radioRow("freq", mhz(r.rx), r.simplex ? "No TX: " + r.simplex :
     r.tx === r.rx ? "Transmits on the same frequency, as Winlink must" : "TX " + mhz(r.tx), !!r.simplex);
   radioRow("mode", r.mode, r.mode === "USB-D" ? "" : r.mode === "USB" ? m.name + " works in USB too" :
-    "Pat's QSY to a gateway sets USB-D", false);
+    "USB-D comes with Pat's QSY to a gateway, or at the modem's first key", false);
   const lo = 1500 - m.span / 2, hi = 1500 + m.span / 2;
   const rxOk = r.filter_low <= lo && r.filter_high >= hi;
   const tx = r.tx_filter_high > 0, txOk = !tx || (r.tx_filter_low <= lo && r.tx_filter_high >= hi);

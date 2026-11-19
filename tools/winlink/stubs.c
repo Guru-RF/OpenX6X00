@@ -139,7 +139,9 @@ int32_t       radio_tx_freq(void) { return freq.v; }
 uint64_t      radio_swr_trip_at(void) { return atomic_load(&swr_trip_at); }
 uint32_t      radio_caps(void) { return HW_CAP_TX_FILTER; }
 
-const char *channels_mode_name(int m) { return m == radio_mode_usb_dig ? "USB-D" : "USB"; }
+const char *channels_mode_name(int m) {
+    return m == radio_mode_usb_dig ? "USB-D" : m == radio_mode_usb ? "USB" : m == radio_mode_cw ? "CW" : "other";
+}
 
 bool backlight_tick(void) { return true; }
 
@@ -159,7 +161,8 @@ const char *main_screen_digital_app(void) {
 }
 
 bool main_screen_freq_locked(void) { return false; }
-bool main_screen_mode_locked(void) { return false; }
+/* WL_MODE_LOCKED: an app holds the mode (the CW Trainer, an SSTV transmission) */
+bool main_screen_mode_locked(void) { return getenv("WL_MODE_LOCKED") != NULL; }
 void main_screen_set_freq(uint64_t f) { freq.v = (int32_t)f; fprintf(stderr, "[stub] freq %d\n", freq.v); }
 
 bool scheduler_put(scheduler_fn_t fn, void *arg, size_t arg_size) {
@@ -396,6 +399,8 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
 
 int main(void) {
     setvbuf(stderr, NULL, _IOLBF, 0);
+    if (getenv("WL_MODE"))      /* the dial's mode as it starts, radio_mode_t; USB-D otherwise */
+        mode.v = atoi(getenv("WL_MODE"));
     air_init();
     winlink_init();
     for (;;)
