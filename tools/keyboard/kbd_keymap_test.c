@@ -4,7 +4,8 @@
  *  Host test of the keyboard's keys with no character (src/kbd_keymap.c; #175): Scroll Lock and Print Screen get
  *  the keys screen_main.c knows them by, by scancode, as xkb gives them none, and are the main screen's only. The F
  *  keys and PgUp and PgDn get nothing (mapped up to v0.3.8, they are CapsLock's chords now), the letters and the
- *  others are left to xkb.
+ *  others are left to xkb. Volume Up and Down are the volume keys (kbd_keymap_volume): +1 and -1, the only two, and
+ *  get no LVGL key.
  */
 
 #include "kbd_keymap.h"
@@ -60,6 +61,19 @@ int main(void) {
     check(mapped == 3, line);
     snprintf(line, sizeof(line), "%d keys for the main screen only, want 3", main_only);
     check(main_only == 3, line);
+
+    /* The volume keys: Up +1, Down -1, no other key; none of them an LVGL key */
+    check(kbd_keymap_volume(KEY_VOLUMEUP) == +1, "Volume Up: +1");
+    check(kbd_keymap_volume(KEY_VOLUMEDOWN) == -1, "Volume Down: -1");
+    check(kbd_keymap(KEY_VOLUMEUP) == 0 && kbd_keymap(KEY_VOLUMEDOWN) == 0, "the volume keys: no LVGL key");
+    check(kbd_keymap_volume(KEY_MUTE) == 0, "Mute: not a volume step");
+    check(kbd_keymap_volume(KEY_LEFTBRACE) == 0 && kbd_keymap_volume(KEY_RIGHTBRACE) == 0, "[ and ]: not volume keys");
+    int volume = 0;
+    for (uint16_t code = 0; code < KEY_CNT; code++) {
+        volume += kbd_keymap_volume(code) != 0;
+    }
+    snprintf(line, sizeof(line), "%d volume keys, want 2", volume);
+    check(volume == 2, line);
 
     printf("%d cases, %d wrong\n", cases, bad);
     return bad != 0;

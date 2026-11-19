@@ -1075,19 +1075,28 @@ static void front_key_cb(lv_event_t *e) {
 }
 
 /* The H-22's VOL+ and VOL-: the RX volume a step a press, as in Xiegu's app, and on by itself while the key is held
- * (the X6200's goes to 100). Its message as the VOL knob's */
+ * (the X6200's goes to 100). Its message as the VOL knob's. A keyboard's volume keys step it the same way
+ * (main_screen_media_vol, key_input.c) */
 #define MIC_VOL_DELAY_MS    400     /* held this long, the steps repeat */
 #define MIC_VOL_REPEAT_MS   100
 
 static lv_timer_t *mic_vol_timer;
 static hkey_t      mic_vol_key;
 
-static void mic_vol_step(void) {
-    uint16_t vol = radio_change_vol(mic_vol_key == HKEY_VOL_UP ? +1 : -1);
+static void rx_vol_step(int16_t df) {
+    uint16_t vol = radio_change_vol(df);
 
     if (!knobs_visible() || vol_get_ctrl() != CTRL_VOL) {
         msg_update_text_fmt("Volume: %i", vol);
     }
+}
+
+static void mic_vol_step(void) {
+    rx_vol_step(mic_vol_key == HKEY_VOL_UP ? +1 : -1);
+}
+
+void main_screen_media_vol(int dir) {
+    rx_vol_step(dir > 0 ? +1 : -1);
 }
 
 static void mic_vol_stop(void) {

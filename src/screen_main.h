@@ -44,6 +44,9 @@ void main_screen_chord(int action);
  * keyed lets go */
 void main_screen_keyboard_gone(void);
 
+/* A keyboard's Volume Up (dir > 0) or Down: the RX volume a step, as the H-22's VOL+ and VOL- */
+void main_screen_media_vol(int dir);
+
 /* A key, or a window opened or closed: the buttons back if Settings > Display > Hide buttons hid them, and hidden
  * again after its time without a key. True when they were hidden */
 bool main_screen_buttons_wake(void);
