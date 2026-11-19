@@ -1,0 +1,509 @@
+From 6817ed95d9418b6a17db0d2723a3d5b8fa5870e2 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Thu, 19 Nov 2026 14:07:24 +0100
+Subject: [PATCH] BUSY reads a radio's sloped passband as clear, and says why
+ it came on
+
+The tone detector learns the receiver's noise shape only from blocks it
+reads as clear, and until it has 64 of them it tests the raw spectrum:
+the strongest bin over 270 times the 14th weakest of the band. A
+passband that slopes or rolls off inside the band (1 dB per 100 Hz is
+enough) is that from the first block, so BUSY came on at once, no block
+was ever clear, nothing was learned and BUSY stayed on. Behind an
+X6100's filter, on a dummy load, it stayed on for 5 minutes, and Pat,
+which waits for a clear channel, never called.
+
+The learning stays as it is, with a warm-up beside it: the first 64
+blocks over the VU gate without a signal of their own (a VARA signature;
+a carrier, in a Hann-windowed spectrum the strongest bin 20 dB over the
+third weakest of the bins 3 to 8 away from it; the station's own key or
+link; a block only the VU's hang lets through) are kept whatever the raw
+test says. If the clear blocks have not taught the shape by then, it is
+taken from those: each bin's lower quartile of ln power, plus the
+quartile's distance under the mean for noise (exponential power, 0.669),
+which a signal there less than three quarters of the time does not
+reach. From there the learning goes on as before, and the whitened test
+reads the slope as clear, about 4 s after the start.
+
+Busy::why() says what tripped the detector, and the HF station logs it
+before each BUSY ON it did not force itself: "busy: a tone at 1406 Hz",
+with "(the noise shape not learned yet)" before the shape is known,
+"busy: a VARA signal (level 5)"; and once, when the warm-up gave the
+shape, "busy: the receiver's noise shape taken from its first blocks,
+too few were clear".
+
+Tests: noise falling 1 and 1.5 dB per 100 Hz clear within 5 s, and a
+carrier on it busy within 3 blocks; a carrier there from the start, a
+signal there half the time and a VARA link there from the start not
+taken for the passband; a rolled-off passband through the station, its
+reports in order. Without the warm-up the passband tests and the
+station's fail, BUSY on all the time.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/xara-phy/src/busy.rs       | 134 ++++++++++++++++++++++++++++--
+ crates/xara-phy/tests/busy.rs     | 114 ++++++++++++++++++++++++-
+ crates/xara/src/station/hf.rs     |  22 ++++-
+ crates/xara/tests/station_busy.rs |  68 +++++++++++++++
+ 4 files changed, 328 insertions(+), 10 deletions(-)
+ create mode 100644 crates/xara/tests/station_busy.rs
+
+diff --git a/crates/xara-phy/src/busy.rs b/crates/xara-phy/src/busy.rs
+index 100ac4b..fb18ec1 100644
+--- a/crates/xara-phy/src/busy.rs
++++ b/crates/xara-phy/src/busy.rs
+@@ -16,8 +16,29 @@ const SHAPE_ALPHA: f64 = 1.0 / 64.0;
+ /// Each bin's noise is taken as the median of this many bins around it, so a slope or hump
+ /// in the radio's passband is learned but a carrier, a bin or two wide, is not.
+ const SHAPE_SPAN: usize = 7;
++/// Until the shape is learned, "clear" is the unwhitened detector's word, and a passband that
++/// slopes or rolls off inside the tone band trips it block after block: BUSY comes on at once and
++/// stays on, as nothing is learned while it is on. So the first SHAPE_WARMUP blocks over the VU gate
++/// are kept whatever that detector says, but not one with a signal of its own: a signature hit (VARA)
++/// or a carrier (NARROW_RATIO). If the clear ones have not taught the shape by then, it is taken from
++/// those: each bin's lower quartile, which a signal there less than three quarters of the time does
++/// not reach.
++const WARM_QUANTILE: usize = SHAPE_WARMUP as usize / 4;
++/// A carrier, for the warm-up: the strongest bin 20 dB over the third quietest of the bins
++/// NARROW_NEAR to NARROW_FAR from it on either side, in a Hann window's spectrum (the plain FFT's
++/// skirts make a strong carrier many bins wide, and the quietest bins are the noise between an FSK
++/// burst's sidelobes). A slope or roll-off of the passband is not that steep.
++const NARROW_RATIO: f64 = 100.0;
++const NARROW_NEAR: usize = 3;
++const NARROW_FAR: usize = 8;
++const NARROW_RANK: usize = 2;
++/// A bin of noise has exponential power: the lower quartile of its ln lies this far under the
++/// mean of its ln, which is what the shape holds (-ln(-ln 0.75) - Euler's gamma).
++const WARM_BIAS: f64 = 0.668_686_8;
+ const ROWS: usize = 20;
+ const FULL_SCALE: f64 = 32767.0;
++/// A bin of the tone FFT: 128 over the front end's 3 kHz, bin k at k of these Hz of the audio
++const TONE_BIN_HZ: f64 = crate::ofdm::FS / 16.0 / 128.0;
+ 
+ pub fn tone_band(bw: Bandwidth) -> (usize, usize, usize) {
+     match bw {
+@@ -147,9 +168,25 @@ pub struct Busy {
+     /// clear (in the log, so the first loud block of a signal, before BUSY trips, barely moves it)
+     shape: [f64; 128],
+     shape_blocks: u32,
++    /// ln(power) of the first blocks, for the shape when the clear ones do not teach it (WARM_QUANTILE)
++    warm: Vec<[f64; 128]>,
++    /// A signature hit since the last tone block: that block is a signal's, not the receiver's
++    signature_seen: bool,
++    /// The shape was taken from the first blocks (WARM_QUANTILE), not learned from clear ones
++    warmed: bool,
++    why: Why,
+     pub hits: [u32; 2],
+ }
+ 
++/// What tripped the detector last
++#[derive(Clone, Copy, Debug, PartialEq)]
++pub enum Why {
++    None,
++    /// The strongest bin, and whether the receiver's noise shape was divided out
++    Tone { hz: f64, learned: bool },
++    Signature(Record),
++}
++
+ impl Busy {
+     pub fn fm() -> Self {
+         Self::new(Bandwidth::Hz2750)
+@@ -173,6 +210,10 @@ impl Busy {
+             on: false,
+             shape: [0.0; 128],
+             shape_blocks: 0,
++            warm: Vec::new(),
++            signature_seen: false,
++            warmed: false,
++            why: Why::None,
+             hits: [0; 2],
+         }
+     }
+@@ -181,6 +222,17 @@ impl Busy {
+         self.on
+     }
+ 
++    /// Whether the tone detector has the receiver's noise shape yet (else it compares unwhitened),
++    /// and whether it was taken from the first blocks rather than learned from clear ones
++    pub fn shape(&self) -> (bool, bool) {
++        (self.shape_blocks >= SHAPE_WARMUP, self.warmed)
++    }
++
++    /// What tripped the detector last
++    pub fn why(&self) -> Why {
++        self.why
++    }
++
+     pub fn set_bw(&mut self, bw: Bandwidth) {
+         if bw != self.bw {
+             self.bw = bw;
+@@ -213,7 +265,7 @@ impl Busy {
+             }
+             self.block.push(z);
+             if self.block.len() == 128 {
+-                let hit = self.tone_hit();
++                let hit = self.tone_hit(forced);
+                 self.block.clear();
+                 if forced {
+                     continue;
+@@ -241,20 +293,23 @@ impl Busy {
+         }
+     }
+ 
+-    fn tone_hit(&mut self) -> bool {
++    fn tone_hit(&mut self, forced: bool) -> bool {
+         let peak_db = 20.0 * self.peak.max(1e-12).log10();
+         self.vu = peak_db.max(self.vu - 1.0);
+         self.peak = 0.0;
++        let signal = std::mem::take(&mut self.signature_seen) || forced;
+         if self.vu <= VU_GATE_DBFS {
+             return false;
+         }
++        let learned = self.shape_blocks >= SHAPE_WARMUP;
++        let signal = signal || (!learned && self.narrow_peak());
+         self.fft128.process(&mut self.block);
+         let p: [f64; 128] = std::array::from_fn(|k| self.block[k].norm_sqr());
+-        let hit = if self.shape_blocks >= SHAPE_WARMUP {
+-            detect_tone(&whiten(&p, &self.shape, self.bw), self.bw)
+-        } else {
+-            detect_tone(&p, self.bw)
+-        };
++        let q = if learned { whiten(&p, &self.shape, self.bw) } else { p };
++        let hit = detect_tone(&q, self.bw);
++        if hit {
++            self.why = Why::Tone { hz: self.peak_hz(&q), learned };
++        }
+         // Learn the noise shape only from a clear channel, so a signal can't teach it
+         if !hit && !self.on {
+             let a = if self.shape_blocks == 0 { 1.0 } else { SHAPE_ALPHA.max(1.0 / f64::from(self.shape_blocks + 1)) };
+@@ -263,9 +318,65 @@ impl Busy {
+             }
+             self.shape_blocks = self.shape_blocks.saturating_add(1);
+         }
++        // Not a block only the VU's hang lets through (a dropout), nor one with a signal of its own
++        // (a signature, a carrier, our own key or link)
++        self.warm_up(&p, peak_db > VU_GATE_DBFS && !signal);
+         hit
+     }
+ 
++    /// Whether the block has a carrier in the tone band (NARROW_RATIO)
++    fn narrow_peak(&self) -> bool {
++        let n = self.block.len();
++        let mut b: Vec<Complex64> = self
++            .block
++            .iter()
++            .enumerate()
++            .map(|(i, z)| z * (0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / n as f64).cos()))
++            .collect();
++        self.fft128.process(&mut b);
++        let p = |k: usize| b[k].norm_sqr();
++        let (lo, hi, _) = tone_band(self.bw);
++        let k = (lo..=hi).max_by(|&a, &c| p(a).total_cmp(&p(c))).unwrap_or(lo);
++        let mut ring: Vec<f64> = (NARROW_NEAR..=NARROW_FAR)
++            .flat_map(|d| [k.checked_sub(d), Some(k + d).filter(|&j| j < n)])
++            .flatten()
++            .map(p)
++            .collect();
++        ring.sort_by(f64::total_cmp);
++        p(k) > NARROW_RATIO * ring[NARROW_RANK]
++    }
++
++    /// Where the strongest bin of the tone band is, in Hz of the audio
++    fn peak_hz(&self, q: &[f64; 128]) -> f64 {
++        let (lo, hi, _) = tone_band(self.bw);
++        let k = (lo..=hi).max_by(|&a, &b| q[a].total_cmp(&q[b])).unwrap_or(lo);
++        k as f64 * TONE_BIN_HZ
++    }
++
++    /// The first blocks, kept whatever the detector said, give the shape if the clear ones did not
++    /// (WARM_QUANTILE)
++    fn warm_up(&mut self, p: &[f64; 128], keep: bool) {
++        if self.shape_blocks >= SHAPE_WARMUP {
++            self.warm = Vec::new();
++            return;
++        }
++        if keep {
++            self.warm.push(std::array::from_fn(|k| p[k].max(1e-30).ln()));
++        }
++        if self.warm.len() < SHAPE_WARMUP as usize {
++            return;
++        }
++        let mut col = vec![0.0; self.warm.len()];
++        for k in 0..128 {
++            col.iter_mut().zip(&self.warm).for_each(|(c, w)| *c = w[k]);
++            col.select_nth_unstable_by(WARM_QUANTILE, f64::total_cmp);
++            self.shape[k] = col[WARM_QUANTILE] + WARM_BIAS;
++        }
++        self.shape_blocks = SHAPE_WARMUP;
++        self.warm = Vec::new();
++        self.warmed = true;
++    }
++
+     fn signature_hit(&mut self) -> bool {
+         let mut buf: [Complex64; 64] = std::array::from_fn(|i| self.last64[i]);
+         self.fft64.process(&mut buf);
+@@ -286,6 +397,13 @@ impl Busy {
+             }
+         }
+         let threshold = signature_threshold(self.bw);
+-        self.sigs.iter().any(|g| detect_signature(&s, g, threshold))
++        match self.sigs.iter().find(|g| detect_signature(&s, g, threshold)) {
++            Some(g) => {
++                self.signature_seen = true;
++                self.why = Why::Signature(g.record);
++                true
++            }
++            None => false,
++        }
+     }
+ }
+diff --git a/crates/xara-phy/tests/busy.rs b/crates/xara-phy/tests/busy.rs
+index c4d19b1..b2aaf3b 100644
+--- a/crates/xara-phy/tests/busy.rs
++++ b/crates/xara-phy/tests/busy.rs
+@@ -1,7 +1,7 @@
+ mod common;
+ use common::{Rng, bw_of, load_doc};
+ use xara_phy::busy::{
+-    Busy, HANG, Signature, detect_signature, detect_tone, signature_threshold, signatures, tone_band,
++    Busy, HANG, Signature, Why, detect_signature, detect_tone, signature_threshold, signatures, tone_band,
+ };
+ use xara_phy::hf::level::{Bandwidth, Record};
+ use xara_phy::hf::tx::Modulator;
+@@ -213,3 +213,115 @@ fn forced_holds_and_releases_after_hang() {
+     let t = edges[0].0 as f64 / 48000.0;
+     assert!((1.40..1.50).contains(&t), "{t}");
+ }
++
++fn plus(a: &[f64], b: &[f64]) -> Vec<f64> {
++    a.iter().zip(b).map(|(x, y)| x + y).collect()
++}
++
++#[test]
++fn a_passband_that_trips_the_unwhitened_detector_reads_clear_after_the_warm_up() {
++    // A receiver whose noise climbs 15-23 dB across the 2300 Hz tone band (a radio's passband, a
++    // dummy load on the antenna) trips the unwhitened detector block after block, so BUSY came on at
++    // once and, the shape being learned only while BUSY is off, never went off. The first blocks give
++    // the shape now: clear within the warm-up (2.7 s) and the hang (1.45 s), and it stays clear
++    for (bw, slope) in [(Bandwidth::Hz2300, 1.0), (Bandwidth::Hz2300, 1.5), (Bandwidth::Hz2750, 1.5)] {
++        let mut r = Rng::new(41);
++        let mut b = Busy::new(bw);
++        let x = sloped_noise(&mut r, 1 << 20, db(-35.0), slope);
++        let edges = run(&mut b, &x);
++        assert_eq!(edges.iter().map(|e| e.1).collect::<Vec<_>>(), [true, false], "{slope}: {edges:?}");
++        let off = edges[1].0 as f64 / 48000.0;
++        assert!(off < 5.0, "{slope}: clear after {off:.2} s");
++        assert_eq!(b.shape(), (true, true), "{slope}: the shape from the warm-up");
++        let hits = b.hits;
++        run(&mut b, &sloped_noise(&mut r, 1 << 20, db(-35.0), slope));
++        assert_eq!(b.hits, hits, "{slope}: the noise alone trips it again");
++        // and a carrier on that noise still trips it, at once
++        let n = 1 << 16;
++        let edges = run(&mut b, &plus(&sloped_noise(&mut r, n, db(-35.0), slope), &tone(n, 1400.0, db(-25.0))));
++        assert!(edges.first().is_some_and(|e| e.1 && e.0 < 3 * BLOCK48), "{slope}: {edges:?}");
++        assert!(matches!(b.why(), Why::Tone { hz, learned: true } if (hz - 1400.0).abs() < 24.0), "{:?}", b.why());
++    }
++}
++
++#[test]
++fn a_carrier_there_from_the_start_is_not_taken_for_the_passband() {
++    // The warm-up keeps no block with a carrier in it (the plain FFT's skirts would carry it past the
++    // whitening's median over 7 bins): BUSY stays on while it is there, and clears once it has gone
++    let mut r = Rng::new(43);
++    let mut b = Busy::new(Bandwidth::Hz2300);
++    let n = 1 << 19;
++    let edges = run(&mut b, &plus(&sloped_noise(&mut r, n, db(-35.0), 1.5), &tone(n, 1400.0, db(-25.0))));
++    assert!(edges.len() == 1 && edges[0].1 && edges[0].0 <= BLOCK48 + 960, "on at the first block, not off: {edges:?}");
++    assert!(b.shape() == (false, false) && b.hits[0] > 200, "{:?} {:?}", b.shape(), b.hits);
++    let edges = run(&mut b, &sloped_noise(&mut r, n, db(-35.0), 1.5));
++    assert!(edges == [(edges[0].0, false)] && edges[0].0 < 5 * 48000, "clear within 5 s of its end: {edges:?}");
++}
++
++#[test]
++fn a_signal_there_half_the_time_at_the_start_is_not_taken_for_the_passband() {
++    // A wide signal with no carrier in it (a hump of noise 20 dB over the floor, 300 Hz across) on for
++    // 1 s, off for 1 s from the start, then gone: each bin's lower quartile is the receiver's, so after
++    // the warm-up the signal still trips the detector each time it comes, and once it has gone BUSY
++    // clears
++    let mut r = Rng::new(47);
++    let n = 1 << 19;
++    let floor = sloped_noise(&mut r, n, db(-35.0), 1.0);
++    let hump = {
++        use num_complex::Complex64;
++        let mut spec: Vec<Complex64> = (0..n)
++            .map(|k| {
++                let hz = 48000.0 * k.min(n - k) as f64 / n as f64;
++                Complex64::new(r.gauss(), r.gauss()) * (-((hz - 1350.0) / 130.0).powi(2) / 2.0).exp()
++            })
++            .collect();
++        rustfft::FftPlanner::new().plan_fft_inverse(n).process(&mut spec);
++        let x: Vec<f64> = spec.iter().map(|c| c.re).collect();
++        let rms = (x.iter().map(|v| v * v).sum::<f64>() / n as f64).sqrt();
++        // 20 dB over the floor's power in its 300 Hz, about (the floor's share of its own there)
++        let at = db(-35.0) * db(20.0) * (300.0 / 2900.0f64).sqrt();
++        let on = |i: usize| i < 8 * 48000 && (i / 48000) % 2 == 0;
++        x.iter().enumerate().map(|(i, v)| if on(i) { v * at / rms } else { 0.0 }).collect::<Vec<_>>()
++    };
++    let x = plus(&floor, &hump);
++    let mut b = Busy::new(Bandwidth::Hz2300);
++    run(&mut b, &x[..4 * 48000]);
++    assert_eq!(b.shape(), (true, true));
++    let hits = b.hits[0];
++    // 4-6 s: on 4-5 s, off 5-6 s
++    run(&mut b, &x[4 * 48000..6 * 48000]);
++    assert!(b.hits[0] > hits + 10 && b.is_on(), "the signal went unseen after the warm-up: {:?}", b.hits);
++    let edges = run(&mut b, &x[6 * 48000..]);
++    let off = edges.last().filter(|e| !e.1).map(|e| e.0 as f64 / 48000.0 + 6.0);
++    assert!(off.is_some_and(|t| (8.0..9.6).contains(&t)), "clear once it has gone: {edges:?}");
++}
++
++#[test]
++fn a_vara_link_there_from_the_start_is_not_taken_for_the_passband() {
++    // Frames of a link on the sloped passband for its first 6 s: BUSY on with them, and once they have
++    // gone clear within a few seconds, and clear after: the shape is the receiver's, not the link's
++    let mut rng = Rng::new(2);
++    let mut rand = |n: u32| rng.below(n);
++    for record in [3, 5, 8].map(|r| Record::new(r).unwrap()) {
++        let bw = Bandwidth::Hz2300;
++        let m = Modulator::new(bw);
++        let len = bw.level(record).frame_bytes() as usize;
++        let frame: Vec<u8> = (0..len).map(|i| (i * 37 + 11) as u8).collect();
++        let mut link = Vec::new();
++        while link.len() < 6 * 48000 {
++            let x = m.transmission(record, &[&frame], &mut rand);
++            let rms = (x.iter().map(|v| v * v).sum::<f64>() / x.len() as f64).sqrt();
++            link.extend(x.iter().map(|v| v / rms * db(-30.0)));
++            link.extend(std::iter::repeat_n(0.0, 4800));
++        }
++        link.truncate(6 * 48000);
++        let mut r = Rng::new(9);
++        let floor = sloped_noise(&mut r, 1 << 19, db(-35.0), 1.0);
++        let mut b = Busy::new(bw);
++        let edges = run(&mut b, &plus(&floor[..link.len()], &link));
++        assert!(b.is_on() && b.hits[1] > 0, "L{record} {edges:?} {:?}", b.hits);
++        let edges = run(&mut b, &floor[link.len()..]);
++        let off = edges.first().filter(|e| !e.1).map(|e| e.0 as f64 / 48000.0);
++        assert!(edges.len() == 1 && off.is_some_and(|t| t < 5.0), "L{record}: {edges:?} {:?}", b.shape());
++    }
++}
+diff --git a/crates/xara/src/station/hf.rs b/crates/xara/src/station/hf.rs
+index 697d7bf..d7caaa3 100644
+--- a/crates/xara/src/station/hf.rs
++++ b/crates/xara/src/station/hf.rs
+@@ -7,7 +7,7 @@ use xara_arq::host::HostEvent;
+ use xara_arq::time::Time;
+ use xara_arq::{cq, kiss};
+ use xara_host::command::Bw;
+-use xara_phy::busy::Busy;
++use xara_phy::busy::{Busy, Why};
+ use xara_phy::cwid;
+ use xara_phy::dsp::quantise;
+ use xara_phy::hf::ctrl::code::{BREAK, CQ, KISS};
+@@ -460,9 +460,19 @@ impl Modem for Station {
+         self.c.now = t0 + n as Time;
+         self.c.busy.set_bw(self.c.session.bandwidth());
+         let forced = self.c.tx.ptt() || !self.c.tx.is_empty() || self.c.session.state() != State::Listen;
++        let warmed = self.c.busy.shape().1;
+         for e in self.c.busy.feed(input, forced) {
++            // Why BUSY came on, in the log: a stuck BUSY says what holds it (forced: our own key or link)
++            if e && !forced {
++                self.c.reports.push_back(Report::Trace(busy_why(self.c.busy.why())));
++            }
+             self.c.reports.push_back(Report::Busy(e));
+         }
++        if !warmed && self.c.busy.shape().1 {
++            self.c.reports.push_back(Report::Trace(
++                "busy: the receiver's noise shape taken from its first blocks, too few were clear".into(),
++            ));
++        }
+         for ev in self.rx.feed(&fed) {
+             self.on_event(ev);
+         }
+@@ -592,3 +602,13 @@ fn data_in(t: &Transmission, t_end: Time) -> DataIn {
+         .collect();
+     DataIn { level: t.record, frames, t_end }
+ }
++
++/// What tripped the BUSY detector, for the log
++fn busy_why(w: Why) -> String {
++    match w {
++        Why::Tone { hz, learned: true } => format!("busy: a tone at {hz:.0} Hz"),
++        Why::Tone { hz, learned: false } => format!("busy: a tone at {hz:.0} Hz (the noise shape not learned yet)"),
++        Why::Signature(r) => format!("busy: a VARA signal (level {})", r.get()),
++        Why::None => "busy".into(),
++    }
++}
+diff --git a/crates/xara/tests/station_busy.rs b/crates/xara/tests/station_busy.rs
+new file mode 100644
+index 0000000..3ca0d25
+--- /dev/null
++++ b/crates/xara/tests/station_busy.rs
+@@ -0,0 +1,68 @@
++mod common;
++
++use common::air::{BLOCK, FS, Rng};
++use xara::station::hf::Station;
++use xara::station::{Modem, Options, Report};
++use xara_arq::hf::session::Config;
++use xara_phy::hf::level::Bandwidth;
++
++/// Noise through a receiver whose passband rolls off: two one-pole low-passes at 300 Hz, some 25 dB down from
++/// 500 Hz to 2500 Hz, which the BUSY detector's tone test takes for a tone before it knows the passband
++fn rolled_off(r: &mut Rng, n: usize, rms: f64) -> Vec<f64> {
++    let a = (-2.0 * std::f64::consts::PI * 300.0 / FS).exp();
++    let (mut y1, mut y2) = (0.0, 0.0);
++    let x: Vec<f64> = (0..n)
++        .map(|_| {
++            y1 = a * y1 + (1.0 - a) * r.gauss();
++            y2 = a * y2 + (1.0 - a) * y1;
++            y2
++        })
++        .collect();
++    let now = (x.iter().map(|v| v * v).sum::<f64>() / n as f64).sqrt();
++    x.iter().map(|v| v * rms / now).collect()
++}
++
++// The station fed x block by block from sample t: its reports, each with the time it came at
++fn feed(st: &mut Station, x: &[f64], t: &mut usize) -> Vec<(f64, Report)> {
++    let mut out = vec![0.0; BLOCK];
++    let mut got = Vec::new();
++    for b in x.chunks(BLOCK) {
++        st.process(b, &mut out[..b.len()]);
++        *t += b.len();
++        got.extend(std::iter::from_fn(|| st.pop()).map(|r| (*t as f64 / FS, r)));
++    }
++    got
++}
++
++fn trace(r: &Report) -> Option<&str> {
++    match r {
++        Report::Trace(t) => Some(t),
++        _ => None,
++    }
++}
++
++#[test]
++fn busy_says_why_and_a_rolled_off_passband_reads_clear_in_seconds() {
++    let mut st = Station::new(Config::new(Bandwidth::Hz2300, "N0CALL"), Options::default());
++    let (mut r, mut t) = (Rng(0x5eed), 0);
++    let quiet = feed(&mut st, &rolled_off(&mut r, 6 * FS as usize, 0.03), &mut t);
++    let busy: Vec<_> = quiet.iter().filter(|(_, r)| matches!(r, Report::Busy(_))).collect();
++    // on from the start, for a tone the detector sees in the passband, then clear once the shape is taken
++    assert!(matches!(busy[..], [(_, Report::Busy(true)), (off, Report::Busy(false))] if *off < 5.0), "{quiet:?}");
++    let on = quiet.iter().position(|(_, r)| *r == Report::Busy(true)).unwrap();
++    let why = trace(&quiet[on - 1].1).unwrap();
++    assert!(why.starts_with("busy: a tone at ") && why.ends_with("Hz (the noise shape not learned yet)"), "{why}");
++    let took = quiet.iter().position(|(_, r)| trace(r).is_some_and(|t| t.contains("noise shape taken"))).unwrap();
++    assert!(took < quiet.len() - 1 && quiet[took..].iter().any(|(_, r)| *r == Report::Busy(false)), "{quiet:?}");
++    // a carrier at 1400 Hz: busy, and the log says where
++    let mut x = rolled_off(&mut r, FS as usize, 0.03);
++    for (i, v) in x.iter_mut().enumerate() {
++        *v += 0.01 * (2.0 * std::f64::consts::PI * 1400.0 * i as f64 / FS).sin();
++    }
++    let carrier = feed(&mut st, &x, &mut t);
++    let on = carrier.iter().position(|(_, r)| *r == Report::Busy(true)).expect("busy on the carrier");
++    assert!(carrier[on].0 < 6.2, "{:?}", carrier[on]);
++    let why = trace(&carrier[on - 1].1).unwrap();
++    let hz: f64 = why.strip_prefix("busy: a tone at ").and_then(|w| w.strip_suffix(" Hz")).unwrap().parse().unwrap();
++    assert!((hz - 1400.0).abs() < 30.0, "{why}");
++}

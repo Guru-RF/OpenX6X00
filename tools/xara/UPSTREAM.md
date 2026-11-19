@@ -65,7 +65,8 @@ What the radio relies on is otherwise as in 0.1.3: the host interface on 8300 an
 (`   12.345 < REGISTERED`, which the supervisor reads), the `registered` feature and the levels and bandwidths
 (`xara-phy`'s tables and `UNREGISTERED_MAX_LEVEL`, the same; NR5P adds the names), every setting the supervisor
 writes. Neither acts on `CWID ON` nor gives a cancelled call up at once: 0004 and 0005 stay, and their tests fail on
-NR5P's main without them. `--version` says `xara 0.1.2`.
+NR5P's main without them. NR5P's BUSY detector, which 0.1.3 does not have, needs 0006 behind a radio's filter.
+`--version` says `xara 0.1.2`.
 
 ## The build (`build.sh`)
 
@@ -92,8 +93,9 @@ NR5P's main without them. `--version` says `xara 0.1.2`.
   glibc 2.36 at most (it needs 2.35). Stripped, the build's directories left out of it
   (`--remap-path-prefix`): 2726788 bytes, SHA-256 `2713555fa2d96c847620edaa82df0a22db25083b21e36ee49c83c7d3e8e553c7`
   with the five patches, the same with the X6100 tree's gcc and the X6200 tree's, from builds in different
-  directories (2026-11-09). Under qemu with either radio's libraries it starts, `--version` says `xara 0.1.2`, and
-  it takes the settings the supervisor writes.
+  directories (2026-11-09); with the six, not measured yet (the ARM build is `buildroot/local-build.sh`'s). Under
+  qemu with either radio's libraries it starts, `--version` says `xara 0.1.2`, and it takes the settings the
+  supervisor writes.
 - Kept as `$HOME/.cache/openx6x00/xara/xara-0.1.2-bd8300a36e4f-rust1.99.1-<target>-<hash>/xara`, the hash being that
   of the patches, of `build.sh` and of the linker (its version, target and C library); a second run prints that path
   and downloads nothing. Beside it `doc/`: XARA's `LICENSE`, `THIRD-PARTY` (each crate compiled in, from `cargo
@@ -101,7 +103,7 @@ NR5P's main without them. `--version` says `xara 0.1.2`.
 - `buildroot/local-build.sh` passes the path to the GUI's CMake (`-DXARA_BINARY`), which installs it as
   `/usr/bin/xara` and `doc/` as `/usr/share/x6100/licenses/xara`: in the card image and in the update bundle.
 - `build.sh --host` builds the same for the PC (x86_64), for `tools/winlink`'s tests: XARA to XARA through the GUI's
-  socket code, with Pat.
+  socket code, with Pat. `build.sh --test` (`make test`) runs XARA's own tests with the patches instead (below).
 
 No upstream binary is used: NR5P's fork has none for the radios, and the ARMv7 one x0rro released linked PulseAudio
 and ALSA and had neither our backend nor the `registered` feature.
@@ -144,17 +146,30 @@ Made with `git format-patch`; `build.sh` applies them in order with `git apply`.
   about 5 ms with the GUI's 20 ms blocks; NR5P's daemon takes the latency once, at the start). The capture waiting to
   be read is said in 0.1.3's words past 100 ms and at each doubling ("xara is falling behind real time"), which
   NR5P's pump does not say; it has "audio loop slow" lines of its own, which come at the start of many keys too,
-  where a read still waits for an R the GUI no longer sends (0.1.3 waited the same, and said nothing). The PTT comes
-  from the backend through a new `Audio::ptt()`. `daemon.rs` checks the options together, as for the (tr)uSDX. With
-  `--audio x6x00` the station starts with listening off (`listen_at_start`): it answers no call until its host sends
-  `LISTEN ON`, which Pat sends only to listen, never on the radio. Upstream starts listening, until a host says
-  `LISTEN OFF` or goes; on the radio XARA runs from the start with no host until Pat calls out, and an answer would
-  key the radio with nobody there. With unit tests on a fake GUI (the hello, R paced and resampled, zeros while keyed
-  and without the GUI, T only between P 1 and P 0, the held first block, a GUI that goes and comes back, one that
-  closes at once tried once a second and not more, XARA's stop sending P 0, the latency, the backlog said) and
-  `daemon.rs`'s own (a call to a station made for the radio is not answered; the same station with another backend
-  answers it). Rewritten on NR5P's audio interface from the patch v0.3.9 had on 0.1.3 (its `path()`, `backlog()` and
-  `queued()` are not in NR5P's), its socket code the same.
+  where a read still waits for an R the GUI no longer sends (0.1.3 waited the same, and said nothing). The receiver
+  late: when no R comes for 60 ms while XARA listens, the read gives silence in its place and the reads go on at the
+  wall clock's pace; when that audio comes after all, in a rush (the GUI, PulseAudio or the system stalled), its time
+  has been counted already, so as much of it as there was silence is dropped, the oldest first, and for 100 ms the
+  reads keep the wall clock, not the rush's pace; a block and one R of it stay. XARA's clock stays the air's, and it
+  says "audio: no receiver audio from the GUI for N ms (XARA heard silence in its place); M ms of it came late, all
+  at once, and was dropped", not the falling-behind line. Before, the rush was kept: XARA's clock ran ahead of the
+  air by the stall, and the rush, waiting to be read, was said as falling behind real time, which the supervisor
+  takes for the processor short for XARA ("Ready, but it fell behind the receiver lately"). On the bench X6100
+  (November 2026: 30 m, a dummy load, Pat calling over VARA HF) XARA said 107, 207, 407 and 817 ms of capture
+  waiting in a row, with 6 % of the processor and 1 ms to process a block; on the PC a fake GUI that holds its R for
+  1 s and sends them at once gives the same ("1010 ms of capture waiting"), and with the drop the new line. Our own
+  key is not counted (no R comes then by design, nor in the GUI's turn back to the receiver), nor a GUI that is
+  away. The PTT comes from the backend through a new `Audio::ptt()`. `daemon.rs` checks the options together, as for
+  the (tr)uSDX. With `--audio x6x00` the station starts with listening off (`listen_at_start`): it answers no call
+  until its host sends `LISTEN ON`, which Pat sends only to listen, never on the radio. Upstream starts listening,
+  until a host says `LISTEN OFF` or goes; on the radio XARA runs from the start with no host until Pat calls out, and
+  an answer would key the radio with nobody there. With unit tests on a fake GUI (the hello, R paced and resampled,
+  zeros while keyed and without the GUI, T only between P 1 and P 0, the held first block, a GUI that goes and comes
+  back, one that closes at once tried once a second and not more, XARA's stop sending P 0, the latency, the backlog
+  said, late audio after silence dropped and not said as falling behind, a GUI back on time losing nothing, our own
+  key not counted) and `daemon.rs`'s own (a call to a station made for the radio is not answered; the same station
+  with another backend answers it). Rewritten on NR5P's audio interface from the patch v0.3.9 had on 0.1.3 (its
+  `path()`, `backlog()` and `queued()` are not in NR5P's), its socket code the same.
 - `0004-cwid-from-the-host.patch` (MIT, as XARA): XARA acts on its host's `CWID ON` and `CWID OFF`, which it answers
   OK and drops (below). `CWID ON` sets the HF session's `cwid`, so XARA identifies in CW as each session closes,
   whatever the callsign; `CWID OFF` clears it. Without either nothing changes, and a US call identifies after `CWID
@@ -169,9 +184,22 @@ Made with `git format-patch`; `build.sh` applies them in order with `git apply`.
   test sits beside 0004's); with 0004 it too applies to NR5P's main alone, and its test
   (`a_cancelled_call_ends_at_once`) fails there without it: the ID keyed 1.28 s after `DISCONNECT`, in a key of its
   own.
+- `0006-busy-learns-a-sloped-passband.patch` (MIT, as XARA): NR5P's BUSY detector (`crates/xara-phy/src/busy.rs`,
+  below) reads clear the noise of a receiver whose passband slopes or rolls off inside VARA's band, a few seconds
+  after it starts. Without it BUSY came on at once and stayed on: on the bench X6100 (30 m, a dummy load) on at
+  0.53 s, never clear for 5 minutes, and Pat, which waits for a clear channel, never called. The detector also says
+  in XARA's log why BUSY came on. Tests in `crates/xara-phy/tests/busy.rs` (noise falling 1 or 1.5 dB per 100 Hz
+  above 1 kHz, at 2300 and 2750 Hz, clear in under 5 s, and a carrier on it busy within 3 blocks; a carrier there
+  from the start, a signal there half the time and a VARA link there from the start not taken for the passband) and
+  `crates/xara/tests/station_busy.rs` (a passband rolling off, two low-passes at 300 Hz, through the station: on
+  with its reason, the shape taken, off in under 5 s, a carrier busy with its frequency); the passband tests and
+  the station's fail without it, BUSY on all the time.
 
-`cargo test` with the five patches (Rust 1.99.1, 2026-11-09): the workspace with pulse, alsa, registered and x6x00,
-444 passed (7 ignored); the `xara` crate with `registered` and `x6x00` alone, 169 (5 ignored).
+`cargo test` with the six patches (Rust 1.99.1, 2026-11-19): the workspace with pulse, alsa, registered and x6x00,
+452 passed (7 ignored); the `xara` crate with `registered` and `x6x00` alone, 173 (5 ignored). With the five
+(2026-11-09): 444 and 169. `make test` here (`build.sh --test`: the pinned source unpacked, `patches/` applied,
+offline from the cache) runs `xara-arq`, `xara-phy` and `xara-host` and the `xara` crate as the radios have it,
+without PulseAudio or ALSA: 386 passed (7 ignored), in 80 s on this PC.
 
 `tools/winlink`'s `make modems` has not run on this pin yet: it needs a Pat for the PC. Its parts without Pat, and a
 session driven on XARA's host ports as Pat drives it, did on 9 November: two stations through `winlink_host`, started
@@ -179,6 +207,50 @@ as the supervisor starts them; B answered nothing and keyed nothing before its `
 once, on the call's frequency; 2368 bytes A to B at the free speed (level 4, `LINK UNREGISTERED`, 143 s) and with
 `registered` on A (levels up to 11, `LINK REGISTERED`, 28 s); both stations' CW IDs played whole; no key stopped by
 the GUI, the longest 8.7 s.
+
+## BUSY
+
+Pat asks XARA whether the channel is clear before it calls, and XARA's BUSY (on the host's port) is NR5P's
+detector, not 0.1.3's: VARA's tone test and a VARA signature test, each with a hang of 34 blocks (1.45 s). The tone
+test takes the strongest bin of a 128-bin spectrum (23.4 Hz a bin) over 270 times (24 dB) the 14th weakest of the
+band (21 to 107, about 490 to 2510 Hz at 2300 Hz), above a VU gate of -46 dBFS. NR5P's addition: it learns the
+receiver's noise shape (each bin's mean ln power, from the median of 7 bins around it, so a carrier is not learned)
+and divides by it, so a radio's passband is not taken for a tone. It learns only from blocks it reads as clear, and
+until it has 64 of them (2.7 s) it tests the raw spectrum.
+
+A passband that slopes or rolls off inside the band is a tone to the raw test: 1 dB per 100 Hz is enough. BUSY then
+comes on in the first block, no block is ever clear, nothing is learned, and BUSY stays on for good: what the bench
+X6100 showed, on 30 m on a dummy load (the OFF and ON at 2.37 s in its log is XARA's toggle when Pat connects).
+
+Patch 0006 keeps NR5P's learning and adds a warm-up beside it. The first 64 blocks over the VU gate that carry no
+signal of their own are kept whatever the raw test says: not a block with a VARA signature, with a carrier (in a
+Hann-windowed spectrum the strongest bin 20 dB over the third weakest of the bins 3 to 8 away from it on either side:
+the plain FFT's skirts make a strong carrier many bins wide, and a slope is not that steep), with our own key or link,
+or one only the VU's hang lets through. If NR5P's learning has not finished by then, the shape is taken from those:
+each bin's lower quartile of ln power, raised by the quartile's distance under the mean (0.669 for exponential noise
+power), which a signal there less than three quarters of the time does not reach. From there NR5P's learning goes on
+as before (clear blocks, 1/64 a block), and the whitened test reads the slope as clear. On the PC, through the socket
+backend and a fake GUI sending noise of 1.5 dB per 100 Hz in real time: BUSY on at 0.06 s, the shape taken at 2.75 s,
+off at 4.20 s (1.45 s of hang); a carrier at 1400 Hz, some 20 dB over the noise in its bin, on at 15.08 s, 0.08 s
+after it starts, and off 1.48 s after it stops. Unpatched: on at 0.06 s, never off in 30 s.
+
+What it does not do: a wide signal that is not VARA's and is there more than three quarters of the warm-up is
+learned as the passband, and reads busy less until NR5P's learning has moved past it; a filter changed during a
+session leaves the shape of the old one, as in NR5P's main, until the learning has followed; the signature test
+stays on the raw spectrum, as NR5P has it, and trips now and then on band-limited noise for a hang's length.
+
+The log says why BUSY came on (not for our own key or link, which hold it by design), here the PC's run above:
+
+```
+     0.060   busy: a tone at 633 Hz (the noise shape not learned yet)
+     0.060 < BUSY ON
+     2.750   busy: the receiver's noise shape taken from its first blocks, too few were clear
+     4.200 < BUSY OFF
+    15.080   busy: a tone at 1406 Hz
+    15.080 < BUSY ON
+```
+
+and "busy: a VARA signal (level 5)" for a VARA station.
 
 ## Free speed, and the `registered` feature
 
@@ -255,6 +327,7 @@ x0rro's 0.1.4 ("libxara") will not come. A new pin is NR5P's main at a newer com
 `tools/winlink`'s `make modems`, the bench radios, then the air. Drop 0001 once NR5P merges `upstream-0.1.3-fixes`
 into main (0003 to 0005 are made on top of it), 0002 once its resampler is 0.1.2's, 0004 once it acts on `CWID ON`
 itself (with that patch or a change of its own), 0005 once a cancelled call gives up at once there (it waits the same
-way with a US call); 0004 and 0005 are not offered to NR5P yet. Keep `make modems`' CW ID checks. Change the commit,
+way with a US call), 0006 once NR5P's BUSY reads a sloped passband as clear (its tests show it); 0004 to 0006 are not
+offered to NR5P yet. Keep `make modems`' CW ID checks. Change the commit,
 the tar's SHA-256 and the version its `Cargo.toml` says in `build.sh` (and the Rust version and its four hashes if
 the fork's needs move past 1.99.1), rebase `patches/`, and update this file.
