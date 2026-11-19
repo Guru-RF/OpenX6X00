@@ -103,7 +103,7 @@ NR5P's main without them. NR5P's BUSY detector, which 0.1.3 does not have, needs
 - `buildroot/local-build.sh` passes the path to the GUI's CMake (`-DXARA_BINARY`), which installs it as
   `/usr/bin/xara` and `doc/` as `/usr/share/x6100/licenses/xara`: in the card image and in the update bundle.
 - `build.sh --host` builds the same for the PC (x86_64), for `tools/winlink`'s tests: XARA to XARA through the GUI's
-  socket code, with Pat.
+  socket code, with Pat. `build.sh --test` (`make test`) runs XARA's own tests with the patches instead (below).
 
 No upstream binary is used: NR5P's fork has none for the radios, and the ARMv7 one x0rro released linked PulseAudio
 and ALSA and had neither our backend nor the `registered` feature.
@@ -195,8 +195,11 @@ Made with `git format-patch`; `build.sh` applies them in order with `git apply`.
   with its reason, the shape taken, off in under 5 s, a carrier busy with its frequency); the passband tests and
   the station's fail without it, BUSY on all the time.
 
-`cargo test` with the five patches (Rust 1.99.1, 2026-11-09): the workspace with pulse, alsa, registered and x6x00,
-444 passed (7 ignored); the `xara` crate with `registered` and `x6x00` alone, 169 (5 ignored).
+`cargo test` with the six patches (Rust 1.99.1, 2026-11-19): the workspace with pulse, alsa, registered and x6x00,
+452 passed (7 ignored); the `xara` crate with `registered` and `x6x00` alone, 173 (5 ignored). With the five
+(2026-11-09): 444 and 169. `make test` here (`build.sh --test`: the pinned source unpacked, `patches/` applied,
+offline from the cache) runs `xara-arq`, `xara-phy` and `xara-host` and the `xara` crate as the radios have it,
+without PulseAudio or ALSA: 386 passed (7 ignored), in 80 s on this PC.
 
 `tools/winlink`'s `make modems` has not run on this pin yet: it needs a Pat for the PC. Its parts without Pat, and a
 session driven on XARA's host ports as Pat drives it, did on 9 November: two stations through `winlink_host`, started
@@ -205,9 +208,6 @@ once, on the call's frequency; 2368 bytes A to B at the free speed (level 4, `LI
 `registered` on A (levels up to 11, `LINK REGISTERED`, 28 s); both stations' CW IDs played whole; no key stopped by
 the GUI, the longest 8.7 s.
 
-## Free speed, and the `registered` feature
-
-VARA HF without a licence runs its free speed levels; with one, all of them. On the air the difference is one bit
 ## BUSY
 
 Pat asks XARA whether the channel is clear before it calls, and XARA's BUSY (on the host's port) is NR5P's
@@ -252,6 +252,9 @@ The log says why BUSY came on (not for our own key or link, which hold it by des
 
 and "busy: a VARA signal (level 5)" for a VARA station.
 
+## Free speed, and the `registered` feature
+
+VARA HF without a licence runs its free speed levels; with one, all of them. On the air the difference is one bit
 in the caller's connect frame: the callee follows the caller's, and nothing else is checked (XARA's author,
 x0rro/xara#9). XARA has the same: without its `registered` cargo feature, or with it but not started with
 `--registered` (a `registered` line in its config), a link XARA starts runs VARA HF's levels 1 to 4

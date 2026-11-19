@@ -10,6 +10,8 @@
 #
 #   CC=<the radios' gcc> tools/xara/build.sh    prints the binary's path on stdout, and nothing else
 #   tools/xara/build.sh --host                  the same for this PC (x86_64 Linux), for tools/winlink's tests
+#   tools/xara/build.sh --test                  XARA's own tests (cargo test) with our patches, on this PC, offline
+#                                               once the cache has it all: tools/xara's `make test`
 #
 # buildroot/local-build.sh runs it (in the build container and on the GitHub runner) with CC set to the buildroot
 # tree's own cross gcc (glibc 2.36, the GUI's toolchain) and gives the path to the GUI's CMake (-DXARA_BINARY),
@@ -43,11 +45,12 @@ RUST_PARTS=(
 )
 GLIBC_MAX=2.36          # the radios' (buildroot 2023.02, both trees)
 
-HOST=0
+HOST=0 TEST=0
 case "$1" in
     "") ;;
     --host) HOST=1 ;;
-    *) echo "usage: [CC=<cross gcc>] tools/xara/build.sh [--host]"; exit 2 ;;
+    --test) HOST=1 TEST=1 ;;
+    *) echo "usage: [CC=<cross gcc>] tools/xara/build.sh [--host|--test]"; exit 2 ;;
 esac
 [ "$(uname -m)" = x86_64 ] || { echo "tools/xara/build.sh: the pinned Rust toolchain is for x86_64 hosts, not $(uname -m)"; exit 1; }
 
@@ -75,7 +78,7 @@ KEY=$( (cat "${PATCHES[@]}" "$HERE/build.sh"; "$LINKER" --version | head -1; "$L
         cat "$("$LINKER" -print-file-name=libc.so.6)" 2> /dev/null || true) | sha256sum | cut -c1-12)
 OUT=$CACHE/xara/xara-$XARA_VER-${XARA_COMMIT:0:12}-rust$RUST_VER-$TARGET-$KEY/xara
 
-if [ -x "$OUT" ] && [ -f "$(dirname "$OUT")/doc/LICENSE" ]; then
+if [ $TEST = 0 ] && [ -x "$OUT" ] && [ -f "$(dirname "$OUT")/doc/LICENSE" ]; then
     echo "== XARA $XARA_VER, NR5P's ${XARA_COMMIT:0:12} (Rust $RUST_VER, $TARGET, patches $KEY): built already"
     echo "$OUT" >&3
     exit 0
@@ -167,6 +170,14 @@ done
 # with the SHA-256 the lock gives it, and the lock is the pinned source's
 echo "== the crates (Cargo.lock as it is, each checked against its SHA-256 there)"
 cargo fetch --locked --target $TARGET
+
+if [ $TEST = 1 ]; then
+    # The crates our patches change, and the xara crate as the radios have it (no PulseAudio or ALSA)
+    echo "== cargo test (offline)"
+    cargo test --frozen --release -p xara-arq -p xara-phy -p xara-host
+    cargo test --frozen --release -p xara --no-default-features --features registered,x6x00
+    exit 0
+fi
 
 echo "== $TARGET binary (offline: the crates fetched, Cargo.lock as it is)"
 # No PulseAudio or ALSA (the radio's audio is the GUI's); the socket backend (x6x00) and registered
