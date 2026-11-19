@@ -13,6 +13,7 @@
 #include "js8_map.h"
 
 #include "dxcc.h"
+#include "i18n.h"
 #include "map_geo.h"
 #include "qth/qth.h"
 #include "styles.h"
@@ -454,11 +455,11 @@ static void overlay(lv_obj_t *canvas, int sel) {
             if (dx < 0 || m.spots[i].km > m.spots[dx].km) dx = i;
         }
         int o = snprintf(head, sizeof(head), "%d heard  %d hear me", m.heard, hear_me);
-        if (!m.have_me) snprintf(head + o, sizeof(head) - o, "  No locator: Settings > General > STATION");
+        if (!m.have_me) snprintf(head + o, sizeof(head) - o, "  %s", _("No locator: Settings > General > STATION"));
         else if (dx >= 0) snprintf(head + o, sizeof(head) - o, "  DX %s %.0f km", m.spots[dx].s.call, m.spots[dx].km);
     } else {
         int o = snprintf(head, sizeof(head), "QSO map - %d station%s", m.n, m.n == 1 ? "" : "s");
-        if (!m.have_me) snprintf(head + o, sizeof(head) - o, "  No locator: Settings > General > STATION");
+        if (!m.have_me) snprintf(head + o, sizeof(head) - o, "  %s", _("No locator: Settings > General > STATION"));
     }
     text(canvas, 8, 4, &sony_20, TC(text_head), head);
 

@@ -1939,10 +1939,10 @@ static void update_tx_bar(void)
     if (idle && (cq_adjusting || hb_adjusting)) {
         if (cq_adjusting)
             snprintf(line, sizeof(line),
-                     "Auto CQ %u min after each CQ: turn the knob (%d-%d), press CQ when done",
+                     _("Auto CQ %u min after each CQ: turn the knob (%d-%d), press CQ when done"),
                      params.js8_cq_interval.x, CQ_MIN_INTERVAL, CQ_MAX_INTERVAL);
         else
-            snprintf(line, sizeof(line), "HB every %u min: turn the knob (5-30), press HB when done",
+            snprintf(line, sizeof(line), _("HB every %u min: turn the knob (5-30), press HB when done"),
                      params.js8_hb_interval.x);
         lv_obj_set_style_bg_color(bar, bg, 0);
         lv_label_set_text(bar, line);
@@ -1951,21 +1951,27 @@ static void update_tx_bar(void)
 
     const char *speed = js8_speed_name(tx_status.speed);
     if (tx_status.state == JS8_TX_KEYING) {
-        snprintf(line, sizeof(line), "TX %4.0f Hz %s  sending %d/%d   %s", tx_status.offset_hz, speed,
-                 tx_status.frame, tx_status.frames, tx_status.text);
+        int n = snprintf(line, sizeof(line), "TX %4.0f Hz %s  ", tx_status.offset_hz, speed);
+        snprintf(line + n, sizeof(line) - n, _("sending %d/%d"), tx_status.frame, tx_status.frames);
+        n = strlen(line);
+        snprintf(line + n, sizeof(line) - n, "   %s", tx_status.text);
         bg = TC(tx_bg);
     } else if (tx_status.state == JS8_TX_WAITING) {
         /* Slots are in JS8 time. The count comes before the text so a long
          * message only loses its tail. */
         int wait_s = (int)((tx_status.next_ms - now_wall_ms() + 999) / 1000);
-        snprintf(line, sizeof(line), "TX %4.0f Hz %s  %d/%d %s %d s   %s", tx_status.offset_hz, speed,
-                 tx_status.frame, tx_status.frames, tx_status.frame == 1 ? "starts in" : "next in",
-                 wait_s > 0 ? wait_s : 0, tx_status.text);
+        int n = snprintf(line, sizeof(line), "TX %4.0f Hz %s  ", tx_status.offset_hz, speed);
+        snprintf(line + n, sizeof(line) - n, tx_status.frame == 1 ? _("%d/%d starts in %d s") : _("%d/%d next in %d s"),
+                 tx_status.frame, tx_status.frames, wait_s > 0 ? wait_s : 0);
+        n = strlen(line);
+        snprintf(line + n, sizeof(line) - n, "   %s", tx_status.text);
     } else {
         uint16_t at = params.js8_tx_freq.x;
-        snprintf(line, sizeof(line), "TX %4u Hz %s   ready%s%s%s%s", at, js8_speed_name(cur_speed()),
-                 params.callsign.x[0] ? "" : "  (set your callsign: Settings > General)",
-                 sel_call[0] ? "      selected: " : "", sel_call, auto_cq ? "      auto CQ" : "");
+        /* the words through the language one by one (the line as a whole never matches an entry) */
+        snprintf(line, sizeof(line), "TX %4u Hz %s   %s%s%s%s%s%s%s%s%s", at, js8_speed_name(cur_speed()), _("ready"),
+                 params.callsign.x[0] ? "" : "  ", params.callsign.x[0] ? "" : _("(set your callsign: Settings > General)"),
+                 sel_call[0] ? "      " : "", sel_call[0] ? _("selected:") : "", sel_call[0] ? " " : "", sel_call,
+                 auto_cq ? "      " : "", auto_cq ? _("auto CQ") : "");
         bg = TC(list);
     }
     lv_obj_set_style_bg_color(bar, bg, 0);
@@ -2944,6 +2950,16 @@ static int board_order(const void *a, const void *b)
     return (ty > tx) - (ty < tx);
 }
 
+/* The TX line's text ends ("...") short of hb_info on its right instead of running under it: with no callsign set,
+ * "ready  (set your callsign: Settings > General)" ran under "0 stations - HB: say you're here", and a selected call
+ * with auto CQ is as long (PC build, 19 Nov). hb_info ends 7 px inside the line's right edge; 12 px between them */
+static void tx_bar_room(void)
+{
+    if (!tx_bar || !hb_info) return;
+    const char *t = lv_label_get_text(hb_info);
+    lv_obj_set_style_pad_right(tx_bar, t && t[0] ? text_w(t, &sony_18) + 7 + 12 : 6, LV_PART_MAIN);
+}
+
 static void hb_info_update(void)
 {
     if (!hb_info) return;
@@ -2956,14 +2972,17 @@ static void hb_info_update(void)
         time_t    t = (time_t)(hb_sent_ms / 1000);
         struct tm tm;
         gmtime_r(&t, &tm);
-        snprintf(text, sizeof(text), "HB %02d:%02d - %d heard you", tm.tm_hour, tm.tm_min, heard);
+        snprintf(text, sizeof(text), _("HB %02d:%02d - %d heard you"), tm.tm_hour, tm.tm_min, heard);
+    } else if (board_n == 1) {
+        snprintf(text, sizeof(text), "%s", _("1 station - HB: say you're here"));
     } else {
-        snprintf(text, sizeof(text), "%d station%s - HB: say you're here", board_n, board_n == 1 ? "" : "s");
+        snprintf(text, sizeof(text), _("%d stations - HB: say you're here"), board_n);
     }
     if (board_on && board_n > BOARD_N) /* the board's page */
         snprintf(text + strlen(text), sizeof(text) - strlen(text), "   %d/%d", (board_sel > 0 ? board_sel : 0) / BOARD_N + 1,
                  (board_n + BOARD_N - 1) / BOARD_N);
     lv_label_set_text(hb_info, text);
+    tx_bar_room();
 }
 
 static void card_show(card_t *c, const js8_station_t *st, bool sel)

@@ -8144,6 +8144,10 @@ msgid "%d heard  %d hear me"
 msgstr "%d gehört  %d hören mich"
 
 #: src/js8_map.c
+msgid "No locator: Settings > General > STATION"
+msgstr ""
+
+#: src/js8_map.c
 #, c-format
 msgid "QSO map - %d station%s"
 msgstr "QSO-Karte - %d Station%s"
@@ -8307,33 +8311,35 @@ msgstr "HB alle %u min: Regler drehen (5-30), danach HB drücken"
 
 #: src/js8_window.c
 #, c-format
-msgid "TX %4.0f Hz %s  sending %d/%d   %s"
-msgstr "TX %4.0f Hz %s  sende %d/%d   %s"
-
-#: src/js8_window.c
-msgid "starts in"
-msgstr "beginnt in"
-
-#: src/js8_window.c
-msgid "next in"
-msgstr "nächster in"
-
-#: src/js8_window.c
-#, c-format
-msgid "TX %4u Hz %s   ready%s%s%s%s"
+msgid "sending %d/%d"
 msgstr ""
 
 #: src/js8_window.c
-msgid "  (set your callsign: Settings > General)"
-msgstr "  (Rufzeichen eintragen: Einstellungen > Allgemein)"
+#, c-format
+msgid "%d/%d starts in %d s"
+msgstr ""
 
 #: src/js8_window.c
-msgid "      selected: "
-msgstr "      gewählt: "
+#, c-format
+msgid "%d/%d next in %d s"
+msgstr ""
+
+#. not in the list: a line or a word of a longer text
+#: src/js8_window.c
+msgid "ready"
+msgstr "bereit"
 
 #: src/js8_window.c
-msgid "      auto CQ"
-msgstr "      Auto-CQ"
+msgid "(set your callsign: Settings > General)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "selected:"
+msgstr ""
+
+#: src/js8_window.c
+msgid "auto CQ"
+msgstr ""
 
 #: src/js8_window.c
 msgid "Already sending - Stop TX first"
@@ -8493,8 +8499,12 @@ msgid "HB %02d:%02d - %d heard you"
 msgstr ""
 
 #: src/js8_window.c
+msgid "1 station - HB: say you're here"
+msgstr ""
+
+#: src/js8_window.c
 #, c-format
-msgid "%d station%s - HB: say you're here"
+msgid "%d stations - HB: say you're here"
 msgstr ""
 
 #: src/js8_window.c
@@ -14880,6 +14890,15 @@ msgstr "Winlink: kein QSY auf %s MHz, %s"
 
 #: src/winlink.c
 #, c-format
+msgid "the radio is in %s, not USB-D%s"
+msgstr ""
+
+#: src/winlink.c
+msgid " (an app holds the mode)"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
 msgid "the radio could not go to Pat's %s MHz"
 msgstr "das Funkgerät konnte nicht auf Pats %s MHz gehen"
 
@@ -16945,9 +16964,23 @@ msgstr "Aktivierung"
 msgid "stopping"
 msgstr "stoppt"
 
-#. not in the list: a line or a word of a longer text
-msgid "ready"
-msgstr "bereit"
+#~ msgid "TX %4.0f Hz %s  sending %d/%d   %s"
+#~ msgstr "TX %4.0f Hz %s  sende %d/%d   %s"
+
+#~ msgid "starts in"
+#~ msgstr "beginnt in"
+
+#~ msgid "next in"
+#~ msgstr "nächster in"
+
+#~ msgid "  (set your callsign: Settings > General)"
+#~ msgstr "  (Rufzeichen eintragen: Einstellungen > Allgemein)"
+
+#~ msgid "      selected: "
+#~ msgstr "      gewählt: "
+
+#~ msgid "      auto CQ"
+#~ msgstr "      Auto-CQ"
 
 #~ msgid ""
 #~ "Fax\n"

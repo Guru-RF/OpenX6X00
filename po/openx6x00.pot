@@ -7951,6 +7951,10 @@ msgid "%d heard  %d hear me"
 msgstr ""
 
 #: src/js8_map.c
+msgid "No locator: Settings > General > STATION"
+msgstr ""
+
+#: src/js8_map.c
 #, c-format
 msgid "QSO map - %d station%s"
 msgstr ""
@@ -8112,32 +8116,33 @@ msgstr ""
 
 #: src/js8_window.c
 #, c-format
-msgid "TX %4.0f Hz %s  sending %d/%d   %s"
-msgstr ""
-
-#: src/js8_window.c
-msgid "starts in"
-msgstr ""
-
-#: src/js8_window.c
-msgid "next in"
+msgid "sending %d/%d"
 msgstr ""
 
 #: src/js8_window.c
 #, c-format
-msgid "TX %4u Hz %s   ready%s%s%s%s"
+msgid "%d/%d starts in %d s"
 msgstr ""
 
 #: src/js8_window.c
-msgid "  (set your callsign: Settings > General)"
+#, c-format
+msgid "%d/%d next in %d s"
 msgstr ""
 
 #: src/js8_window.c
-msgid "      selected: "
+msgid "ready"
 msgstr ""
 
 #: src/js8_window.c
-msgid "      auto CQ"
+msgid "(set your callsign: Settings > General)"
+msgstr ""
+
+#: src/js8_window.c
+msgid "selected:"
+msgstr ""
+
+#: src/js8_window.c
+msgid "auto CQ"
 msgstr ""
 
 #: src/js8_window.c
@@ -8298,8 +8303,12 @@ msgid "HB %02d:%02d - %d heard you"
 msgstr ""
 
 #: src/js8_window.c
+msgid "1 station - HB: say you're here"
+msgstr ""
+
+#: src/js8_window.c
 #, c-format
-msgid "%d station%s - HB: say you're here"
+msgid "%d stations - HB: say you're here"
 msgstr ""
 
 #: src/js8_window.c
@@ -14583,6 +14592,15 @@ msgstr ""
 #: src/winlink.c
 #, c-format
 msgid "Winlink: no QSY to %s MHz, %s"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "the radio is in %s, not USB-D%s"
+msgstr ""
+
+#: src/winlink.c
+msgid " (an app holds the mode)"
 msgstr ""
 
 #: src/winlink.c

@@ -8415,6 +8415,10 @@ msgid "%d heard  %d hear me"
 msgstr "%d gehoord  %d horen mij"
 
 #: src/js8_map.c
+msgid "No locator: Settings > General > STATION"
+msgstr "Geen locator: Instellingen > Algemeen > STATION"
+
+#: src/js8_map.c
 #, c-format
 msgid "QSO map - %d station%s"
 msgstr "QSO-kaart - %d station%s"
@@ -8580,33 +8584,34 @@ msgstr "HB elke %u min: draai aan de knop (5-30), druk op HB als je klaar bent"
 
 #: src/js8_window.c
 #, c-format
-msgid "TX %4.0f Hz %s  sending %d/%d   %s"
-msgstr "TX %4.0f Hz %s  zendt %d/%d   %s"
-
-#: src/js8_window.c
-msgid "starts in"
-msgstr "start over"
-
-#: src/js8_window.c
-msgid "next in"
-msgstr "volgende over"
+msgid "sending %d/%d"
+msgstr "zendt %d/%d"
 
 #: src/js8_window.c
 #, c-format
-msgid "TX %4u Hz %s   ready%s%s%s%s"
-msgstr "TX %4u Hz %s   klaar%s%s%s%s"
+msgid "%d/%d starts in %d s"
+msgstr "%d/%d start over %d s"
 
 #: src/js8_window.c
-msgid "  (set your callsign: Settings > General)"
-msgstr "  (stel je roepnaam in: Instellingen > Algemeen)"
+#, c-format
+msgid "%d/%d next in %d s"
+msgstr "%d/%d volgende over %d s"
 
 #: src/js8_window.c
-msgid "      selected: "
-msgstr "      gekozen: "
+msgid "ready"
+msgstr "klaar"
 
 #: src/js8_window.c
-msgid "      auto CQ"
-msgstr "      auto-CQ"
+msgid "(set your callsign: Settings > General)"
+msgstr "(stel je roepnaam in: Instellingen > Algemeen)"
+
+#: src/js8_window.c
+msgid "selected:"
+msgstr "gekozen:"
+
+#: src/js8_window.c
+msgid "auto CQ"
+msgstr "auto-CQ"
 
 #: src/js8_window.c
 msgid "Already sending - Stop TX first"
@@ -8766,9 +8771,13 @@ msgid "HB %02d:%02d - %d heard you"
 msgstr "HB %02d:%02d - %d hoorden je"
 
 #: src/js8_window.c
+msgid "1 station - HB: say you're here"
+msgstr "1 station - HB: meld dat je er bent"
+
+#: src/js8_window.c
 #, c-format
-msgid "%d station%s - HB: say you're here"
-msgstr "%d station%s - HB: meld dat je er bent"
+msgid "%d stations - HB: say you're here"
+msgstr "%d stations - HB: meld dat je er bent"
 
 #: src/js8_window.c
 #, c-format
@@ -15292,6 +15301,15 @@ msgstr "Winlink: geen QSY naar %s MHz, %s"
 
 #: src/winlink.c
 #, c-format
+msgid "the radio is in %s, not USB-D%s"
+msgstr ""
+
+#: src/winlink.c
+msgid " (an app holds the mode)"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
 msgid "the radio could not go to Pat's %s MHz"
 msgstr "de radio kon niet naar %s MHz van Pat"
 
@@ -15963,6 +15981,30 @@ msgstr "Auto-sync"
 #. not in the list: a line or a word of a longer text
 msgid "SETTINGS"
 msgstr "INSTELLINGEN"
+
+#~ msgid "TX %4.0f Hz %s  sending %d/%d   %s"
+#~ msgstr "TX %4.0f Hz %s  zendt %d/%d   %s"
+
+#~ msgid "starts in"
+#~ msgstr "start over"
+
+#~ msgid "next in"
+#~ msgstr "volgende over"
+
+#~ msgid "TX %4u Hz %s   ready%s%s%s%s"
+#~ msgstr "TX %4u Hz %s   klaar%s%s%s%s"
+
+#~ msgid "  (set your callsign: Settings > General)"
+#~ msgstr "  (stel je roepnaam in: Instellingen > Algemeen)"
+
+#~ msgid "      selected: "
+#~ msgstr "      gekozen: "
+
+#~ msgid "      auto CQ"
+#~ msgstr "      auto-CQ"
+
+#~ msgid "%d station%s - HB: say you're here"
+#~ msgstr "%d station%s - HB: meld dat je er bent"
 
 #~ msgid "(Board)"
 #~ msgstr "(Overzicht)"

@@ -8468,6 +8468,10 @@ msgid "%d heard  %d hear me"
 msgstr "听到 %d  %d 听到我"
 
 #: src/js8_map.c
+msgid "No locator: Settings > General > STATION"
+msgstr "未设网格: 设置 > 常规 > STATION"
+
+#: src/js8_map.c
 #, c-format
 msgid "QSO map - %d station%s"
 msgstr "QSO 地图 - %d 个电台%.0s"
@@ -8635,33 +8639,34 @@ msgstr "每 %u 分钟 HB: 转动旋钮 (5-30), 完成后按 HB"
 
 #: src/js8_window.c
 #, c-format
-msgid "TX %4.0f Hz %s  sending %d/%d   %s"
-msgstr "TX %4.0f Hz %s  发送中 %d/%d   %s"
-
-#: src/js8_window.c
-msgid "starts in"
-msgstr "距开始"
-
-#: src/js8_window.c
-msgid "next in"
-msgstr "距下次"
+msgid "sending %d/%d"
+msgstr "发送中 %d/%d"
 
 #: src/js8_window.c
 #, c-format
-msgid "TX %4u Hz %s   ready%s%s%s%s"
-msgstr "TX %4u Hz %s   就绪%s%s%s%s"
+msgid "%d/%d starts in %d s"
+msgstr "%d/%d 距开始 %d 秒"
 
 #: src/js8_window.c
-msgid "  (set your callsign: Settings > General)"
-msgstr "  (请设置呼号: 设置 > 常规)"
+#, c-format
+msgid "%d/%d next in %d s"
+msgstr "%d/%d 距下次 %d 秒"
 
 #: src/js8_window.c
-msgid "      selected: "
-msgstr "      已选: "
+msgid "ready"
+msgstr "就绪"
 
 #: src/js8_window.c
-msgid "      auto CQ"
-msgstr "      自动 CQ"
+msgid "(set your callsign: Settings > General)"
+msgstr "(请设置呼号: 设置 > 常规)"
+
+#: src/js8_window.c
+msgid "selected:"
+msgstr "已选:"
+
+#: src/js8_window.c
+msgid "auto CQ"
+msgstr "自动 CQ"
 
 #: src/js8_window.c
 msgid "Already sending - Stop TX first"
@@ -8821,9 +8826,13 @@ msgid "HB %02d:%02d - %d heard you"
 msgstr "HB %02d:%02d - %d 个电台听到你"
 
 #: src/js8_window.c
+msgid "1 station - HB: say you're here"
+msgstr "1 个电台 - HB: 告诉大家你在"
+
+#: src/js8_window.c
 #, c-format
-msgid "%d station%s - HB: say you're here"
-msgstr "%d 个电台%.0s - HB: 告诉大家你在"
+msgid "%d stations - HB: say you're here"
+msgstr "%d 个电台 - HB: 告诉大家你在"
 
 #: src/js8_window.c
 #, c-format
@@ -15365,6 +15374,15 @@ msgstr "Winlink: 未 QSY 到 %s MHz, %s"
 
 #: src/winlink.c
 #, c-format
+msgid "the radio is in %s, not USB-D%s"
+msgstr ""
+
+#: src/winlink.c
+msgid " (an app holds the mode)"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
 msgid "the radio could not go to Pat's %s MHz"
 msgstr "电台无法转到 Pat 的 %s MHz"
 
@@ -16040,6 +16058,30 @@ msgstr "自动同步"
 #. not in the list: a line or a word of a longer text
 msgid "SETTINGS"
 msgstr "设置"
+
+#~ msgid "TX %4.0f Hz %s  sending %d/%d   %s"
+#~ msgstr "TX %4.0f Hz %s  发送中 %d/%d   %s"
+
+#~ msgid "starts in"
+#~ msgstr "距开始"
+
+#~ msgid "next in"
+#~ msgstr "距下次"
+
+#~ msgid "TX %4u Hz %s   ready%s%s%s%s"
+#~ msgstr "TX %4u Hz %s   就绪%s%s%s%s"
+
+#~ msgid "  (set your callsign: Settings > General)"
+#~ msgstr "  (请设置呼号: 设置 > 常规)"
+
+#~ msgid "      selected: "
+#~ msgstr "      已选: "
+
+#~ msgid "      auto CQ"
+#~ msgstr "      自动 CQ"
+
+#~ msgid "%d station%s - HB: say you're here"
+#~ msgstr "%d 个电台%.0s - HB: 告诉大家你在"
 
 #~ msgid "(Board)"
 #~ msgstr "(看板)"

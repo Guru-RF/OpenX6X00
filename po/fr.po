@@ -7892,7 +7892,7 @@ msgstr "écoute : %d stations, %d créneaux"
 #: src/gps_window.c
 #, c-format
 msgid "%s: off"
-msgstr "%s : off"
+msgstr "%s : arrêt"
 
 #: src/gps_window.c
 #, c-format
@@ -8438,6 +8438,10 @@ msgid "%d heard  %d hear me"
 msgstr "%d entendues  %d m'entendent"
 
 #: src/js8_map.c
+msgid "No locator: Settings > General > STATION"
+msgstr "Pas de locator : Réglages > Général > STATION"
+
+#: src/js8_map.c
 #, c-format
 msgid "QSO map - %d station%s"
 msgstr "Carte des QSO - %d station%s"
@@ -8605,33 +8609,35 @@ msgstr "HB toutes les %u min : tournez le bouton (5-30), puis appuyez sur HB"
 
 #: src/js8_window.c
 #, c-format
-msgid "TX %4.0f Hz %s  sending %d/%d   %s"
-msgstr "TX %4.0f Hz %s  envoi %d/%d   %s"
-
-#: src/js8_window.c
-msgid "starts in"
-msgstr "commence dans"
-
-#: src/js8_window.c
-msgid "next in"
-msgstr "prochain dans"
+msgid "sending %d/%d"
+msgstr "envoi %d/%d"
 
 #: src/js8_window.c
 #, c-format
-msgid "TX %4u Hz %s   ready%s%s%s%s"
-msgstr "TX %4u Hz %s   prête%s%s%s%s"
+msgid "%d/%d starts in %d s"
+msgstr "%d/%d commence dans %d s"
 
 #: src/js8_window.c
-msgid "  (set your callsign: Settings > General)"
-msgstr "  (indiquez votre indicatif : Réglages > Général)"
+#, c-format
+msgid "%d/%d next in %d s"
+msgstr "%d/%d prochain dans %d s"
+
+#. not in the list: a line or a word of a longer text
+#: src/js8_window.c
+msgid "ready"
+msgstr "prêt"
 
 #: src/js8_window.c
-msgid "      selected: "
-msgstr "      choisie : "
+msgid "(set your callsign: Settings > General)"
+msgstr "(indiquez votre indicatif : Réglages > Général)"
 
 #: src/js8_window.c
-msgid "      auto CQ"
-msgstr "      CQ auto"
+msgid "selected:"
+msgstr "choisie :"
+
+#: src/js8_window.c
+msgid "auto CQ"
+msgstr "CQ auto"
 
 #: src/js8_window.c
 msgid "Already sending - Stop TX first"
@@ -8791,9 +8797,13 @@ msgid "HB %02d:%02d - %d heard you"
 msgstr "HB %02d:%02d - entendu par %d"
 
 #: src/js8_window.c
+msgid "1 station - HB: say you're here"
+msgstr "1 station - HB : signalez votre présence"
+
+#: src/js8_window.c
 #, c-format
-msgid "%d station%s - HB: say you're here"
-msgstr "%d station%s - HB : signalez votre présence"
+msgid "%d stations - HB: say you're here"
+msgstr "%d stations - HB : signalez votre présence"
 
 #: src/js8_window.c
 #, c-format
@@ -15335,6 +15345,15 @@ msgstr "Winlink : pas de QSY vers %s MHz, %s"
 
 #: src/winlink.c
 #, c-format
+msgid "the radio is in %s, not USB-D%s"
+msgstr ""
+
+#: src/winlink.c
+msgid " (an app holds the mode)"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
 msgid "the radio could not go to Pat's %s MHz"
 msgstr "la radio n'a pas pu aller sur les %s MHz de Pat"
 
@@ -17428,9 +17447,29 @@ msgstr "Activation"
 msgid "stopping"
 msgstr "arrêt"
 
-#. not in the list: a line or a word of a longer text
-msgid "ready"
-msgstr "prêt"
+#~ msgid "TX %4.0f Hz %s  sending %d/%d   %s"
+#~ msgstr "TX %4.0f Hz %s  envoi %d/%d   %s"
+
+#~ msgid "starts in"
+#~ msgstr "commence dans"
+
+#~ msgid "next in"
+#~ msgstr "prochain dans"
+
+#~ msgid "TX %4u Hz %s   ready%s%s%s%s"
+#~ msgstr "TX %4u Hz %s   prête%s%s%s%s"
+
+#~ msgid "  (set your callsign: Settings > General)"
+#~ msgstr "  (indiquez votre indicatif : Réglages > Général)"
+
+#~ msgid "      selected: "
+#~ msgstr "      choisie : "
+
+#~ msgid "      auto CQ"
+#~ msgstr "      CQ auto"
+
+#~ msgid "%d station%s - HB: say you're here"
+#~ msgstr "%d station%s - HB : signalez votre présence"
 
 #~ msgid "(Board)"
 #~ msgstr "(Tableau)"
