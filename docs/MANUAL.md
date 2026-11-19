@@ -3179,7 +3179,7 @@ Starting and stopping it:
 
 - A key: give "TUNE ext. tuner on/off" to a front key's long press or to a
   hand mic F key (Settings > Keys). It works with an app open.
-- The Ext tune button of the digital apps: FT8/FT4/FT2 page 5, JS8 page 3,
+- The Ext tune button of the digital apps: FT8/FT4/FT2 page 4, JS8 page 3,
   WSPR page 2, SSTV page 3, PSK31/PSK63 and Olivia page 6, JTTY page 5. It
   shows the TUNE power, and Stop while it tunes.
 - The browser Panel's TUNE button (see
@@ -3444,20 +3444,28 @@ Pressing Modes again closes the menu.
 ### FT8 and FT4
 
 APP > Modes > FT8 (or FT4, FT2). The radio tunes an FT8/FT4/FT2 frequency; the band
-keys step through the others. 80 px of waterfall (about two slots) sit above
-the list. The main knob moves your TX audio offset.
+keys step through the others. On top the lane, the calls heard over their
+offset, then 40 px of waterfall (about a slot) above the traffic (the list)
+or the tiles. The main knob moves your TX audio offset; the list or the tiles
+fade out while it turns, to show the waterfall under them. The lane, the
+tiles, the slot lines and the CQs' look in the list are F4OLI's redesign
+(OlivLoze's fork).
 
 Buttons:
 
 | Page | Buttons |
 |---|---|
-| 1 | Show: All / CQ, Mode: FT8 / FT4 / FT2, TX CQ, TX Call |
-| 2 | Hold Freq, Auto, Force QSO save, Power |
-| 3 | CQ Modifier, Time Sync, Log Map, Live Map |
-| 4 | Freq: Preset / 14.091, Hound: Off / On, Retries, For you |
-| 5 | Ext tune (see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
+| 1 operate | TX CQ, TX Call, Show: All / CQ (held: the For you strip on / off), View: Traffic / Tiles |
+| 2 the QSO | Auto, Hold Freq, Retries, Force QSO save |
+| 3 the band | Mode: FT8 / FT4 / FT2, Freq: Preset / 14.091, Hound: Off / On, Power |
+| 4 tools | CQ Modifier, Time Sync, Live Map (held: the Log Map), Ext tune (see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
+| 5 | Log Map, For you |
 
-- Show: CQ shows the CQs and the messages to you; All shows all traffic.
+- Show: CQ shows the CQs and the messages to you; All shows all traffic. It
+  filters the tiles and the lane as it does the list: a station seen in
+  another QSO under All goes from them at once.
+- View: the traffic (the list) or the tiles, below. The radio keeps your
+  choice until it restarts; it starts on the traffic.
 - TX CQ calls CQ. A band key, Freq or Mode ends the CQ: TX CQ goes to
   Disabled (after a band key or Freq the radio also says "CQ off: press TX
   CQ to call on this frequency"), and one press calls again there. A reply,
@@ -3519,21 +3527,56 @@ Buttons:
   what it reads ("ft8: Auto Time Sync: median DT ...").
 - CQ Modifier: for example `CQ POTA` or `CQ DX`.
 
-The list. Each row has the slot time, the message, and on the right the
-country with its flag, the distance (when the sender sent a grid and your
-QTH is set) and the SNR. The country comes from AD1C's cty.dat (SP2KMO's
-upstream PR #282). Settings > Display > INTERFACE > FT8/FT4 info picks what
-goes next to the SNR: km, mi, Country, Country + km (the default) or
-Country + mi. The "Saved QSO" message and the web Panel's FT8 list give the
-distance in the same unit.
+The lane. Over the waterfall, each station on the tiles (heard in the last
+2 minutes, as Show lets it) has its call written over its offset, on two
+lines where calls would meet; a call with no room on either is left out
+(its tile has it). Red: a station that called you in the last 3 minutes.
+White: a CQ. Grey: the others. Yellow: your TX offset ("TX") and, in the
+tiles, the station selected.
 
-| Row | Colour |
+The list (View: Traffic). A line with the slot's time heads its rows, and
+the rows go without theirs; your transmissions are in it, in blue, in their
+slot. The time is the slot's start (12:00:15), for each row of the slot and
+for your TX: read as the slot's tick came, it was 1 to 3 s late on a busy
+band, the slot's last decodes running first. Each row has the message, and
+on the right the country with its flag, the distance (when the sender sent
+a grid and your QTH is set) and the SNR. The country comes from AD1C's
+cty.dat (SP2KMO's upstream PR #282). Settings > Display > INTERFACE >
+FT8/FT4 info picks what goes next to the SNR: km, mi, Country, Country + km
+(the default) or Country + mi. The "Saved QSO" message and the web Panel's
+FT8 list give the distance in the same unit. The CQs stand out of the
+traffic, to answer them fast:
+
+| Row | Looks |
 |---|---|
-| CQ, not worked | green |
-| CQ, worked on another band or mode | dark green |
-| CQ, worked on this band and mode | darker green, struck through |
+| CQ, not worked | bright, a green edge, a green CQ tag |
+| CQ, worked on another band or mode | a fainter edge, a "worked" tag |
+| CQ, worked on this band and mode | the same, struck through |
+| a CQ or a call to you from a country not in your log | a yellow NEW tag |
+| the other stations' QSOs (Show: All) | grey |
 | a message to you | red |
 | your TX | blue |
+
+The countries of your log are read from the radio's QSO list as the app
+opens, and a QSO logged since adds its own; one deleted or imported meanwhile
+counts from the next time the app opens. In the 1bit theme a CQ not worked
+has a heavy left border instead of the edge.
+
+The tiles (View: Tiles). One tile a station heard in the last 2 minutes:
+flag, call, signal (one to five bars, -24 to -4 dB), country and distance,
+and a tag: "calls you" with its report (the tile red for 3 minutes after its
+call, the text white on it), NEW (a CQ from a country not in your log), CQ
+(or CQ POTA), worked (a CQ of a station worked before), called you (once
+red, or logged since), QSO (in a QSO with someone else). The stations that
+call you come first, the newest call first, then the NEW CQs, the CQs, the
+CQs worked, the others; the strongest first in each. A QSO logged ends its
+station's red. Nine a page, the page under them (1/2) when there are more.
+The MFK goes from tile to tile, its station's offset marked on the
+waterfall; a press calls the selected station as a press on its last row
+would, and the first press with none selected picks the first tile. A touch
+on a tile calls it. A press while transmitting stops TX, as on the list.
+The list goes on under the tiles: back on the traffic it is where you left
+it, still following the new rows from its last one.
 
 A POTA tag after the message marks a station spotted on POTA right now, and
 any `CQ POTA`. The spots are the ones the cluster already fetches from
@@ -3567,8 +3610,9 @@ list, so they do not scroll away.
 - An MFK press on a row replies, as in the list.
 - With the MFK: down past the last row of the list enters the strip; up from
   its first row goes back to the list.
-- For you (page 4) turns the strip off: no pinned rows, the calls to you stay
-  in the list only, in red as before. On by default.
+- For you (page 5), or Show held (page 1), turns the strip off: no pinned
+  rows, the calls to you stay in the list only, in red as before. On by
+  default. The tiles cover the strip: they have the calls to you in red.
 - The strip has no title: a line in the "to you" colour sits on top of it.
   It is hidden when empty.
 
@@ -3671,11 +3715,11 @@ QSO with a CB call on either side goes to Wavelog. Transmitting on 11 m goes
 by the radio's rule, as anywhere outside the amateur bands: refused unless
 TX outside ham bands is on (see [CB](#cb)).
 
-Log Map. Page 3 > Log Map shows the logged stations on a world map centred on you:
+Log Map. Page 5 > Log Map, or Live Map held (page 4), shows the logged stations on a world map centred on you:
 great-circle paths, a dot and the callsign for each station. Calls and dots
 are larger since v0.119. ESC or Log Map closes it.
 
-Live Map. Page 3 > Live Map puts on the same map every station decoded in
+Live Map. Page 4 > Live Map puts on the same map every station decoded in
 the last 15 minutes that sent a grid (a CQ or a reply with its 4-character
 square). The dot's colour is the distance from your QTH square: green under
 1000 km, blue under 3000, orange under 8000, pink beyond. Stations heard in the
@@ -3774,7 +3818,7 @@ First steps:
    all go back when you leave.
 4. The board shows the stations of the band as cards. Heartbeat (page 1)
    tells them you are here; those that hear you answer and come first, in
-   red, "heard you" with their report. Turn the MFK onto a card and press:
+   red for 3 minutes, "heard you" with their report. Turn the MFK onto a card and press:
    the conversations open on that station.
 5. ESC or the top knob stops sending; the next ESC leaves the app.
 
@@ -3795,7 +3839,8 @@ those that heard you first (a heartbeat answered, a call), then the others,
 newest first. A card shows the flag, the call, the signal as you hear it,
 the country and distance (from their locator, else from their country's
 middle, "~"), and a tag: "2 new" (messages for you not read), "heard you
--12" (their report), else what they sent last (CQ, HB, X6100). The selected
+-12" (their report; the card red for 3 minutes after their answer, then
+plain with the tag in grey), else what they sent last (CQ, HB, X6100). The selected
 card is framed; the MFK goes from card to card, its press opens the
 conversations. On the right of the TX line: the stations heard and "HB:
 say you're here", then after a heartbeat its time and how many heard it,
@@ -4236,7 +4281,9 @@ F4OLI's (OlivLoze's fork), from his own receiving station.
 - The plan is in the firmware (tools/wefax_plan/plan.json, from a 48 h watch
   in November 2026, made for western Europe, each chart named from its title
   as received; DWD's 05:25 and 18:00 charts are the North Atlantic surface
-  analysis, in the Bulletin's Analysis); a `/mnt/wefax/plan.json` of the
+  analysis, in the Bulletin's Analysis; Northwood's 00Z analysis and 24 h
+  forecast come again at 04:00 and 05:12 on 2618.5 kHz, its 06Z analysis
+  at 09:00 and 10:00 on 8040, the best copy kept); a `/mnt/wefax/plan.json` of the
   same form replaces it (`"slots"`: `t` the UTC start, `st` the station, `hz`
   the frequency the fax is on, `prod` the chart's name, `dur` its length in s,
   690 by default, `fill` true for a filler).
@@ -7016,7 +7063,7 @@ The menu has General and six groups:
 | Remote | Panel | the radio's own controls in the browser, for a touch screen (see [Browser panel](#browser-panel)) |
 | | Screen | the radio's screen live, its keys and knobs, the audio both ways (see [Browser remote](#browser-remote)) |
 | | Tailscale | Enabled, status, Log in to Tailscale, the radio on your tailnet, Log out, and Funnel (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
-| Apps | FT8 | the radio's FT8 app: its own waterfall with the calls of each slot, the stations on a map, the band's decodes, the QSO under way, the app's buttons and its next message (see [FT8 in the browser](#ft8-in-the-browser)) |
+| Apps | FT8 | the radio's FT8 app: its own waterfall with the calls of each slot, the stations on a map, the band's decodes, the QSO under way, the app's buttons and its next message (see [FT8 in the browser](#ft8-in-the-browser)); each Apps page opens its app on the radio by itself when no other digital app is open there and the browser may operate (see [Browser apps](#browser-apps)) |
 | | JS8 | the radio's JS8 app: its own waterfall with the calls heard, the stations on a map, the band's messages or the stations heard, the conversation with a box to write, the app's buttons (see [JS8 in the browser](#js8-in-the-browser)) |
 | | WeFax | the radio's WeFax app: the chart live as it comes in, open and close, RX Auto or Cont, Auto Plan, Save now, Clear, the stations, the last charts (see [WeFax in the browser](#wefax-in-the-browser)) |
 | Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
@@ -8502,6 +8549,16 @@ or without the page: it decodes, answers and saves as it does when no browser
 is open, and a page that closes or drops leaves it as it was. Anyone on the
 network sees the pages; a change needs a paired browser in control, as on
 the Panel. These pages came from OlivLoze's fork (f4oli-apps).
+
+A page opens its app on the radio by itself, once, when the radio has no
+digital app open and the browser may operate (paired, in control): "Opening
+FT8 on the radio...", then "FT8 is open on the radio". It waits a moment
+for the pairing to be known, and it never takes the radio from another app:
+with JS8 open there (an operator at the radio, say) the FT8 page says "JS8
+is open on the radio: Open switches it to FT8" and leaves it. What stops it
+otherwise (not paired, the radio operated at the radio) is said on the
+status line, without a dialog. Closed from the page (Close), the app stays
+closed until Open or the page is opened again.
 
 ### FT8 in the browser
 

@@ -64,6 +64,14 @@ int64_t ftx_slot_offset_ns(int64_t sec, long nsec, float slot) {
     return (t + slot_ns / 2) % slot_ns - slot_ns / 2;
 }
 
+int64_t ftx_slot_start(int64_t sec, long nsec, float slot) {
+    int64_t slot_ns = llround(slot * 1e9);
+    int64_t t       = (sec % 60 + 60) % 60 * 1000000000LL + nsec;     /* into the minute, as the slots count */
+    int64_t start   = sec * 1000000000LL + nsec - t % slot_ns;
+
+    return start / 1000000000LL;
+}
+
 bool ftx_clock_synced(int *err_ms) {
     struct timex tx    = {0};   /* modes 0: only read */
     int          state = ntp_adjtime(&tx);

@@ -29,7 +29,7 @@
 <h2><svg class="i"><use href="#i-image"/></svg>WeFax</h2>
 <p class="sub">The radio's WeFax app from here: the radio receives, decodes and saves each chart on its own card, with
 or without this page; the page shows the chart as it comes in, tunes the stations and works the app's buttons.
-Receive only: nothing here transmits.</p>
+Receive only: nothing here transmits. With no other app open on the radio, the page opens WeFax there by itself.</p>
 
 <div class="wf-bar"><span id="ses" class="health"></span><span class="grow"></span><span id="health" class="health"></span></div>
 
@@ -69,7 +69,7 @@ Receive only: nothing here transmits.</p>
 </section>
 
 <script src="/static/js/radio_link.js?v=2"></script>
-<script src="/static/js/radio_session.js?v=8"></script>
+<script src="/static/js/radio_session.js?v=9"></script>
 <script>
 (function() {
   "use strict";
@@ -190,6 +190,11 @@ Receive only: nothing here transmits.</p>
     $("#sig").text(db < -121 ? "S0" : db <= -73 ? "S" + Math.min(9, Math.floor((db + 127) / 6)) : "S9+" + Math.round(db + 73));
   }
 
+  /* The app opened on the radio by the page itself when nothing else is open there (RadioSession.autoOpen) */
+  const autoOpen = RadioSession.autoOpen({cmd: "wefax", names: ["WeFax"], label: "WeFax", app: function() { return fax; },
+    radio: function() { return state; }, can: function() { return ses ? ses.can() : "not connected"; },
+    send: send, status: status, shown: function() { return $st.text(); }});
+
   function tune(hz, name) {
     if (!act("set freq " + (hz - CENTER))) return;
     act("set mode 2");                        /* USB: a band change brings the band plan's mode (LSB in 80 m) */
@@ -215,8 +220,8 @@ Receive only: nothing here transmits.</p>
     const sp = t.indexOf(" "), head = sp < 0 ? t : t.slice(0, sp), body = sp < 0 ? "" : t.slice(sp + 1);
     try {
       if (ses.onText(head, body)) { RadioLink.health(document.getElementById("health"), ses.chips()); return; }
-      if (head === "wefax") { fax = JSON.parse(body); showFax(); }
-      else if (head === "state") { state = Object.assign(state || {}, JSON.parse(body)); markStation(); }
+      if (head === "wefax") { fax = JSON.parse(body); showFax(); autoOpen(); }
+      else if (head === "state") { state = Object.assign(state || {}, JSON.parse(body)); markStation(); autoOpen(); }
       else if (head === "m") showMeter(parseFloat(body));
       else if (head === "err") status(body, true, ses.holds(body));
     } catch (e) { status("Bad message: " + e, true); }

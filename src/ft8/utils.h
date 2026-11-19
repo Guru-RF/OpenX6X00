@@ -14,6 +14,11 @@ void ftx_qth_square(const char *qth, char *out);
  * start on their fractions of a second */
 int64_t ftx_slot_offset_ns(int64_t sec, long nsec, float slot);
 
+/* The start of the slot the time sec.nsec is in, in whole seconds (FT4's 7.5 s and FT2's 3.75 s slots start on
+ * fractions of one: the second they start in): the time a slot's rows and our transmission carry, however late into
+ * the slot its tick came (a busy band's last decodes of the slot before run first) */
+int64_t ftx_slot_start(int64_t sec, long nsec, float slot);
+
 /* The kernel's clock discipline says ntpd keeps the clock (from the network, or from the GPS
  * through its SHM driver), synchronised with a maximum error of 1 s at most; *err_ms gets it */
 bool ftx_clock_synced(int *err_ms);

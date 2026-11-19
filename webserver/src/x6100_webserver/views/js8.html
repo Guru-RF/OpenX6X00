@@ -283,12 +283,13 @@
 without this page. A tap on a message or a station selects it; the box then writes to it, and its chips fill in the
 usual questions. Nothing goes out until Send, CQ or HB is pressed, or Auto answers a question; Stop ends a transmission
 at once. A click on the waterfall moves our TX offset there. Chat shows the same as conversations, one per station or
-group, kept in this browser. The buttons work from a paired browser in control, as on the Panel.</p>
+group, kept in this browser. The buttons work from a paired browser in control, as on the Panel. With no other app
+open on the radio, the page opens JS8 there by itself.</p>
 </div>
 
 <script src="/static/js/radio_link.js?v=2"></script>
-<script src="/static/js/radio_session.js?v=8"></script>
-<script src="/static/js/app_wall.js?v=2"></script>
+<script src="/static/js/radio_session.js?v=9"></script>
+<script src="/static/js/app_wall.js?v=3"></script>
 <script>
 (function() {
   "use strict";
@@ -299,8 +300,13 @@ group, kept in this browser. The buttons work from a paired browser in control, 
   const SPEEDS = ["Normal", "Fast", "Turbo", "Slow"], WIDTHS = [50, 80, 160, 25];
   const SUB_L = {1: "F", 2: "T", 4: "S"};
   const MAXTX = 500;         /* the radio's room for a message, TX_TEXT_MAX in src/js8_window.c */
-  let radio = null, js8 = null, js8At = 0, notes = -1;
+  let radio = null, js8 = null, js8At = 0, notes = -1, state = null;
   function status(text, error) { if (radio) radio.status(text, error); }
+  /* The app opened on the radio by the page itself when nothing else is open there (RadioSession.autoOpen) */
+  const autoOpen = RadioSession.autoOpen({cmd: "js8", names: ["JS8"], label: "JS8", app: function() { return js8; },
+    radio: function() { return state; }, can: function() { return radio ? radio.can() : "not connected"; },
+    send: function(s) { return !!radio && radio.send(s); }, status: status,
+    shown: function() { return radio ? radio.shown() : ""; }});
   function act(s) { return !!radio && radio.act(s); }
   const pad = AppWall.pad, hms = AppWall.hms;
   function utcText(u) { return pad(Math.floor(u / 10000)) + ":" + pad(Math.floor(u / 100) % 100) + ":" + pad(u % 100); }
@@ -825,8 +831,9 @@ group, kept in this browser. The buttons work from a paired browser in control, 
       chat.msgs = chat.msgs.filter(function(m) { return !m.part; }); chat.live = {};
     },
     onText: function(head, body) {
-      if (head === "js8") { js8 = JSON.parse(body); js8At = Date.now(); showNote(js8); showJs8(); }
+      if (head === "js8") { js8 = JSON.parse(body); js8At = Date.now(); showNote(js8); showJs8(); autoOpen(); }
       else if (head === "js8r") addMsg(JSON.parse(body));
+      else if (head === "state") { state = Object.assign(state || {}, JSON.parse(body)); autoOpen(); }
     },
     onBinary: function(buf) { wf.row(buf); },
   });

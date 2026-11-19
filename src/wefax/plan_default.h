@@ -2,7 +2,7 @@
 
 static const char plan_default_json[] =
     "{\n"
-    " \"_doc\": \"WeFax Auto Plan (tools/wefax_plan/plan_to_c.py builds it into the firmware; a copy in /mnt/wefax/plan.json replaces it). slots: one a chart, its start in UTC (t), the station (st), its frequency in Hz (hz; the dial goes 1500 Hz below, USB), the chart (prod: copies of one chart within 16 h are the same chart, only the best is kept; a chart named unknown keeps every copy), the longest it lasts in s (dur), and fill: a filler that gives way to a slot of the plan. From a 48 h watch of 14-15 Nov 2026 in western Europe (F4OLI), the charts named from their titles as received 15-17 Nov. bulletin: the kinds of chart the Bulletin shows, each the charts starting with one of its match strings.\",\n"
+    " \"_doc\": \"WeFax Auto Plan (tools/wefax_plan/plan_to_c.py builds it into the firmware; a copy in /mnt/wefax/plan.json replaces it). slots: one a chart, its start in UTC (t), the station (st), its frequency in Hz (hz; the dial goes 1500 Hz below, USB), the chart (prod: copies of one chart within 16 h are the same chart, only the best is kept; a chart named unknown keeps every copy), the longest it lasts in s (dur), and fill: a filler that gives way to a slot of the plan. From a 48 h watch of 14-15 Nov 2026 in western Europe (F4OLI), the charts named from their titles as received 15-18 Nov. bulletin: the kinds of chart the Bulletin shows, each the charts starting with one of its match strings.\",\n"
     " \"bulletin\": [\n"
     "  {\"name\": \"Analysis\", \"match\": [\"NW-surface-analysis\", \"DWD-surface-analysis\"]},\n"
     "  {\"name\": \"Forecast 24 h\", \"match\": [\"NW-surface-forecast-24h\"]},\n"
@@ -25,8 +25,10 @@ static const char plan_default_json[] =
     "  {\"t\": \"02:36\", \"st\": \"Northwood\", \"hz\": 2618500, \"prod\": \"NW-surface-analysis-00Z\", \"dur\": 690, \"fill\": false},\n"
     "  {\"t\": \"03:00\", \"st\": \"Northwood\", \"hz\": 2618500, \"prod\": \"NW-surface-analysis-00Z\", \"dur\": 690, \"fill\": false},\n"
     "  {\"t\": \"03:24\", \"st\": \"Northwood\", \"hz\": 2618500, \"prod\": \"NW-surface-wind-24h-18Z\", \"dur\": 690, \"fill\": false},\n"
+    "  {\"t\": \"04:00\", \"st\": \"Northwood\", \"hz\": 2618500, \"prod\": \"NW-surface-analysis-00Z\", \"dur\": 690, \"fill\": false},\n"
     "  {\"t\": \"04:30\", \"st\": \"DWD\", \"hz\": 3855000, \"prod\": \"DWD-surface-analysis-00Z\", \"dur\": 690, \"fill\": false},\n"
     "  {\"t\": \"05:00\", \"st\": \"Northwood\", \"hz\": 2618500, \"prod\": \"NW-surface-analysis-00Z\", \"dur\": 690, \"fill\": false},\n"
+    "  {\"t\": \"05:12\", \"st\": \"Northwood\", \"hz\": 2618500, \"prod\": \"NW-surface-forecast-24h-00Z\", \"dur\": 690, \"fill\": false},\n"
     "  {\"t\": \"05:25\", \"st\": \"DWD\", \"hz\": 3855000, \"prod\": \"DWD-surface-analysis-Atlantic-00Z\", \"dur\": 1200, \"fill\": false},\n"
     "  {\"t\": \"06:12\", \"st\": \"Northwood\", \"hz\": 4610000, \"prod\": \"NW-surface-analysis-00Z\", \"dur\": 690, \"fill\": false},\n"
     "  {\"t\": \"06:24\", \"st\": \"Northwood\", \"hz\": 4610000, \"prod\": \"NW-surface-forecast-24h-00Z\", \"dur\": 690, \"fill\": false},\n"
@@ -41,7 +43,7 @@ static const char plan_default_json[] =
     "  {\"t\": \"08:24\", \"st\": \"Northwood\", \"hz\": 4610000, \"prod\": \"NW-rain-visibility-12h-00Z\", \"dur\": 690, \"fill\": false},\n"
     "  {\"t\": \"08:36\", \"st\": \"Northwood\", \"hz\": 4610000, \"prod\": \"NW-rain-visibility-24h-00Z\", \"dur\": 690, \"fill\": false},\n"
     "  {\"t\": \"08:48\", \"st\": \"Northwood\", \"hz\": 4610000, \"prod\": \"NW-surface-forecast-24h-00Z\", \"dur\": 690, \"fill\": false},\n"
-    "  {\"t\": \"09:00\", \"st\": \"Northwood\", \"hz\": 8040000, \"prod\": \"NW-unknown\", \"dur\": 690, \"fill\": false},\n"
+    "  {\"t\": \"09:00\", \"st\": \"Northwood\", \"hz\": 8040000, \"prod\": \"NW-surface-analysis-06Z\", \"dur\": 690, \"fill\": false},\n"
     "  {\"t\": \"09:36\", \"st\": \"Northwood\", \"hz\": 8040000, \"prod\": \"NW-upper-sigwx-18Z\", \"dur\": 690, \"fill\": false},\n"
     "  {\"t\": \"10:00\", \"st\": \"Northwood\", \"hz\": 8040000, \"prod\": \"NW-surface-analysis-06Z\", \"dur\": 690, \"fill\": false},\n"
     "  {\"t\": \"10:12\", \"st\": \"Northwood\", \"hz\": 8040000, \"prod\": \"NW-surface-forecast-24h-06Z\", \"dur\": 690, \"fill\": false},\n"

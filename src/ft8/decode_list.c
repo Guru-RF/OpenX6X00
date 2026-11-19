@@ -25,11 +25,15 @@
 #define EMPTY_TEXT  "Wait sync"
 
 /* What each row of the list shows, row for row (LVGL's cell user data is freed by LVGL itself:
- * not usable for data that lives here). n == 0: only the "Wait sync" row */
+ * not usable for data that lives here). n == 0: only the "Wait sync" row. Room for KEEP_ROWS, then a
+ * slot line and its row before the next push drops the oldest */
 static struct {
-    cell_data_t cd[KEEP_ROWS + 1];
+    cell_data_t cd[KEEP_ROWS + 2];
     uint16_t    n;
 } list_rows;
+
+/* The time of the last slot line, "" none yet */
+static char sep_time[9];
 
 static lv_obj_t             *list;
 static table_view_press_cb_t press_cb;
@@ -74,6 +78,18 @@ static cell_data_t *row_data(lv_obj_t *obj, uint32_t r) {
 
 static bool is_slot_row(const cell_data_t *cd) {
     return cd->cell_type == CELL_RX_INFO;
+}
+
+/* A decode or our TX: its text starts with its slot's time, "12:00:15 CQ ..." */
+static bool has_time(const cell_data_t *cd) {
+    return (cd->cell_type == CELL_RX_MSG || cd->cell_type == CELL_RX_CQ || cd->cell_type == CELL_RX_TO_ME ||
+            cd->cell_type == CELL_TX_MSG) &&
+           strlen(cd->text) > 9 && cd->text[2] == ':' && cd->text[5] == ':' && cd->text[8] == ' ';
+}
+
+/* What the list shows of a row: a decode and our TX without the time, which their slot line has */
+static const char *list_text(const cell_data_t *cd) {
+    return has_time(cd) ? cd->text + 9 : cd->text;
 }
 
 /* ---- the pin table ---- */
@@ -227,7 +243,7 @@ static void drop_oldest(void) {
 
     list_rows.n -= DROP_ROWS;
     memmove(&list_rows.cd[0], &list_rows.cd[DROP_ROWS], list_rows.n * sizeof(list_rows.cd[0]));
-    for (uint16_t r = 0; r < list_rows.n; r++) lv_table_set_cell_value(list, r, 0, list_rows.cd[r].text);
+    for (uint16_t r = 0; r < list_rows.n; r++) lv_table_set_cell_value(list, r, 0, list_text(&list_rows.cd[r]));
     lv_table_set_row_cnt(list, list_rows.n);
     lv_obj_scroll_by_bounded(list, 0, gone_h, LV_ANIM_OFF);
 }
@@ -243,6 +259,7 @@ void table_view_push_ui(const cell_data_t *cd) {
 
     bool      follow = list_rows.n == sel_row + 1;
     uint16_t  r      = list_rows.n;
+    uint16_t  was_n  = list_rows.n;
     cell_data_t *last = r ? &list_rows.cd[r - 1] : NULL;
 
     if (last && is_slot_row(last)) {
@@ -255,18 +272,34 @@ void table_view_push_ui(const cell_data_t *cd) {
         r--;    /* a message takes its place: the slot row only shows that receiving goes on */
     }
 
+    /* A slot's rows under a line with its time (F4OLI's redesign): the rows go without theirs. The times are the
+     * slots' starts (ft8_window.c), the same for each row of a slot */
+    if (has_time(cd) && strncmp(cd->text, sep_time, 8)) {
+        cell_data_t *sep = &list_rows.cd[r];
+
+        memset(sep, 0, sizeof(*sep));
+        sep->cell_type = CELL_SLOT_SEP;
+        sep->flag      = -1;
+        snprintf(sep->text, sizeof(sep->text), "%.8s", cd->text);
+        snprintf(sep_time, sizeof(sep_time), "%.8s", cd->text);
+        lv_table_set_cell_value(list, r, 0, sep->text);
+        r++;
+    }
+
     list_rows.cd[r] = *cd;
     list_rows.cd[r].text[sizeof(cd->text) - 1] = '\0';
     list_rows.n = r + 1;
-    lv_table_set_cell_value(list, r, 0, list_rows.cd[r].text);
+    lv_table_set_cell_value(list, r, 0, list_text(&list_rows.cd[r]));
 
     if (cd->cell_type == CELL_RX_TO_ME) pin_message(cd);
     else if (cd->cell_type == CELL_TX_MSG) pin_sent(cd->text);
 
-    if (follow) {
+    if (follow) {       /* down to the new last row: two with a slot line, one when a row took the slot row's place */
         static uint32_t down = LV_KEY_DOWN;
+        int             added = (int)list_rows.n - (int)was_n;
+
         pin.own_key = true;
-        lv_event_send(list, LV_EVENT_KEY, &down);
+        for (int k = 0; k < (added > 1 ? added : 1); k++) lv_event_send(list, LV_EVENT_KEY, &down);
         pin.own_key = false;
     }
 }
@@ -279,6 +312,7 @@ void table_view_add_msg_cb(void *data) {
 void table_view_reset(void) {
     if (!list) return;
     list_rows.n = 0;
+    sep_time[0] = '\0';
     lv_table_set_row_cnt(list, 1);
     lv_table_set_cell_value(list, 0, 0, EMPTY_TEXT);
     pin.n = 0;      /* another band or mode: the callers of the old one are gone */
@@ -288,7 +322,9 @@ void table_view_reset(void) {
 
 /* ---- drawing ---- */
 
-/* The row's background from what it holds; the MFK row lighter */
+/* The row's background from what it holds; the MFK row lighter. After F4OLI's redesign the CQs stand out of the
+ * traffic, to answer them fast: plain rows in the text's colour, with a green edge and a tag (draw_extras_cb), the
+ * other stations' QSOs grey; to us red, ours blue as before */
 static void draw_row_cb(lv_event_t *e) {
     lv_obj_t               *obj = lv_event_get_target(e);
     lv_obj_draw_part_dsc_t *dsc = lv_event_get_draw_part_dsc(e);
@@ -301,26 +337,29 @@ static void draw_row_cb(lv_event_t *e) {
     lv_draw_label_dsc_t *label = dsc->label_dsc;
 
     rect->bg_opa = obj == pin.obj ? LV_OPA_80 : 115;
-    if (!cd || cd->cell_type == CELL_RX_INFO || cd->cell_type == CELL_START_QSO) {
+    if (cd && cd->cell_type == CELL_SLOT_SEP) {     /* its rules: draw_extras_cb */
+        label->align   = LV_TEXT_ALIGN_CENTER;
+        label->color   = TC(text_mute);
+        rect->bg_color = TC(panel);
+    } else if (!cd || cd->cell_type == CELL_RX_INFO || cd->cell_type == CELL_START_QSO) {
         label->align  = LV_TEXT_ALIGN_CENTER;
         rect->bg_color = TC(row);
     } else if (cd->cell_type == CELL_RX_CQ) {
-        if (cd->worked_type == SEARCH_WORKED_NO) {
-            rect->bg_color = TC(ft8_cq);
-        } else if (cd->worked_type == SEARCH_WORKED_YES) {     /* on another band or mode */
-            label->opa     = LV_OPA_90;
-            rect->bg_color = TC(ft8_cq_worked);
+        rect->bg_color = TC(panel);
+        label->color   = TC(text);
+        if (cd->worked_type == SEARCH_WORKED_YES) {     /* on another band or mode */
+            label->opa = LV_OPA_80;
         } else if (cd->worked_type == SEARCH_WORKED_SAME_MODE) {
-            label->decor   = LV_TEXT_DECOR_STRIKETHROUGH;
-            label->opa     = LV_OPA_80;
-            rect->bg_color = TC(ft8_cq_same);
+            label->decor = LV_TEXT_DECOR_STRIKETHROUGH;
+            label->opa   = LV_OPA_60;
         }
+    } else if (cd->cell_type == CELL_RX_MSG) {
+        rect->bg_color = TC(panel);
+        label->color   = TC(text_mute);
     } else if (cd->cell_type == CELL_RX_TO_ME) {
         rect->bg_color = TC(ft8_to_me);
     } else if (cd->cell_type == CELL_TX_MSG) {
         rect->bg_color = TC(ft8_tx);
-    } else {
-        rect->bg_color = TC(panel);
     }
 
     bool     mfk_here;
@@ -410,6 +449,54 @@ static void draw_country(lv_obj_draw_part_dsc_t *dsc, const cell_data_t *cd, lv_
     }
 }
 
+/* A tag after the message (F4OLI's redesign): small, in col, on a box of the theme's chip colour (black boxes
+ * hardly read in the light theme); returns where it ends */
+static lv_coord_t draw_tag(lv_obj_draw_part_dsc_t *dsc, const lv_area_t *row, lv_coord_t x, const char *text,
+                           lv_color_t col) {
+    lv_draw_label_dsc_t ld = *dsc->label_dsc;
+    lv_draw_rect_dsc_t  box;
+    lv_area_t           a;
+    lv_coord_t          h = lv_font_get_line_height(&sony_16);
+
+    ld.font  = &sony_16;
+    ld.color = col;
+    ld.opa   = LV_OPA_COVER;
+    ld.decor = LV_TEXT_DECOR_NONE;
+    ld.align = LV_TEXT_ALIGN_LEFT;
+    lv_draw_rect_dsc_init(&box);
+    box.bg_color = TC(chip);
+    box.bg_opa   = LV_OPA_COVER;
+    box.radius   = 4;
+    a.x1 = x + 10;
+    a.x2 = a.x1 + text_width(text, &ld) + 11;
+    a.y1 = (row->y1 + row->y2 - h) / 2 - 1;
+    a.y2 = a.y1 + h + 1;
+    lv_draw_rect(dsc->draw_ctx, &box, &a);
+    a.x1 += 6;
+    a.y1 += 1;
+    lv_draw_label(dsc->draw_ctx, &ld, &a, text, NULL);
+    return a.x2;
+}
+
+/* The slot line: its time in the middle, a rule on each side */
+static void draw_sep(lv_obj_draw_part_dsc_t *dsc, const cell_data_t *cd) {
+    const lv_area_t   *row = dsc->draw_area;
+    lv_coord_t         w   = text_width(cd->text, dsc->label_dsc);
+    lv_coord_t         mid = (row->x1 + row->x2) / 2, y = (row->y1 + row->y2) / 2;
+    lv_draw_line_dsc_t ln;
+
+    lv_draw_line_dsc_init(&ln);
+    ln.color = TC(line);
+    ln.opa   = LV_OPA_50;
+    ln.width = 1;
+
+    lv_point_t a1 = {row->x1 + 8, y}, a2 = {mid - w / 2 - 12, y};
+    lv_point_t b1 = {mid + w / 2 + 12, y}, b2 = {row->x2 - 8, y};
+
+    lv_draw_line(dsc->draw_ctx, &ln, &a1, &a2);
+    lv_draw_line(dsc->draw_ctx, &ln, &b1, &b2);
+}
+
 /* A POTA tag after the message, in the row's text colour; returns where the tag ends */
 static lv_coord_t draw_pota(lv_obj_draw_part_dsc_t *dsc, const lv_area_t *row, lv_coord_t x) {
     lv_area_t          tag = *row;
@@ -442,10 +529,25 @@ static void draw_extras_cb(lv_event_t *e) {
 
     if (dsc->part != LV_PART_ITEMS) return;
 
-    cell_data_t *cd = row_data(obj, dsc->id / lv_table_get_col_cnt(obj));
+    uint32_t     r  = dsc->id / lv_table_get_col_cnt(obj);
+    cell_data_t *cd = row_data(obj, r);
 
+    if (cd && cd->cell_type == CELL_SLOT_SEP) {
+        draw_sep(dsc, cd);
+        return;
+    }
     if (!cd || (cd->cell_type != CELL_RX_MSG && cd->cell_type != CELL_RX_CQ && cd->cell_type != CELL_RX_TO_ME))
         return;
+    if (cd->cell_type == CELL_RX_CQ && !theme_shape.mono) {    /* the CQ's green edge (1bit: its left border) */
+        lv_draw_rect_dsc_t edge;
+        lv_area_t          ea = *dsc->draw_area;
+
+        lv_draw_rect_dsc_init(&edge);
+        edge.bg_color = TC(ok);
+        edge.bg_opa   = cd->worked_type == SEARCH_WORKED_NO ? LV_OPA_COVER : LV_OPA_40;
+        ea.x2         = ea.x1 + 3;
+        lv_draw_rect(dsc->draw_ctx, &edge, &ea);
+    }
 
     char      buf[64];
     lv_area_t area;
@@ -460,8 +562,13 @@ static void draw_extras_cb(lv_event_t *e) {
 
     lv_coord_t right    = area.x1 - 10;
     lv_coord_t text_end = dsc->draw_area->x1 + lv_obj_get_style_pad_left(obj, LV_PART_ITEMS) +
-                          text_width(cd->text, dsc->label_dsc);
+                          text_width(lv_table_get_cell_value(obj, r, 0), dsc->label_dsc);
 
+    /* NEW: a CQ or a call to us from a country not in the log; CQ, or worked, on the other CQs */
+    if (cd->new_dxcc && cd->cell_type != CELL_RX_MSG) text_end = draw_tag(dsc, &area, text_end, "NEW", TC(warn));
+    else if (cd->cell_type == CELL_RX_CQ && cd->worked_type == SEARCH_WORKED_NO)
+        text_end = draw_tag(dsc, &area, text_end, "CQ", TC(ok));
+    else if (cd->cell_type == CELL_RX_CQ) text_end = draw_tag(dsc, &area, text_end, "worked", TC(text_mute));
     if (cd->pota) text_end = draw_pota(dsc, &area, text_end);
 
     /* Settings > FT8/FT4 info: 0 km, 1 mi, 2 country, 3 country + km, 4 country + mi (from SP2KMO's upstream 3074180e) */
@@ -486,6 +593,7 @@ static void pressed_cb(lv_event_t *e) {
     uint16_t r, c;
 
     if (!press_cb) return;
+    if (lv_event_get_target(e) == list && actions.on_press && actions.on_press()) return;  /* the tiles' */
     if (lv_event_get_target(e) == pin.obj) {    /* touched */
         lv_table_get_selected_cell(pin.obj, &r, &c);
         if (r < pin.n) press_cb(&pin.cd[r]);
@@ -562,6 +670,14 @@ static void pin_follow_key(uint32_t key) {
     if (pin.obj) lv_obj_invalidate(pin.obj);
 }
 
+/* Before the table's own handler: the tiles over the hidden list take the MFK's turns, and the list's cursor stays
+ * where it was, so that it still follows the new rows when the traffic shows again. Not the list's own steps down */
+static void tiles_key_cb(lv_event_t *e) {
+    uint32_t key = *(uint32_t *)lv_event_get_param(e);
+
+    if (!pin.own_key && actions.on_key && actions.on_key(key)) lv_event_stop_processing(e);
+}
+
 static void list_key_cb(lv_event_t *e) {
     uint32_t key = *(uint32_t *)lv_event_get_param(e);
 
@@ -598,10 +714,12 @@ static lv_obj_t *rows_table(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coo
 
 void table_view_build(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h) {
     list_rows.n = 0;
+    sep_time[0] = '\0';
     press_cb    = NULL;
     memset(&actions, 0, sizeof(actions));
 
     list = rows_table(parent, x, y, w);
+    lv_obj_add_event_cb(list, tiles_key_cb, LV_EVENT_KEY | LV_EVENT_PREPROCESS, NULL);
     lv_obj_add_event_cb(list, list_key_cb, LV_EVENT_KEY, NULL);
     lv_obj_add_event_cb(list, touch_cb, LV_EVENT_PRESSED | LV_EVENT_PREPROCESS, NULL);
     lv_obj_add_event_cb(list, touch_cb, LV_EVENT_RELEASED | LV_EVENT_PREPROCESS, NULL);

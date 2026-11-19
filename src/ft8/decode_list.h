@@ -31,6 +31,7 @@ typedef enum {
     CELL_RX_CQ,
     CELL_RX_TO_ME,
     CELL_TX_MSG,
+    CELL_SLOT_SEP,      /* the list's own line over a slot's rows, "12:00:15": never posted, never sent */
 } ft8_cell_type_t;
 
 /* One row: its text and, for a decode, what a press on it needs */
@@ -45,12 +46,17 @@ typedef struct {
     char                    cty_prefix[8];  /* its primary prefix ("DL") */
     int16_t                 flag;           /* its flag in flags.h, -1 none */
     bool                    pota;           /* spotted on POTA now, or a CQ POTA */
+    bool                    new_dxcc;       /* from a country not in the log yet: the NEW tag (the window sets it) */
 } cell_data_t;
 
 /* What the window does on keys the list gets */
 typedef struct {
     void (*on_close)(void);             /* ESC */
     void (*on_vol_change)(int32_t dir); /* VOL turned: -1 / +1 */
+    /* The tiles over the hidden list (F4OLI's redesign): the MFK's keys and press go to them first, true taken.
+     * A key taken leaves the list's own cursor where it was (it still follows the new rows) */
+    bool (*on_key)(uint32_t key);
+    bool (*on_press)(void);
 } table_view_actions_t;
 
 /* A press on the list: the row's data, NULL on the "Wait sync" row */
@@ -74,7 +80,9 @@ void table_view_set_actions(const table_view_actions_t *a);
 /* Empty again: the "Wait sync" row alone, no "For you" rows */
 void table_view_reset(void);
 
-/* A row at the bottom (a copy is kept); a slot row after a slot row only updates it */
+/* A row at the bottom (a copy is kept); a slot row after a slot row only updates it. A decode or our TX from
+ * another slot than the row before gets a line with the slot's time over it, and shows without its own time
+ * ("12:00:15 CQ DL1ABC JO31" as "CQ DL1ABC JO31"; the copy keeps it, the browser's row too) */
 void table_view_push_ui(const cell_data_t *cell);
 
 /* table_view_push_ui() for scheduler_put(): data is a cell_data_t */
