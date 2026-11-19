@@ -15,6 +15,7 @@
 #include "../cfg/cfg_api.h"
 #include "../events.h"
 #include "../flags.h"
+#include "../i18n.h"
 #include "../styles.h"
 #include "../theme.h"
 
@@ -564,11 +565,12 @@ static void draw_extras_cb(lv_event_t *e) {
     lv_coord_t text_end = dsc->draw_area->x1 + lv_obj_get_style_pad_left(obj, LV_PART_ITEMS) +
                           text_width(lv_table_get_cell_value(obj, r, 0), dsc->label_dsc);
 
-    /* NEW: a CQ or a call to us from a country not in the log; CQ, or worked, on the other CQs */
-    if (cd->new_dxcc && cd->cell_type != CELL_RX_MSG) text_end = draw_tag(dsc, &area, text_end, "NEW", TC(warn));
+    /* NEW: a CQ or a call to us from a country not in the log; CQ, or worked, on the other CQs. Through the language
+     * here: libFT8 is built without the GUI's i18n_hook.h, so its LVGL calls do not translate */
+    if (cd->new_dxcc && cd->cell_type != CELL_RX_MSG) text_end = draw_tag(dsc, &area, text_end, _("NEW"), TC(warn));
     else if (cd->cell_type == CELL_RX_CQ && cd->worked_type == SEARCH_WORKED_NO)
-        text_end = draw_tag(dsc, &area, text_end, "CQ", TC(ok));
-    else if (cd->cell_type == CELL_RX_CQ) text_end = draw_tag(dsc, &area, text_end, "worked", TC(text_mute));
+        text_end = draw_tag(dsc, &area, text_end, _("CQ"), TC(ok));
+    else if (cd->cell_type == CELL_RX_CQ) text_end = draw_tag(dsc, &area, text_end, _("worked"), TC(text_mute));
     if (cd->pota) text_end = draw_pota(dsc, &area, text_end);
 
     /* Settings > FT8/FT4 info: 0 km, 1 mi, 2 country, 3 country + km, 4 country + mi (from SP2KMO's upstream 3074180e) */

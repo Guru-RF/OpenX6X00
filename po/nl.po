@@ -7382,9 +7382,30 @@ msgstr ""
 msgid "Wait sync"
 msgstr "Wacht op sync"
 
+#: src/ft8/decode_list.c src/ft8_window.c
+msgid "worked"
+msgstr "gewerkt"
+
 #: src/ft8_udp.c
 msgid "239.255.0.0,gateway"
 msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "calls you %+03d"
+msgstr "roept je %+03d"
+
+#: src/ft8_window.c
+msgid "calls you"
+msgstr "roept je"
+
+#: src/ft8_window.c
+msgid "called you"
+msgstr "riep je"
+
+#: src/ft8_window.c
+msgid "Listening... the stations heard come here"
+msgstr "Luistert... de gehoorde stations komen hier"
 
 #: src/ft8_window.c
 #, c-format
@@ -7479,6 +7500,30 @@ msgid ""
 msgstr ""
 "Pogingen:\n"
 "%i"
+
+#: src/ft8_window.c
+msgid "For you strip: on"
+msgstr "Strook voor jou: aan"
+
+#: src/ft8_window.c
+msgid "For you strip: off"
+msgstr "Strook voor jou: uit"
+
+#: src/ft8_window.c
+msgid ""
+"View:\n"
+"Tiles"
+msgstr ""
+"Weergave:\n"
+"Tegels"
+
+#: src/ft8_window.c
+msgid ""
+"View:\n"
+"Traffic"
+msgstr ""
+"Weergave:\n"
+"Verkeer"
 
 #: src/ft8_window.c
 msgid "No CQ in Hound mode"
@@ -7630,18 +7675,18 @@ msgstr ""
 
 #: src/ft8_window.c
 msgid ""
-"Log\n"
-"Map"
-msgstr ""
-"Log-\n"
-"kaart"
-
-#: src/ft8_window.c
-msgid ""
 "Live\n"
 "Map"
 msgstr ""
 "Live-\n"
+"kaart"
+
+#: src/ft8_window.c
+msgid ""
+"Log\n"
+"Map"
+msgstr ""
+"Log-\n"
 "kaart"
 
 #: src/ft8_window.c

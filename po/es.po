@@ -7415,9 +7415,30 @@ msgstr ""
 msgid "Wait sync"
 msgstr "Esperando sincronismo"
 
+#: src/ft8/decode_list.c src/ft8_window.c
+msgid "worked"
+msgstr "trabajado"
+
 #: src/ft8_udp.c
 msgid "239.255.0.0,gateway"
 msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "calls you %+03d"
+msgstr "lo llama %+03d"
+
+#: src/ft8_window.c
+msgid "calls you"
+msgstr "lo llama"
+
+#: src/ft8_window.c
+msgid "called you"
+msgstr "lo llamó"
+
+#: src/ft8_window.c
+msgid "Listening... the stations heard come here"
+msgstr "Escuchando... aquí aparecen las estaciones escuchadas"
 
 #: src/ft8_window.c
 #, c-format
@@ -7512,6 +7533,30 @@ msgid ""
 msgstr ""
 "Reintentos:\n"
 "%i"
+
+#: src/ft8_window.c
+msgid "For you strip: on"
+msgstr "Franja para usted: sí"
+
+#: src/ft8_window.c
+msgid "For you strip: off"
+msgstr "Franja para usted: no"
+
+#: src/ft8_window.c
+msgid ""
+"View:\n"
+"Tiles"
+msgstr ""
+"Vista:\n"
+"Mosaico"
+
+#: src/ft8_window.c
+msgid ""
+"View:\n"
+"Traffic"
+msgstr ""
+"Vista:\n"
+"Tráfico"
 
 #: src/ft8_window.c
 msgid "No CQ in Hound mode"
@@ -7663,19 +7708,19 @@ msgstr ""
 
 #: src/ft8_window.c
 msgid ""
-"Log\n"
-"Map"
-msgstr ""
-"Mapa\n"
-"del log"
-
-#: src/ft8_window.c
-msgid ""
 "Live\n"
 "Map"
 msgstr ""
 "Mapa\n"
 "en vivo"
+
+#: src/ft8_window.c
+msgid ""
+"Log\n"
+"Map"
+msgstr ""
+"Mapa\n"
+"del log"
 
 #: src/ft8_window.c
 msgid "Type 1800 - 54000 kHz, e.g. 14091"

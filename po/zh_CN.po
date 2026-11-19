@@ -7435,9 +7435,30 @@ msgstr "锁定"
 msgid "Wait sync"
 msgstr "等待同步"
 
+#: src/ft8/decode_list.c src/ft8_window.c
+msgid "worked"
+msgstr "已通联"
+
 #: src/ft8_udp.c
 msgid "239.255.0.0,gateway"
 msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "calls you %+03d"
+msgstr "呼叫你 %+03d"
+
+#: src/ft8_window.c
+msgid "calls you"
+msgstr "呼叫你"
+
+#: src/ft8_window.c
+msgid "called you"
+msgstr "呼叫过你"
+
+#: src/ft8_window.c
+msgid "Listening... the stations heard come here"
+msgstr "正在收听... 听到的电台会显示在这里"
 
 #: src/ft8_window.c
 #, c-format
@@ -7532,6 +7553,30 @@ msgid ""
 msgstr ""
 "重试:\n"
 "%i"
+
+#: src/ft8_window.c
+msgid "For you strip: on"
+msgstr "给你的消息条: 开"
+
+#: src/ft8_window.c
+msgid "For you strip: off"
+msgstr "给你的消息条: 关"
+
+#: src/ft8_window.c
+msgid ""
+"View:\n"
+"Tiles"
+msgstr ""
+"视图:\n"
+"磁贴"
+
+#: src/ft8_window.c
+msgid ""
+"View:\n"
+"Traffic"
+msgstr ""
+"视图:\n"
+"通联"
 
 #: src/ft8_window.c
 msgid "No CQ in Hound mode"
@@ -7683,18 +7728,18 @@ msgstr ""
 
 #: src/ft8_window.c
 msgid ""
-"Log\n"
-"Map"
-msgstr ""
-"日志\n"
-"地图"
-
-#: src/ft8_window.c
-msgid ""
 "Live\n"
 "Map"
 msgstr ""
 "实时\n"
+"地图"
+
+#: src/ft8_window.c
+msgid ""
+"Log\n"
+"Map"
+msgstr ""
+"日志\n"
 "地图"
 
 #: src/ft8_window.c

@@ -6962,8 +6962,29 @@ msgstr ""
 msgid "Wait sync"
 msgstr ""
 
+#: src/ft8/decode_list.c src/ft8_window.c
+msgid "worked"
+msgstr ""
+
 #: src/ft8_udp.c
 msgid "239.255.0.0,gateway"
+msgstr ""
+
+#: src/ft8_window.c
+#, c-format
+msgid "calls you %+03d"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "calls you"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "called you"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "Listening... the stations heard come here"
 msgstr ""
 
 #: src/ft8_window.c
@@ -7046,6 +7067,26 @@ msgstr ""
 msgid ""
 "Retries:\n"
 "%i"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "For you strip: on"
+msgstr ""
+
+#: src/ft8_window.c
+msgid "For you strip: off"
+msgstr ""
+
+#: src/ft8_window.c
+msgid ""
+"View:\n"
+"Tiles"
+msgstr ""
+
+#: src/ft8_window.c
+msgid ""
+"View:\n"
+"Traffic"
 msgstr ""
 
 #: src/ft8_window.c
@@ -7192,13 +7233,13 @@ msgstr ""
 
 #: src/ft8_window.c
 msgid ""
-"Log\n"
+"Live\n"
 "Map"
 msgstr ""
 
 #: src/ft8_window.c
 msgid ""
-"Live\n"
+"Log\n"
 "Map"
 msgstr ""
 
