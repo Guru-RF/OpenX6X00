@@ -7778,12 +7778,13 @@ where they do not answer Mercury. x0rro wrote it and stopped it on 8
 November 2026; NR5P (Nathan Rigg) carries it on, and the firmware follows
 his. It comes with the firmware, pinned at NR5P's version of 9 November 2026
 and built from its source with the modem of x0rro's last version (0.1.3, as
-up to v0.3.9, but for NR5P's detector of a busy channel) and three changes
-of ours: the radio's GUI is its sound card and PTT, as for ardopcf and
-Mercury, it identifies in CW with any callsign, and a call you cancel ends at
-once (below). Every transmission goes through the radio's own TX path, as
-for the other digital modes: the amateur bands only, simplex, at most 7 W,
-the SWR hold, no TX while a digital app is open.
+up to v0.3.9, but for NR5P's detector of a busy channel) and four changes of
+ours: the radio's GUI is its sound card and PTT, as for ardopcf and Mercury,
+it identifies in CW with any callsign, a call you cancel ends at once, and
+its busy detector reads the noise of the radio's passband as a clear channel
+(below). Every transmission goes through the radio's own TX path, as for the
+other digital modes: the amateur bands only, simplex, at most 7 W, the SWR
+hold, no TX while a digital app is open.
 
 It is experimental. Up to v0.3.9 the firmware had x0rro's 0.1.3: two
 stations exchanged mail through it on a PC, each with the radio's own
@@ -7869,6 +7870,14 @@ When it does not work:
   at VARA's free speed: 1 sent, 0 received".
 - After a call that got no answer, or right after you cancel one, the radio
   keys once more for a few seconds: that is its CW ID, not another call.
+- Pat says the frequency is busy: XARA reads a channel busy for about 4 s
+  after it starts, while it learns the noise of the radio's passband, then
+  clear on a quiet band or a dummy load. Its log says what it heard each
+  time BUSY comes on: "busy: a tone at 1406 Hz" (a carrier there), "busy: a
+  VARA signal (level 5)" (another VARA station), "busy: a tone at ... Hz
+  (the noise shape not learned yet)" (its first seconds). Before, BUSY came
+  on at the start and could stay on for good behind the radio's filter, so
+  Pat never called.
 - The Modem row says "Ready, but it fell behind the receiver lately" in red,
   and Pat's log "OpenX6X00: XARA could not keep up with the receiver": XARA
   fell behind the radio's audio ("xara is falling behind real time" in its
@@ -7887,11 +7896,12 @@ When it does not work:
 
 XARA (MIT, by x0rro, carried on by NR5P) comes with the firmware built from
 NR5P's source at a pinned commit, with x0rro's 0.1.3 modem and resampler and
-three changes of ours: its sound card and PTT through the radio's GUI, its CW
-ID with any callsign, and a cancelled call that ends at once
-(`tools/xara/UPSTREAM.md`). The Rust crates in it are MIT (some also
-Apache-2.0, Zlib or 0BSD) and the Rust standard library Apache-2.0 or MIT;
-their texts are on the radio in `/usr/share/x6100/licenses/xara`.
+four changes of ours: its sound card and PTT through the radio's GUI, its CW
+ID with any callsign, a cancelled call that ends at once, and a busy
+detector that learns the radio's passband (`tools/xara/UPSTREAM.md`). The
+Rust crates in it are MIT (some also Apache-2.0, Zlib or 0BSD) and the Rust
+standard library Apache-2.0 or MIT; their texts are on the radio in
+`/usr/share/x6100/licenses/xara`.
 
 ## Browser panel
 

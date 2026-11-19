@@ -4,9 +4,9 @@
 # from the pinned commit's source (GitHub's tarball of it) and the crates its Cargo.lock names (from crates.io), each
 # checked against its SHA-256, with our patches (patches/*.patch, in order) on top: xara 0.1.3's modem core and
 # resampler, the GUI's Winlink socket as its sound card and PTT (--audio x6x00, --ptt x6x00), its CW ID when Pat asks
-# for one (CWID ON) whatever the callsign, and a call its host cancels given up at once. Its `registered` feature is
-# built in; it does nothing until xara is started with `registered` (the Winlink page's VARA licence tick box, off by
-# default). See UPSTREAM.md.
+# for one (CWID ON) whatever the callsign, a call its host cancels given up at once, and a BUSY that reads a radio's
+# sloped passband as clear (and says why it came on). Its `registered` feature is built in; it does nothing until
+# xara is started with `registered` (the Winlink page's VARA licence tick box, off by default). See UPSTREAM.md.
 #
 #   CC=<the radios' gcc> tools/xara/build.sh    prints the binary's path on stdout, and nothing else
 #   tools/xara/build.sh --host                  the same for this PC (x86_64 Linux), for tools/winlink's tests
