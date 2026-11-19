@@ -7902,15 +7902,17 @@ When it does not work:
   Pat never called.
 - The Modem row says "Ready, but it fell behind the receiver lately" in red,
   and Pat's log "OpenX6X00: XARA could not keep up with the receiver": XARA
-  fell behind the radio's audio ("xara is falling behind real time" in its
-  log), and its connections fail. The radio's processor is short for it: use
+  fell behind the radio's audio by 400 ms or more ("xara is falling behind
+  real time" in its log), and its connections fail. The radio's processor is
+  short for it: use
   ARDOP, and send the logs download on
   [#120](https://github.com/Guru-RF/OpenX6X00/issues/120), it helps the
   measurement. "audio: no receiver audio from the GUI for ... ms" in XARA's
   log is something else: the radio's audio stopped for a moment and came
   back all at once. XARA hears silence for that moment, drops the audio that
   came late, so its timing stays the air's, and does not count it as falling
-  behind.
+  behind. Nor is one "falling behind" line of 100 to 300 ms: a block that took
+  long, as when XARA makes its own frame to send, and drained at once.
 - XARA's log is `/run/winlink/xara.log` (in the logs download too), its
   settings `/run/winlink/xara.conf`, written at each start: its commands on
   127.0.0.1:8300 and its data on 8301 (which Tailscale's userspace mode also

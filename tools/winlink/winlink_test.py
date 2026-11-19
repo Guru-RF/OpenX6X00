@@ -793,10 +793,15 @@ class XaraOutcomes(Logs):
     def test_behind(self):
         self.poll(xara="xara: connected to the GUI's socket /run/ardop.sock", kind="xara")
         behind = "xara: audio: 120 ms of capture waiting to be read (xara is falling behind real time: CPU overload?)"
+        # one block that took long (XARA making its frame to send) leaves some 120 ms, the next doubling 240: drained
+        self.assertEqual(self.poll(xara=behind, kind="xara")["modem"], "ready")
+        self.assertEqual(self.poll(xara=behind.replace("120", "240"), kind="xara")["modem"], "ready")
+        self.assertEqual(len(self.notes()), 0, "not the processor short")
+        behind = behind.replace("120", "480")
         self.assertEqual(self.poll(xara=behind, kind="xara")["modem"], "behind")
         self.assertEqual(len(self.notes()), 1)
         self.assertIn("OpenX6X00: XARA could not keep up with the receiver", self.notes()[0])
-        self.poll(xara=behind.replace("120", "240"), kind="xara")
+        self.poll(xara=behind.replace("480", "960"), kind="xara")
         self.assertEqual(len(self.notes()), 1, "once in ten minutes")
         self.watch.behind -= self.wl.MERCURY_BEHIND
         self.assertEqual(self.poll(kind="xara")["modem"], "ready")
