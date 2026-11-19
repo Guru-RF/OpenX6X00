@@ -7019,7 +7019,7 @@ The menu has General and six groups:
 | Remote | Panel | the radio's own controls in the browser, for a touch screen (see [Browser panel](#browser-panel)) |
 | | Screen | the radio's screen live, its keys and knobs, the audio both ways (see [Browser remote](#browser-remote)) |
 | | Tailscale | Enabled, status, Log in to Tailscale, the radio on your tailnet, Log out, and Funnel (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
-| Apps | FT8 | the radio's FT8 app: its own waterfall with the calls of each slot, the stations on a map, the band's decodes, the QSO under way, the app's buttons and its next message (see [FT8 in the browser](#ft8-in-the-browser)) |
+| Apps | FT8 | the radio's FT8 app: its own waterfall with the calls of each slot, the stations on a map, the band's decodes, the QSO under way, the app's buttons and its next message (see [FT8 in the browser](#ft8-in-the-browser)); each Apps page opens its app on the radio by itself when no other digital app is open there and the browser may operate (see [Browser apps](#browser-apps)) |
 | | JS8 | the radio's JS8 app: its own waterfall with the calls heard, the stations on a map, the band's messages or the stations heard, the conversation with a box to write, the app's buttons (see [JS8 in the browser](#js8-in-the-browser)) |
 | | WeFax | the radio's WeFax app: the chart live as it comes in, open and close, RX Auto or Cont, Auto Plan, Save now, Clear, the stations, the last charts (see [WeFax in the browser](#wefax-in-the-browser)) |
 | Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
@@ -8467,6 +8467,16 @@ or without the page: it decodes, answers and saves as it does when no browser
 is open, and a page that closes or drops leaves it as it was. Anyone on the
 network sees the pages; a change needs a paired browser in control, as on
 the Panel. These pages came from OlivLoze's fork (f4oli-apps).
+
+A page opens its app on the radio by itself, once, when the radio has no
+digital app open and the browser may operate (paired, in control): "Opening
+FT8 on the radio...", then "FT8 is open on the radio". It waits a moment
+for the pairing to be known, and it never takes the radio from another app:
+with JS8 open there (an operator at the radio, say) the FT8 page says "JS8
+is open on the radio: Open switches it to FT8" and leaves it. What stops it
+otherwise (not paired, the radio operated at the radio) is said on the
+status line, without a dialog. Closed from the page (Close), the app stays
+closed until Open or the page is opened again.
 
 ### FT8 in the browser
 

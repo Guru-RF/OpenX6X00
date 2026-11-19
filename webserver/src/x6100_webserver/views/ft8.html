@@ -152,12 +152,13 @@
 <p class="sub app-help">All of it runs on the radio: it decodes, calls and answers with or without this page, and CQ and
 Auto go on when the page closes or loses its link. A tap on a CQ or a call queues one reply for our next slot and arms
 TX; a click on the waterfall moves our TX frequency there. TX off makes a dry run: the app listens, decodes and queues,
-and nothing keys the transmitter. The buttons work from a paired browser in control, as on the Panel.</p>
+and nothing keys the transmitter. The buttons work from a paired browser in control, as on the Panel. With no other
+app open on the radio, the page opens FT8 there by itself.</p>
 </div>
 
 <script src="/static/js/radio_link.js?v=2"></script>
-<script src="/static/js/radio_session.js?v=8"></script>
-<script src="/static/js/app_wall.js?v=2"></script>
+<script src="/static/js/radio_session.js?v=9"></script>
+<script src="/static/js/app_wall.js?v=3"></script>
 <script>
 (function() {
   "use strict";
@@ -167,6 +168,11 @@ and nothing keys the transmitter. The buttons work from a paired browser in cont
   let radio = null, ft8 = null, ft8At = 0, state = null, stopped = false;
   let openedAt = 0, skew = 0;      /* the radio's clock minus ours, from its slot rows */
   function status(text, error) { if (radio) radio.status(text, error); }
+  /* The app opened on the radio by the page itself when nothing else is open there (RadioSession.autoOpen) */
+  const autoOpen = RadioSession.autoOpen({cmd: "ft8", names: PROTOS, label: "FT8", app: function() { return ft8; },
+    radio: function() { return state; }, can: function() { return radio ? radio.can() : "not connected"; },
+    send: function(s) { return !!radio && radio.send(s); }, status: status,
+    shown: function() { return radio ? radio.shown() : ""; }});
   function act(s) { return !!radio && radio.act(s); }
   const pad = AppWall.pad, hms = AppWall.hms;
   function radioNow() { return Date.now() + skew; }
@@ -435,10 +441,11 @@ and nothing keys the transmitter. The buttons work from a paired browser in cont
       $("#n-dec, #n-rx").text(0);
     },
     onText: function(head, body) {
-      if (head === "ft8") { ft8 = JSON.parse(body); ft8At = Date.now(); showFt8(); }
+      if (head === "ft8") { ft8 = JSON.parse(body); ft8At = Date.now(); showFt8(); autoOpen(); }
       else if (head === "ft8r") addRow(JSON.parse(body));
       else if (head === "state") {
         state = Object.assign(state || {}, JSON.parse(body));
+        autoOpen();
         const b = AppWall.band(state.freq);
         $("#where").text((state.freq / 1e6).toFixed(3) + " MHz" + (b ? " · " + b : ""));
       }

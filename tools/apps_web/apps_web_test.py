@@ -16,6 +16,10 @@ See the Makefile:
    app's own branch, which wants operate and control: after it, a viewer's "ft8 wf 1" was refused as an unknown
    command. "js8 send TEXT" is taken before the words are split (its text has spaces), a text message of 500
    characters fits TEXT_MAX, and the JS8 page's ring and lines are as the page reads them.
+5. Each Apps page opens its app on the radio by itself, once (RadioSession.autoOpen in radio_session.js, from
+   OlivLoze's fork): auto_open.js runs it under node on a clock of its own (opened after the wait for the role, never
+   over another app, not paired said without a dialog, once only, a timeout said); each page calls it with its own
+   command and its app's names, on its app's message and on the radio's state.
 Its files go in build/ (the Makefile empties it first).
 """
 import io
@@ -313,6 +317,32 @@ class Countries(unittest.TestCase):
         self.assertEqual((len(radio), len(page)), (len(calls), len(calls)))
         diff = [(a, b) for a, b in zip(radio, page) if a != b]
         self.assertEqual(diff[:10], [], "%d of %d differ" % (len(diff), len(radio)))
+
+
+class AutoOpen(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("node"), "no node")
+    def test_the_rules(self):
+        js = os.path.join(STATIC, "js", "radio_session.js")
+        r = subprocess.run(["node", os.path.join(HERE, "auto_open.js"), js], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("auto_open: 16 checks, 0 failed", r.stdout)
+
+    def test_each_page_calls_it(self):
+        """With its own command and the names the radio gives its app (screen_main.c app_name: the FT8 app is FT8,
+        FT4 or FT2), on its app's message and on "state"; the pages load the radio_session.js that has it"""
+        views = os.path.join(TOP, "webserver", "src", "x6100_webserver", "views")
+        names = {"ft8": "PROTOS", "js8": '["JS8"]', "wefax": '["WeFax"]'}
+        for app in APPS:
+            with open(os.path.join(views, app + ".html")) as f:
+                page = f.read()
+            self.assertIn('RadioSession.autoOpen({cmd: "%s", names: %s' % (app, names[app]), page, app)
+            msg = "fax" if app == "wefax" else app
+            self.assertTrue(re.search(r'head === "%s"\) \{ %s = JSON.parse\(body\);[^\n]*autoOpen\(\); \}' % (app, msg), page),
+                            app)
+            self.assertTrue(re.search(r'head === "state"\)(?:[^\n]*\n){0,2}[^\n]*autoOpen\(\)', page), app)
+            self.assertIn("/static/js/radio_session.js?v=9", page, app)
+        self.assertIn('PROTOS = ["FT4", "FT8", "FT2"]', open(os.path.join(views, "ft8.html")).read())
+        self.assertIn("autoOpen: autoOpen", open(os.path.join(STATIC, "js", "radio_session.js")).read())
 
 
 class RemoteWords(unittest.TestCase):

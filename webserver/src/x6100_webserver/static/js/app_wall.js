@@ -313,8 +313,8 @@ const AppWall = (function() {
   window.addEventListener("resize", fit);
 
   /* ---- The link to the radio, the Panel's (pairing, control, health chips): o.hello (what to ask for once
-   * connected), o.onText(head, body), o.onBinary(buf), o.onOpen(). Returns {send(s), act(s), status(text, error)}:
-   * act is for what changes the radio, sent only from a paired browser in control, as on the Panel */
+   * connected), o.onText(head, body), o.onBinary(buf), o.onOpen(). Returns {send(s), act(s), status(text, error),
+   * can(), shown()}: act is for what changes the radio, sent only from a paired browser in control, as on the Panel */
   function connect(o) {
     const secure = location.protocol === "https:", $st = $("#st");
     let link = null, ses = null, conf = null, holds = null;
@@ -349,7 +349,8 @@ const AppWall = (function() {
     });
     ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: health});
     link.connect();
-    return {send: send, act: act, status: status};
+    return {send: send, act: act, status: status, can: function() { return ses ? ses.can() : "not connected"; },
+            shown: function() { return $st.text(); }};
   }
 
   return {pad: pad, hms: hms, loc2ll: loc2ll, band: band, ready: ready, country: country, flag: flag, km: km, distance: distance,

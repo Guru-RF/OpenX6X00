@@ -26,6 +26,12 @@
  *                                 rather than for a field, a focused control or an open dialog
  *   RadioSession.takeLink()       the Funnel page: the away link's "#t=KEY" stored, and taken out of the
  *                                 address bar (#58);  RadioSession.token(): this browser's key, null none
+ *   RadioSession.autoOpen(o)      an app page (FT8, JS8, WeFax) opens its app on the radio by itself, once:
+ *                                 o {cmd: "ft8", names: the names the radio gives it ("FT8", "FT4", "FT2"), label,
+ *                                 app() its state message (open), radio() the radio's state (app), can(), send(s),
+ *                                 status(text, error), shown() the status line's text: "... is open" is cleared 4 s
+ *                                 later if it still reads so}; returns tick(), for the page to call on each of those
+ *                                 messages
  *
  *   const ptt = RadioPtt.create({el, send, status, mic: {wanted, ready, start, stop}, session, link});
  *     ptt.press() / ptt.release()   the operator's thumb; press is refused when the mic is wanted
@@ -679,8 +685,45 @@
     this.show();
   };
 
+  /* An app page (FT8, JS8, WeFax) opens its app on the radio by itself, once: when the radio has no digital app open
+   * and this browser may operate (paired, the control free or its own). Never over another app (an operator at the
+   * radio in JS8 keeps it: the page says that Open switches) and never with a dialog: what stops it is said on the
+   * status line. The decision waits AUTO_WAIT_MS from the first state of both, for the role a paired browser gets
+   * after its "auth"; once taken (opened, left, or found open) it is not taken again on that page */
+  const AUTO_WAIT_MS = 1500, AUTO_OPEN_MS = 15000, AUTO_SAID_MS = 4000;
+  function autoOpen(o) {
+    let done = false, first = 0, sent = 0;
+    function tick() {
+      if (sent) {                           /* ours: said when the app says it is open, the line freed after */
+        const a = o.app();
+        if (a && a.open) {
+          sent = 0;
+          const said = o.label + " is open on the radio";
+          o.status(said);
+          setTimeout(function() { if (o.shown && o.shown() === said) o.status(""); }, AUTO_SAID_MS);
+        } else if (Date.now() - sent > AUTO_OPEN_MS) {
+          sent = 0;
+          o.status(o.label + " did not open on the radio: Open tries again", true);
+        }
+        return;
+      }
+      if (done) return;
+      const a = o.app(), r = o.radio();
+      if (!a || !r) return;
+      if (a.open) { done = true; return; }
+      if (!first) { first = Date.now(); setTimeout(tick, AUTO_WAIT_MS + 100); return; }
+      if (Date.now() - first < AUTO_WAIT_MS) return;
+      done = true;
+      if (r.app && o.names.indexOf(r.app) < 0) { o.status(r.app + " is open on the radio: Open switches it to " + o.label); return; }
+      const why = o.can();
+      if (why) { o.status(o.label + " is closed on the radio. " + why); return; }
+      if (o.send(o.cmd + " open")) { sent = Date.now(); o.status("Opening " + o.label + " on the radio..."); }
+    }
+    return tick;
+  }
+
   window.RadioSession = {create: function(o) { return new Session(o); }, forRadio: forRadio, takeLink: takeLink,
-                         token: function() { return load(TOKEN_KEY); }};
+                         autoOpen: autoOpen, token: function() { return load(TOKEN_KEY); }};
   window.RadioPtt = {create: function(o) { return new Ptt(o); }};
   window.RadioPttHands = {create: function(o) { return new Hands(o); }};
   window.RadioTune = {create: function(o) { return new Tune(o); }};
