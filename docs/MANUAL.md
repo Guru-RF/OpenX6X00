@@ -3774,7 +3774,7 @@ First steps:
    all go back when you leave.
 4. The board shows the stations of the band as cards. Heartbeat (page 1)
    tells them you are here; those that hear you answer and come first, in
-   red, "heard you" with their report. Turn the MFK onto a card and press:
+   red for 3 minutes, "heard you" with their report. Turn the MFK onto a card and press:
    the conversations open on that station.
 5. ESC or the top knob stops sending; the next ESC leaves the app.
 
@@ -3795,7 +3795,8 @@ those that heard you first (a heartbeat answered, a call), then the others,
 newest first. A card shows the flag, the call, the signal as you hear it,
 the country and distance (from their locator, else from their country's
 middle, "~"), and a tag: "2 new" (messages for you not read), "heard you
--12" (their report), else what they sent last (CQ, HB, X6100). The selected
+-12" (their report; the card red for 3 minutes after their answer, then
+plain with the tag in grey), else what they sent last (CQ, HB, X6100). The selected
 card is framed; the MFK goes from card to card, its press opens the
 conversations. On the right of the TX line: the stations heard and "HB:
 say you're here", then after a heartbeat its time and how many heard it,

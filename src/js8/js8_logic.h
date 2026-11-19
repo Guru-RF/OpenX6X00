@@ -66,6 +66,14 @@ typedef struct {
     bool    x6100;                    /* they have sent something to @X6100 */
 } js8_station_t;
 
+/* The board's card of a station that heard us is red this long after their last answer, then plain with "heard you"
+ * in grey; they still come first (F4OLI: red for as long as they stayed in the list was far too long) */
+#define JS8_HEARD_FRESH_MS (3 * 60 * 1000)
+
+static inline bool js8_heard_me_fresh(const js8_station_t *st, int64_t now_ms) {
+    return st->heard_me && now_ms - st->heard_me_ms < JS8_HEARD_FRESH_MS;
+}
+
 typedef struct js8_stations js8_stations_t; /* opaque */
 
 js8_stations_t *js8_stations_create(void); /* NULL when out of memory */
