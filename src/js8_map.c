@@ -19,6 +19,7 @@
 #include "theme.h"
 #include "world_map.h"
 
+#include <ctype.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -64,6 +65,7 @@ static struct {
     bool           log_spots;
     lv_coord_t     w, h;
     double         my_lat, my_lon;
+    bool           have_me;     /* a locator of ours; without one no "me" at 0, 0, no paths, distances or bearings */
     int            zoom;        /* 0 Auto, 1 the world, else x2^(zoom-1) */
     double         clat, clon;  /* centre of a manual zoom */
     char           sel[16];     /* the selected call, "" none */
@@ -293,13 +295,16 @@ static int find_sel(void) {
 static void choose_view(int sel) {
     if (m.zoom == 0) {
         static double lat[SPOTS_MAX + 1], lon[SPOTS_MAX + 1];
-        lat[0] = m.my_lat;
-        lon[0] = m.my_lon;
-        for (int i = 0; i < m.n; i++) {
-            lat[i + 1] = m.spots[i].lat;
-            lon[i + 1] = m.spots[i].lon;
+        int           k = 0;
+        if (m.have_me) {
+            lat[k] = m.my_lat;
+            lon[k++] = m.my_lon;
         }
-        view = map_geo_fit(m.w, m.h, m.my_lon, lat, lon, m.n + 1);
+        for (int i = 0; i < m.n; i++) {
+            lat[k] = m.spots[i].lat;
+            lon[k++] = m.spots[i].lon;
+        }
+        view = map_geo_fit(m.w, m.h, m.have_me ? m.my_lon : 0.0, lat, lon, k);
         return;
     }
     view = map_geo_zoom(m.w, m.h, 1 << (m.zoom - 1), m.clat, m.clon);
@@ -324,7 +329,7 @@ static void label_selected(lv_obj_t *canvas, const spot_t *s, time_t now) {
     int  o = snprintf(line, sizeof(line), "%s", s->s.call);
     if (s->country) o += snprintf(line + o, sizeof(line) - o, "  %s", s->country);
     if (s->s.snr != JS8_MAP_NO_SNR) o += snprintf(line + o, sizeof(line) - o, "  %+d dB", s->s.snr);
-    o += snprintf(line + o, sizeof(line) - o, "  %s%.0f km  az %.0f", s->guessed ? "~" : "", s->km, s->az);
+    if (m.have_me) o += snprintf(line + o, sizeof(line) - o, "  %s%.0f km  az %.0f", s->guessed ? "~" : "", s->km, s->az);
     if (s->s.t) {
         long age = (long)(now - s->s.t);
         snprintf(line + o, sizeof(line) - o, age < 60 ? "  now" : "  %ld min", age / 60);
@@ -351,6 +356,7 @@ static void legend(lv_obj_t *canvas) {
     for (int i = 0; i < 6; i++) {
         static const char *const name[] = {"heard", "hears me", "QSO", "by prefix", "selected", "me"};
         if (!m.fill && i != 2 && i != 4 && i != 5) continue;   /* the log map: QSOs only */
+        if (i == 5 && !m.have_me) continue;
         lv_point_t p = {x, y};
         if (i == 2) {
             lv_draw_line_dsc_t dsc;
@@ -385,7 +391,7 @@ static void overlay(lv_obj_t *canvas, int sel) {
     path.opa   = LV_OPA_80;
     for (int i = 0; i < m.n; i++) {
         const spot_t *s = &m.spots[i];
-        if (!s->worked && !s->s.heard_me) continue;
+        if ((!s->worked && !s->s.heard_me) || !m.have_me) continue;
         path.color = s->worked ? TC(err) : TC(info);
         gc_path(canvas, m.my_lat, m.my_lon, s->lat, s->lon, &path);
     }
@@ -424,7 +430,7 @@ static void overlay(lv_obj_t *canvas, int sel) {
             placed[np++] = a;
             text(canvas, x, s->p.y - 11, &sony_18, recent ? TC(text) : TC(text_dim), call);
         }
-    square(canvas, project(m.my_lat, m.my_lon), 5, TC(warn), true);
+    if (m.have_me) square(canvas, project(m.my_lat, m.my_lon), 5, TC(warn), true);
 
     if (sel >= 0) {
         square(canvas, m.spots[sel].p, 8, TC(err), false);
@@ -448,9 +454,11 @@ static void overlay(lv_obj_t *canvas, int sel) {
             if (dx < 0 || m.spots[i].km > m.spots[dx].km) dx = i;
         }
         int o = snprintf(head, sizeof(head), "%d heard  %d hear me", m.heard, hear_me);
-        if (dx >= 0) snprintf(head + o, sizeof(head) - o, "  DX %s %.0f km", m.spots[dx].s.call, m.spots[dx].km);
+        if (!m.have_me) snprintf(head + o, sizeof(head) - o, "  No locator: Settings > General > STATION");
+        else if (dx >= 0) snprintf(head + o, sizeof(head) - o, "  DX %s %.0f km", m.spots[dx].s.call, m.spots[dx].km);
     } else {
-        snprintf(head, sizeof(head), "QSO map - %d station%s", m.n, m.n == 1 ? "" : "s");
+        int o = snprintf(head, sizeof(head), "QSO map - %d station%s", m.n, m.n == 1 ? "" : "s");
+        if (!m.have_me) snprintf(head + o, sizeof(head) - o, "  No locator: Settings > General > STATION");
     }
     text(canvas, 8, 4, &sony_20, TC(text_head), head);
 
@@ -548,7 +556,11 @@ lv_obj_t *js8_map_create(lv_obj_t *parent, lv_coord_t w, lv_coord_t h, const cha
     char g4[5] = "";
     if (my_grid) snprintf(g4, sizeof(g4), "%s", my_grid);   /* the square only, never the full locator */
     m.my_lat = m.my_lon = 0.0;
-    if (strlen(g4) >= 4) qth_str_to_pos(g4, &m.my_lat, &m.my_lon);
+    /* No locator set (a radio never given one, no GPS fix): the map drew us at 0, 0 in the Gulf of Guinea, with paths
+     * and distances from there (bench X6100, 19 Nov) */
+    m.have_me = strlen(g4) >= 4 && isalpha((unsigned char)g4[0]) && isalpha((unsigned char)g4[1]) &&
+                isdigit((unsigned char)g4[2]) && isdigit((unsigned char)g4[3]);
+    if (m.have_me) qth_str_to_pos(g4, &m.my_lat, &m.my_lon);
     m.w         = w;
     m.h         = h;
     m.fill      = fill;
