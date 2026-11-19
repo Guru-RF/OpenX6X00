@@ -102,6 +102,18 @@ uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap);
 #define BAT_CAP_TOP     82
 uint8_t bat_watch_cap_ext(bat_watch_t *w, uint8_t vbat, uint8_t batcap);
 
+/* The battery log's row a minute (radio.c): the % it keeps, from which the time left is learned and "Battery N%:
+ * connect power" said. A % more than BAT_CAP_APART off the last row's with the voltage within 0.1 V of it, no supply
+ * measured and not charging, is one reading gone wrong: on the bench X6100 one row read 7.7 V and 0 % between rows
+ * of 7.7 V 73 %, the radio said "Battery 0%: connect power" and the time left went from 2h43 to 0h00, then 0h31. The
+ * last row's % for it; the second such row in a row is taken as it is. last_* zero: no row yet */
+typedef struct {
+    uint8_t vbat;   /* the last row's, 0.1 V */
+    int16_t cap;    /* its %, -1 none */
+    bool    held;   /* the last row was held */
+} bat_row_t;
+int bat_row_cap(bat_row_t *r, uint8_t vbat, int cap, bool supply);
+
 #ifdef __cplusplus
 }
 #endif

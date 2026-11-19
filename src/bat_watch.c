@@ -114,6 +114,19 @@ uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
     return w->by_volts ? v : batcap;
 }
 
+int bat_row_cap(bat_row_t *r, uint8_t vbat, int cap, bool supply) {
+    bool odd = !supply && r->vbat && r->cap >= 0 && abs((int)vbat - r->vbat) <= 1 && abs(cap - r->cap) > BAT_CAP_APART;
+
+    if (odd && !r->held) {
+        r->held = true;
+        return r->cap;
+    }
+    r->held = false;
+    r->vbat = vbat;
+    r->cap  = (int16_t)cap;
+    return cap;
+}
+
 uint8_t bat_watch_cap_ext(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
     if (vbat < BAT_NONE) return batcap;     /* no battery: clock.c shows the supply alone */
 

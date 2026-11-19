@@ -2487,10 +2487,13 @@ static void battery_log(const hw_pack_t *p, bool volts_ext) {
         }
         fclose(f);
     }
+    /* the % shown on battery (bat_watch_cap: the base's can be far off, #49), else the base's: the time to full is
+     * learned in the base's % while charging (bat_est.c), as the log keeps it. One row gone wrong held (bat_row_cap) */
+    static bat_row_t row = {0, -1, false};
+    int              cap = bat_row_cap(&row, p->vbat, bat_pct >= 0 ? bat_pct : p->batcap,
+                                       p->vext * 0.1f >= 3.0f || p->charging || tx_s > 0);
     bat_sample_t s = {
-        /* the % shown on battery (bat_watch_cap: the base's can be far off, #49), else the base's: the time to
-         * full is learned in the base's % while charging (bat_est.c), as the log keeps it */
-        .t = t, .vbat = p->vbat * 0.1f, .cap = bat_pct >= 0 ? bat_pct : p->batcap, .vext = p->vext * 0.1f,
+        .t = t, .vbat = p->vbat * 0.1f, .cap = cap, .vext = p->vext * 0.1f,
         .charging = p->charging,
         .tx_s = tx_s, .tx_w = tx_s > 0 ? tx_ws / tx_s : 0, .bl = backlight_level(),
         .wifi = wifi_get_status() != WIFI_OFF,

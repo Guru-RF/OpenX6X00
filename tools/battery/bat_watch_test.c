@@ -364,6 +364,22 @@ int main(void) {
     pct_for(0, 138, 0, BAT_SETTLE_MS + READ_MS, &lo, &hi);
     check(pct(0, 138, 0) == 0, "no battery on a supply: the base's", 0);
 
+    /* The log's row a minute (bench X6100, 19 Nov: 7.7 V 73 %, then one row 7.7 V 0 %, then 73 % again) */
+    bat_row_t r = {0, -1, false};
+    check(bat_row_cap(&r, 77, 74, false) == 74 && bat_row_cap(&r, 77, 73, false) == 73, "rows: as they come", 0);
+    check(bat_row_cap(&r, 77, 0, false) == 73, "rows: one at 0 % at the same voltage keeps the last", 0);
+    check(bat_row_cap(&r, 77, 73, false) == 73 && bat_row_cap(&r, 77, 72, false) == 72, "rows: then on as before", 0);
+    check(bat_row_cap(&r, 77, 10, false) == 72 && bat_row_cap(&r, 77, 10, false) == 10,
+          "rows: the second such row in a row is taken", 0);
+    r = (bat_row_t){0, -1, false};
+    check(bat_row_cap(&r, 77, 73, false) == 73 && bat_row_cap(&r, 72, 9, false) == 9,
+          "rows: a drop with the voltage (7.7 to 7.2 V) is taken", 0);
+    r = (bat_row_t){0, -1, false};
+    check(bat_row_cap(&r, 76, 65, false) == 65 && bat_row_cap(&r, 76, 21, true) == 21,
+          "rows: on a supply, the base's own (charging at 7.6 V, 21 %) is taken", 0);
+    r = (bat_row_t){0, -1, false};
+    check(bat_row_cap(&r, 77, 0, false) == 0, "rows: the first row as it is", 0);
+
     printf("bat_watch (%s): %d checks, %d failed\n", BOARD_BAT_LOW == 60 ? "X6100" : "X6200", checks, fails);
     return fails != 0;
 }
