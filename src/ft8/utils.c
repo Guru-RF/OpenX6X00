@@ -71,6 +71,9 @@ bool ftx_clock_synced(int *err_ms) {
     if (state < 0 || state == TIME_ERROR || (tx.status & STA_UNSYNC) || tx.maxerror > SYNC_MAX_ERR_US) {
         return false;
     }
-    if (err_ms) *err_ms = (int)(tx.maxerror / 1000);
+    /* The error said is ntpd's estimate, not its maximum: the maximum is the root distance and grows 0.5 ms a second
+     * between updates, 419 ms on the bench X6100 over Ethernet with the clock 0.3 ms off and the estimate 2.2 ms,
+     * and GPS / Clock read "kept by NTP (402 ms)" (19 Nov). At least 1 ms: 0 there means no number */
+    if (err_ms) *err_ms = tx.esterror > 0 ? (int)((tx.esterror + 999) / 1000) : 1;
     return true;
 }

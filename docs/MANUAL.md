@@ -5880,8 +5880,8 @@ Sync.
 - Satellites, fix: the satellites the GPS sees and uses, and the fix ("25/8,
   3D", "25/0, no fix"). It keeps the last count gpsd gave, as not all of
   gpsd's reports carry one once there is a fix.
-- Clock: the time in UTC and what keeps it ("kept by NTP (12 ms)", "kept by
-  GPS"), else the last move here ("RWM 9996 +0.031 s 3 min ago", "8
+- Clock: the time in UTC and what keeps it ("kept by NTP (2 ms)": ntpd's
+  estimate of the clock's error; "kept by GPS"), else the last move here ("RWM 9996 +0.031 s 3 min ago", "8
   stations -0.42 s 1 h ago"), else "clock chip".
 - FT8 says: what the FT8 and FT4 decodes say of the clock while that app is
   open, Auto Sync on or off ("0.42 s ahead, 7 stations, 2 min ago", "on time",
