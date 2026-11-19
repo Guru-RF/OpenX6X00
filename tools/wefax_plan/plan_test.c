@@ -76,7 +76,7 @@ static void test_load(void)
 
     int n = wefax_plan_load();
 
-    CHECK(n == 80 && !wefax_plan_from_file(), "the firmware's plan: %d slots", n);
+    CHECK(n == 82 && !wefax_plan_from_file(), "the firmware's plan: %d slots", n);
     CHECK(wefax_plan_bulletin_count() == 9, "its Bulletin: %d kinds", wefax_plan_bulletin_count());
     for (int i = 1; i < n; i++)
         CHECK(wefax_plan_slot(i - 1)->min <= wefax_plan_slot(i)->min, "sorted at %d", i);
@@ -97,7 +97,7 @@ static void test_load(void)
     /* one that is no plan: the firmware's again */
     write_file(path, "{\"slots\": 3}");
     n = wefax_plan_load();
-    CHECK(n == 80 && !wefax_plan_from_file(), "a broken plan.json: the firmware's, %d slots", n);
+    CHECK(n == 82 && !wefax_plan_from_file(), "a broken plan.json: the firmware's, %d slots", n);
     unlink(path);
 }
 
@@ -175,8 +175,8 @@ static void test_fax(void)
     CHECK(i == slot_at(5, 25) && !wefax_plan_worth_joining(wefax_plan_slot(i), since), "not at 05:44 (%d s)", since);
     i = wefax_plan_last_started(hms(0, 5, 0), &since);
     CHECK(i == slot_at(0, 0) && since == 300, "00:05: %s %d s", product_of(i), since);
-    i = wefax_plan_last_started(hms(4, 0, 0), &since);
-    CHECK(i == slot_at(3, 24) && since == 36 * 60, "04:00: the 03:24 chart, %d s", since);
+    i = wefax_plan_last_started(hms(3, 59, 0), &since);
+    CHECK(i == slot_at(3, 24) && since == 35 * 60, "03:59: the 03:24 chart, %d s", since);
 
     /* the next slot's time with a fax coming in */
     wefax_slot_t plan = {.dur = 690}, filler = {.dur = 690, .fill = true};
@@ -328,8 +328,7 @@ static void test_bulletin(void)
           "the Atlantic analysis is an Analysis");
     CHECK(wefax_bulletin_has(sigwx, product_of(slot_at(9, 36))), "Northwood's upper-air SIGWX is Significant weather");
 
-    /* Northwood's slots named from the charts received: 10:00, 10:12, 18:24-18:48 no longer unknown nor fillers;
-     * only 09:00 is (noise was all that was heard) */
+    /* Northwood's slots named from the charts received: 10:00, 10:12, 18:24-18:48 no longer unknown nor fillers */
     CHECK(!strcmp(product_of(slot_at(10, 0)), "NW-surface-analysis-06Z") &&
               !strcmp(product_of(slot_at(10, 12)), "NW-surface-forecast-24h-06Z") &&
               !strcmp(product_of(slot_at(18, 36)), "NW-surface-forecast-24h-12Z"),
@@ -338,14 +337,26 @@ static void test_bulletin(void)
     CHECK(!strcmp(product_of(slot_at(1, 48)), "NW-sea-swell-12h-18Z"), "01:48's swell is T+12: %s",
           product_of(slot_at(1, 48)));
 
+    /* The night of 17 to 18 Nov at F4OLI's station: Northwood's 00Z analysis at 04:00 and its 24 h forecast at 05:12 on
+     * 2618.5 kHz, outside any slot until then (saved with no name); 09:00 on 8040 kHz is the 06Z analysis, the one
+     * 10:00 sends again: the best copy of the two is kept */
+    CHECK(!strcmp(product_of(slot_at(4, 0)), "NW-surface-analysis-00Z") &&
+              wefax_plan_slot(slot_at(4, 0))->freq_hz == 2618500 &&
+              !strcmp(product_of(slot_at(5, 12)), "NW-surface-forecast-24h-00Z") &&
+              wefax_plan_slot(slot_at(5, 12))->freq_hz == 2618500,
+          "04:00 %s, 05:12 %s", product_of(slot_at(4, 0)), product_of(slot_at(5, 12)));
+    CHECK(!strcmp(product_of(slot_at(9, 0)), "NW-surface-analysis-06Z") &&
+              wefax_plan_slot(slot_at(9, 0))->freq_hz == 8040000 &&
+              !strcmp(product_of(slot_at(9, 0)), product_of(slot_at(10, 0))),
+          "09:00 %s, as 10:00", product_of(slot_at(9, 0)));
+
     int unknown = 0, fillers = 0;
 
     for (int i = 0; i < wefax_plan_count(); i++) {
         unknown += wefax_plan_product_unique(wefax_plan_slot(i)->product);
         fillers += wefax_plan_slot(i)->fill;
     }
-    CHECK(unknown == 1 && wefax_plan_product_unique(product_of(slot_at(9, 0))) && !fillers,
-          "unknown slots %d (09:00 only), fillers %d", unknown, fillers);
+    CHECK(!unknown && !fillers, "unknown slots %d, fillers %d", unknown, fillers);
     CHECK(wefax_bulletin_has(days, "NW-surface-forecast-120h-12Z") && !wefax_bulletin_has(days, "NW-surface-forecast-24h-12Z"),
           "Forecast 3-5 days takes 120 h, not 24 h");
 

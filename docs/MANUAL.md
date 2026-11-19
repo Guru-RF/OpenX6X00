@@ -4236,7 +4236,9 @@ F4OLI's (OlivLoze's fork), from his own receiving station.
 - The plan is in the firmware (tools/wefax_plan/plan.json, from a 48 h watch
   in November 2026, made for western Europe, each chart named from its title
   as received; DWD's 05:25 and 18:00 charts are the North Atlantic surface
-  analysis, in the Bulletin's Analysis); a `/mnt/wefax/plan.json` of the
+  analysis, in the Bulletin's Analysis; Northwood's 00Z analysis and 24 h
+  forecast come again at 04:00 and 05:12 on 2618.5 kHz, its 06Z analysis
+  at 09:00 and 10:00 on 8040, the best copy kept); a `/mnt/wefax/plan.json` of the
   same form replaces it (`"slots"`: `t` the UTC start, `st` the station, `hz`
   the frequency the fax is on, `prod` the chart's name, `dur` its length in s,
   690 by default, `fill` true for a filler).
