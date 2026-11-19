@@ -1025,6 +1025,19 @@ def status_of(kind, state="running", modem="ready", pat="running", text="Running
     return "".join(f"{k}={v}\n" for k, v in st.items())
 
 
+# A stand-in supervisor for the command run as Pat runs it: the lock held with its pid in it, a poke taken
+SUPERVISOR_LOCK = """import fcntl, os, signal, sys, time
+signal.signal(signal.SIGUSR1, lambda *_: None)
+f = open(sys.argv[1], "a+")
+fcntl.flock(f, fcntl.LOCK_EX)
+f.truncate(0)
+f.write(f"{os.getpid()}\\n")
+f.flush()
+print("holding", flush=True)
+time.sleep(60)
+"""
+
+
 class Switch(Root):
     """switch_modem() with a stand-in for the supervisor: a poke makes it answer, as the real one does, with the
     status of the modem now chosen"""
@@ -1247,6 +1260,64 @@ class Switch(Root):
             r = subprocess.run([sys.executable, "-I", SUPERVISOR, "switch", via], capture_output=True, text=True,
                                env=dict(os.environ, X6100_WINLINK_ROOT=self.root), timeout=30)
             self.assertEqual((r.returncode, r.stdout, r.stderr), (0, out, ""), modem)
+
+    def test_abort_before_anything_changed(self):
+        """Pat's Abort (SIGTERM) while the switch waits for the page's last change: nothing changed, nothing said
+        (Pat says it)"""
+        self.conf(enabled=1, mycall="N0AAA", modem="ardop")
+        self.status("ardop", pat="starting", text="Restarting Pat with the new settings...")
+        before = read(self.wl.CONF)
+        timer = threading.Timer(0.1, self.wl._given_up.append, (1,))
+        timer.start()
+        self.addCleanup(timer.cancel)
+        start = time.time()
+        self.assertEqual(self.wl.switch_modem("varahf"), (False, ""))
+        self.assertLess(time.time() - start, 0.6)
+        self.assertEqual((read(self.wl.CONF), self.pokes, self.notes()), (before, [], []))
+        self.assertFalse(os.path.exists(self.wl.SWITCH))
+
+    def test_abort_during_the_switch(self):
+        """Pat's Abort while the new modem starts: the switch stops waiting, the modem goes on to the new one (the
+        setting and the switch file stay, for a supervisor that has not read them yet)"""
+        self.conf(enabled=1, mycall="N0AAA", modem="ardop")
+        self.status("ardop")
+        self.then = "waits"
+        timer = threading.Timer(0.2, self.wl._given_up.append, (1,))
+        timer.start()
+        self.addCleanup(timer.cancel)
+        start = time.time()
+        self.assertEqual(self.wl.switch_modem("varahf"), (False, ""))
+        self.assertLess(time.time() - start, 0.8)
+        self.assertEqual(self.wl.read_conf()["modem"], "xara")
+        self.assertEqual(self.notes(), [
+            "switching the modem from ARDOP to XARA for this connection through VARA HF",
+            "Abort: the switch to XARA goes on without that connection, and the modem stays XARA, as the Winlink "
+            "page (Operating > Winlink) now shows"])
+        now = (dict(WANT, modem="xara"), "hash")
+        self.assertTrue(self.wl.pats_switch((dict(WANT, modem="ardop"), "hash"), now))
+
+    def test_abort_as_pat_sends_it(self):
+        """The command as our Pat runs it, and SIGTERM as Pat sends it on its Abort: exit status 1 at once, with the
+        stand-in supervisor never making the new modem ready"""
+        self.conf(enabled=1, mycall="N0AAA", modem="ardop")
+        self.status("ardop")
+        holder = subprocess.Popen([sys.executable, "-I", "-c", SUPERVISOR_LOCK, self.wl.LOCK], stdout=subprocess.PIPE,
+                                  text=True)
+        self.addCleanup(holder.wait, 10)
+        self.addCleanup(holder.kill)
+        self.assertEqual(holder.stdout.readline(), "holding\n")
+        sw = subprocess.Popen([sys.executable, "-I", SUPERVISOR, "switch", "varahf"], stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True, env=dict(os.environ, X6100_WINLINK_ROOT=self.root))
+        self.addCleanup(sw.kill)
+        end = time.time() + 20
+        while not any(n.startswith("switching the modem") for n in self.notes()) and time.time() < end:
+            time.sleep(0.05)
+        time.sleep(0.2)                                      # past the setting and the poke, in its wait
+        sw.terminate()
+        out, err = sw.communicate(timeout=3)
+        self.assertEqual((sw.returncode, out, err), (1, "", ""))
+        self.assertEqual(self.wl.read_conf()["modem"], "xara")
+        self.assertTrue(self.notes()[-1].startswith("Abort: the switch to XARA goes on without that connection"))
 
     def test_listening(self):
         """/proc/net/tcp read as it is: a port listened on, and one that is not"""

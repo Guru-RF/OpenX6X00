@@ -7391,7 +7391,12 @@ Connecting to a gateway:
   HF"). The Winlink page's Modem follows and stays there afterwards; the
   bandwidths, the VARA HF licence tick and the rest stay as set. When the
   modem does not come up, Pat does not call and its log says why ("OpenX6X00:
-  no connection through VARA HF: XARA did not start ..."). No switch while
+  no connection through VARA HF: XARA did not start ..."). APP > Mail's
+  Abort while Pat waits for the modem ends the connection there (the
+  mailbox's status line offers Abort only once Pat calls): Pat does not call
+  ("OpenX6X00: no connection through VARA HF: Abort was chosen while the
+  modem switched"), and the modem goes on to the new one, which the Winlink
+  page shows. No switch while
   a connection through the other transport is under way; telnet and the
   other transports are not touched. Up to v0.3.12 such a connection went
   nowhere until the modem was changed on the Winlink page.

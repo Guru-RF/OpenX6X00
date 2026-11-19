@@ -50,7 +50,10 @@
 # for ardop; for varahf the last of Mercury and XARA chosen (varahf_modem=, the page's or a switch's), XARA when
 # neither was. A change the page made just before is the supervisor's to finish first. One switch at a time (our Pat
 # and a lock), none while a connection through the other transport is under way (our Pat). Nothing else changes: the
-# bandwidths, the VARA HF licence tick and the CW ID stay as the page set them.
+# bandwidths, the VARA HF licence tick and the CW ID stay as the page set them. Pat's Abort during a switch (tools/pat,
+# 0010) sends it SIGTERM: it stops waiting and exits 1, and Pat does not dial. The modem goes on to the new one when the
+# choice was written already: the supervisor finishes that as for one made on the page, which then shows it. Going back
+# would stop the new modem and start the old one again, for a connection nobody waits for any more.
 # Pat's config.json holds the password, so it lives on the root filesystem (/var/lib/winlink/pat), where the
 # web pages cannot read it. It is merged, not written whole: our keys are set (the password when the page has
 # one), every other one is kept, since Pat's own Settings page edits the file too. The mailbox is on the DATA
@@ -182,6 +185,7 @@ class Fail(Exception):
 
 _stop = []                            # SIGTERM seen (shutdown): stop, keep the setting
 _poke = []                            # SIGUSR1 (on, off, apply): look at the settings now
+_given_up = []                        # SIGTERM to `switch`: our Pat gave the connection up (Abort): stop waiting
 
 
 def stopping():
@@ -1608,7 +1612,7 @@ def modem_ready(st, kind):
 def switch_modem(via):
     """(went ahead, VARA HF's bandwidth or "") for a connection Pat is about to dial through via: the modem for it
     running and ready, switched to when the other one ran (the header says how). When it did not go ahead the
-    reason went into Pat's log; nothing when Pat itself is gone meanwhile"""
+    reason went into Pat's log, by Pat itself after its Abort; nothing when Pat itself is gone meanwhile"""
     parent = os.getppid()                          # Pat: gone when it was restarted, and nobody waits then
     name = TRANSPORT_NAMES[via]
 
@@ -1636,6 +1640,8 @@ def switch_modem(via):
             return fail("Winlink is being turned off")
         if not supervisor_pid():
             return fail("Winlink's supervisor does not run", "Turn Winlink off and on again (Operating > Winlink)")
+        if _given_up:                              # Pat's Abort with nothing changed yet: the modem stays as it is
+            return False, ""
         if modem_settled(st, kind):
             break
         if os.getppid() != parent:
@@ -1653,6 +1659,7 @@ def switch_modem(via):
     note(f"switching the modem from {MODEM_NAMES[kind]} to {MODEM_NAMES[target]} for this connection through {name}")
     # The switch file before the setting: the supervisor that reads the setting goes on with Pat
     write_kv(SWITCH, {"modem": target, "at": f"{time.time():.3f}"})
+    kept = False
     try:
         with conf_lock():
             conf = read_conf()
@@ -1666,6 +1673,13 @@ def switch_modem(via):
         while True:
             time.sleep(SWITCH_LOOK)
             if os.getppid() != parent:
+                return False, ""
+            if _given_up:
+                # Pat's Abort: the choice stays. The switch file too, for a supervisor that has not read the choice
+                # yet: without it, it would restart Pat; it reads it only within its time (pats_switch)
+                kept = True
+                note(f"Abort: the switch to {MODEM_NAMES[target]} goes on without that connection, and the modem "
+                     f"stays {MODEM_NAMES[target]}, as the Winlink page (Operating > Winlink) now shows")
                 return False, ""
             conf, st = read_conf(), read_kv(STATUS)
             if conf.get("enabled") != "1":
@@ -1683,7 +1697,8 @@ def switch_modem(via):
                             then)
     finally:
         try:
-            os.remove(SWITCH)
+            if not kept:
+                os.remove(SWITCH)
         except OSError:
             pass
     note(f"{MODEM_NAMES[target]} is ready and the connection goes ahead; the modem stays {MODEM_NAMES[target]}, as "
@@ -1693,9 +1708,13 @@ def switch_modem(via):
 
 def cmd_switch(args):
     """Our Pat, before it dials through ARDOP or VARA HF (tools/pat, 0008): exit status 0 to go ahead, with bw=<Hz>
-    for VARA HF; 1 not to, the reason in Pat's log. One at a time"""
+    for VARA HF; 1 not to, the reason in Pat's log. One at a time. SIGTERM: Pat's Abort (0010), at the next look"""
     if len(args) != 1 or args[0] not in TRANSPORT_NAMES:
         raise Fail("usage: x6100-winlink switch ardop|varahf")
+    try:
+        signal.signal(signal.SIGTERM, lambda *_: _given_up.append(1))
+    except ValueError:
+        pass                                       # not the main thread: a test's
     os.makedirs(RUN, exist_ok=True)
     with open(SWITCH_LOCK, "a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)

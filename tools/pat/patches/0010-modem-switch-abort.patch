@@ -1,0 +1,258 @@
+From 1035c828749d33bb1926047832715b4d17228214 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Thu, 19 Nov 2026 12:30:00 +0100
+Subject: [PATCH] app: Pat's Abort while the radio's modem switches ends the
+ connection there (OpenX6X00)
+
+The modem switch (0008, radioModemFor) runs before Pat dials, and takes
+up to 45 s when the radio starts the other modem. An abort meanwhile
+(/api/disconnect: the mailbox's Abort, APP > Mail's) found nothing to
+end, as Pat was not dialing yet: AbortActiveConnection answered that
+nothing was under way, and the connection dialed once the switch was
+over.
+
+AbortActiveConnection now ends a switch that runs first
+(radioModemAbort): the switch command gets SIGTERM, on which it stops
+waiting and exits (x6100-winlink), killed if it is still there 2 s
+later, and nothing is dialed. Pat's log says "OpenX6X00: no connection
+through VARA HF: Abort was chosen while the modem switched; Pat did not
+call". The modem goes on to the one the switch chose, if it got that
+far: the radio's supervisor finishes that as for a choice made on the
+Winlink page. A switch that does not end in time (90 s) gets SIGTERM
+too, where it was killed at once.
+
+With tests (app/radio_modem_test.go): a stand-in switch that waits,
+aborted, and one that does not stop on SIGTERM; through Connect,
+nothing reaches the modem.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ app/exchange.go         |   5 ++
+ app/radio_modem.go      |  47 +++++++++++++++--
+ app/radio_modem_test.go | 113 ++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 162 insertions(+), 3 deletions(-)
+
+diff --git a/app/exchange.go b/app/exchange.go
+index 4eda744..a6f8a2b 100644
+--- a/app/exchange.go
++++ b/app/exchange.go
+@@ -249,6 +249,11 @@ func (a *App) sessionExchange(conn net.Conn, targetCall string, master bool) err
+ }
+ 
+ func (a *App) AbortActiveConnection(dirty bool) (ok bool) {
++	// OpenX6X00: a connection that waits for the radio's modem to switch is not dialing yet (radio_modem.go)
++	if radioModemAbort() {
++		return true
++	}
++
+ 	switch {
+ 	case dirty:
+ 		// This mean we've already tried to abort, but the connection is still active.
+diff --git a/app/radio_modem.go b/app/radio_modem.go
+index f5577b4..6b0ca9c 100644
+--- a/app/radio_modem.go
++++ b/app/radio_modem.go
+@@ -15,6 +15,7 @@ import (
+ 	"os/exec"
+ 	"strings"
+ 	"sync"
++	"syscall"
+ 	"time"
+ 
+ 	"github.com/la5nta/wl2k-go/transport"
+@@ -35,6 +36,27 @@ var radioModem struct {
+ 	count int
+ }
+ 
++// The switch that runs: how to end it, for an abort (radioModemAbort); nil when none runs
++var radioModemSwitch struct {
++	sync.Mutex
++	abort context.CancelFunc
++}
++
++// radioModemAbort ends the modem switch that runs, for Pat's Abort (AbortActiveConnection): false
++// when none runs. The connection that asked for the switch is not dialing yet, so Pat found nothing to
++// abort, and it dialed once the switch was over, which takes up to 45 s. The switch command gets
++// SIGTERM: it stops waiting and exits, and the modem goes on to the one it switched to, if it got that
++// far (x6100-winlink). Nothing is dialed.
++func radioModemAbort() bool {
++	radioModemSwitch.Lock()
++	defer radioModemSwitch.Unlock()
++	if radioModemSwitch.abort == nil {
++		return false
++	}
++	radioModemSwitch.abort()
++	return true
++}
++
+ // radioModemFor makes the radio run a modem for the connection's transport before Pat dials
+ // (OpenX6X00 patch, #296). The radio runs one modem at a time on its audio: ARDOP (ardopcf), or
+ // Mercury or XARA, which Pat reaches as VARA HF, the one chosen on the radio's Winlink page. A
+@@ -45,7 +67,8 @@ var radioModem struct {
+ // its output for VARA HF: the bandwidth set on the radio for the modem that runs, which the config
+ // Pat read at its start may not have (Mercury's and XARA's are set apart). A connection that names
+ // its own bw= keeps it. The command exits 1 when it could not; it said why in Pat's log, as its
+-// other "OpenX6X00: " lines, and what it wrote to its stderr goes there too. Nothing is dialed then.
++// other "OpenX6X00: " lines, and what it wrote to its stderr goes there too. Nothing is dialed then,
++// nor after Pat's Abort while the switch runs (radioModemAbort).
+ //
+ // One switch at a time, and none while a connection through the other transport is under way: it
+ // would stop the modem that connection uses. A second connection through the same transport
+@@ -93,13 +116,31 @@ func radioModemFor(url *transport.URL) (done func(), ok bool) {
+ // runRadioModemSwitch runs the switch for the transport: the bandwidth it gave for VARA HF ("" for
+ // none), or an error, whose text goes into Pat's log ("" when the switch put its own reason there)
+ func runRadioModemSwitch(cmd, via string) (bw string, err error) {
+-	ctx, cancel := context.WithTimeout(context.Background(), radioModemWait)
++	aborted, abort := context.WithCancel(context.Background())
++	defer abort()
++	radioModemSwitch.Lock()
++	radioModemSwitch.abort = abort
++	radioModemSwitch.Unlock()
++	defer func() {
++		radioModemSwitch.Lock()
++		radioModemSwitch.abort = nil
++		radioModemSwitch.Unlock()
++	}()
++	ctx, cancel := context.WithTimeout(aborted, radioModemWait)
+ 	defer cancel()
+ 	var stdout, stderr bytes.Buffer
+ 	c := exec.CommandContext(ctx, cmd, "switch", via)
+ 	c.Stdout, c.Stderr = &stdout, &stderr
+-	c.WaitDelay = 2 * time.Second // a child left holding its output does not keep the connect waiting
++	// An abort, or no end in time: SIGTERM, on which the switch stops waiting and exits; killed when it
++	// is still there after WaitDelay, which also keeps a child left holding its output from keeping the
++	// connect waiting
++	c.Cancel = func() error { return c.Process.Signal(syscall.SIGTERM) }
++	c.WaitDelay = 2 * time.Second
+ 	err = c.Run()
++	if aborted.Err() != nil {
++		return "", fmt.Errorf("no connection through %s: Abort was chosen while the modem switched; Pat did not call",
++			radioModemName(via))
++	}
+ 	if ctx.Err() == context.DeadlineExceeded {
+ 		return "", fmt.Errorf("no connection through %s: the modem switch did not end within %s",
+ 			radioModemName(via), radioModemWait)
+diff --git a/app/radio_modem_test.go b/app/radio_modem_test.go
+index c9e36df..582369f 100644
+--- a/app/radio_modem_test.go
++++ b/app/radio_modem_test.go
+@@ -232,3 +232,116 @@ func TestRadioModemOneSwitchAtATime(t *testing.T) {
+ 		t.Errorf("calls %v, want two", got)
+ 	}
+ }
++
++// switchRuns waits until the stand-in switch has run (its calls file is there)
++func switchRuns(t *testing.T, calls string) {
++	t.Helper()
++	for end := time.Now().Add(5 * time.Second); time.Now().Before(end); time.Sleep(10 * time.Millisecond) {
++		if callsOf(t, calls) != nil {
++			return
++		}
++	}
++	t.Fatal("the switch did not run")
++}
++
++func TestRadioModemAbortDuringTheSwitch(t *testing.T) {
++	// Pat's Abort while the switch waits for the modem: the switch gets SIGTERM and stops, nothing is
++	// dialed, at once rather than when the switch is over
++	dir := t.TempDir()
++	term := filepath.Join(dir, "term")
++	calls := fakeSwitch(t, "trap 'echo term > "+term+"; exit 1' TERM\nwhile :; do sleep 0.05; done")
++	buf := logged(t)
++	if radioModemAbort() {
++		t.Error("an abort with no switch running took")
++	}
++	res := make(chan bool, 1)
++	go func() {
++		done, ok := radioModemFor(parse(t, "varahf:///N0BBB"))
++		if ok {
++			done()
++		}
++		res <- ok
++	}()
++	switchRuns(t, calls)
++	start := time.Now()
++	if !(&App{}).AbortActiveConnection(false) {
++		t.Fatal("Pat's abort found nothing to end")
++	}
++	select {
++	case ok := <-res:
++		if ok {
++			t.Fatal("went ahead after the abort")
++		}
++	case <-time.After(5 * time.Second):
++		t.Fatal("still waiting for the switch after the abort")
++	}
++	if d := time.Since(start); d > time.Second {
++		t.Errorf("ended %v after the abort", d)
++	}
++	if b, err := os.ReadFile(term); err != nil || string(b) != "term\n" {
++		t.Errorf("the switch did not get SIGTERM (%v)", err)
++	}
++	if !strings.HasSuffix(buf.String(), "OpenX6X00: no connection through VARA HF: Abort was chosen while the modem "+
++		"switched; Pat did not call\n") {
++		t.Errorf("logged %q", buf.String())
++	}
++	if radioModemAbort() {
++		t.Error("an abort after the switch took")
++	}
++	// The next connection switches again, as one with no abort before it
++	fakeSwitch(t, "echo bw=500")
++	done, ok := radioModemFor(parse(t, "varahf:///N0BBB"))
++	if !ok {
++		t.Fatal("the next connection refused")
++	}
++	done()
++}
++
++func TestRadioModemAbortIgnoredByTheSwitch(t *testing.T) {
++	// A switch that does not stop on SIGTERM is killed after WaitDelay
++	calls := fakeSwitch(t, "trap '' TERM\nwhile :; do sleep 0.05; done")
++	logged(t)
++	res := make(chan bool, 1)
++	go func() {
++		_, ok := radioModemFor(parse(t, "ardop:///N0BBB"))
++		res <- ok
++	}()
++	switchRuns(t, calls)
++	radioModemAbort()
++	select {
++	case ok := <-res:
++		if ok {
++			t.Fatal("went ahead after the abort")
++		}
++	case <-time.After(5 * time.Second):
++		t.Fatal("still waiting for the switch after the abort")
++	}
++}
++
++func TestConnectAbortDuringTheModemSwitch(t *testing.T) {
++	// Through Connect: nothing reaches the modem, which the switch was still starting
++	modem := newFakeModem(t, fakeVara())
++	a, _ := connectApp(t, modem)
++	calls := fakeSwitch(t, "exec sleep 10")
++	buf := logged(t)
++	res := make(chan bool, 1)
++	go func() { res <- a.Connect("varahf:///N0BBB") }()
++	switchRuns(t, calls)
++	if !a.AbortActiveConnection(false) {
++		t.Fatal("nothing to abort")
++	}
++	select {
++	case ok := <-res:
++		if ok {
++			t.Fatal("connected")
++		}
++	case <-time.After(5 * time.Second):
++		t.Fatal("Connect went on after the abort")
++	}
++	if n := modem.sent(""); n != 0 {
++		t.Errorf("%d lines reached the modem", n)
++	}
++	if !strings.Contains(buf.String(), "Abort was chosen while the modem switched") {
++		t.Errorf("logged %q", buf.String())
++	}
++}
+-- 
+2.56.0
+
