@@ -568,7 +568,8 @@ jochenhammes the RADE app (#129,
 #130) and APP > Mail, Winlink mail read, written and sent on the radio (#295); MAVProxyUser the X6200's base firmware updater, from the radio's screen
 and over SSH, Xiegu's UPGRADE steps with their tests (#259), which also writes
 the X6100's base, by the way in of Franco Venturi's (fventuri)
-x6100-base-experiments flasher.
+x6100-base-experiments flasher; erikkt a keyboard's and a Bluetooth knob's
+volume keys on the RX volume, never the CW paddle (#306).
 
 From their forks: condoruy (Cóndor Tecnológico, the CX8ANM edition) the GUI's
 languages, the hook that passes every text to LVGL through the language and
