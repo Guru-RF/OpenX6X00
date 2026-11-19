@@ -7395,6 +7395,14 @@ Connecting to a gateway:
   a connection through the other transport is under way; telnet and the
   other transports are not touched. Up to v0.3.12 such a connection went
   nowhere until the modem was changed on the Winlink page.
+- When the modem hears the frequency in use, Pat waits for it to clear
+  before it calls ("Waiting for clear channel...") and asks in the mailbox
+  and on APP > Mail: Continue anyway, or Abort. After 5 minutes it gives up.
+  Abort on the mailbox's status line ("Dialing..."), or on APP > Mail's
+  Connection page, ends that wait at once too, with ARDOP and with VARA HF
+  (Mercury, XARA): no call goes out, and the next connection can go. Up to
+  v0.3.12 the call went on until the 5 minutes were up, and with ARDOP it
+  could still go out once the frequency cleared.
 - Pat gives the radio the gateway's dial frequency: the radio tunes there,
   switches to USB-D (unless it is in USB or USB-D already), and tunes back
   after the session. The power is the radio's setting, at most 7 W, as for
@@ -7662,7 +7670,8 @@ web mailbox.
   it. Abort ends the connection; pressed again, at once.
 - Pat's questions during a connection come up on the buttons, as in the web
   mailbox: a busy channel (Continue anyway or Abort; Pat waits for it to
-  clear meanwhile), the password when none is set (typed in a hidden field),
+  clear meanwhile, and the Connection page's Abort ends that wait too), the
+  password when none is set (typed in a hidden field),
   an account Pat cannot confirm (Continue anyway: the account is activated
   over the air and a message brings its password, the only key to it, so
   write it down), a new account's password message (Download now or Later)

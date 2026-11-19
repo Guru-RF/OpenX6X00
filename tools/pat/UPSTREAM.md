@@ -58,7 +58,8 @@ reports itself as Pat 1.0.1 with the upstream revision `2ad31e8` (`pat version`:
 Each one made with `git format-patch` against `v1.0.1` (0008 against a stand-in, below); `git
 apply` takes them in order. On the way from `v1.0.0`: 0001 to 0004 rebased as they were (line
 offsets only); 0005 and 0006 rebased onto v1.0.1's own changes to the same files (below); 0007 is
-new, for a v1.0.1 regression; 0008 is new, for #296.
+new, for a v1.0.1 regression; 0008 is new, for #296; 0009 is new, for an Abort that did not end a
+connection (the bench X6100, 19 Nov).
 
 - `0001-http-guard.patch`: a guard around Pat's HTTP handler (`api/guard.go`, wrapped in
   `api.ListenAndServe`). Pat has no login, and a plain GET of `/api/connect` keys the
@@ -224,6 +225,29 @@ new, for a v1.0.1 regression; 0008 is new, for #296.
   v1.0.1 from the module cache (`go vet`, `go test -race`, an ARMv7 build), with a stand-in for
   `Connect()` around the hunk. Not built into Pat yet: `build.sh` builds it the first time and runs
   no tests, so `go test ./app/` in the patched tree is the check to make then.
+
+- `0009-busy-channel-abort.patch`: an abort while Pat waits for a clear channel ends the dial at
+  once. ARDOP's and VARA's dialers (wl2k-go's `ardop`, Pat-Vara) wait through the busy function
+  with a context made from `context.Background()`, which ends when the channel clears and never
+  with the dial's. An abort (`/api/disconnect`: the mailbox's status line, APP > Mail's Abort)
+  while the busy-channel prompt was open went on until the prompt's 5 minutes were up. With VARA
+  HF, Connect returned only then: on the bench X6100 "Got abort signal while dialing varahf,
+  cancelling...", and "aborted while waiting for clear channel" three and a half minutes later,
+  an ARDOP connection refused meanwhile. With ARDOP, Connect returned at once, but its dial went
+  on in the background with the prompt open, which holds back the next prompt (the password's),
+  and called the gateway once the channel cleared. Connect now keeps its dial's context for the
+  busy function (`app/busy_abort.go`), and `onBusyChannel` ends with it too: the prompt goes away
+  (the mailbox and APP > Mail get `PromptAbort`) and the dial ends, as the prompt's own Abort ends
+  it; a wait that only begins after its Connect returned (ARDOP's background dial) ends at once.
+  Connect logs "Connect cancelled" for it, where VARA HF's dialer gave "aborted while waiting for
+  clear channel". The prompt's Abort and Continue answers, the channel clearing and the 5 minute
+  timeout are as upstream. With tests (`app/busy_abort_test.go`): the wait and its prompt, and
+  Connect through a stand-in VARA HF modem and a stand-in ARDOP TNC on loopback; its `TestMain`
+  gives the package's tests a state directory of their own, where Connect's account check finds a
+  recent mark and asks nothing of the internet. The stand-ins say the channel is busy once, before
+  their version: the dialers read that flag from a goroutine of their own without a lock, and a
+  change of it while they look is a race of theirs. Should go upstream, better as the dial's
+  context given to the busy function in wl2k-go and Pat-Vara (not reported).
 
 `pat_ui_test.js` (ours, not in a patch) runs Pat's mailbox and configuration pages and their
 scripts from a patched source in jsdom, against a stand-in for Pat's server that answers with such

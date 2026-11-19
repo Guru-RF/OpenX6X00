@@ -1,0 +1,556 @@
+From b3c83a1c876f5305fe45b2d812ba330d1f1bef22 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Thu, 19 Nov 2026 12:00:00 +0100
+Subject: [PATCH] app: an abort while Pat waits for a clear channel ends the
+ dial at once (OpenX6X00)
+
+ARDOP's and VARA's dialers wait for a clear channel through the busy
+function (onBusyChannel) with a context of their own, made from
+context.Background(), which ends when the channel clears and never with
+the dial's (waitIfBusy in wl2k-go's ardop and in Pat-Vara). An abort
+(/api/disconnect, the mailbox's Abort) while that wait's prompt was
+open was logged ("Got abort signal while dialing varahf,
+cancelling..."), and the wait went on until the prompt's 5 minutes were
+up: VARA HF's Connect returned only then ("aborted while waiting for
+clear channel"), and the next connection could not go before. ARDOP's
+Connect returns at once, but left its dial waiting in the background,
+the prompt open (which holds back the next prompt, the password's), and
+called the gateway when the channel cleared.
+
+Connect now keeps its dial's context for the busy function
+(busy_abort.go), and onBusyChannel ends with it too: an abort ends the
+wait and its prompt (the mailbox and APP > Mail are told it is gone)
+and the dial, as the prompt's own Abort does, and a wait that only
+begins after its Connect returned (ARDOP's background dial) ends at
+once. Connect logs "Connect cancelled" for it, as for an abort at any
+other point of the dial, where VARA HF's dialer gave its own error. The
+prompt's Abort and Continue answers, the channel clearing and the 5
+minute timeout do as before.
+
+The fix belongs in the two dialers (the dial's context given to the
+busy function); this is Pat's side of it, without changing them.
+
+With tests (app/busy_abort_test.go): the wait and its prompt, and
+Connect through a stand-in VARA HF modem and a stand-in ARDOP TNC on
+loopback, the channel busy: the abort ends Connect at once, and the
+next connection prompts and calls, once.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ app/busy_abort.go      |  51 ++++++
+ app/busy_abort_test.go | 391 +++++++++++++++++++++++++++++++++++++++++
+ app/connect.go         |  21 ++-
+ 3 files changed, 462 insertions(+), 1 deletion(-)
+ create mode 100644 app/busy_abort.go
+ create mode 100644 app/busy_abort_test.go
+
+diff --git a/app/busy_abort.go b/app/busy_abort.go
+new file mode 100644
+index 0000000..e0b2cf0
+--- /dev/null
++++ b/app/busy_abort.go
+@@ -0,0 +1,51 @@
++// Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF (OpenX6X00).
++// Use of this source code is governed by the MIT-license that can be
++// found in the LICENSE file.
++
++package app
++
++import (
++	"context"
++	"sync"
++)
++
++// The context of the last dial Connect began (OpenX6X00 patch), for its busy-channel wait
++// (onBusyChannel). An abort cancels it (AbortActiveConnection, through dialCancelFunc), and so
++// does the end of Connect.
++//
++// ARDOP's and VARA's dialers wait for a clear channel through the busy function with a context of
++// their own, made from context.Background(), which ends when the channel clears and never with
++// the dial's (waitIfBusy in wl2k-go's ardop and in Pat-Vara). So an abort while Pat waited for a
++// clear channel was logged ("Got abort signal while dialing varahf, cancelling..."), and the wait
++// and its prompt went on until the prompt's 5 minutes were up: VARA HF's Connect returned only
++// then, and ARDOP's, which returns at once, left its dial waiting in the background, to call the
++// gateway when the channel cleared, and the prompt open, which holds back the next one (the
++// password's). Now the wait ends with the dial's context, as an Abort answer to the prompt would.
++//
++// The busy function is set once for a modem and is not told which dial it is waiting for: the last
++// one begun is the one, as Pat dials one connection at a time. It is kept once its dial is over
++// (cancelled by then), so a wait that only begins after its Connect returned (ARDOP's dial in the
++// background) ends at once. The fix belongs in the two dialers (the dial's context given to the
++// busy function); this is Pat's side of it, which does without changing them.
++var busyDial struct {
++	sync.Mutex
++	ctx context.Context
++}
++
++// setBusyDial makes ctx the context of the dial whose busy-channel wait comes next
++func setBusyDial(ctx context.Context) {
++	busyDial.Lock()
++	busyDial.ctx = ctx
++	busyDial.Unlock()
++}
++
++// currentBusyDial is the context a busy-channel wait ends with: the last dial's, Background before
++// the first
++func currentBusyDial() context.Context {
++	busyDial.Lock()
++	defer busyDial.Unlock()
++	if busyDial.ctx == nil {
++		return context.Background()
++	}
++	return busyDial.ctx
++}
+diff --git a/app/busy_abort_test.go b/app/busy_abort_test.go
+new file mode 100644
+index 0000000..3a7dd21
+--- /dev/null
++++ b/app/busy_abort_test.go
+@@ -0,0 +1,391 @@
++package app
++
++import (
++	"bufio"
++	"context"
++	"encoding/json"
++	"fmt"
++	"net"
++	"os"
++	"path/filepath"
++	"strings"
++	"sync"
++	"testing"
++	"time"
++
++	"github.com/adrg/xdg"
++	"github.com/la5nta/pat/cfg"
++	"github.com/la5nta/pat/internal/directories"
++)
++
++// The tests' own state directory: Connect's Winlink account check is read from it (DoIfElapsed),
++// so a test's Connect asks nothing of the internet, and nothing of the user's is touched
++func TestMain(m *testing.M) {
++	dir, err := os.MkdirTemp("", "pat-app-test.")
++	if err != nil {
++		panic(err)
++	}
++	os.Setenv("XDG_STATE_HOME", dir)
++	xdg.Reload()
++	code := m.Run()
++	os.RemoveAll(dir)
++	os.Exit(code)
++}
++
++// prompts gets the prompts as the web mailbox's socket does
++type prompts chan Prompt
++
++func (p prompts) Prompt(pr Prompt) { p <- pr }
++
++func (p prompts) next(t *testing.T) Prompt {
++	t.Helper()
++	select {
++	case pr := <-p:
++		return pr
++	case <-time.After(5 * time.Second):
++		t.Fatal("no prompt")
++	}
++	return Prompt{}
++}
++
++func busyApp(t *testing.T) (*App, prompts) {
++	t.Helper()
++	hub := NewPromptHub()
++	t.Cleanup(func() { hub.Close() })
++	rec := make(prompts, 4)
++	hub.AddPrompter(rec)
++	return &App{promptHub: hub, websocketHub: noopWSSocket{}}, rec
++}
++
++// wait is what a busy-channel wait came to, or a failure when it did not end in time
++func wait(t *testing.T, res <-chan bool, what string) bool {
++	t.Helper()
++	select {
++	case abort := <-res:
++		return abort
++	case <-time.After(2 * time.Second):
++		t.Fatalf("%s: the wait for a clear channel went on", what)
++	}
++	return false
++}
++
++// The dialers' own context for the wait, which ends when the channel clears (waitIfBusy)
++func channelClears(t *testing.T) (context.Context, context.CancelFunc) {
++	ctx, cancel := context.WithCancel(context.Background())
++	t.Cleanup(cancel)
++	return ctx, cancel
++}
++
++func TestBusyChannelAbortEndsTheWait(t *testing.T) {
++	a, rec := busyApp(t)
++	buf := logged(t)
++	dial, abort := context.WithCancel(context.Background())
++	setBusyDial(dial)
++	busy, _ := channelClears(t)
++	res := make(chan bool, 1)
++	go func() { res <- a.onBusyChannel(busy) }()
++	p := rec.next(t)
++	if p.Kind != PromptKindBusyChannel {
++		t.Fatalf("prompt %q", p.Kind)
++	}
++	abort() // AbortActiveConnection, through dialCancelFunc
++	if !wait(t, res, "aborted") {
++		t.Error("the dial went on after the abort")
++	}
++	select {
++	case <-p.Done(): // the mailbox and APP > Mail are told the prompt is gone (PromptAbort)
++	case <-time.After(time.Second):
++		t.Error("the prompt stayed open")
++	}
++	if strings.Contains(buf.String(), "Channel clear") {
++		t.Errorf("logged %q", buf.String())
++	}
++	// The next dial's wait prompts again: the hub was not left holding the first one
++	setBusyDial(context.Background())
++	go func() { res <- a.onBusyChannel(busy) }()
++	rec.next(t).Respond("continue", nil)
++	if wait(t, res, "the next dial") {
++		t.Error("Continue aborted")
++	}
++}
++
++func TestBusyChannelPromptAnswers(t *testing.T) {
++	a, rec := busyApp(t)
++	dial, abort := context.WithCancel(context.Background())
++	defer abort()
++	setBusyDial(dial)
++	busy, _ := channelClears(t)
++	for answer, want := range map[string]bool{"abort": true, "continue": false} {
++		res := make(chan bool, 1)
++		go func() { res <- a.onBusyChannel(busy) }()
++		rec.next(t).Respond(answer, nil)
++		if got := wait(t, res, answer); got != want {
++			t.Errorf("%s: abort=%v, want %v", answer, got, want)
++		}
++	}
++	if dial.Err() != nil {
++		t.Error("an answer to the prompt ended the dial")
++	}
++}
++
++func TestBusyChannelClears(t *testing.T) {
++	a, rec := busyApp(t)
++	buf := logged(t)
++	dial, abort := context.WithCancel(context.Background())
++	defer abort()
++	setBusyDial(dial)
++	busy, clear := channelClears(t)
++	res := make(chan bool, 1)
++	go func() { res <- a.onBusyChannel(busy) }()
++	p := rec.next(t)
++	clear()
++	if wait(t, res, "cleared") {
++		t.Error("aborted when the channel cleared")
++	}
++	<-p.Done()
++	if !strings.Contains(buf.String(), "Waiting for clear channel...") || !strings.Contains(buf.String(), "Channel clear") {
++		t.Errorf("logged %q", buf.String())
++	}
++}
++
++func TestBusyChannelWaitAfterTheDial(t *testing.T) {
++	// ARDOP's dial goes on in the background once Connect has returned (aborted): its wait, when it
++	// only begins then, ends at once, with no prompt
++	a, rec := busyApp(t)
++	buf := logged(t)
++	dial, abort := context.WithCancel(context.Background())
++	setBusyDial(dial)
++	abort()
++	busy, _ := channelClears(t)
++	res := make(chan bool, 1)
++	go func() { res <- a.onBusyChannel(busy) }()
++	if !wait(t, res, "after the dial") {
++		t.Error("went on")
++	}
++	select {
++	case p := <-rec:
++		t.Errorf("prompted %q", p.Kind)
++	case <-time.After(100 * time.Millisecond):
++	}
++	if buf.Len() != 0 {
++		t.Errorf("logged %q", buf.String())
++	}
++}
++
++// fakeModem is a stand-in for a modem's TNC on loopback, command port and data port next to it: it
++// answers each command line Pat sends, and keeps them. At the test's end it closes its side, and
++// Pat's modem client stops by itself (as when the modem program stops), not from the test, whose
++// Close would race with the clients' own goroutines
++type fakeModem struct {
++	addr  string
++	mu    sync.Mutex
++	lines []string
++	conns []net.Conn
++}
++
++// newFakeModem listens on two ports in a row, the first not ending in 9 (ARDOP's data port is the
++// address with its last character one up); answer gives the reply to each line
++func newFakeModem(t *testing.T, answer func(line string) string) *fakeModem {
++	t.Helper()
++	var cmd, data net.Listener
++	for i := 0; cmd == nil && i < 50; i++ {
++		l, err := net.Listen("tcp", "127.0.0.1:0")
++		if err != nil {
++			t.Fatal(err)
++		}
++		port := l.Addr().(*net.TCPAddr).Port
++		if port%10 != 9 {
++			if data, err = net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port+1)); err == nil {
++				cmd = l
++				continue
++			}
++		}
++		l.Close()
++	}
++	if cmd == nil {
++		t.Fatal("no two free ports in a row")
++	}
++	f := &fakeModem{addr: cmd.Addr().String()}
++	t.Cleanup(func() {
++		cmd.Close()
++		data.Close()
++		f.mu.Lock()
++		defer f.mu.Unlock()
++		for _, c := range f.conns {
++			c.Close()
++		}
++	})
++	accept := func(l net.Listener, serve func(net.Conn)) {
++		for {
++			c, err := l.Accept()
++			if err != nil {
++				return
++			}
++			f.mu.Lock()
++			f.conns = append(f.conns, c)
++			f.mu.Unlock()
++			go serve(c)
++		}
++	}
++	go accept(data, func(net.Conn) {})
++	go accept(cmd, func(c net.Conn) {
++		rd := bufio.NewReader(c)
++		for {
++			line, err := rd.ReadString('\r')
++			if err != nil {
++				return
++			}
++			line = strings.TrimSuffix(line, "\r")
++			f.mu.Lock()
++			f.lines = append(f.lines, line)
++			f.mu.Unlock()
++			if reply := answer(line); reply != "" {
++				c.Write([]byte(reply))
++			}
++		}
++	})
++	return f
++}
++
++// sent is how many lines Pat sent that begin with prefix
++func (f *fakeModem) sent(prefix string) (n int) {
++	f.mu.Lock()
++	defer f.mu.Unlock()
++	for _, l := range f.lines {
++		if strings.HasPrefix(l, prefix) {
++			n++
++		}
++	}
++	return n
++}
++
++// busyOnce is "said" the first time and "" after: a modem says the channel is busy once, before its
++// first version (so that Pat has heard it before it dials), and never clear. The dialers look at the
++// channel from a goroutine of their own that does not lock (waitIfBusy): a change of it while they
++// look is a race of theirs, which the race detector would take for one of the test's
++func busyOnce(said string) func() string {
++	var once sync.Once
++	return func() (s string) {
++		once.Do(func() { s = said })
++		return s
++	}
++}
++
++// A VARA HF modem: OK to every command, busy, no answer to a call
++func fakeVara() func(string) string {
++	busy := busyOnce("BUSY ON\r")
++	return func(line string) string {
++		switch {
++		case line == "VERSION":
++			return busy() + "VERSION fake 1.0\r"
++		case strings.HasPrefix(line, "CONNECT "):
++			return "OK\rPENDING\rDISCONNECTED\r"
++		}
++		return "OK\r"
++	}
++}
++
++// An ARDOP TNC: each setting echoed, DISC, busy, no answer to a call
++func fakeArdop() func(string) string {
++	busy := busyOnce("BUSY TRUE\r")
++	return func(line string) string {
++		switch {
++		case line == "STATE":
++			return "STATE DISC\r"
++		case line == "VERSION":
++			return busy() + "VERSION fake 1.0\r"
++		case strings.HasPrefix(line, "ARQCALL "):
++			return line + "\rNEWSTATE DISC\r"
++		}
++		return line + "\r"
++	}
++}
++
++// connectApp is an App that connects through the fake modem, its Winlink account confirmed lately
++// (no account check), with no rig
++func connectApp(t *testing.T, modem *fakeModem) (*App, prompts) {
++	t.Helper()
++	a, rec := busyApp(t)
++	a.options.MyCall = "N0AAA"
++	a.config = cfg.Config{Locator: "JO20", Ardop: cfg.ArdopConfig{Addr: modem.addr}, VaraHF: cfg.VaraConfig{Addr: modem.addr}}
++	confirmed := filepath.Join(directories.StateDir(), ".account-confirmed_N0AAA.json")
++	if err := os.MkdirAll(filepath.Dir(confirmed), 0o700); err != nil {
++		t.Fatal(err)
++	}
++	b, _ := json.Marshal(time.Now())
++	if err := os.WriteFile(confirmed, b, 0o600); err != nil {
++		t.Fatal(err)
++	}
++	var err error
++	if a.eventLog, err = NewEventLogger(filepath.Join(t.TempDir(), "eventlog.json")); err != nil {
++		t.Fatal(err)
++	}
++	t.Cleanup(func() { a.eventLog.Close() })
++	return a, rec
++}
++
++// An abort while the dial waits for a clear channel ends the connection at once, also for VARA HF,
++// whose dialer returned only when the prompt timed out (5 minutes): Connect returns, the prompt is
++// gone, and the next connection prompts and dials
++func TestConnectAbortWhileTheChannelIsBusy(t *testing.T) {
++	for _, tc := range []struct {
++		scheme, call string
++		answer       func() func(string) string
++	}{
++		{"varahf", "CONNECT N0AAA N0BBB", fakeVara},
++		{"ardop", "ARQCALL N0BBB", fakeArdop},
++	} {
++		t.Run(tc.scheme, func(t *testing.T) {
++			t.Setenv(radioModemEnv, "")
++			modem := newFakeModem(t, tc.answer())
++			a, rec := connectApp(t, modem)
++			buf := logged(t)
++			res := make(chan bool, 1)
++			go func() { res <- a.Connect(tc.scheme + ":///N0BBB") }()
++			p := rec.next(t)
++			if p.Kind != PromptKindBusyChannel {
++				t.Fatalf("prompt %q", p.Kind)
++			}
++			start := time.Now()
++			if !a.AbortActiveConnection(false) {
++				t.Fatal("nothing to abort")
++			}
++			select {
++			case ok := <-res:
++				if ok {
++					t.Fatal("connected")
++				}
++			case <-time.After(5 * time.Second):
++				t.Fatal("Connect went on after the abort")
++			}
++			select {
++			case <-p.Done():
++			case <-time.After(time.Second):
++				t.Error("the prompt stayed open")
++			}
++			if d := time.Since(start); d > 3*time.Second {
++				t.Errorf("Connect returned %v after the abort", d)
++			}
++			log := buf.String()
++			if !strings.Contains(log, "Got abort signal while dialing "+tc.scheme) || !strings.Contains(log, "Connect cancelled\n") ||
++				strings.Contains(log, "Unable to establish") {
++				t.Errorf("logged %q", log)
++			}
++			// The next connection: the channel still busy, Continue chosen, it calls (and gets no answer)
++			go func() { res <- a.Connect(tc.scheme + ":///N0BBB") }()
++			rec.next(t).Respond("continue", nil)
++			select {
++			case <-res:
++			case <-time.After(5 * time.Second):
++				t.Fatal("the next Connect did not end")
++			}
++			time.Sleep(400 * time.Millisecond) // the dialers look at the channel every 300 ms
++			if n := modem.sent(tc.call); n != 1 {
++				t.Errorf("%d calls (%s), want the next connection's only", n, tc.call)
++			}
++			if !strings.Contains(buf.String(), "Unable to establish connection to remote: ") {
++				t.Errorf("the next connection: logged %q", buf.String())
++			}
++		})
++	}
++}
+diff --git a/app/connect.go b/app/connect.go
+index cc986ca..a2025b1 100644
+--- a/app/connect.go
++++ b/app/connect.go
+@@ -176,6 +176,7 @@ func (a *App) Connect(connectStr string) (success bool) {
+ 	ctx, cancel := context.WithCancel(context.Background())
+ 	a.dialCancelFunc = func() { a.dialing = nil; cancel() }
+ 	defer a.dialCancelFunc()
++	setBusyDial(ctx) // OpenX6X00: an abort ends a wait for a clear channel too (busy_abort.go)
+ 
+ 	// Signal web gui that we are dialing a connection
+ 	a.dialing = url
+@@ -203,7 +204,9 @@ func (a *App) Connect(connectStr string) (success bool) {
+ 	a.eventLog.LogConn("connect "+connectStr, currFreq, conn, err)
+ 
+ 	switch {
+-	case errors.Is(err, context.Canceled):
++	case errors.Is(err, context.Canceled), err != nil && ctx.Err() != nil:
++		// OpenX6X00: also an abort while the dial waited for a clear channel, which VARA HF's dialer
++		// reports as its own error ("aborted while waiting for clear channel")
+ 		log.Printf("Connect cancelled")
+ 		return
+ 	case err != nil:
+@@ -267,13 +270,29 @@ func (a *App) onBusyChannel(ctx context.Context) (abort bool) {
+ 		return false
+ 	}
+ 
++	// OpenX6X00: ctx ends when the channel clears, and not with the dial: an abort of the dial ends
++	// the wait and its prompt as well, as the prompt's Abort does (busy_abort.go)
++	dial := currentBusyDial()
++	if dial.Err() != nil {
++		return true
++	}
++	ctx, cancel := context.WithCancel(ctx)
++	defer cancel()
++	defer context.AfterFunc(dial, cancel)()
++
+ 	log.Println("Waiting for clear channel...")
+ 	select {
+ 	case <-ctx.Done():
++		if dial.Err() != nil {
++			return true
++		}
+ 		// The channel is no longer busy.
+ 		log.Println("Channel clear")
+ 		return false
+ 	case resp := <-a.promptHub.Prompt(ctx, 5*time.Minute, PromptKindBusyChannel, "Waiting for clear channel..."):
++		if dial.Err() != nil {
++			return true
++		}
+ 		return resp.Value == "abort" || resp.Err == context.DeadlineExceeded
+ 	}
+ }
+-- 
+2.56.0
+
