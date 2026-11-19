@@ -1,0 +1,113 @@
+From cdc0b6ddb759ad070782f8b271266bb988a007b4 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Thu, 19 Nov 2026 15:11:57 +0100
+Subject: [PATCH] BUSY: a receiver's noise no longer reads as a VARA signal now
+ and then
+
+On a quiet band or a dummy load XARA said "busy: a VARA signal (level 5)"
+every 3 to 40 s, each with 1.4 s of BUSY, with nothing on the air. The
+signature test sums 20 rows of a 64-bin spectrum (213 ms) and passes when
+each carrier bin of a level is over twice its strongest gap bin. A sum of
+noise that short still varies enough to pass it by chance, for one level
+or another at one of three shifts, 94 times a second: about twice a
+minute. Gaussian noise does the same as the receiver's (a recording from
+an X6100 on a dummy load, its lines notched out or not, flat or shaped
+like its passband: 0 to 4 trips in 90 s each).
+
+The test now sums 40 rows (427 ms). Noise stays under it: its ratio 1.8 at
+most where the test asks 2, over half an hour of it, the recording's 1.71.
+A VARA signal's carriers are there for its whole transmission (a frame is
+about 4 s), so a longer sum brings it out better: weak ones pass as soon
+as or sooner than with 20 rows, strong ones about 0.2 s later. The test
+itself, its threshold and its levels are as they were (the vector tests
+pin them).
+
+a_receivers_noise_is_not_a_vara_signal: 262 s of noise at 300-2700 Hz,
+no BUSY (with 20 rows, 3 times a VARA signal), then VARA transmissions at
+the noise's level and 3 dB under it busy within 0.8 s, as VARA signals.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/xara-phy/src/busy.rs   |  9 ++++++-
+ crates/xara-phy/tests/busy.rs | 51 +++++++++++++++++++++++++++++++++++
+ 2 files changed, 59 insertions(+), 1 deletion(-)
+
+diff --git a/crates/xara-phy/src/busy.rs b/crates/xara-phy/src/busy.rs
+index fb18ec1..150c5fe 100644
+--- a/crates/xara-phy/src/busy.rs
++++ b/crates/xara-phy/src/busy.rs
+@@ -35,7 +35,14 @@ const NARROW_RANK: usize = 2;
+ /// A bin of noise has exponential power: the lower quartile of its ln lies this far under the
+ /// mean of its ln, which is what the shape holds (-ln(-ln 0.75) - Euler's gamma).
+ const WARM_BIAS: f64 = 0.668_686_8;
+-const ROWS: usize = 20;
++/// The signature test's rows summed, 64-bin spectra 32 samples apart: 40, 427 ms. With 20 (213 ms)
++/// the sum of a receiver's noise still varied enough to pass the test now and then by chance, its
++/// threshold 3 dB, for one level or another at one of three shifts, 94 times a second: a VARA signal
++/// a few times a minute on a quiet band or a dummy load. With 40 the noise stays under it (its ratio
++/// 1.8 at most where the test asks 2, over half an hour of it), and a VARA signal, whose carriers are
++/// there for its whole transmission (a frame is about 4 s), stands out of a longer sum all the
++/// better: a weak one passes as soon as or sooner than before, a strong one a fifth of a second later.
++const ROWS: usize = 40;
+ const FULL_SCALE: f64 = 32767.0;
+ /// A bin of the tone FFT: 128 over the front end's 3 kHz, bin k at k of these Hz of the audio
+ const TONE_BIN_HZ: f64 = crate::ofdm::FS / 16.0 / 128.0;
+diff --git a/crates/xara-phy/tests/busy.rs b/crates/xara-phy/tests/busy.rs
+index b2aaf3b..c6b42ac 100644
+--- a/crates/xara-phy/tests/busy.rs
++++ b/crates/xara-phy/tests/busy.rs
+@@ -325,3 +325,54 @@ fn a_vara_link_there_from_the_start_is_not_taken_for_the_passband() {
+         assert!(edges.len() == 1 && off.is_some_and(|t| t < 5.0), "L{record}: {edges:?} {:?}", b.shape());
+     }
+ }
++
++/// A receiver's noise: Gaussian, 300 to 2700 Hz, n samples (a power of two)
++fn band_noise(r: &mut Rng, n: usize, rms: f64) -> Vec<f64> {
++    use num_complex::Complex64;
++    let mut spec: Vec<Complex64> = (0..n)
++        .map(|k| {
++            let hz = 48000.0 * k.min(n - k) as f64 / n as f64;
++            let g = Complex64::new(r.gauss(), r.gauss());
++            if (300.0..=2700.0).contains(&hz) { g } else { Complex64::new(0.0, 0.0) }
++        })
++        .collect();
++    rustfft::FftPlanner::new().plan_fft_inverse(n).process(&mut spec);
++    let x: Vec<f64> = spec.iter().map(|c| c.re).collect();
++    let now = (x.iter().map(|v| v * v).sum::<f64>() / n as f64).sqrt();
++    x.iter().map(|v| v * rms / now).collect()
++}
++
++#[test]
++fn a_receivers_noise_is_not_a_vara_signal() {
++    // Minutes of it, as on a quiet band or a dummy load: the signature test passes now and then by
++    // chance, which is not a VARA signal
++    let mut r = Rng::new(11);
++    let mut b = Busy::new(Bandwidth::Hz2300);
++    let mut edges = Vec::new();
++    for i in 0..3 {
++        let at = i << 22;
++        edges.extend(run(&mut b, &band_noise(&mut r, 1 << 22, db(-32.0))).into_iter().map(|(t, e)| (at + t, e)));
++    }
++    assert_eq!(b.hits[1], 0, "the noise read as a VARA signal {} times: {edges:?}", b.hits[1]);
++    assert!(edges.is_empty(), "busy on noise: {edges:?}");
++    // A VARA transmission in it, at the noise's level and 3 dB under it, still reads busy, as one,
++    // within its first 0.8 s
++    let mut rng = Rng::new(1);
++    let mut rand = |n: u32| rng.below(n);
++    for (record, rel_db) in [(5, 0.0), (5, -3.0), (6, 0.0), (8, 0.0)] {
++        let record = Record::new(record).unwrap();
++        let m = Modulator::new(Bandwidth::Hz2300);
++        let len = Bandwidth::Hz2300.level(record).frame_bytes() as usize;
++        let frame: Vec<u8> = (0..len).map(|i| (i * 37 + 11) as u8).collect();
++        let x = m.transmission(record, &[&frame], &mut rand);
++        let rms = (x.iter().map(|v| v * v).sum::<f64>() / x.len() as f64).sqrt();
++        let n = band_noise(&mut r, 1 << 18, db(-32.0));
++        let sig: Vec<f64> = x.iter().map(|v| v / rms * db(-32.0 + rel_db)).zip(&n).map(|(a, b)| a + b).collect();
++        run(&mut b, &band_noise(&mut r, 1 << 18, db(-32.0)));
++        assert!(!b.is_on(), "L{} {rel_db} dB: clear before", record.get());
++        let on = run(&mut b, &sig);
++        let first = on.first().copied();
++        assert!(matches!(first, Some((t, true)) if t < 48000 * 8 / 10), "L{} {rel_db} dB: {on:?}", record.get());
++        assert_eq!(b.why(), Why::Signature(record), "L{} {rel_db} dB", record.get());
++    }
++}

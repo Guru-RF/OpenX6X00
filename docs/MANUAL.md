@@ -7946,7 +7946,7 @@ When it does not work:
   VARA signal (level 5)" (another VARA station), "busy: a tone at ... Hz
   (the noise shape not learned yet)" (its first seconds). Before, BUSY came
   on at the start and could stay on for good behind the radio's filter, so
-  Pat never called.
+  Pat never called, and plain noise read as "a VARA signal" every so often.
 - The Modem row says "Ready, but it fell behind the receiver lately" in red,
   and Pat's log "OpenX6X00: XARA could not keep up with the receiver": XARA
   fell behind the radio's audio by 400 ms or more ("xara is falling behind
