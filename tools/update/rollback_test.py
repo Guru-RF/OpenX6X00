@@ -101,6 +101,55 @@ class Updater:
             return f.read()
 
 
+class Folders(unittest.TestCase):
+    """folders(): a version's new folders 0755 whatever the umask (the radio's is 077), an old 0700 one opened up under
+    OPEN_DIRS, another left alone"""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="folders-", dir=os.environ.get("TMPDIR"))
+        self.u = Updater(self.tmp)
+        self.mask = os.umask(0o077)
+
+    def tearDown(self):
+        os.umask(self.mask)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def mode(self, *parts):
+        return stat.S_IMODE(os.stat(os.path.join(self.tmp, *parts)).st_mode)
+
+    def test_new_folders_open(self):
+        self.u.up["folders"](os.path.join(self.tmp, "usr", "share", "x6100", "i18n", "nl.po"))
+        for parts in (("usr",), ("usr", "share"), ("usr", "share", "x6100"), ("usr", "share", "x6100", "i18n")):
+            self.assertEqual(self.mode(*parts), 0o755, parts)
+
+    def test_old_root_only_folder_opened(self):
+        fonts = os.path.join(self.tmp, "usr", "share", "x6100", "fonts")
+        os.makedirs(fonts)
+        os.chmod(fonts, 0o700)
+        self.u.up["OPEN_DIRS"] = (os.path.join(self.tmp, "usr") + "/",)
+        self.u.up["folders"](os.path.join(fonts, "a.otf"))
+        self.assertEqual(self.mode("usr", "share", "x6100", "fonts"), 0o755)
+
+    def test_other_root_only_folder_left(self):
+        conns = os.path.join(self.tmp, "etc", "NetworkManager", "system-connections")
+        os.makedirs(conns)
+        os.chmod(conns, 0o700)
+        self.u.up["OPEN_DIRS"] = (os.path.join(self.tmp, "usr") + "/",)
+        self.u.up["folders"](os.path.join(conns, "smartcw.nmconnection"))
+        self.assertEqual(self.mode("etc", "NetworkManager", "system-connections"), 0o700)
+
+    def test_apply_makes_them_open(self):
+        target = os.path.join(self.tmp, "new", "dir", "file")
+        staged = os.path.join(self.u.up["WORK"], "stage", target.lstrip("/"))
+        os.makedirs(os.path.dirname(staged))
+        with open(staged, "w") as f:
+            f.write("x")
+        self.u.up["apply"]({"version": "0.3.12", "files": [{"path": target, "mode": "644"}]})
+        self.assertEqual(self.mode("new"), 0o755)
+        self.assertEqual(self.mode("new", "dir"), 0o755)
+        self.assertEqual(stat.S_IMODE(os.stat(target).st_mode), 0o644)
+
+
 class RollbackNotice(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="rollback-", dir=os.environ.get("TMPDIR"))

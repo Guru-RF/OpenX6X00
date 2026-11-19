@@ -68,6 +68,8 @@ PROGRESS = os.path.join(WORK, ".progress")
 ALLOW_UNSIGNED = os.path.join(WORK, "allow-unsigned")
 ALLOWED = ("/usr/sbin/", "/usr/bin/", "/usr/lib/", "/usr/share/x6100/",
            "/etc/init.d/", "/etc/")
+# The folders a version's files go in are opened to 0755 there (folders(): the radio's umask is 077)
+OPEN_DIRS = ("/usr/",)
 MAX_STARTS = 3                        # GUI starts without a confirm before the rollback
 TIMEOUT = 30
 RUN_LIMIT = 1800
@@ -516,6 +518,29 @@ def stage(bundle):
     return m
 
 
+def folders(path):
+    """The folders of a file the update installs, made 0755: the radio's umask is 077 (the GUI's, the web server's and
+    an SSH login's), so a folder new in an update came out root-only, drwx------: share/x6100/fonts and i18n,
+    licenses/mbelib and svxconnect, the web server's static/img. Nothing reads them but root yet, but a folder of an
+    image is 0755. Under OPEN_DIRS one an earlier updater left 0700 is opened up too; /etc is left as it is"""
+    d, new = os.path.dirname(path), []
+    while d and d != os.path.dirname(d) and not os.path.isdir(d):
+        new.append(d)
+        d = os.path.dirname(d)
+    for d in reversed(new):
+        os.makedirs(d, exist_ok=True)
+        os.chmod(d, 0o755)          # the mode os.makedirs asks is cut by the umask
+    if path.startswith(OPEN_DIRS):
+        d = os.path.dirname(path)
+        while d.startswith(OPEN_DIRS):
+            try:
+                if os.stat(d).st_mode & 0o777 == 0o700:
+                    os.chmod(d, 0o755)
+            except OSError:
+                break
+            d = os.path.dirname(d)
+
+
 def apply(m):
     """The staged files into place, one by one, the previous ones kept and the journal ahead of each step."""
     st = os.path.join(WORK, "stage")
@@ -533,7 +558,7 @@ def apply(m):
             keep = os.path.join(PREV, p.lstrip("/"))
             os.makedirs(os.path.dirname(keep), exist_ok=True)
             shutil.copy2(p, keep)
-        os.makedirs(os.path.dirname(p), exist_ok=True)
+        folders(p)
         tmp = p + ".x6new"
         shutil.copy2(os.path.join(st, p.lstrip("/")), tmp)
         # The manifest's mode, not the staged copy's: WORK is the DATA partition, whose FAT keeps none, and every
