@@ -67,7 +67,10 @@ PORT = int(os.environ.get("X6100_WINLINK_MAIL_PORT", "8080"))   # another one in
 BOXES = ("in", "out", "sent", "archive")
 # Pat's transports a session takes: the radio's two modems; telnet in the tests on a PC only (a CMS of their own)
 SCHEMES = ("ardop", "varahf") + (("telnet",) if ROOT else ())
-MID_RE = re.compile(r"[A-Za-z0-9]{1,12}")
+# A message ID is up to 12 characters, letters and digits from Pat, but not only: a CMS service message on the bench
+# X6100 was "ON6URE#$XVEA" and could not be read (19 Nov). Any printable one but a path: no / or \\, no leading dot;
+# in Pat's URLs it goes quoted (mid_path)
+MID_RE = re.compile(r"[!-~]{1,12}")
 BAND_RE = re.compile(r"[0-9]{1,4}c?m")
 LIST_MAX = 300                 # messages a list gives, the newest
 GATEWAYS_MAX = 80
@@ -237,7 +240,7 @@ def summary(m):
 def check_box(box, mid=None):
     if box not in BOXES:
         raise Fail(f"no mailbox {box!r}")
-    if mid is not None and not MID_RE.fullmatch(mid):
+    if mid is not None and (not MID_RE.fullmatch(mid) or "/" in mid or "\\" in mid or mid.startswith(".")):
         raise Fail("not a message ID")
 
 
@@ -255,9 +258,14 @@ def cmd_list(box):
     return summaries(msgs)
 
 
+def mid_path(box, mid):
+    """Pat's URL of a message: # $ ? % and the like quoted ("ON6URE#$XVEA" is ON6URE%23%24XVEA)"""
+    return f"/api/mailbox/{box}/{urllib.parse.quote(mid, safe='')}"
+
+
 def cmd_read(box, mid):
     check_box(box, mid)
-    m = get_json(f"/api/mailbox/{box}/{mid}")
+    m = get_json(mid_path(box, mid))
     if not isinstance(m, dict):
         raise Fail("Pat's answer could not be read")
     out = summary(m)
@@ -266,7 +274,7 @@ def cmd_read(box, mid):
                 "attachments": [{"name": one_line(f.get("Name"), 80), "size": int(f.get("Size") or 0)}
                                 for f in (m.get("Files") or []) if isinstance(f, dict)]})
     if box == "in" and m.get("Unread"):
-        status, data = request("POST", f"/api/mailbox/{box}/{mid}/read", body=json.dumps({"Read": True}),
+        status, data = request("POST", mid_path(box, mid) + "/read", body=json.dumps({"Read": True}),
                                headers={"Content-Type": "application/json"})
         if status != 200:
             raise Fail(pat_error(status, data))
@@ -316,7 +324,7 @@ def cmd_send():
 
 def cmd_delete(box, mid):
     check_box(box, mid)
-    status, data = request("DELETE", f"/api/mailbox/{box}/{mid}")
+    status, data = request("DELETE", mid_path(box, mid))
     if status != 200:
         raise Fail(pat_error(status, data))
     return {"ok": True}

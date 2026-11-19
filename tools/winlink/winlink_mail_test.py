@@ -287,6 +287,26 @@ def run(root):
     rc2, lst, _ = helper(root, "list", "in")
     check(rc == 0 and rc2 == 0 and lst == [], "delete")
 
+    # A message ID with # and $ in it, as a CMS service message had on the bench X6100 ("ON6URE#$XVEA", 19 Nov): it
+    # lists, reads (quoted in Pat's URL) and deletes; a path is still refused
+    cms = "N0CALL#$XVEA"
+    body = b"Your account has no password recovery address.\r\n"
+    head = (f"Mid: {cms}\r\nDate: 2026/10/27 19:11\r\nType: Private\r\nFrom: SERVICE\r\nTo: {CALL}\r\n"
+            f"Subject: Missing Password Recovery Address\r\nMbo: SMTP\r\nBody: {len(body)}\r\n\r\n").encode()
+    with open(os.path.join(root.d, "mnt/winlink/pat/mailbox", CALL, "in", cms + ".b2f"), "wb") as f:
+        f.write(head + body)
+    rc, lst, _ = helper(root, "list", "in")
+    check(rc == 0 and [x["mid"] for x in lst] == [cms], f"list: a CMS message ID with # and $: {lst}")
+    rc, m, _ = helper(root, "read", "in", cms)
+    check(rc == 0 and m.get("subject") == "Missing Password Recovery Address" and "recovery" in m.get("body", ""),
+          f"read: a CMS message ID with # and $: {m}")
+    for bad in ("a/b", ".hidden", "../x", "ABCDEFGHIJKLM", "a b"):
+        rc, out, _ = helper(root, "read", "in", bad)
+        check(rc == 1 and "message ID" in out.get("error", ""), f"read: {bad!r} refused as an ID")
+    rc, out, _ = helper(root, "delete", "in", cms)
+    rc2, lst, _ = helper(root, "list", "in")
+    check(rc == 0 and rc2 == 0 and lst == [], f"delete: a CMS message ID with # and $ ({out})")
+
     # gateways: ARDOP only, the nearest first (JO20ab: N0GWA in JO21 before N0GWB in JN18), by band
     rc, gws, _ = helper(root, "gateways")
     calls = [(g["call"], g["khz"]) for g in gws] if rc == 0 else []
