@@ -744,10 +744,13 @@ class Connection:
 
 
 class Outcome:
-    """The connections the logs tell of; the last one's outcome as status keys"""
+    """The connections the logs tell of; the last one's outcome as status keys. A connection not dialed (refused, or
+    Pat could not set it up) while another is under way is shown while it is the latest: the one under way goes on
+    (going), and its next turn (connected, done, failed) is shown in its place again"""
 
     def __init__(self):
         self.last = None
+        self.going = None                          # the connection under way while a later one not dialed is shown
         self.qsy = 0                               # Hz, Pat's last QSY: the next connection's frequency
         self.qsy_via = "ardop"                     # its transport, for an "Unable to QSY" after it
         self.capped = ("", "")                     # our Pat's bandwidth line, for the next "Connecting"
@@ -758,20 +761,41 @@ class Outcome:
         self.last = Connection(gateway, at, self.qsy, transport, self.chosen)
         self.last.bw_asked, self.last.bw_capped = self.capped
         self.qsy, self.capped = 0, ("", "")        # this connection's: one without a QSY is not on that frequency
+        self.going = None
         return self.last
+
+    def _not_dialed(self, at, transport, error):
+        """A connection that failed before Pat dialed, perhaps while another one is under way: that one is kept"""
+        c = self.current()
+        going = c if c is not None and c.stage in ("dialing", "connected") else None
+        c = self._new("", at, transport)
+        c.stage, c.failed_in, c.error = "failed", "dial", error
+        self.going = going
+        return c
+
+    def current(self):
+        """The connection the logs' lines are about: the one under way, also while a later one not dialed is shown"""
+        return self.going or self.last
+
+    def _turned(self, c):
+        """c came to its next stage: when it is the one under way, it is the latest again, shown in place of the
+        connection not dialed since"""
+        if c is self.going:
+            self.last, self.going = c, None
 
     def pat_stopped(self):
         """Pat stopped or was restarted with a connection under way: it ends there, with no line in Pat's log"""
-        c = self.last
+        c = self.current()
         if c is not None and c.stage in ("dialing", "connected"):
             c.failed_in = "dial" if c.stage == "dialing" else "exchange"
             c.stage, c.error, c.noted = "failed", "Pat stopped", True
+            self._turned(c)
 
     def pat_line(self, line):
         """A line of Pat's own log: Pat's start with the date and time, the session's (the gateway's) do not"""
         m = PAT_TIME_RE.match(line)
         if not m:
-            c = self.last
+            c = self.current()
             if c is not None and c.stage == "connected":
                 if line.startswith("Remote accepted "):
                     c.accepted += 1
@@ -800,17 +824,17 @@ class Outcome:
             return
         if text.startswith(("ARDOP TNC initialization failed", "vara initialization failed", "Unable to QSY: ")):
             via = "ardop" if text.startswith("ARDOP") else "varahf" if text.startswith("vara") else self.qsy_via
-            c = self._new("", at, via)             # before any "Connecting"
-            c.stage, c.failed_in, c.error = "failed", "dial", text
+            self._not_dialed(at, via, text)        # before any "Connecting"
             return
         q = SWITCH_FAILED_RE.match(text)
-        if q:                                      # ours (cmd_switch), with what to do: not said again
-            c = self._new("", at, "ardop" if q.group(1) == "ARDOP" else "varahf")
-            c.stage, c.failed_in, c.error, c.switch, c.noted = "failed", "dial", "switch", q.group(2), True
+        if q:                                      # ours (cmd_switch, our Pat), with what to do: not said again
+            c = self._not_dialed(at, "ardop" if q.group(1) == "ARDOP" else "varahf", "switch")
+            c.switch, c.noted = q.group(2), True
             return
-        c = self.last
+        c = self.current()
         if c is None:
             return
+        stage = c.stage
         if c.stage == "dialing":
             if text == "Waiting for clear channel...":
                 c.busy_wait = True
@@ -825,11 +849,13 @@ class Outcome:
                 c.stage, c.failed_in, c.error = "failed", "exchange", text.split(": ", 1)[1]
             elif text == "Disconnected.":
                 c.stage = "done"
+        if c.stage != stage:
+            self._turned(c)
 
     def ardop_line(self, line):
         """A line of ardopcf's console: its [STATUS: ...] lines name the other station"""
         m = ARDOP_STATUS_RE.search(line)
-        c = self.last
+        c = self.current()
         if not m or c is None or not c.gateway or c.transport != "ardop":
             return
         st = m.group(1)
@@ -859,7 +885,7 @@ class Outcome:
         if not m:
             return
         r = m.group(1).split()
-        c = self.last
+        c = self.current()
         if r[:1] == ["REGISTERED"]:
             self.xara_full = len(r) > 1
             if c is not None and c.transport == "varahf" and c.bw and not c.speed:
@@ -882,7 +908,7 @@ class Outcome:
             e = json.loads(line)
         except ValueError:
             return
-        c = self.last
+        c = self.current()
         if not isinstance(e, dict) or e.get("what") != "exchange" or c is None or c.stage == "dialing":
             return
         if c.gateway and str(e.get("targetcall", "")).upper() != c.gateway.upper():
@@ -891,8 +917,9 @@ class Outcome:
 
     def refusal(self, text):
         """The radio would not key during the connection under way: the GUI's reason"""
-        if self.last is not None and self.last.stage in ("dialing", "connected"):
-            self.last.refused = text
+        c = self.current()
+        if c is not None and c.stage in ("dialing", "connected"):
+            c.refused = text
 
     def result(self):
         """The last connection as the status keys last_*; {} before the first"""

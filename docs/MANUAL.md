@@ -7352,7 +7352,10 @@ Setting it up:
      | The link dropped during the exchange | What was delivered counts; connect again, narrower on a weak path |
      | Pat could not tune the radio (Unable to QSY) | The radio's screen says why |
 
-     The same line goes into Pat's log, so the mailbox shows it too.
+     The same line goes into Pat's log, so the mailbox shows it too. A
+     connection refused while another is under way ("no connection through
+     ARDOP: one through VARA HF is under way") shows until the one under
+     way comes to something, which then takes its place.
    - Logs, Download: Pat's log, its output, ARDOP's, Mercury's, XARA's (and
      its settings), Pat's event log, the radio's state and the status, as one
      text file to attach to a bug
