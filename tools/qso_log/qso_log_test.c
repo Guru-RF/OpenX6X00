@@ -114,6 +114,29 @@ static void compound(void) {
     check(qso_log_search_worked("G4ABC", MODE_FT8, BAND_6M) == SEARCH_WORKED_SAME_MODE, "G4ABC not worked on 6 m");
 }
 
+/* The FT8 app's countries worked read each call of the log once, as logged (any band or mode) */
+static void count_call(const char *call, void *ud) {
+    char *seen = ud;
+
+    if (strlen(seen) + strlen(call) + 2 < 256) {
+        strcat(seen, call);
+        strcat(seen, " ");
+    }
+}
+
+static void each_call(void) {
+    char seen[256] = "";
+    int  n;
+
+    check(qso_log_record_save(qso_log_record_create("ON6URE", "DL1ABC", T + 200, MODE_FT8, 0, 0, 7074000, NULL, NULL,
+                                                    "JO21", "")) == 1,
+          "DL1ABC on 40 m FT8 not saved");
+    n = qso_log_each_call(count_call, seen);
+    check(n == 2, "each call once: DL1ABC (twice in the log) and PA/G4ABC/P");
+    check(strstr(seen, "DL1ABC ") && strstr(seen, "PA/G4ABC/P "), "the calls as logged");
+    check(!strstr(seen, "EA5KDD"), "a QSO the page deleted still read");
+}
+
 int main(void) {
     unlink(BOARD_DATA "/qso_log.db");
     if (!qso_log_init()) {
@@ -123,6 +146,7 @@ int main(void) {
     delete_after_search();
     save_while_page_writes();
     compound();
+    each_call();
     printf("%d cases, %d wrong\n", cases, bad);
     return bad != 0;
 }

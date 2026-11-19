@@ -197,6 +197,24 @@ qso_log_search_worked_t qso_log_search_worked(const char *callsign, qso_log_mode
     return res;
 }
 
+int qso_log_each_call(void (*fn)(const char *call, void *ud), void *ud) {
+    sqlite3_stmt *st;
+    int           n = 0;
+
+    if (!db) return -1;
+    if (sqlite3_prepare_v2(db, "SELECT DISTINCT remote_callsign FROM qso_log", -1, &st, NULL) != SQLITE_OK) return -1;
+    while (sqlite3_step(st) == SQLITE_ROW) {
+        const char *call = (const char *)sqlite3_column_text(st, 0);
+
+        if (call && call[0]) {
+            fn(call, ud);
+            n++;
+        }
+    }
+    sqlite3_finalize(st);   /* no read lock left on the file (#284) */
+    return n;
+}
+
 /* The radio's own callsign (Settings > STATION) as the import starts, taken on the GUI thread:
  * the one of a record that names neither OPERATOR nor STATION_CALLSIGN */
 static char own_call[sizeof(params.callsign.x)];

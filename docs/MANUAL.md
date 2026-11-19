@@ -3179,7 +3179,7 @@ Starting and stopping it:
 
 - A key: give "TUNE ext. tuner on/off" to a front key's long press or to a
   hand mic F key (Settings > Keys). It works with an app open.
-- The Ext tune button of the digital apps: FT8/FT4/FT2 page 5, JS8 page 3,
+- The Ext tune button of the digital apps: FT8/FT4/FT2 page 4, JS8 page 3,
   WSPR page 2, SSTV page 3, PSK31/PSK63 and Olivia page 6, JTTY page 5. It
   shows the TUNE power, and Stop while it tunes.
 - The browser Panel's TUNE button (see
@@ -3444,20 +3444,28 @@ Pressing Modes again closes the menu.
 ### FT8 and FT4
 
 APP > Modes > FT8 (or FT4, FT2). The radio tunes an FT8/FT4/FT2 frequency; the band
-keys step through the others. 80 px of waterfall (about two slots) sit above
-the list. The main knob moves your TX audio offset.
+keys step through the others. On top the lane, the calls heard over their
+offset, then 40 px of waterfall (about a slot) above the traffic (the list)
+or the tiles. The main knob moves your TX audio offset; the list or the tiles
+fade out while it turns, to show the waterfall under them. The lane, the
+tiles, the slot lines and the CQs' look in the list are F4OLI's redesign
+(OlivLoze's fork).
 
 Buttons:
 
 | Page | Buttons |
 |---|---|
-| 1 | Show: All / CQ, Mode: FT8 / FT4 / FT2, TX CQ, TX Call |
-| 2 | Hold Freq, Auto, Force QSO save, Power |
-| 3 | CQ Modifier, Time Sync, Log Map, Live Map |
-| 4 | Freq: Preset / 14.091, Hound: Off / On, Retries, For you |
-| 5 | Ext tune (see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
+| 1 operate | TX CQ, TX Call, Show: All / CQ (held: the For you strip on / off), View: Traffic / Tiles |
+| 2 the QSO | Auto, Hold Freq, Retries, Force QSO save |
+| 3 the band | Mode: FT8 / FT4 / FT2, Freq: Preset / 14.091, Hound: Off / On, Power |
+| 4 tools | CQ Modifier, Time Sync, Live Map (held: the Log Map), Ext tune (see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
+| 5 | Log Map, For you |
 
-- Show: CQ shows the CQs and the messages to you; All shows all traffic.
+- Show: CQ shows the CQs and the messages to you; All shows all traffic. It
+  filters the tiles and the lane as it does the list: a station seen in
+  another QSO under All goes from them at once.
+- View: the traffic (the list) or the tiles, below. The radio keeps your
+  choice until it restarts; it starts on the traffic.
 - TX CQ calls CQ. A band key, Freq or Mode ends the CQ: TX CQ goes to
   Disabled (after a band key or Freq the radio also says "CQ off: press TX
   CQ to call on this frequency"), and one press calls again there. A reply,
@@ -3519,21 +3527,56 @@ Buttons:
   what it reads ("ft8: Auto Time Sync: median DT ...").
 - CQ Modifier: for example `CQ POTA` or `CQ DX`.
 
-The list. Each row has the slot time, the message, and on the right the
-country with its flag, the distance (when the sender sent a grid and your
-QTH is set) and the SNR. The country comes from AD1C's cty.dat (SP2KMO's
-upstream PR #282). Settings > Display > INTERFACE > FT8/FT4 info picks what
-goes next to the SNR: km, mi, Country, Country + km (the default) or
-Country + mi. The "Saved QSO" message and the web Panel's FT8 list give the
-distance in the same unit.
+The lane. Over the waterfall, each station on the tiles (heard in the last
+2 minutes, as Show lets it) has its call written over its offset, on two
+lines where calls would meet; a call with no room on either is left out
+(its tile has it). Red: a station that called you in the last 3 minutes.
+White: a CQ. Grey: the others. Yellow: your TX offset ("TX") and, in the
+tiles, the station selected.
 
-| Row | Colour |
+The list (View: Traffic). A line with the slot's time heads its rows, and
+the rows go without theirs; your transmissions are in it, in blue, in their
+slot. The time is the slot's start (12:00:15), for each row of the slot and
+for your TX: read as the slot's tick came, it was 1 to 3 s late on a busy
+band, the slot's last decodes running first. Each row has the message, and
+on the right the country with its flag, the distance (when the sender sent
+a grid and your QTH is set) and the SNR. The country comes from AD1C's
+cty.dat (SP2KMO's upstream PR #282). Settings > Display > INTERFACE >
+FT8/FT4 info picks what goes next to the SNR: km, mi, Country, Country + km
+(the default) or Country + mi. The "Saved QSO" message and the web Panel's
+FT8 list give the distance in the same unit. The CQs stand out of the
+traffic, to answer them fast:
+
+| Row | Looks |
 |---|---|
-| CQ, not worked | green |
-| CQ, worked on another band or mode | dark green |
-| CQ, worked on this band and mode | darker green, struck through |
+| CQ, not worked | bright, a green edge, a green CQ tag |
+| CQ, worked on another band or mode | a fainter edge, a "worked" tag |
+| CQ, worked on this band and mode | the same, struck through |
+| a CQ or a call to you from a country not in your log | a yellow NEW tag |
+| the other stations' QSOs (Show: All) | grey |
 | a message to you | red |
 | your TX | blue |
+
+The countries of your log are read from the radio's QSO list as the app
+opens, and a QSO logged since adds its own; one deleted or imported meanwhile
+counts from the next time the app opens. In the 1bit theme a CQ not worked
+has a heavy left border instead of the edge.
+
+The tiles (View: Tiles). One tile a station heard in the last 2 minutes:
+flag, call, signal (one to five bars, -24 to -4 dB), country and distance,
+and a tag: "calls you" with its report (the tile red for 3 minutes after its
+call, the text white on it), NEW (a CQ from a country not in your log), CQ
+(or CQ POTA), worked (a CQ of a station worked before), called you (once
+red, or logged since), QSO (in a QSO with someone else). The stations that
+call you come first, the newest call first, then the NEW CQs, the CQs, the
+CQs worked, the others; the strongest first in each. A QSO logged ends its
+station's red. Nine a page, the page under them (1/2) when there are more.
+The MFK goes from tile to tile, its station's offset marked on the
+waterfall; a press calls the selected station as a press on its last row
+would, and the first press with none selected picks the first tile. A touch
+on a tile calls it. A press while transmitting stops TX, as on the list.
+The list goes on under the tiles: back on the traffic it is where you left
+it, still following the new rows from its last one.
 
 A POTA tag after the message marks a station spotted on POTA right now, and
 any `CQ POTA`. The spots are the ones the cluster already fetches from
@@ -3567,8 +3610,9 @@ list, so they do not scroll away.
 - An MFK press on a row replies, as in the list.
 - With the MFK: down past the last row of the list enters the strip; up from
   its first row goes back to the list.
-- For you (page 4) turns the strip off: no pinned rows, the calls to you stay
-  in the list only, in red as before. On by default.
+- For you (page 5), or Show held (page 1), turns the strip off: no pinned
+  rows, the calls to you stay in the list only, in red as before. On by
+  default. The tiles cover the strip: they have the calls to you in red.
 - The strip has no title: a line in the "to you" colour sits on top of it.
   It is hidden when empty.
 
@@ -3671,11 +3715,11 @@ QSO with a CB call on either side goes to Wavelog. Transmitting on 11 m goes
 by the radio's rule, as anywhere outside the amateur bands: refused unless
 TX outside ham bands is on (see [CB](#cb)).
 
-Log Map. Page 3 > Log Map shows the logged stations on a world map centred on you:
+Log Map. Page 5 > Log Map, or Live Map held (page 4), shows the logged stations on a world map centred on you:
 great-circle paths, a dot and the callsign for each station. Calls and dots
 are larger since v0.119. ESC or Log Map closes it.
 
-Live Map. Page 3 > Live Map puts on the same map every station decoded in
+Live Map. Page 4 > Live Map puts on the same map every station decoded in
 the last 15 minutes that sent a grid (a CQ or a reply with its 4-character
 square). The dot's colour is the distance from your QTH square: green under
 1000 km, blue under 3000, orange under 8000, pink beyond. Stations heard in the
