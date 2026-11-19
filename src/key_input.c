@@ -174,10 +174,93 @@ static bool hyper_key(const struct input_event *ev, bool woke) {
  * never come: the key LVGL holds is let go, or LVGL repeats it into the screen (a frequency step, the volume, a letter
  * keyed in CW Live) until a keyboard opens again; LVGL releases the key it holds. A PTT its CapsLock+Space keyed lets
  * go too */
+static void media_close(void);
+
 static void keyboard_gone(void) {
     kbd_keys.down   = false;
     kbd_keys.queued = false;
+    media_close();
     main_screen_keyboard_gone();
+}
+
+/* The volume keys (kbd_keymap_volume) step the RX volume as the H-22's VOL+ and VOL-, in every window: they never
+ * reach LVGL, which would type their keysym into a text box. A press steps once, the kernel's repeat of a held one
+ * every MEDIA_VOL_REPEAT_MS at most. A key that ends the screensaver only ends it. False for the other keys */
+#define MEDIA_VOL_REPEAT_MS 100
+
+static void media_vol_run(void *arg) {
+    main_screen_media_vol((int)(intptr_t)arg);
+}
+
+static bool media_key(const struct input_event *ev, bool only_wake) {
+    static uint32_t last;
+    int             dir = kbd_keymap_volume(ev->code);
+
+    if (!dir) {
+        return false;
+    }
+    if (ev->value == 0 || only_wake || (ev->value == 2 && lv_tick_elaps(last) < MEDIA_VOL_REPEAT_MS)) {
+        return true;
+    }
+    last = lv_tick_get();
+    lv_async_call(media_vol_run, (void *)(intptr_t)dir);
+    return true;
+}
+
+/* A keyboard with media keys often has them on an input node of their own ("... Consumer Control", the kernel's
+ * hid-generic makes one a HID application collection), with no letters: find_keyboard() passes it over. The node with
+ * the volume keys of the keyboard open (same bus, vendor and product) is read beside it, for those keys only */
+static int   media_fd = -1;
+
+static void media_close(void) {
+    if (media_fd >= 0) {
+        close(media_fd);
+        media_fd = -1;
+    }
+}
+
+static void media_scan(void) {
+    unsigned long   keys[KEY_MAX / (8 * sizeof(long)) + 1];
+    struct input_id kid, id;
+    struct stat     st;
+    glob_t          found;
+
+    if (!ready || media_fd >= 0 || !input_caps_id(kbd_rdev, &kid) ||
+        (kid.bustype != BUS_USB && kid.bustype != BUS_BLUETOOTH) || glob("/dev/input/event*", 0, NULL, &found) != 0) {
+        return;
+    }
+    for (size_t i = 0; i < found.gl_pathc && media_fd < 0; i++) {
+        if (stat(found.gl_pathv[i], &st) != 0 || st.st_rdev == kbd_rdev || !input_caps_id(st.st_rdev, &id) ||
+            id.bustype != kid.bustype || id.vendor != kid.vendor || id.product != kid.product ||
+            !input_caps_bits(st.st_rdev, "key", keys, sizeof(keys) / sizeof(keys[0])) ||
+            !BIT_SET(keys, KEY_VOLUMEUP) || !BIT_SET(keys, KEY_VOLUMEDOWN)) {
+            continue;
+        }
+        media_fd = open(found.gl_pathv[i], O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+        if (media_fd >= 0) {
+            LV_LOG_USER("Keyboard volume keys: %s (%04x:%04x)", found.gl_pathv[i], id.vendor, id.product);
+        }
+    }
+    globfree(&found);
+}
+
+/* The media node's events: its volume keys, the others dropped. Gone (unplugged, the link lost): closed, the next scan
+ * finds it again */
+static void media_read(void) {
+    struct input_event ev;
+    ssize_t            n;
+
+    while (media_fd >= 0 && (n = read(media_fd, &ev, sizeof(ev))) > 0) {
+        if (ev.type == EV_KEY && kbd_keymap_volume(ev.code)) {
+            bool saver = backlight_saver_on();
+            bool woke  = backlight_tick() && ev.value == 1;
+
+            media_key(&ev, woke && saver);
+        }
+    }
+    if (media_fd >= 0 && n < 0 && errno == ENODEV) {
+        media_close();
+    }
 }
 
 /* The kernel's queue of the keyboard's events overflowed (64 of them, a second of one key's repeat while the GUI is
@@ -203,6 +286,7 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
     struct input_event ev;
     ssize_t            n;
 
+    media_read();
     while ((n = read(evdev_fd, &ev, sizeof(ev))) > 0) {
         if (ev.type == EV_SYN && ev.code == SYN_DROPPED) {
             if (resync(scancode, key, state)) {
@@ -217,6 +301,9 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
         bool saver = backlight_saver_on();
         bool woke  = backlight_tick() && ev.value == 1;
 
+        if (media_key(&ev, woke && saver)) {
+            continue;   /* the volume keys, when the keyboard's own node has them */
+        }
         /* In CW [ ] and the paddle keys are the paddle (paddle_keyer.c): a press stops a
          * message on air, as a break */
         if (paddle_keyer_key(ev.code)) {
@@ -348,6 +435,7 @@ static void open_keyboard(char *path) {
     }
     ready = true;
     layout_apply();
+    media_scan();
 }
 
 /* A keyboard there and not open (or a different one: unplugged and back): open it; none: not ready. The one open
@@ -369,6 +457,7 @@ static void check_keyboard(void) {
         }
         ready = false;
     }
+    media_scan();          /* its node can come after the keyboard's: looked for at every scan until found */
     paddle_keyer_scan();   /* after the keyboard: a second one with the paddle keys is the paddle */
 }
 

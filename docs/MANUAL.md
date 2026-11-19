@@ -471,6 +471,12 @@ frequency box and, in CW, the [CW line](#cw-from-the-keyboard). Scroll Lock
 turns the [frequency lock](#buttons-and-knobs) on and off and Print Screen
 takes a screenshot, both on the main screen only.
 
+The volume keys (Volume Up and Down: a keyboard's media keys, a Bluetooth
+volume knob) step the RX volume as the H-22's [VOL+ and VOL-](#hand-mic), in
+every window and in CW too: they are not the VOL knob's `[` and `]`, which
+are the paddle in CW. They never type. A keyboard whose media keys are an
+input device of their own (most of them) has them read beside its letters.
+
 The keyboard's layout is set in Settings > Keys > KEYBOARD > Layout: US (the
 default, and the only one up to v0.3.9), UK, German (QWERTZ), Swiss German,
 French (AZERTY), Belgian (AZERTY), Spanish, Italian, Portuguese, Swedish,

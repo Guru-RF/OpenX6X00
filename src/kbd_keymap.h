@@ -33,6 +33,10 @@ uint32_t kbd_keymap(uint16_t code);
  * type the keysym as stray bytes */
 bool kbd_keymap_main_only(uint16_t code);
 
+/* The volume keys of a keyboard with media keys, or of a Bluetooth volume knob: +1 Volume Up, -1 Volume Down, 0 for
+ * the others. They step the RX volume as the H-22's VOL+ and VOL- (key_input.c) and never reach LVGL */
+int kbd_keymap_volume(uint16_t code);
+
 #ifdef __cplusplus
 }
 #endif
