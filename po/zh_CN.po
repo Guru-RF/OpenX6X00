@@ -10495,6 +10495,10 @@ msgstr "波兰语"
 msgid "Czech (QWERTZ)"
 msgstr "捷克语 (QWERTZ)"
 
+#: src/key_input.c src/settings_window.cpp
+msgid "Bluetooth"
+msgstr "蓝牙"
+
 #: src/knob_info.cpp src/settings_window.cpp
 msgid "Volume"
 msgstr "音量"
@@ -11900,10 +11904,6 @@ msgid "Wireless"
 msgstr "无线"
 
 #: src/settings_window.cpp
-msgid "Bluetooth"
-msgstr "蓝牙"
-
-#: src/settings_window.cpp
 msgid "Keys"
 msgstr "按键"
 
@@ -12893,6 +12893,30 @@ msgstr "模式, 速度, 比例"
 #: src/settings_window.cpp
 msgid "KEY buttons in CW"
 msgstr "CW 下的 KEY 按钮"
+
+#: src/settings_window.cpp
+msgid ""
+" Paddle in CW \n"
+" Volume "
+msgstr ""
+" CW 中为电键 \n"
+" 音量 "
+
+#: src/settings_window.cpp
+msgid "its [ ] keys"
+msgstr "其 [ ] 键"
+
+#: src/settings_window.cpp
+msgid "[ ] keys"
+msgstr "[ ] 键"
+
+#: src/settings_window.cpp
+msgid "set for each device above"
+msgstr "在上方为每个设备分别设置"
+
+#: src/settings_window.cpp
+msgid "connect a keyboard or knob, then open this page"
+msgstr "连接键盘或旋钮后再打开此页"
 
 #: src/settings_window.cpp
 msgid "FRONT KEYS, LONG PRESS"

@@ -10432,6 +10432,10 @@ msgstr "Pools"
 msgid "Czech (QWERTZ)"
 msgstr "Tsjechisch (QWERTZ)"
 
+#: src/key_input.c src/settings_window.cpp
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
 #: src/knob_info.cpp src/settings_window.cpp
 msgid "Volume"
 msgstr "Volume"
@@ -11837,10 +11841,6 @@ msgid "Wireless"
 msgstr "Draadloos"
 
 #: src/settings_window.cpp
-msgid "Bluetooth"
-msgstr "Bluetooth"
-
-#: src/settings_window.cpp
 msgid "Keys"
 msgstr "Toetsen"
 
@@ -12830,6 +12830,30 @@ msgstr "Modus, snelheid, verhouding"
 #: src/settings_window.cpp
 msgid "KEY buttons in CW"
 msgstr "KEY-knoppen in CW"
+
+#: src/settings_window.cpp
+msgid ""
+" Paddle in CW \n"
+" Volume "
+msgstr ""
+" Paddle in CW \n"
+" Volume "
+
+#: src/settings_window.cpp
+msgid "its [ ] keys"
+msgstr "de toetsen [ ]"
+
+#: src/settings_window.cpp
+msgid "[ ] keys"
+msgstr "Toetsen [ ]"
+
+#: src/settings_window.cpp
+msgid "set for each device above"
+msgstr "per toestel hierboven in te stellen"
+
+#: src/settings_window.cpp
+msgid "connect a keyboard or knob, then open this page"
+msgstr "sluit een toetsenbord of knop aan, open dan deze pagina"
 
 #: src/settings_window.cpp
 msgid "FRONT KEYS, LONG PRESS"

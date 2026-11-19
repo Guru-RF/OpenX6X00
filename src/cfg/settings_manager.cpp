@@ -3,6 +3,7 @@
 #include "smeter_att.h"
 #include "../wfm_filter.h"
 #include "../boot_cw.h"
+#include "kbd_devices.h"
 
 #include <algorithm>
 #include <chrono>
@@ -1238,6 +1239,13 @@ std::string SettingsManager::meteo_place_validate(const std::string &val) {
         if (c >= ' ' && c <= '~' && out.size() < 40) out += c;
     size_t a = out.find_first_not_of(' '), b = out.find_last_not_of(' ');
     return a == std::string::npos ? "" : out.substr(a, b - a + 1);
+}
+
+std::string SettingsManager::kbd_dev_volume_validate(const std::string &val) {
+    char out[KBD_DEV_LIST_LEN];
+
+    kbd_dev_list_clean(val.c_str(), out, sizeof(out));
+    return out;
 }
 
 std::string SettingsManager::boot_text_validate(const std::string &val) {

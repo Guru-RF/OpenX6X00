@@ -9,6 +9,9 @@
  */
 
 #include "kbd_keymap.h"
+#include "cfg/kbd_devices.h"
+
+#include <string.h>
 
 #include <linux/input.h>
 #include <stdio.h>
@@ -74,6 +77,44 @@ int main(void) {
     }
     snprintf(line, sizeof(line), "%d volume keys, want 2", volume);
     check(volume == 2, line);
+
+    /* [ and ]: ] +1, [ -1, no other key (a device set to Volume, kbd_devices.h) */
+    check(kbd_keymap_brackets(KEY_RIGHTBRACE) == +1 && kbd_keymap_brackets(KEY_LEFTBRACE) == -1, "] +1, [ -1");
+    int brackets = 0;
+    for (uint16_t code = 0; code < KEY_CNT; code++) {
+        brackets += kbd_keymap_brackets(code) != 0;
+    }
+    snprintf(line, sizeof(line), "%d bracket keys, want 2", brackets);
+    check(brackets == 2, line);
+
+    /* The devices set to Volume (kbd_devices.c): ids, the list cleaned, set and unset */
+    char id[KBD_DEV_ID_LEN], out[KBD_DEV_LIST_LEN];
+    kbd_dev_id(id, BUS_BLUETOOTH, 0x514c, 0x8850);
+    check(strcmp(id, "0005:514c:8850") == 0, "a Bluetooth knob's id: 0005:514c:8850");
+    check(kbd_dev_listed("0003:046d:c52b 0005:514c:8850", id), "listed: found");
+    check(kbd_dev_listed("0005:514C:8850", id), "listed: in capitals too");
+    check(!kbd_dev_listed("0005:514c:88501", id) && !kbd_dev_listed("", id) && !kbd_dev_listed(NULL, id),
+          "listed: not a longer id, not in an empty list");
+    kbd_dev_list_clean("  0005:514C:8850 junk 0003:046d:c52b 0005:514c:8850 12:34:56 ", out, sizeof(out));
+    check(strcmp(out, "0003:046d:c52b 0005:514c:8850") == 0, "clean: well-formed, lower case, each once, last place");
+    kbd_dev_list_set("0003:046d:c52b", id, true, out, sizeof(out));
+    check(strcmp(out, "0003:046d:c52b 0005:514c:8850") == 0, "set: added at the end");
+    kbd_dev_list_set(out, id, true, out, sizeof(out));
+    check(strcmp(out, "0003:046d:c52b 0005:514c:8850") == 0, "set again: still once");
+    kbd_dev_list_set("0005:514c:8850 0003:046d:c52b", id, false, out, sizeof(out));
+    check(strcmp(out, "0003:046d:c52b") == 0, "unset: taken out");
+    kbd_dev_list_set("", id, false, out, sizeof(out));
+    check(strcmp(out, "") == 0, "unset from nothing: nothing");
+    char many[KBD_DEV_LIST_LEN * 2] = "";
+    for (int i = 0; i < KBD_DEV_MAX + 3; i++) {
+        kbd_dev_id(id, BUS_USB, 0x1000 + i, 0x0001);
+        kbd_dev_list_set(many, id, true, out, sizeof(out));
+        snprintf(many, sizeof(many), "%s", out);
+    }
+    kbd_dev_id(id, BUS_USB, 0x1000, 0x0001);
+    check(!kbd_dev_listed(many, id), "past KBD_DEV_MAX: the oldest dropped");
+    kbd_dev_id(id, BUS_USB, 0x1000 + KBD_DEV_MAX + 2, 0x0001);
+    check(kbd_dev_listed(many, id) && strlen(many) == KBD_DEV_MAX * KBD_DEV_ID_LEN - 1, "past KBD_DEV_MAX: the newest kept, 16 of them");
 
     printf("%d cases, %d wrong\n", cases, bad);
     return bad != 0;

@@ -246,6 +246,7 @@ extern ParamInt   *cfg_meteo_alerts;         // p_meteo_alerts
 // Where the weather is asked for (meteo.h, METEO_FROM_*) and the place typed for it
 extern ParamInt   *cfg_meteo_from;           // p_meteo_from
 extern ParamText  *cfg_meteo_place;          // p_meteo_place
+extern ParamText  *cfg_kbd_dev_volume;       // p_kbd_dev_volume (kbd_devices.h)
 
 // Waterfall Mode Fixed: when the view moves on, and where the line goes
 extern ParamInt   *cfg_wf_fixed_jump;        // p_wf_fixed_jump

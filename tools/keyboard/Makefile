@@ -11,8 +11,8 @@ all: test
 kbd_hyper_test: kbd_hyper_test.c $(SRC)/kbd_hyper.c $(SRC)/kbd_hyper.h
 	$(CC) $(CFLAGS) -o $@ kbd_hyper_test.c $(SRC)/kbd_hyper.c
 
-kbd_keymap_test: kbd_keymap_test.c $(SRC)/kbd_keymap.c $(SRC)/kbd_keymap.h
-	$(CC) $(CFLAGS) -o $@ kbd_keymap_test.c $(SRC)/kbd_keymap.c
+kbd_keymap_test: kbd_keymap_test.c $(SRC)/kbd_keymap.c $(SRC)/kbd_keymap.h $(SRC)/cfg/kbd_devices.c $(SRC)/cfg/kbd_devices.h
+	$(CC) $(CFLAGS) -o $@ kbd_keymap_test.c $(SRC)/kbd_keymap.c $(SRC)/cfg/kbd_devices.c
 
 kbd_ptt_test: kbd_ptt_test.c $(SRC)/kbd_ptt.c $(SRC)/kbd_ptt.h
 	$(CC) $(CFLAGS) -o $@ kbd_ptt_test.c $(SRC)/kbd_ptt.c

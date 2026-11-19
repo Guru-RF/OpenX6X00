@@ -532,6 +532,18 @@ every window and in CW too: they are not the VOL knob's `[` and `]`, which
 are the paddle in CW. They never type. A keyboard whose media keys are an
 input device of their own (most of them) has them read beside its letters.
 
+What `[` and `]` are is set for each device in Settings > Keys > KEYBOARD,
+which has a row for every USB or Bluetooth keyboard, knob or macro pad
+connected as the page opens (connect one, then open the page): **Paddle in
+CW** (the default, as on every keyboard: the VOL knob's keys, and in CW the
+paddle) or **Volume**. A device set to Volume never keys the radio: its `[`
+and `]` step the RX volume as its volume keys do, in every window and in CW
+too, and never type. That suits a Bluetooth volume knob or a macro pad set up
+to turn the volume with `[` and `]`. Beside a keyboard, a device set to Volume
+is read for the volume only and the keyboard types; alone, it is the keyboard
+for its other keys (a knob's `-` and `=` still tune). The choice is kept for
+the device (its bus, vendor and product) when it comes back.
+
 The keyboard's layout is set in Settings > Keys > KEYBOARD > Layout: US (the
 default, and the only one up to v0.3.9), UK, German (QWERTZ), Swiss German,
 French (AZERTY), Belgian (AZERTY), Spanish, Italian, Portuguese, Swedish,

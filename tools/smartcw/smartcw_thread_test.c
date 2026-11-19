@@ -465,6 +465,12 @@ static void other_device(void) {
     unplug();
 }
 
+/* key_input.c's: no device is set to Volume here (kbd_devices.h, #306) */
+bool paddle_keyer_volume_dev(dev_t dev) {
+    (void)dev;
+    return false;
+}
+
 int main(int argc, char **argv) {
     snprintf(root, sizeof(root), "%s", argc > 1 ? argv[1] : "build/root");
     setvbuf(stdout, NULL, _IOLBF, 0);

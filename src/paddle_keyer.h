@@ -10,6 +10,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <sys/types.h>   /* dev_t */
 
 #ifdef __cplusplus
 extern "C" {
@@ -114,8 +115,12 @@ bool smartcw_down(const smartcw_key_t *s);
  * mouse is never a paddle: in CW it would key the radio */
 bool paddle_mouse(bool btn_left, bool btn_right, bool rel_x, bool adapter, unsigned vendor, unsigned product);
 
-/* The keyboard just opened (keyboard.c): the keyer reads its own copy of the events */
+/* The keyboard just opened (keyboard.c): the keyer reads its own copy of the events. NULL: none, the keyboard open
+ * is set to Volume (kbd_devices.h) and never keys */
 void paddle_keyer_open(const char *path);
+
+/* The USB or Bluetooth device of node dev is set to Volume (kbd_devices.h, key_input.c): never a paddle */
+bool paddle_keyer_volume_dev(dev_t dev);
 
 /* Looks for paddles and opens new ones (keyboard.c, on USB changes): a mouse-button paddle and
  * a second USB/Bluetooth keyboard with the paddle keys in /dev/input, a USB MIDI port, and with

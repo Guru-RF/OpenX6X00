@@ -385,6 +385,12 @@ class SettingsManager {
     // list (0 US, as up to v0.3.9); key_input.c follows it (#236)
     Parameter<int32_t> p_kbd_layout{"kbd_layout", 0, 0, KBD_LAYOUTS - 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Settings > Keys > KEYBOARD, a row a device (#306): the USB and Bluetooth devices whose [ ] step the RX volume, in
+    // every window and in CW, and that never key the radio (a volume knob), kbd_devices.h's ids ("0005:514c:8850") a
+    // space between them; the others' [ ] are the paddle in CW, as on every keyboard. key_input.c and paddle_keyer.c
+    // follow it at once
+    Parameter<std::string> p_kbd_dev_volume{"kbd_dev_volume", "", kbd_dev_volume_validate,
+        StorageType::GLOBAL, pending_writes_, {}, &global_params_};
     // Settings > Keys > HAND MIC KEYS > Hand mic UP/DOWN (#300), mic_updown.h's values: 0 Channels (the default, as up
     // to v0.3.12), a press recalls the channel before or after the last one tuned; 1 Tune, a press moves the VFO a
     // step, as a detent of the main knob. Held, band up or down with both (screen_main.c, live)
@@ -1189,6 +1195,7 @@ class SettingsManager {
 
     // The boot sound's own text as p_boot_text keeps it (boot_cw_clean). Pure function
     static std::string boot_text_validate(const std::string &val);
+    static std::string kbd_dev_volume_validate(const std::string &val);
 
     // Filter category of a mode (SSB/AM/FM/CW; unknown/default -> SSB).
     enum class FilterMode {

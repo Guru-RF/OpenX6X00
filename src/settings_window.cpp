@@ -44,6 +44,7 @@ extern "C" {
     #include "gui_events.h"
     #include "key_input.h"
     #include "paddle_keyer.h"
+    #include "cfg/kbd_devices.h"
     #include "clock.h"
     #include "bat_est.h"
     #include "audio.h"
@@ -3757,6 +3758,41 @@ static uint8_t make_paddle(uint8_t row) {
     return row;
 }
 
+/* Settings > Keys > KEYBOARD, a row for each USB or Bluetooth device with a keyboard's keys connected as the page
+ * opens: what its [ ] are (kbd_devices.h, #306), the paddle in CW as on every keyboard, or the RX volume in every
+ * window and mode (a volume knob, a macro pad), never keying */
+#define KD_ROWS 6
+
+static keyboard_dev_t kd_dev[KD_ROWS];
+
+static void kd_choice_cb(lv_event_t *e) {
+    keyboard_dev_t *d = (keyboard_dev_t *)lv_event_get_user_data(e);
+    std::string     list = cfg_sm.p_kbd_dev_volume.get();
+    char            out[KBD_DEV_LIST_LEN];
+
+    kbd_dev_list_set(list.c_str(), d->id, lv_dropdown_get_selected(lv_event_get_target(e)) == 1, out, sizeof(out));
+    cfg_sm.p_kbd_dev_volume.set(out);
+}
+
+static uint8_t make_kbd_devices(uint8_t row) {
+    size_t      n    = keyboard_devices(kd_dev, KD_ROWS);
+    std::string list = cfg_sm.p_kbd_dev_volume.get();
+
+    for (size_t i = 0; i < n; i++) {
+        char label[48];
+
+        snprintf(label, sizeof(label), "%.16s%s", kd_dev[i].name, strlen(kd_dev[i].name) > 16 ? "..." : "");
+        wl_row_label(row, label);
+        row_choice(row, 1, 3, SMALL_3, " Paddle in CW \n Volume ", kbd_dev_listed(list.c_str(), kd_dev[i].id),
+                   kd_choice_cb, &kd_dev[i]);
+        lv_label_set_text(wl_note(row++), _("its [ ] keys"));
+    }
+    if (!n) {
+        lv_label_set_text(pd_value(row++, _("[ ] keys by device")), _("none connected"));
+    }
+    return row;
+}
+
 /* What the front keys (long press) and the hand mic keys do, the USB paddle */
 static void make_keys_page() {
     uint8_t row;
@@ -3780,6 +3816,7 @@ static void make_keys_page() {
     /* The USB or Bluetooth keyboard's layout (#236): key_input.c follows it at once */
     row = card_begin("KEYBOARD");
     row = make_param_choice(row, "Layout", kbd_layout_options(), cfg_sm.p_kbd_layout);
+    row = make_kbd_devices(row);
     card_end(row);
 }
 

@@ -532,7 +532,7 @@ static void hand_over(int i, int n) {
 }
 
 void paddle_keyer_open(const char *path) {
-    hand_over(FD_KBD, open(path, O_RDONLY | O_NONBLOCK));
+    hand_over(FD_KBD, path ? open(path, O_RDONLY | O_NONBLOCK) : FD_CLOSE);
 }
 
 /* The device is the one slot i has open */
@@ -595,7 +595,7 @@ static void scan_input(void) {
                                            has_bit(rel, REL_X) || has_bit(abs, ABS_X), adp, id.vendor, id.product)) {
             slot = FD_BTN;
         } else if (!found[FD_KBD2] && (id.bustype == BUS_USB || id.bustype == BUS_BLUETOOTH) &&
-                   !is_open(FD_KBD, &st) &&
+                   !is_open(FD_KBD, &st) && !paddle_keyer_volume_dev(st.st_rdev) &&
                    ((adp && !has_bit(keys, BTN_LEFT)) ||   /* an adapter's keys, any: Learn sees them */
                     (has_bit(keys, map & 0xffff) && has_bit(keys, map >> 16)) ||
                     (has_bit(keys, KEY_LEFTBRACE) && has_bit(keys, KEY_RIGHTBRACE)))) {
@@ -612,6 +612,11 @@ static void scan_input(void) {
         }
     }
     globfree(&g);
+    /* The second keyboard open is gone, or set to Volume since (kbd_devices.h): no longer a paddle */
+    if (!found[FD_KBD2] && (atomic_load(&open_bits) & 1u << FD_KBD2)) {
+        LV_LOG_USER("Paddle on keys: closed");
+        hand_over(FD_KBD2, FD_CLOSE);
+    }
 }
 
 /* SmartCW's own USB serial port: its text protocol, for a logger, and no paddle's contacts on its lines.

@@ -28,6 +28,9 @@ bool input_caps_bits(dev_t dev, const char *what, unsigned long *bits, size_t n)
 /* Its bus, vendor, product and version, as EVIOCGID gives them; false, all 0, when it is not one */
 bool input_caps_id(dev_t dev, struct input_id *id);
 
+/* Its name as the kernel has it ("BT Knob Keyboard"), into name; false, "", when there is none */
+bool input_caps_name(dev_t dev, char *name, size_t size);
+
 #ifdef __cplusplus
 }
 #endif

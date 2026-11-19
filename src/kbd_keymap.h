@@ -37,6 +37,10 @@ bool kbd_keymap_main_only(uint16_t code);
  * the others. They step the RX volume as the H-22's VOL+ and VOL- (key_input.c) and never reach LVGL */
 int kbd_keymap_volume(uint16_t code);
 
+/* [ and ] by scancode, the VOL knob's keys: +1 ], -1 [, 0 the others. On a device set to Volume (kbd_devices.h)
+ * they step the RX volume as its volume keys do, in every window and in CW too, never the paddle */
+int kbd_keymap_brackets(uint16_t code);
+
 #ifdef __cplusplus
 }
 #endif

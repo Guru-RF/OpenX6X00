@@ -62,3 +62,13 @@ bool input_caps_id(dev_t dev, struct input_id *id) {
     }
     return true;
 }
+
+bool input_caps_name(dev_t dev, char *name, size_t size) {
+    char line[128];
+
+    if (size) name[0] = '\0';
+    if (!attr(dev, "name", line, sizeof(line))) return false;
+    line[strcspn(line, "\n")] = '\0';
+    snprintf(name, size, "%s", line);
+    return name[0] != '\0';
+}

@@ -32,3 +32,11 @@ int kbd_keymap_volume(uint16_t code) {
         default:                return 0;
     }
 }
+
+int kbd_keymap_brackets(uint16_t code) {
+    switch (code) {
+        case KEY_RIGHTBRACE:    return +1;
+        case KEY_LEFTBRACE:     return -1;
+        default:                return 0;
+    }
+}

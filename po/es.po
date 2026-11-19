@@ -10478,6 +10478,10 @@ msgstr "Polaco"
 msgid "Czech (QWERTZ)"
 msgstr "Checo (QWERTZ)"
 
+#: src/key_input.c src/settings_window.cpp
+msgid "Bluetooth"
+msgstr ""
+
 #: src/knob_info.cpp src/settings_window.cpp
 msgid "Volume"
 msgstr "Volumen"
@@ -11884,10 +11888,6 @@ msgid "Wireless"
 msgstr "Inalámbrico"
 
 #: src/settings_window.cpp
-msgid "Bluetooth"
-msgstr ""
-
-#: src/settings_window.cpp
 msgid "Keys"
 msgstr "Teclas"
 
@@ -12877,6 +12877,30 @@ msgstr "Modo, velocidad, relación"
 #: src/settings_window.cpp
 msgid "KEY buttons in CW"
 msgstr "Botones KEY en CW"
+
+#: src/settings_window.cpp
+msgid ""
+" Paddle in CW \n"
+" Volume "
+msgstr ""
+" Manipulador en CW \n"
+" Volumen "
+
+#: src/settings_window.cpp
+msgid "its [ ] keys"
+msgstr "sus teclas [ ]"
+
+#: src/settings_window.cpp
+msgid "[ ] keys"
+msgstr "Teclas [ ]"
+
+#: src/settings_window.cpp
+msgid "set for each device above"
+msgstr "se ajusta para cada dispositivo de arriba"
+
+#: src/settings_window.cpp
+msgid "connect a keyboard or knob, then open this page"
+msgstr "conecte un teclado o una perilla y vuelva a abrir esta página"
 
 #: src/settings_window.cpp
 msgid "FRONT KEYS, LONG PRESS"

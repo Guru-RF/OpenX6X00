@@ -74,6 +74,20 @@ int32_t param_i_get(const ParamInt *p) {
     return 0;
 }
 
+/* the devices set to Volume (kbd_devices.h, #306): read once the settings are there, never here */
+ParamText *cfg_kbd_dev_volume;
+
+size_t param_t_get(const ParamText *p, char *out, size_t size) {
+    (void)p;
+    if (size) out[0] = '\0';
+    return 0;
+}
+
+/* A keyboard's volume keys step the RX volume (#306): not pressed here */
+void main_screen_media_vol(int dir) {
+    (void)dir;
+}
+
 uint16_t radio_change_vol(int16_t df) {
     (void)df;
     return 0;
@@ -126,6 +140,13 @@ int glob(const char *pattern, int flags, int (*errfunc)(const char *, int), glob
 
 void globfree(glob_t *found) {
     (void)found;
+}
+
+/* sysfs: no ids (the keyboard is no USB or Bluetooth device to the volume nodes and the per-device setting) */
+bool input_caps_id(dev_t dev, struct input_id *id) {
+    (void)dev;
+    *id = (struct input_id){0};
+    return false;
 }
 
 /* sysfs: every key there, the letters too */

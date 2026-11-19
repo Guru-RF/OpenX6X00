@@ -23,7 +23,7 @@ CFLAGS   := $(GUI) -Wall -Wextra -Wno-comment
 SIZES    := 14 16 18 20 22 24 26 28 30 32 34 36 38 40 42 44 60
 FONTS    := $(foreach f,sony roboto dejavu arial rcond codec latin1,$(foreach n,$(SIZES),fonts/$(f)_$(n))) \
             $(foreach n,12 14 16 18 20 22 24 28 32 44,fonts/pixel_$(n))
-FILES    := text_popup fonts/font_select key_input kbd_hyper kbd_keymap kbd_layout kbd_rollover $(FONTS)
+FILES    := text_popup fonts/font_select key_input kbd_hyper kbd_keymap kbd_layout kbd_rollover cfg/kbd_devices $(FONTS)
 OBJS     := $(FILES:%=build/%.o)
 
 all: test
