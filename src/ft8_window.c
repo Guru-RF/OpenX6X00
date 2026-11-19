@@ -534,8 +534,14 @@ static void map_close(void) {
     give_list_the_mfk();
 }
 
+/* The map has the keys while open: VOL (the knob, and the browser's, which comes the same way) passed on as the
+ * list does, or it did nothing until the map closed (#305) */
 static void map_key_cb(lv_event_t *e) {
-    if (*(uint32_t *)lv_event_get_param(e) == LV_KEY_ESC) map_close();
+    uint32_t key = *(uint32_t *)lv_event_get_param(e);
+
+    if (key == LV_KEY_ESC) map_close();
+    else if (key == KEY_VOL_LEFT_EDIT || key == KEY_VOL_LEFT_SELECT) radio_change_vol(-1);
+    else if (key == KEY_VOL_RIGHT_EDIT || key == KEY_VOL_RIGHT_SELECT) radio_change_vol(1);
 }
 
 /* What the heard map keeps of a decode: enough to call it as a press on its row does */

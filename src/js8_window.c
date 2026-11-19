@@ -7279,8 +7279,13 @@ static void map_close(void) {
     if (table && !composing) table_takes_keys();
 }
 
+/* VOL passed on while the map has the keys, as in FT8's (#305) */
 static void map_key_cb(lv_event_t *e) {
-    if (*((uint32_t *)lv_event_get_param(e)) == LV_KEY_ESC) map_close();
+    uint32_t key = *((uint32_t *)lv_event_get_param(e));
+
+    if (key == LV_KEY_ESC) map_close();
+    else if (key == KEY_VOL_LEFT_EDIT || key == KEY_VOL_LEFT_SELECT) radio_change_vol(-1);
+    else if (key == KEY_VOL_RIGHT_EDIT || key == KEY_VOL_RIGHT_SELECT) radio_change_vol(1);
 }
 
 /* The stations of this band, for the map */
