@@ -199,6 +199,12 @@ class SettingsManager {
     // change brings that step back (step_zoom). Per mode or for every mode, as p_zoom_step_per_mode has it
     Parameter<int32_t> p_step_per_zoom{"step_per_zoom", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Tuning steps (Settings > Display): FST, a keyboard's + and _ and a knob's Step go through the steps from
+    // freq_steps[lo] to freq_steps[hi] (freq_steps.h), 10 Hz to 100 kHz by default
+    Parameter<int32_t> p_freq_step_lo{"freq_step_lo", 0, 0, 7,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_freq_step_hi{"freq_step_hi", 7, 0, 7,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Birdies (birdie.c): 0 nothing, 1 marked on the waterfall, 2 marked and notched in the passband
     Parameter<int32_t> p_birdie_marks{"birdie_marks", 1, 0, 2,
         StorageType::GLOBAL, pending_writes_, &global_params_};

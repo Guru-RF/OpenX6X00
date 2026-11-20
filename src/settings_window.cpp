@@ -512,6 +512,16 @@ static uint8_t make_param_choice(uint8_t row, const char *label, const char *opt
     return row + 1;
 }
 
+/* Tuning steps: the first and the last of the steps FST goes through (freq_steps.h) */
+static uint8_t make_freq_steps(uint8_t row) {
+    static const char *steps = " 10 Hz \n 100 Hz \n 500 Hz \n 1 kHz \n 5 kHz \n 10 kHz \n 25 kHz \n 100 kHz ";
+
+    wl_row_label(row, "Tuning steps");
+    row_choice(row, 1, 3, SMALL_3, steps, cfg_sm.p_freq_step_lo.get(), int_choice_cb, &cfg_sm.p_freq_step_lo);
+    row_choice(row, 4, 3, SMALL_3, steps, cfg_sm.p_freq_step_hi.get(), int_choice_cb, &cfg_sm.p_freq_step_hi);
+    return row + 1;
+}
+
 /* Spectrum and waterfall looks: while one of them is changed the window fades to 60% and the
  * main screen shows through. Not with a folder theme's window image: faded, it turns see-through. */
 static void fade_exec(void *obj, int32_t opa) {
@@ -4498,6 +4508,8 @@ static void make_display_page() {
     row = make_param_switch(row, "Zoom and step per mode", cfg_sm.p_zoom_step_per_mode);
     /* On: each zoom keeps the last step chosen at it, and a zoom change brings it back (#132) */
     row = make_param_switch(row, "Step per zoom", cfg_sm.p_step_per_zoom);
+    /* The steps FST, a keyboard's + and _ and a knob's Step go through: from, to (freq_steps.h) */
+    row = make_freq_steps(row);
     /* The box at the top right: the charge and the time left or to full, the voltages, the two in turn, or
      * the charge and the supply's voltage */
     row = make_param_choice(row, "Power display", " % + time \n Volts \n Alternate \n % + V ", cfg_sm.p_power_display);
