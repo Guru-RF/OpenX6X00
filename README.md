@@ -111,7 +111,7 @@ shows its version.
 | V1.1.8 (240915003) | Xiegu's base on most radios since late 2024 | Works. The bench X6100 runs it. |
 | V1.1.9 (251127001) | Xiegu's newer base. Some radios carry it, not yet flashed, on their internal memory. | Should work: OpenX6X00 uses its zoom and IF shift, as the upstream GUI did. Not yet run on the bench. |
 | [x6100_base_patch](https://github.com/gdyuldin/x6100_base_patch) r13 | gdyuldin's patched base, built on V1.1.6 | Works. It adds the TX audio and calibration options (compressor shape, band output gain, TX filter, CESSB, FM emphasis) and a battery percentage from a measured discharge curve. On a radio that shipped with V1.1.8 we saw its power about 10 % high at 5 W and 20 % high at 10 W before calibration, next to no power on the first transmission after a band change (on 6 m nearly always, on other bands now and then), and the external voltage read as 0 V ([TODO.md](TODO.md)). |
-| [X6100-Baseband](https://github.com/Guru-RF/X6100-Baseband/releases/tag/v0.1.0-alpha.2) v0.1.0-alpha.2 (`tx1a2-test`) | **TEST ONLY, not validated on a radio.** RF.Guru's own test release on V1.1.9 (251127001), with a compressor/gate, CESSB and an adjustable TX filter added. A base file you can install, with Xiegu's own system, as its [TESTING.md](https://github.com/Guru-RF/X6100-Baseband/blob/v0.1.0-alpha.2/TESTING.md) says. | For testing only, into a dummy load first. Its RF output and power, its timing and the way back to Xiegu's base are still to be checked on a radio. OpenX6X00 after v0.3.12 knows it by its exact version and shows its compressor, CESSB and TX filter, marked TEST ONLY, with the compressor and CESSB off at each start ([manual](docs/MANUAL.md#the-x6100-test-base)). An older OpenX6X00 runs it as Xiegu's V1.1.9, without them. |
+| [X6100-Baseband](https://github.com/Guru-RF/X6100-Baseband/releases/tag/v0.1.0-alpha.2) v0.1.0-alpha.2 (`tx1a2-test`) | **TEST ONLY, not validated on a radio.** RF.Guru's own test release on V1.1.9 (251127001), with a compressor/gate, CESSB and an adjustable TX filter added. A base file you can install, with Xiegu's own system, as its [TESTING.md](https://github.com/Guru-RF/X6100-Baseband/blob/v0.1.0-alpha.2/TESTING.md) says. | For testing only, into a dummy load first. Its RF output and power, its timing and the way back to Xiegu's base are still to be checked on a radio. OpenX6X00 from v0.3.13 on knows it by its exact version and shows its compressor, CESSB and TX filter, marked TEST ONLY, with the compressor and CESSB off at each start ([manual](docs/MANUAL.md#the-x6100-test-base)). An older OpenX6X00 runs it as Xiegu's V1.1.9, without them. |
 
 The settings that need a newer base are hidden when the base is too old.
 
@@ -600,17 +600,18 @@ S-meter measurements of #125; 123tcpip (Bob G6CKK) the start-pulse captures of
 joanpao (EA5JTT) the Winlink logs from the air; doodlecomms the Mercury and XARA
 leads; firatsoygul the tests over https, a tailnet and Funnel; SQ9SZ how LLOTA's
 spots are posted. And everyone who opened an issue: 123tcpip, airis01, Al-k6avp,
-amystikis, andybateman, AndyKeir, baumertjohn, BG7JAF, BrunoKlu, ct7arf,
-ctsquid, DC6NS, Derek000, DG1SMD, DL1EJD, dl1sdz, DL9RP, doodlecomms,
-dr4g0nized, ea4iln-debug, ea8ee, edegraaff, ericb2B, erikkt, F4ESO, firatsoygul,
-Flight3R, forshaws, gati111, gilcomnz-eng, giuseppepassera61-dot, gogoterie,
-Guecar66, hecpilot, in3fob, ItsRonan-Honest, joanpao, johny1time-code, jonnybb1,
-K4DB, kb3hjc, KC7BJE, keithwhite1982, kj7prs, km4gkd, KR8MER, Lomax73X6X00,
-marcoverheiden, Meges111, morel666, muratbedir, nmunlin, oh8mbu, ON2ON-HAM,
-orome, oxoocoffee, peterbmarks, pkoerner81929, PLAN8VR, Qinka, RjulianTN,
-RSZ-Nld, rwensley, sa5qed, scotty123, SQ9SZ, stevearish, theMadCatter, UA0AOS,
-Urminme, VakrLothbrok, VariousGames, VR2XKP, W3POPat, W8LID, waydenie, WheezeNL,
-xes, XRF03, yo4cil and z1pppo78.
+amystikis, andybateman, AndyKeir, Arizona-Steve, baumertjohn, bbear1153, BG7JAF,
+BrunoKlu, ct7arf, ctsquid, DC6NS, Derek000, DG1SMD, DL1EJD, dl1sdz, DL9RP,
+doodlecomms, dr4g0nized, ea4iln-debug, ea8ee, edegraaff, ericb2B, erikkt, F4ESO,
+F8GHE, firatsoygul, Flight3R, forshaws, fredfeierstein, gati111, gilcomnz-eng,
+giuseppepassera61-dot, gogoterie, Guecar66, hecpilot, in3fob, ItsRonan-Honest,
+joanpao, jochenhammes, johny1time-code, jonnybb1, K3SLH, K4DB, KB0WLF, kb3hjc,
+KC7BJE, Kealper, keithwhite1982, kj7prs, km4gkd, KR8MER, kutteg, Lomax73X6X00,
+marcoverheiden, Meges111, morel666, muratbedir, nmunlin, oh8mbu, OlivLoze,
+on2lvc, ON2ON-HAM, orome, oxoocoffee, pat0691, peterbmarks, pkoerner81929,
+PLAN8VR, Qinka, RjulianTN, RSZ-Nld, rwensley, sa5qed, scotty123, SQ9SZ, srg9832,
+stevearish, theMadCatter, UA0AOS, Urminme, VakrLothbrok, VariousGames, VR2XKP,
+W3POPat, W5CPB, W8LID, waydenie, WheezeNL, xes, XRF03, yo4cil and z1pppo78.
 
 Libraries: LVGL, cJSON, FFTW,
 liquid-dsp, ft8_lib, libpng, Boost, Eigen, CRCpp, bottle, jQuery, mp4-muxer,

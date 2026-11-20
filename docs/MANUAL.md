@@ -4239,7 +4239,7 @@ own buttons; wherever the app is, F5 goes one level up (ESC too), F1 back to
 page 1. The status line under the picture says what the MFK does there. Up
 to v0.3.12 the pages were Freq./RX/Clear/Close, Align/Tilt/View/Save, the
 browser and Power; the Fax Browser (a list of names, Fix Align and Fix Tilt
-on a fax open) became All Charts and Fix after v0.3.12.
+on a fax open) became All Charts and Fix in v0.3.13.
 
 | Where | Buttons |
 |---|---|
