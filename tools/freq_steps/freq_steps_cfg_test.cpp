@@ -83,6 +83,20 @@ int main(int argc, char **argv) {
     check(cfg_freq_step_at_end(true), "10-500 Hz: a knob at 100 kHz turns no higher", 0);
     check(fst(false) == 500, "10-500 Hz: from 100 kHz down into the range", cfg_sm.p_mode_freq_step.get());
 
+    /* The ends as the web configurator or a hand-edited database could give them: held to the list's 8 steps, and
+     * in either order (Settings shows them as chosen) */
+    cfg_sm.p_freq_step_lo.set(-3);
+    cfg_sm.p_freq_step_hi.set(99);
+    check(cfg_sm.p_freq_step_lo.get() == 0 && cfg_sm.p_freq_step_hi.get() == FREQ_STEPS_N - 1,
+          "the ends held to 0 and the list's last", cfg_sm.p_freq_step_hi.get());
+    cfg_sm.p_freq_step_lo.set(5);   /* 10 kHz to 500 Hz: 500 Hz to 10 kHz */
+    cfg_sm.p_freq_step_hi.set(2);
+    cfg_sm.p_mode_freq_step.set(10000);
+    check(fst() == 500, "10 kHz to 500 Hz: FST round from 10 kHz to 500 Hz", cfg_sm.p_mode_freq_step.get());
+    check(cfg_freq_step_at_end(false), "10 kHz to 500 Hz: a knob stops at 500 Hz", 0);
+    cfg_sm.p_freq_step_lo.set(0);
+    cfg_sm.p_freq_step_hi.set(2);
+
     /* Kept at the next start */
     cfg_sm.flush_all();
     {
