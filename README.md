@@ -571,7 +571,9 @@ with parted, mkfs.vfat and blkid in /usr/sbin (#287), and the X6200's base firmw
 and over SSH, Xiegu's UPGRADE steps with their tests (#259), which also writes
 the X6100's base, by the way in of Franco Venturi's (fventuri)
 x6100-base-experiments flasher; erikkt a keyboard's and a Bluetooth knob's
-volume keys on the RX volume, never the CW paddle (#306).
+volume keys on the RX volume, never the CW paddle (#306), and Tuning steps
+from, to, the range of steps FST, a keyboard's + and _ and a knob's Step go
+through (#314).
 
 From their forks: condoruy (Cóndor Tecnológico, the CX8ANM edition) the GUI's
 languages, the hook that passes every text to LVGL through the language and
