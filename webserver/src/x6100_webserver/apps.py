@@ -3337,10 +3337,10 @@ def delete_cw_message(dbcon, id):
     return read_cw_messages(dbcon)
 
 
-# Macros of the PSK31, Olivia and JTTY windows: one "name<TAB>text" line each, as src/psk_macro.c,
-# olivia_macro.c and jtty_macro.c read and write them. The GUI reads the file when the window opens.
-# (count, name, text): PSK_MACRO_MAX, _NAME_LEN - 1, _TEXT_LEN - 1 and the JTTY ones
-MACRO_LIMITS = {"psk": (12, 23, 199), "olivia": (12, 23, 199), "jtty": (8, 23, 80)}
+# Macros of the PSK31, Olivia, JTTY and RTTY apps: one "name<TAB>text" line each, as src/psk_macro.c,
+# olivia_macro.c, jtty_macro.c and rtty_macro.c read and write them. The GUI reads the file when the app opens.
+# (count, name, text): PSK_MACRO_MAX, _NAME_LEN - 1, _TEXT_LEN - 1, the JTTY ones and RTTY_MACRO_*
+MACRO_LIMITS = {"psk": (12, 23, 199), "olivia": (12, 23, 199), "jtty": (8, 23, 80), "rtty": (6, 23, 199)}
 
 
 @app.route('/macros')

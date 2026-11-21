@@ -36,6 +36,14 @@ void rtty_open_with(uint16_t rate, uint16_t shift, bool reverse);
 bool rtty_scope_get(float *x, float *y, float *offset);
 rtty_state_t rtty_get_state();
 
+/* TX (#312): text sent as a line of its own (a '\n' added), after what is being sent or queued already. False: not
+ * queued (RTTY not open, not in LSB or USB, the queue full), and the screen says why. LVGL thread */
+bool rtty_tx_send(const char *text);
+/* Stop TX: unkeyed at once (the next block of audio), the rest not sent. Any thread */
+void rtty_tx_stop(void);
+/* A transmission is on, or lines are waiting for one. Any thread */
+bool rtty_tx_on(void);
+
 float rtty_change_rate(int16_t df);
 uint16_t rtty_change_shift(int16_t df);
 uint16_t rtty_change_center(int16_t df);

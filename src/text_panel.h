@@ -24,6 +24,7 @@ bool panel_shown(void);                       /* on the screen: its text is the 
 void panel_clear(void);                       /* the text, unless the panel is hidden */
 void panel_update_visibility(bool clear);     /* shown for the mode and the decoders, cleared if asked */
 void panel_add_text(const char *text);        /* any thread: decoded text, '\n' a new line */
+void panel_add_tx_text(const char *text);     /* any thread: text sent (RTTY's TX), in the TX colour, on lines of its own */
 void panel_set_info(const char *text);        /* any thread: the line above the panel (CW WPM) */
 
 /* The spectrum got taller: the panel starts at y, shorter */

@@ -1,10 +1,11 @@
 % rebase('base.html', title='Macros')
 <h2><svg class="i"><use href="#i-list"/></svg>Macros</h2>
-<p class="sub">The macro buttons of the PSK31, Olivia and JTTY windows and the JS8 INFO and STATUS answers. The radio reads them the next time the window opens: close and reopen it to see a change. A row is saved with its own Save, or all at once; a deleted macro can be brought back for twenty seconds.</p>
+<p class="sub">The macro buttons of the PSK31, Olivia, JTTY and RTTY apps and the JS8 INFO and STATUS answers. The radio reads them the next time the window opens: close and reopen it to see a change. A row is saved with its own Save, or all at once; a deleted macro can be brought back for twenty seconds.</p>
 
 % for mode, label, help in (('psk', 'PSK31', 'Up to 12, name up to 23 characters, text up to 199. <MYCALL>, <CALL>, <RST> and <RSTR> are filled in when sent'),
 %                           ('olivia', 'Olivia', 'Up to 12, name up to 23 characters, text up to 199. <MYCALL>, <CALL>, <RST> and <RSTR> are filled in when sent'),
-%                           ('jtty', 'JTTY', 'F1 to F8, text up to 80 characters. %M is your call, %H the DX call, %E 599 and the serial number')):
+%                           ('jtty', 'JTTY', 'F1 to F8, text up to 80 characters. %M is your call, %H the DX call, %E 599 and the serial number'),
+%                           ('rtty', 'RTTY', 'Up to 6, name up to 23 characters, text up to 199. <MYCALL>, <CALL>, <RST> and <RSTR> are filled in when sent; capitals only on the air, what RTTY has no character for (@ % * < > and the like) is left out')):
 <section class="dp-card">
 <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-list"/></svg></span><div><h3>{{label}}</h3><p>{{help}}</p></div><div class="dp-x"><button class="primary add" data-mode="{{mode}}"><svg class="i"><use href="#i-plus"/></svg>Add</button></div></div>
 <div class="dp-body tbl">
@@ -38,7 +39,7 @@
 
 <script src="/static/js/edit_flow.js?v=3"></script>
 <script>
-["psk", "olivia", "jtty"].forEach(function(mode) { EditFlow.effect($("#t-" + mode).closest(".dp-card").find("h3"), "the next time the window opens on the radio"); });
+["psk", "olivia", "jtty", "rtty"].forEach(function(mode) { EditFlow.effect($("#t-" + mode).closest(".dp-card").find("h3"), "the next time the app opens on the radio"); });
 EditFlow.effect($("#t-js8").closest(".dp-card").find("h3"), "the next time the JS8 window opens on the radio");
 
 var showStatus = function(mode, text, error=false) {
@@ -118,7 +119,7 @@ $(".add").on("click", function() {
   row.find("input").first().focus();
 });
 
-["psk", "olivia", "jtty"].forEach(function(mode) { $.get('/api/macros/' + mode, {}, function(r) { render(mode, r); }); });
+["psk", "olivia", "jtty", "rtty"].forEach(function(mode) { $.get('/api/macros/' + mode, {}, function(r) { render(mode, r); }); });
 
 /* JS8: the two fields as one form, Unsaved until Save */
 const js8Row = $("#t-js8>tbody");

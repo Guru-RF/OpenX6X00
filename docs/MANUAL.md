@@ -19,7 +19,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver), [panel stripes fix](#panel-stripes-fix)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
-- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8) ([GhostNet](#ghostnet)), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
+- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8) ([GhostNet](#ghostnet)), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY](#rtty), [WeFax TX](#wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [GPS / Clock](#gps--clock), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb), [Flights](#flights), [Internet radio](#internet-radio), [Zello](#zello), [SVXConnect](#svxconnect), [DMR](#dmr), [Weather](#weather)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
@@ -585,6 +585,7 @@ Bluetooth ones too, which often have no F keys, or only with Fn.
 | F | The frequency box, as `f`, also in CW, where `f` goes into the CW line | main screen |
 | 1 to 5 | In CW, the MSG > CW messages 1 to 5, keyed from the [CW line](#cw-from-the-keyboard) | main screen |
 | 1 to 8 | [JTTY](#jtty)'s macros F1 to F8, as their buttons | JTTY |
+| 1 to 6 | [RTTY](#rtty)'s macros, as their buttons | main screen in RTTY |
 | Up, Down | The next band up or down, as the [BAND keys](#band-keys) | main screen |
 | Space | PTT on, and at the next press off (below) | on: main screen; off: everywhere |
 
@@ -592,7 +593,8 @@ Bluetooth ones too, which often have no F keys, or only with Fn.
   Talkie mode](#walkie-talkie-mode). Elsewhere these chords do nothing, and
   type nothing: in walkie mode CapsLock+Space keys nothing (it still lets go).
   RTTY receives on the main screen, with no window of its own: there the
-  chords work, and CapsLock+L logs the QSO as RTTY.
+  chords work, and CapsLock+L logs the QSO as RTTY. There a letter or digit
+  typed opens RTTY's line to send, with it in (see [RTTY](#rtty)).
 - The keys count by their place on a US keyboard, whatever the Layout. The
   letters are in the same place on AZERTY and QWERTZ keyboards; on an AZERTY
   one CapsLock+1 is the key marked & and 1. The CW paddle keys (`[` and `]`
@@ -675,8 +677,8 @@ reads CW 1:2, then F5), opens a one-line box near the top,
   takes 64 characters. Field Ops' Log QSO takes them too, after the call,
   the reports and their reference (issue #195).
 - In CW with the decoder's text on the screen (and in RTTY) the call it
-  confirmed last is in the box already. Not in SSB after CW: the call heard
-  in CW stays out.
+  confirmed last is in the box already, never one from what RTTY sent. Not
+  in SSB after CW: the call heard in CW stays out.
 - With the dial on a [DX Cluster](#dx-cluster) spot, the box opens with the
   spot's call in it, however you tuned there, the main knob too: within
   1 kHz of a spot the waterfall marks in SSB, AM and FM, within 200 Hz in CW
@@ -1811,7 +1813,7 @@ base is too old.
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off, the default on both radios (see [Amateur bands only](#amateur-bands-only) and [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
 | WR12 RECEIVER | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | TCI SERVER | on/off, Port / Status (the port, "connected" while a client is), Connected from (the address of each client connected), Clients (Operate or Listen only), Ask before TX (on by default) and Allowed with Forget all (see [TCI server](#tci-server)) |
-| TEXT LOG | Keyboard modes (on by default), Size limit (1-100 MB, 10 MB by default): what PSK, Olivia, Contestia and JTTY receive and send, and what RTTY receives, on the card (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
+| TEXT LOG | Keyboard modes (on by default), Size limit (1-100 MB, 10 MB by default): what PSK, Olivia, Contestia, JTTY and RTTY receive and send, on the card (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
 
 Main knob acceleration. Where: Settings > General > CONTROLS > Freq
 acceleration.
@@ -4650,10 +4652,11 @@ with the other digital mode frequencies, so a backup of the settings has them.
 
 ### Text log of the keyboard modes
 
-What PSK31, PSK63, Olivia, Contestia and JTTY receive and send, and what RTTY
-receives, is kept on the card: a line for each line, in `/mnt/digi_text/`, one file a
-UTC day (`2026-10-31.txt`). Leave the radio listening and read later what
-came through; the reports you exchange are in the text.
+What PSK31, PSK63, Olivia, Contestia, JTTY and RTTY receive and send is kept
+on the card (up to v0.3.13 RTTY only received): a line for each line, in
+`/mnt/digi_text/`, one file a UTC day (`2026-10-31.txt`). Leave the radio
+listening and read later what came through; the reports you exchange are in
+the text.
 
 ```
 2026-10-31 14:05:12Z 14.071000 PSK31 RX Q87% CQ CQ DE PA3XYZ PA3XYZ K
@@ -4680,6 +4683,9 @@ came through; the reports you exchange are in the text.
   too, each at its own frequency.
 - PSK keeps what the panel shows: with the squelch on, what the decoder
   makes of noise is not kept either.
+- RTTY keeps what went out, as the other end prints it: in capitals,
+  without what RTTY has no character for, and a line stopped with Stop TX
+  up to where it stopped.
 - Settings > General > TEXT LOG: Keyboard modes (on by default) and Size
   limit (1-100 MB, 10 MB by default). Past the limit the oldest day's file
   goes. The newest day's file is never deleted: when it alone reaches the
@@ -4693,13 +4699,76 @@ came through; the reports you exchange are in the text.
 - These lines are not QSOs: to log a QSO in these modes, use the Log tab of
   the [browser panel](#browser-panel).
 
-### RTTY and WeFax TX
+### RTTY
 
-The RTTY and WeFax transmitters are in the firmware (the TX player), but no
-screen on the radio starts them yet: a control for them is still to come.
+APP > Modes > RTTY. RTTY has no window of its own: it decodes on the main
+screen, into the panel over the waterfall, with a tuning scope at the
+panel's right (mark across, space up: two thin ellipses at right angles
+when tuned, the tones' offset under them) and the mark and space as two
+lines on the spectrum. It opens on its last frequency and mode; the ones
+you were on come back when it closes (GEN).
 
-- RTTY TX: ITA2 AFSK with the RTTY app's rate, shift, centre and reverse,
-  through the same TX player.
+| Page | Buttons |
+|---|---|
+| 1 the decoder | Rate, Shift, Center, Reverse (a press puts it on the knob) |
+| 2 sending | Send..., Stop TX, DX call, RST snt |
+| 3 macros | CQ, Answer, Report, Stop TX |
+| 4 macros | TNX, 73, QRZ, Stop TX |
+| 5 | Power, Ext tune, Clear |
+
+Up to v0.3.13 RTTY had two pages: the decoder's and Power.
+
+- Amateur RTTY is Rate 45.45, Shift 170 and Reverse Off, in LSB (the usual)
+  or USB: with Reverse off the mark is the higher radio frequency in either.
+  The transmitter takes mark and space as the decoder does, Reverse too:
+  what you copy right goes out right.
+- Send... (page 2) opens a line to type, up to 199 characters; Enter (or
+  the on-screen keyboard's tick) sends it, Esc closes it unsent (with a
+  keyboard the MFK held too). With a USB or Bluetooth keyboard, a letter or
+  digit typed on the main screen opens the line with it in.
+- A transmission starts with half a second of mark, three LTRS (the diddle
+  a receiver finds the characters on) and CR LF, so your text starts on a
+  line of its own at the other end, and each line ends with CR LF. A line
+  sent while one goes out follows it in the same transmission.
+- RTTY has capitals, figures and a few signs: lower case goes out in
+  capitals, and what it has no character for (`@ % * < > [ ]`, accents) is
+  left out. The radio puts in the LTRS and FIGS shifts. After a space in
+  figures the next figure gets FIGS again (`599 001`), so that a receiver
+  that goes back to letters at a space (unshift on space) prints it right,
+  and one that doesn't too.
+- What is sent shows in the panel in the TX colour as it goes out; sent and
+  received text never share a line.
+- Stop TX (on pages 2, 3 and 4) unkeys at once and drops the rest.
+- Macros (pages 3 and 4; CapsLock+1 to CapsLock+6 on a keyboard): press
+  sends, hold edits the name and then the text (an empty text deletes, the
+  ones after move up). `<MYCALL>` is your callsign (Settings > General >
+  STATION), `<CALL>` the DX call, `<RST>` the report you send (RST snt:
+  press steps the strength, hold goes back to 599), `<RSTR>` the one you
+  got. The DX call is taken from "DE <call>" in what RTTY decodes, or typed
+  in with DX call (hold clears it and the reports); a macro with `<CALL>`
+  and no DX call is not sent. PSK and Olivia have the same DX call and
+  reports. The macros are kept in `/mnt/rtty_macros.txt`, also on the web
+  configurator's Macros page, and read each time RTTY opens.
+- TX goes through the same path as FT8 and PSK: power capped at 7 W (Power,
+  page 5), the ALC levelling (see
+  [Digital-mode TX level](#digital-mode-tx-level)), the SWR protection,
+  in LSB-D or USB-D for the transmission and back to LSB or USB after. Outside the amateur bands it is refused as any TX (see
+  [amateur bands only](#amateur-bands-only)). In a mode other than LSB or
+  USB the radio says "RTTY TX: LSB or USB only".
+- The decoder rests while the radio sends, and starts afresh after it.
+- Ext tune (page 5): a carrier on the RTTY centre for an external tuner
+  (see [TUNE for an external tuner](#tune-for-an-external-tuner)). Clear:
+  the panel's text.
+- What RTTY receives and sends is kept on the card (see
+  [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)).
+- CapsLock+L logs the QSO as RTTY, the last call decoded ready in the box
+  (see [quick QSO log](#quick-qso-log)).
+
+### WeFax TX
+
+The WeFax transmitter is in the firmware (the TX player), but no screen on
+the radio starts it yet: a control for it is still to come.
+
 - WeFax TX: a picture in grey, 1809 px wide (IOC 576), 120 LPM, with APT
   start and stop tones and phasing, at most 800 lines. Pictures go to
   `/mnt/wefax/tx_pics` (uploaded from the Gallery).
@@ -8769,8 +8838,8 @@ Apps > WeFax (`http://x6100.local/wefax`) shows the radio's
   Plan's the chart and its quality; a tap opens one; all of them in the
   Gallery.
 
-The page receives only: the WeFax transmitter ([RTTY and WeFax
-TX](#rtty-and-wefax-tx)) stays on the radio.
+The page receives only: the WeFax transmitter ([WeFax TX](#wefax-tx))
+stays on the radio.
 
 ## TCI server
 
@@ -9968,7 +10037,7 @@ measures.
 
 FT8/FT4 in `/mnt/ft_log.adi`, JS8 in `/mnt/js8call_log.adi`, Field Ops in
 `/mnt/field/logs/`, the QSOs logged outside an activation in the day's log. The web configurator's
-Logs page shows them all. What PSK, Olivia, Contestia and JTTY received and sent, and what RTTY received, is in
+Logs page shows them all. What PSK, Olivia, Contestia, JTTY and RTTY received and sent is in
 `/mnt/digi_text/`, a file a UTC day, on the Logs page too ([Text log of the keyboard modes](#text-log-of-the-keyboard-modes)).
 
 An FT8, FT4 or FT2 QSO is in two of them, `ft_log.adi` and the day's log

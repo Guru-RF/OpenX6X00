@@ -34,6 +34,7 @@ extern "C" {
 #include "front_keys.h"
 #include "control_owner.h"
 #include "screen_light.h"
+#include "rtty_send.h"
 }
 
 #define STATE_ASSIGNED LV_STATE_USER_1  /* bound to a knob in the knob binds */
@@ -403,7 +404,7 @@ static button_data_t btn_gps = {.type = BTN_TEXT, .label = "GPS /\nClock", .pres
                                 .hold = [](button_data_t *) { main_screen_start_app(ACTION_APP_SNAKE); },  /* the hidden game */
                                 .ctrl = ACTION_APP_GPS};
 
-/* RTTY: two pages of their own */
+/* RTTY: the decoder's page; its others, the sending (#312), are rtty_send.c's */
 static button_data_t btn_rtty_rate = {.type = BTN_TEXT, .label = "Rate", .press = knob_press,
                                       .ctrl = CTRL_RTTY_RATE, .encoder_allowed = true};
 static button_data_t btn_rtty_shift = {.type = BTN_TEXT, .label = "Shift", .press = knob_press,
@@ -412,11 +413,8 @@ static button_data_t btn_rtty_center = {.type = BTN_TEXT, .label = "Center", .pr
                                         .ctrl = CTRL_RTTY_CENTER, .encoder_allowed = true};
 static button_data_t btn_rtty_reverse = {.type = BTN_TEXT, .label = "Reverse", .press = knob_press,
                                          .ctrl = CTRL_RTTY_REVERSE, .encoder_allowed = true};
-static button_data_t btn_rtty_p2 = {.type = BTN_TEXT, .label = "(RTTY 2:2)", .press = button_next_page_cb,
-                                    .hold = button_prev_page_cb, .next = &buttons_page_rtty, .prev = &buttons_page_rtty};
-static buttons_page_t page_rtty_2 = {{&btn_rtty_p2, &btn_dig_pwr}};
-static button_data_t btn_rtty_p1 = {.type = BTN_TEXT, .label = "(RTTY 1:2)", .press = button_next_page_cb,
-                                    .hold = button_prev_page_cb, .next = &page_rtty_2, .prev = &page_rtty_2};
+static button_data_t btn_rtty_p1 = {.type = BTN_TEXT, .label = "(RTTY 1:5)", .press = button_next_page_cb,
+                                    .hold = button_prev_page_cb, .next = &rtty_page_send, .prev = &rtty_page_power};
 buttons_page_t buttons_page_rtty = {{&btn_rtty_p1, &btn_rtty_rate, &btn_rtty_shift, &btn_rtty_center, &btn_rtty_reverse}};
 
 /* ---- pages and groups; buttons_init() links the page buttons of a group in a ring ---- */

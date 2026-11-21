@@ -10,7 +10,8 @@ JS8_LOG = "/mnt/js8call_log.adi"    # the JS8 app's (src/js8_window.c JS8_LOG_PA
 CW_TRAINER_FILE = "/mnt/cw_trainer.json"
 VOICE_DIR = "/mnt/msg"
 MACRO_FILES = {"psk": "/mnt/psk_macros.txt", "olivia": "/mnt/olivia_macros.txt",
-               "jtty": "/mnt/jtty_macros.txt"}   # src/psk_macro.c, olivia_macro.c, jtty_macro.c
+               "jtty": "/mnt/jtty_macros.txt", "rtty": "/mnt/rtty_macros.txt"}
+# src/psk_macro.c, olivia_macro.c, jtty_macro.c, rtty_macro.c
 JS8_TEXTS_FILE = "/mnt/js8_texts.txt"   # INFO, STATUS and more, src/dialog_js8.c
 JS8_SAVED_FILE = "/mnt/js8_saved.txt"   # the JS8 app's ten saved messages, src/js8_window.c (JS8_SAVED_PATH)
 IRADIO_FAV_FILE = "/mnt/iradio/favorites.tsv"   # the Internet radio's favourites, src/dialog_iradio.c
