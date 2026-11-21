@@ -116,7 +116,9 @@ int iradio_load(const char *path, iradio_station_t *out, int max) {
     return n;
 }
 
-bool iradio_save(const char *path, const iradio_station_t *list, int n) {
+/* path written whole by fill and put in place by a rename, on the card before: /mnt is FAT, written out later, and a
+ * power cut in between left a short or empty list (channel_list.c). The folder is made when missing */
+static bool write_whole(const char *path, bool (*fill)(FILE *f, const void *arg), const void *arg) {
     char tmp[300], buf[300], dir[300];
 
     snprintf(buf, sizeof(buf), "%s", path);
@@ -127,13 +129,7 @@ bool iradio_save(const char *path, const iradio_station_t *list, int n) {
     FILE *f = fopen(tmp, "w");
     if (!f) return false;
 
-    bool ok = true;
-    for (int i = 0; i < n && ok; i++) {
-        const iradio_station_t *s = &list[i];
-        ok = fprintf(f, "%s\t%s\t%s\t%s\t%s\t%s\n", s->name, s->url, s->codec, s->kbps, s->cc, s->uuid) > 0;
-    }
-    /* On the card before the rename: /mnt is FAT, written out later, and a power cut in between left a short or
-     * empty list (channel_list.c) */
+    bool ok = fill(f, arg);
     ok = fflush(f) == 0 && fsync(fileno(f)) == 0 && ok;
     ok = fclose(f) == 0 && ok;
     if (!ok || rename(tmp, path) != 0) {
@@ -146,6 +142,54 @@ bool iradio_save(const char *path, const iradio_station_t *list, int n) {
         close(dfd);
     }
     return true;
+}
+
+typedef struct {
+    const iradio_station_t *list;
+    int                     n;
+} stations_t;
+
+static bool fill_stations(FILE *f, const void *arg) {
+    const stations_t *st = arg;
+    bool              ok = true;
+
+    for (int i = 0; i < st->n && ok; i++) {
+        const iradio_station_t *s = &st->list[i];
+        ok = fprintf(f, "%s\t%s\t%s\t%s\t%s\t%s\n", s->name, s->url, s->codec, s->kbps, s->cc, s->uuid) > 0;
+    }
+    return ok;
+}
+
+bool iradio_save(const char *path, const iradio_station_t *list, int n) {
+    stations_t st = {list, n};
+
+    return write_whole(path, fill_stations, &st);
+}
+
+static bool fill_country(FILE *f, const void *arg) {
+    const iradio_country_t *c = arg;
+
+    return fprintf(f, "%s\t%s\n", c->name, c->cc) > 0;
+}
+
+bool iradio_save_country(const char *path, const iradio_country_t *c) {
+    return write_whole(path, fill_country, c);
+}
+
+bool iradio_load_country(const char *path, iradio_country_t *c) {
+    FILE *f = fopen(path, "r");
+    char  line[160], old[160], *field[2] = {0};
+
+    if (!f) return false;
+    bool got = fgets(line, sizeof(line), f) != NULL;
+    fclose(f);
+    if (!got) return false;
+    snprintf(old, sizeof(old), "%s", line);
+    if (iradio_parse_country(line, c)) return true;
+    /* The code first, the name after: as v0.3.13 wrote it, read as the countries' line it never was (#316) */
+    if (split(old, field, 2) < 2) return false;
+    snprintf(line, sizeof(line), "%s\t%s", field[1], field[0]);
+    return iradio_parse_country(line, c);
 }
 
 int iradio_find(const iradio_station_t *list, int n, const char *url) {

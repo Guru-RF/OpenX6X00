@@ -6311,9 +6311,16 @@ Internet radio stations, which anyone can add a station to.
 | Play / Stop | plays the station selected, or stops the one playing (the MFK press and a tap on a row do the same; pressed on the station playing, it stops) |
 | Favourite | the station selected into your favourites, or out of them |
 | List | Favourites, then the country's stations, the most listened in the world, the last search, and round again |
-| Country | the countries the directory has stations of, with how many; a press chooses one, ESC goes back. The radio keeps it |
+| Country | the countries the directory has stations of, with how many, opened at the one you chose; a press chooses one, ESC goes back. The radio keeps it for the next start |
 | Search | a station's name or a genre (jazz, news: the directory's tags, asked when the names give fewer than 15), or a stream address (`http://...`), which goes straight into the favourites |
 
+- **Search** opens a text box with the on-screen keyboard, or without it
+  when a keyboard is plugged in or connected. Enter, or the on-screen
+  keyboard's tick or return key, searches; the box opens again on the last
+  search. ESC, the on-screen keyboard's keyboard key, the MFK held (with a
+  keyboard) and any of the window's buttons (Search again too) close it,
+  nothing searched. Up to v0.3.13 the box showed nothing of what was typed
+  and the buttons did not close it (issue #316).
 - The window opens on your favourites, or the country's stations when there
   are none, or the countries when no country is chosen yet. The lists are
   ordered by how often the directory's listeners play them, 100 stations at
@@ -6350,7 +6357,9 @@ Internet radio stations, which anyone can add a station to.
 - The favourites are in `/mnt/iradio/favorites.tsv`, the chosen country in
   `/mnt/iradio/country`. The web configurator's Internet radio page edits
   the favourites: add any stream address there, rename, reorder, delete.
-  They are not in the Backup.
+  Both are in the Backup (its Apps' lists). Up to v0.3.13 the country was
+  written but not read back, and the radio forgot it at each start (issue
+  #316); the file that version wrote is read now.
 - The lists are what the directory has: a station may be off the air, or
   have moved. Error says why one did not play ("not a stream: a web page",
   "the station answered HTTP 404").
