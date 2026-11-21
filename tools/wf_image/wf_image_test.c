@@ -31,19 +31,23 @@
  *    redraws a few columns, not the shade's whole width
  *  - in CW and CW-R, on an X6100 base that sends no frequency with its data (Xiegu's): a station on the dial in
  *    receive and the carrier in TX on the line, the rows placed by the LO offsets as the settings give them for each
- *    base. Xiegu's 1.1.9 centres its spectrum on the dial in TX, its 1.1.8 on the oscillator as in receive: with the
- *    receive offset in TX too, 1.1.9's carrier was a key tone below the line in CW (#191). At Speed 1 a line holds
- *    frames of TX or of receive, not of both, there a key tone apart. A patched base's rows as before. With an IF
- *    shift 1.1.9 is tuned that far from the dial, its receive spectrum centred there and its TX one on the dial: a
- *    station on the dial in receive and the carrier in TX on the line in USB, CW and CW-R, as the spectrum draws
- *    them; placed from where the base was tuned the TX rows were the IF shift off the line (#191). At Speed 1 a
- *    line holds frames of TX or of receive there too
+ *    base (cfg/lo_offset.c). Xiegu's 1.1.8 centres its frames on the oscillator in TX as in receive. Its 1.1.9 sends
+ *    its TX frames as if unzoomed, as the reporter's screens show them at zoom 8 (#191): centred on the oscillator,
+ *    the carrier a key tone from their middle, drawn over the zoom's span, so the key tone over the zoom from it;
+ *    with the receive offset in TX (up to v0.3.10) the carrier was 7/8 of a key tone below the line in CW, with the
+ *    frames on the dial (v0.3.11 to v0.3.13) an eighth of it above. At Speed 1 a line holds frames of TX or of
+ *    receive, not of both, there apart. A patched base's rows as before. With an IF shift 1.1.9 is tuned that far
+ *    from the dial, its receive frames centred there, its TX ones not: a station on the dial in receive and the
+ *    carrier in TX on the line in USB, CW and CW-R, with +1.5 kHz and with the reporter's -3 kHz; placed from where
+ *    the base was tuned the TX rows were the IF shift off the line (#191). At Speed 1 a line holds frames of TX or
+ *    of receive there too
  *  See the Makefile.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 
 #include "waterfall_view.c"
+#include "cfg/lo_offset.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -314,16 +318,36 @@ static void if_shift_to(int32_t hz) {
     retuned = false;
 }
 
-/* A frame of the X6100's base, its spectrum centred `centre` Hz from the dial as the base centres it, with a carrier
- * on the dial; at: the frequency the base sends with it, 0 none (Xiegu's own bases). In TX the levels of the TX scale */
-static void x6100_frame(bool tx, int32_t centre, uint32_t at) {
-    float db[WATERFALL_NFFT];
-    int   carrier = WATERFALL_NFFT / 2 - centre * WATERFALL_NFFT / SPAN_HZ;
+/* A frame of the X6100's base at the zoom z, its spectrum centred `centre` Hz from the dial as the base centres it,
+ * with a carrier on the dial; at: the frequency the base sends with it, 0 none (Xiegu's own bases). In TX the levels
+ * of the TX scale */
+static void x6100_frame_z(bool tx, int32_t centre, uint32_t at, int32_t z) {
+    float   db[WATERFALL_NFFT];
+    int32_t width   = SPAN_HZ / z;
+    int     carrier = WATERFALL_NFFT / 2 - lround((double)centre * WATERFALL_NFFT / width);   /* the nearest bin */
 
     for (int i = 0; i < WATERFALL_NFFT; i++) {
         db[i] = i != carrier ? (tx ? TX_MIN : 10) : tx ? TX_MAX : 200;
     }
-    waterfall_data(db, WATERFALL_NFFT, tx, at, SPAN_HZ);
+    waterfall_data(db, WATERFALL_NFFT, tx, at, width);
+}
+
+/* The same at zoom 1 */
+static void x6100_frame(bool tx, int32_t centre, uint32_t at) {
+    x6100_frame_z(tx, centre, at, 1);
+}
+
+/* A TX frame of Xiegu's 1.1.9 at the zoom z, as the reporter's screens show it (#191): as if unzoomed, the whole
+ * 100 kHz centred on the oscillator a key tone from the dial (lo, the receive LO offset), the carrier on the dial;
+ * the GUI takes it as the zoom's span, as it does every frame of that base. No frequency with it */
+static void x6100_119_tx_frame(int32_t lo, int32_t z) {
+    float db[WATERFALL_NFFT];
+    int   carrier = WATERFALL_NFFT / 2 - lround((double)lo * WATERFALL_NFFT / SPAN_HZ);
+
+    for (int i = 0; i < WATERFALL_NFFT; i++) {
+        db[i] = i != carrier ? TX_MIN : TX_MAX;
+    }
+    waterfall_data(db, WATERFALL_NFFT, true, 0, SPAN_HZ / z);
 }
 
 /* Where the newest row has its carrier, Hz from the dial: the frequency of its highest value */
@@ -582,90 +606,123 @@ int main(void) {
     retuned = false;
 
     const int32_t bin = SPAN_HZ / WATERFALL_NFFT;
+    const uint32_t v118 = HW_CAP_TX_IQ_OFFSET;
+    const uint32_t v119 = HW_CAP_TX_IQ_OFFSET | HW_CAP_ZOOM | HW_CAP_IF_SHIFT | HW_CAP_TX_SPECTRUM_ON_DIAL;
     const struct {
-        const char *base;
-        int32_t     rx, tx;     /* where the base centres its spectrum, Hz from the dial: the LO offsets */
-    } bases[] = {
-        /* Measured on the bench X6100, 1.1.8: the carrier on the line in CW and CW-R */
-        {"Xiegu's 1.1.8, CW", -700, -700},
-        {"Xiegu's 1.1.8, CW-R", 700, 700},
-        /* The reporter's 1.1.9: centred on the dial in TX, the carrier a key tone below the line in CW */
-        {"Xiegu's 1.1.9, CW", -700, 0},
-        {"Xiegu's 1.1.9, CW-R", 700, 0},
-    };
+        const char *mode;
+        int32_t     mode_id;
+    } cws[] = {{"CW", radio_mode_cw}, {"CW-R", radio_mode_cwr}};
 
-    for (size_t i = 0; i < sizeof(bases) / sizeof(bases[0]); i++) {
-        int32_t at;
+    /* Measured on the bench X6100, 1.1.8: the carrier on the line in CW and CW-R */
+    for (size_t i = 0; i < 2; i++) {
+        int32_t rx = lo_offset_rx(cws[i].mode_id, 700, v118), at;
 
-        lo_offsets(bases[i].rx, bases[i].tx);
-        x6100_frame(false, bases[i].rx, 0);
+        lo_offsets(rx, lo_offset_tx(cws[i].mode_id, 700, v118, 1));
+        x6100_frame(false, rx, 0);
         at = carrier_at();
-        check(LV_ABS(at) < bin, "%s, receive: a station on the dial on the line (%+d Hz)", bases[i].base, at);
-        x6100_frame(true, bases[i].tx, 0);
+        check(LV_ABS(at) < bin, "Xiegu's 1.1.8, %s, receive: a station on the dial on the line (%+d Hz)", cws[i].mode,
+              at);
+        x6100_frame(true, rx, 0);
         at = carrier_at();
-        check(LV_ABS(at) < bin, "%s, TX: the carrier on the line (%+d Hz)", bases[i].base, at);
+        check(LV_ABS(at) < bin, "Xiegu's 1.1.8, %s, TX: the carrier on the line (%+d Hz)", cws[i].mode, at);
+    }
+
+    printf("Xiegu's 1.1.9 at zoom 8, as the reporter's: its TX frames as if unzoomed\n");
+    const int32_t z = 8, zbin = SPAN_HZ / z / WATERFALL_NFFT;
+    const int32_t tones[] = {500, 700, 1200};
+
+    for (size_t i = 0; i < 2; i++) {
+        for (size_t t = 0; t < sizeof(tones) / sizeof(tones[0]); t++) {
+            int32_t rx = lo_offset_rx(cws[i].mode_id, tones[t], v119), at;
+
+            lo_offsets(rx, lo_offset_tx(cws[i].mode_id, tones[t], v119, z));
+            x6100_frame_z(false, rx, 0, z);
+            at = carrier_at();
+            check(LV_ABS(at) < zbin, "%s, %d Hz, receive: a station on the dial on the line (%+d Hz)", cws[i].mode,
+                  tones[t], at);
+            x6100_119_tx_frame(rx, z);
+            at = carrier_at();
+            check(LV_ABS(at) < zbin, "%s, %d Hz, TX: the carrier on the line (%+d Hz)", cws[i].mode, tones[t], at);
+            /* As v0.3.11 to v0.3.13 placed it: on the dial, the carrier the key tone over the zoom off the line */
+            lo_offsets(rx, 0);
+            x6100_119_tx_frame(rx, z);
+            at = carrier_at();
+            check(LV_ABS(at + rx / z) < zbin, "%s, %d Hz, TX placed on the dial: %+d Hz off the line (%+d Hz)",
+                  cws[i].mode, tones[t], -rx / z, at);
+        }
     }
 
     printf("The same base at Speed 1, three frames a line: a line of TX or of receive, not of both\n");
-    lo_offsets(-700, 0);
+    int32_t lo_rx_cw = lo_offset_rx(radio_mode_cw, 700, v119);
+
+    lo_offsets(lo_rx_cw, lo_offset_tx(radio_mode_cw, 700, v119, z));
     speed = 1;
-    x6100_frame(false, -700, 0);
-    x6100_frame(false, -700, 0);
+    x6100_frame_z(false, lo_rx_cw, 0, z);
+    x6100_frame_z(false, lo_rx_cw, 0, z);
     uint16_t was_newest = newest;
 
-    x6100_frame(true, 0, 0);
-    check(newest != was_newest && noise_level() == 0 && LV_ABS(carrier_at()) < bin,
+    x6100_119_tx_frame(lo_rx_cw, z);
+    check(newest != was_newest && noise_level() == 0 && LV_ABS(carrier_at()) < zbin,
           "the first TX frame: a line of it alone, the carrier on the line (%+d Hz, beside it %d)", carrier_at(),
           noise_level());
-    x6100_frame(true, 0, 0);
-    x6100_frame(true, 0, 0);
+    x6100_119_tx_frame(lo_rx_cw, z);
+    x6100_119_tx_frame(lo_rx_cw, z);
     was_newest = newest;
-    x6100_frame(false, -700, 0);
-    check(newest != was_newest && noise_level() == 10 && LV_ABS(carrier_at()) < bin,
+    x6100_frame_z(false, lo_rx_cw, 0, z);
+    check(newest != was_newest && noise_level() == 10 && LV_ABS(carrier_at()) < zbin,
           "the first receive frame after TX: a line of it alone, the station on the line (%+d Hz, beside it %d)",
           carrier_at(), noise_level());
     speed = 3;
 
-    printf("Xiegu's 1.1.9 with an IF shift of +1.5 kHz: tuned that far below the dial, its receive spectrum centred "
-           "there, its TX one on the dial\n");
-    const int32_t shift = 1500;
+    printf("Xiegu's 1.1.9 at zoom 8 with an IF shift: tuned that far from the dial, its receive frames centred there, "
+           "its TX ones not\n");
+    const int32_t shifts[] = {1500, -3000};     /* -3000: the reporter's, 21 Nov */
     const struct {
         const char *mode;
-        int32_t     rx, tx;     /* the LO offsets, as the settings give them for 1.1.9 */
+        int32_t     mode_id, tone;
     } shifted[] = {
-        {"USB", 0, 0},
-        {"CW", -700, 0},
-        {"CW-R", 700, 0},
+        {"USB", radio_mode_usb, 700},
+        {"CW", radio_mode_cw, 700},
+        {"CW-R", radio_mode_cwr, 700},
+        {"CW", radio_mode_cw, 1200},
+        {"CW-R", radio_mode_cwr, 1200},
     };
 
-    if_shift_to(shift);
-    for (size_t i = 0; i < sizeof(shifted) / sizeof(shifted[0]); i++) {
-        int32_t at;
+    for (size_t s = 0; s < sizeof(shifts) / sizeof(shifts[0]); s++) {
+        if_shift_to(shifts[s]);
+        for (size_t i = 0; i < sizeof(shifted) / sizeof(shifted[0]); i++) {
+            int32_t rx = lo_offset_rx(shifted[i].mode_id, shifted[i].tone, v119), at;
 
-        lo_offsets(shifted[i].rx, shifted[i].tx);
-        x6100_frame(false, shifted[i].rx - shift, 0);
-        at = carrier_at();
-        check(LV_ABS(at) < bin, "%s, receive: a station on the dial on the line (%+d Hz)", shifted[i].mode, at);
-        x6100_frame(true, shifted[i].tx, 0);
-        at = carrier_at();
-        check(LV_ABS(at) < bin, "%s, TX: the carrier on the line, as the spectrum has it (%+d Hz)", shifted[i].mode, at);
+            lo_offsets(rx, lo_offset_tx(shifted[i].mode_id, shifted[i].tone, v119, z));
+            x6100_frame_z(false, rx - shifts[s], 0, z);
+            at = carrier_at();
+            check(LV_ABS(at) < zbin, "%+d Hz, %s, %d Hz, receive: a station on the dial on the line (%+d Hz)",
+                  shifts[s], shifted[i].mode, shifted[i].tone, at);
+            x6100_119_tx_frame(rx, z);
+            at = carrier_at();
+            check(LV_ABS(at) < zbin, "%+d Hz, %s, %d Hz, TX: the carrier on the line, as the spectrum has it (%+d Hz)",
+                  shifts[s], shifted[i].mode, shifted[i].tone, at);
+        }
     }
 
     printf("The same at Speed 1 in USB: a line of TX or of receive, not of both, there the IF shift apart\n");
+    const int32_t shift = 1500;
+
+    if_shift_to(shift);
     lo_offsets(0, 0);
     speed = 1;
-    x6100_frame(false, -shift, 0);
-    x6100_frame(false, -shift, 0);
+    x6100_frame_z(false, -shift, 0, z);
+    x6100_frame_z(false, -shift, 0, z);
     was_newest = newest;
-    x6100_frame(true, 0, 0);
-    check(newest != was_newest && noise_level() == 0 && LV_ABS(carrier_at()) < bin,
+    x6100_119_tx_frame(0, z);
+    check(newest != was_newest && noise_level() == 0 && LV_ABS(carrier_at()) < zbin,
           "the first TX frame: a line of it alone, the carrier on the line (%+d Hz, beside it %d)", carrier_at(),
           noise_level());
-    x6100_frame(true, 0, 0);
-    x6100_frame(true, 0, 0);
+    x6100_119_tx_frame(0, z);
+    x6100_119_tx_frame(0, z);
     was_newest = newest;
-    x6100_frame(false, -shift, 0);
-    check(newest != was_newest && noise_level() == 10 && LV_ABS(carrier_at()) < bin,
+    x6100_frame_z(false, -shift, 0, z);
+    check(newest != was_newest && noise_level() == 10 && LV_ABS(carrier_at()) < zbin,
           "the first receive frame after TX: a line of it alone, the station on the line (%+d Hz, beside it %d)",
           carrier_at(), noise_level());
     speed = 3;

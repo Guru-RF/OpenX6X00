@@ -1,6 +1,7 @@
 #include "settings_manager.h"
 
 #include "smeter_att.h"
+#include "lo_offset.h"
 #include "../wfm_filter.h"
 #include "../boot_cw.h"
 #include "kbd_devices.h"
@@ -196,6 +197,7 @@ void SettingsManager::init_load(void (*on_db_error)(const char *msg)) {
     cp_mode_lo_offset.recompute();
     cp_mode_tx_lo_offset.bind(cp_cur_mode);
     cp_mode_tx_lo_offset.bind(p_key_tone);
+    cp_mode_tx_lo_offset.bind(p_mode_zoom);
     cp_mode_tx_lo_offset.recompute();
 
     // Bind the computed filter params to their sources (filter_low/high +
@@ -1255,30 +1257,14 @@ std::string SettingsManager::boot_text_validate(const std::string &val) {
     return out;
 }
 
-/* Where the base's spectrum is centred, Hz from the dial: the X6100's in CW and CW-R on the oscillator the tone is
- * heard from, the key tone below the dial in CW and above it in CW-R (its lo_freq); the X6200's on the dial in every
- * mode (HW_CAP_CW_SPECTRUM_ON_DIAL), where this offset drew a station on the dial a pitch off it (#115) */
+/* Where the base's frames are centred, Hz from the dial (lo_offset.h): the X6100's in CW and CW-R on the oscillator
+ * the tone is heard from, the X6200's on the dial in every mode (#115) */
 int32_t SettingsManager::lo_offset_compute() {
-    int32_t mode = cp_cur_mode.get();
-    int32_t key_tone = p_key_tone.get();
-    if (hw_caps_ & HW_CAP_CW_SPECTRUM_ON_DIAL) {
-        return 0;
-    }
-    if (mode == radio_mode_cw) {
-        return -key_tone;
-    }
-    if (mode == radio_mode_cwr) {
-        return key_tone;
-    }
-    return 0;
+    return lo_offset_rx(cp_cur_mode.get(), p_key_tone.get(), hw_caps_);
 }
 
-/* The same while the base transmits. Xiegu's X6100 base from 1.1.9 on centres it on the dial then, where the carrier
- * is (HW_CAP_TX_SPECTRUM_ON_DIAL): moved by the key tone as in receive, the carrier was drawn a key tone off the line,
- * below it in CW. Its 1.1.8 keeps it on the oscillator in TX too, and there the carrier is on the line (#191) */
+/* The same while the base transmits, at the zoom the picture is drawn at: on Xiegu's X6100 base from 1.1.9 on the
+ * receive offset over the zoom, where the carrier is drawn on the line (lo_offset.h, #191) */
 int32_t SettingsManager::tx_lo_offset_compute() {
-    if (hw_caps_ & HW_CAP_TX_SPECTRUM_ON_DIAL) {
-        return 0;
-    }
-    return lo_offset_compute();
+    return lo_offset_tx(cp_cur_mode.get(), p_key_tone.get(), hw_caps_, p_mode_zoom.get());
 }

@@ -4812,18 +4812,27 @@ it in CW-R, and in CW its ZAP and Tuner went the wrong way (#115).
   scale and the band plan, where they hardly showed (#185, #217).
 
 While you send in CW or CW-R, the waterfall and the spectrum draw your
-carrier on the VFO line, as they draw a station on the dial. Up to v0.3.10
-an X6100 with Xiegu's base 1.1.9 drew it a key tone below the line in CW, and
-we'd expect above it in CW-R: that base centres the picture on the dial
-while it transmits, where 1.1.8 keeps it a key tone off, as in receive. Only
-the picture was off: the carrier went out on the dial (#191). We haven't run
-this on a 1.1.9 base ourselves.
+carrier on the VFO line, as they draw a station on the dial. On an X6100
+with Xiegu's base 1.1.9 that took three tries (#191). While it transmits,
+that base sends a picture with your carrier the key tone divided by the
+zoom from its middle: at zoom 8 an eighth of the key tone, 150 Hz at a
+1200 Hz key tone, above the middle in CW and below it in CW-R. It looks as
+if the base leaves that picture unzoomed, centred a key tone off the dial
+as 1.1.8 does, and the screen spreads it over the zoom's span. Up to
+v0.3.10 the carrier was drawn seven eighths of a key tone below the line in
+CW; from v0.3.11 to v0.3.13 an eighth of a key tone above it in CW and below
+it in CW-R, growing with the key tone. Now the picture is placed by the key
+tone over the zoom, and the carrier is on the line at any key tone. Only
+the picture was off: the carrier went out on the dial. Measured at zoom 8
+on the reporter's radio; we haven't run it on a 1.1.9 base ourselves, nor
+at the other zooms.
 
 With an IF shift (the MFK 2:4 page, an X6100 with base 1.1.9 or later) the
 base is tuned that far from the dial and the received picture is centred
-there; while it transmits, on the dial. Up to v0.3.12 the waterfall drew
-your carrier the IF shift off the line in every mode, while the spectrum
-had it on the line (#191; not run on a 1.1.9 base either). The faint
+there; while it transmits, around the dial, as without one. Up to v0.3.12
+the waterfall drew your carrier the IF shift off the line in every mode,
+while the spectrum had it on the line (#191; not run on a 1.1.9 base
+either). The faint
 stripe of the radio's own noise is where the base is tuned: on the line in
 USB and LSB, a key tone below it in CW and above it in CW-R; an IF shift
 moves it as far the other way (+1000 Hz: 1 kHz lower).

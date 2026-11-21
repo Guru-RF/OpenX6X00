@@ -286,9 +286,10 @@ void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint3
     static uint32_t acc_freq;
     int             frames = speed_frames[LV_CLAMP(1, param_i_get(cfg_waterfall_speed), 5) - 1];
     /* Where the frame was taken: with no frequency from the base (the OEM X6100 base) the GUI's,
-     * else a line averaged frames of several tuning steps. In TX where the base centres the frame
-     * then: on the dial with Xiegu's X6100 base from 1.1.9 on, a key tone from where it receives in
-     * CW, so a line holds frames of TX or of receive, not of both (#191). From the dial in TX, not
+     * else a line averaged frames of several tuning steps. In TX where the frame is drawn centred
+     * then: the key tone over the zoom from the dial with Xiegu's X6100 base from 1.1.9 on
+     * (cfg/lo_offset.h), not where it receives in CW, so a line holds frames of TX or of receive,
+     * not of both (#191). From the dial in TX, not
      * from where the base is tuned the IF shift away (radio_center_freq): the frames it receives are
      * centred there, its TX ones on the dial it transmits on, where the spectrum has its TX trace.
      * The TX rows were the IF shift off the line, the spectrum's carrier on it (#191) */
