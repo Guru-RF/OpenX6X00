@@ -7,6 +7,7 @@
  */
 
 #include "gui_styles.h"
+#include "dropdown_fit.h"
 #include "theme.h"
 #include "mono.h"
 #include "fonts/font_select.h"
@@ -502,6 +503,8 @@ void styles_dropdown_list(lv_obj_t *list) {
     lv_obj_add_style(list, &dialog_dropdown_list_style, 0);
     lv_obj_add_style(list, &dialog_dropdown_sel_style, LV_PART_SELECTED | LV_STATE_CHECKED);
     lv_obj_add_style(list, &dialog_dropdown_sel_style, LV_PART_SELECTED | LV_STATE_PRESSED);
+    /* every dropdown of the GUI passes here: a long list of its options kept whole (the countries', #310) */
+    dropdown_fit(((lv_dropdown_list_t *)list)->dropdown);
 }
 
 /* For screens laid out elsewhere (walkie.c); built again after a theme change (walkie_drop()) */
