@@ -53,6 +53,30 @@ bool rtty_mark_high(int side, bool reverse);
 /* The two tones, shift apart around the centre */
 void rtty_tones(uint16_t center, uint16_t shift, bool mark_high, float *mark_hz, float *space_hz);
 
+/* The Preset button's (RTTY 5:5): rate, shift and Reverse at once, for the decoder and the transmitter. Weather is
+ * the app's defaults (params.c), the weather stations' 50 baud and 450 Hz; Ham the usual amateur RTTY */
+typedef enum {
+    RTTY_PRESET_WEATHER,
+    RTTY_PRESET_HAM,
+    RTTY_PRESETS
+} rtty_preset_id_t;
+
+typedef struct {
+    const char *name;           /* English, translated where it is shown */
+    uint32_t    rate;           /* in 1/100 baud, as params.rtty_rate */
+    uint16_t    shift;          /* Hz */
+    bool        reverse;
+} rtty_preset_t;
+
+extern const rtty_preset_t rtty_presets[RTTY_PRESETS];
+
+/* The preset these settings are, -1 none */
+int rtty_preset_find(uint32_t rate, uint16_t shift, bool reverse);
+
+/* The preset a press gives after current (rtty_preset_find's): Weather after Ham, Ham after any other, so that one
+ * press always brings ham RTTY and a second the weather stations' back */
+int rtty_preset_next(int current);
+
 /* The case the far receiver is in, as far as the sender can know: LTRS, FIGS, or 0 when it can't. After a space sent
  * in figures it can't: a receiver that unshifts on space (USOS, the usual default) is back in letters, one that
  * doesn't is still in figures; the next figure or letter gets its shift again, and both print it right */

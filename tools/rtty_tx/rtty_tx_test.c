@@ -7,6 +7,8 @@
  *    figures (a receiver that unshifts on space is in letters by then), CR LF for a line end, lower case as capitals,
  *    what ITA2 lacks left out; what is sent read back by a receiver that unshifts on space and by one that doesn't
  *  - the tones: the mark on the higher radio frequency in USB and LSB with Reverse off, the other way with it on
+ *  - the presets (RTTY 5:5's Preset): Ham 45.45/170/Reverse off and Weather 50/450/Reverse on found, a setting off by
+ *    one of the three none, a press Ham from Weather or none and Weather from Ham; Weather the defaults of params.c
  *  - the waveform: the mark idle at the start, the LTRS diddles, CR LF, the text framed as 1 start bit, 5 data bits
  *    (the first in bit 0) and 1.5 stop bits, then CR LF and the tail, each bit checked with a Goertzel filter at the
  *    two tones in the middle of the bit; the length to the sample; the idle's frequency from its zero crossings, with
@@ -175,6 +177,57 @@ static void test_tones(void) {
     CHECK(mark == 715.0f && space == 885.0f, "mark low: %.1f %.1f", mark, space);
     rtty_tones(1500, 850, true, &mark, &space);
     CHECK(mark == 1925.0f && space == 1075.0f, "850 Hz: %.1f %.1f", mark, space);
+}
+
+/* ---- the presets ---- */
+
+/* The number after ".name =" in params.c's defaults, -1 none */
+static long params_default(const char *src, const char *name) {
+    char        key[64];
+    const char *p;
+
+    snprintf(key, sizeof(key), ".%s", name);
+    for (p = strstr(src, key); p; p = strstr(p + 1, key)) {
+        const char *q = p + strlen(key);
+
+        while (*q == ' ') q++;
+        if (*q != '=') continue;
+        q++;
+        while (*q == ' ') q++;
+        if (!strncmp(q, "true", 4)) return 1;
+        if (!strncmp(q, "false", 5)) return 0;
+        return strtol(q, NULL, 10);
+    }
+    return -1;
+}
+
+static void test_presets(void) {
+    static char src[1 << 20];
+    FILE       *f = fopen(PARAMS_C, "r");
+    size_t      n = f ? fread(src, 1, sizeof(src) - 1, f) : 0;
+
+    CHECK(rtty_preset_find(4545, 170, false) == RTTY_PRESET_HAM, "45.45/170/off: Ham");
+    CHECK(rtty_preset_find(5000, 450, true) == RTTY_PRESET_WEATHER, "50/450/on: Weather");
+    CHECK(rtty_preset_find(4545, 170, true) == -1, "Ham with Reverse on: none");
+    CHECK(rtty_preset_find(4545, 450, false) == -1, "45.45/450/off: none");
+    CHECK(rtty_preset_find(5000, 170, false) == -1, "50/170/off: none");
+    CHECK(rtty_preset_find(5000, 450, false) == -1, "Weather with Reverse off: none");
+
+    CHECK(rtty_preset_next(-1) == RTTY_PRESET_HAM, "none: a press gives Ham");
+    CHECK(rtty_preset_next(RTTY_PRESET_WEATHER) == RTTY_PRESET_HAM, "Weather: a press gives Ham");
+    CHECK(rtty_preset_next(RTTY_PRESET_HAM) == RTTY_PRESET_WEATHER, "Ham: a press gives Weather");
+    CHECK(!strcmp(rtty_presets[RTTY_PRESET_HAM].name, "Ham") && !strcmp(rtty_presets[RTTY_PRESET_WEATHER].name,
+          "Weather"), "names");
+
+    /* Weather is what the app starts on: the decoder's defaults */
+    CHECK(n > 0, "%s not read", PARAMS_C);
+    src[n] = '\0';
+    if (f) fclose(f);
+    CHECK(params_default(src, "rtty_rate") == rtty_presets[RTTY_PRESET_WEATHER].rate &&
+          params_default(src, "rtty_shift") == rtty_presets[RTTY_PRESET_WEATHER].shift &&
+          params_default(src, "rtty_reverse") == rtty_presets[RTTY_PRESET_WEATHER].reverse,
+          "params.c's defaults %ld/%ld/%ld are not Weather", params_default(src, "rtty_rate"),
+          params_default(src, "rtty_shift"), params_default(src, "rtty_reverse"));
 }
 
 /* ---- the waveform ---- */
@@ -433,6 +486,7 @@ static void test_macros(void) {
 int main(void) {
     test_ita2();
     test_tones();
+    test_presets();
     test_wave(false);
     test_wave(true);
     test_blocks();

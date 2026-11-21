@@ -8,6 +8,8 @@
 
 #include "rtty_tx.h"
 
+#include "i18n.h"               /* N_: the presets' names */
+
 #include <ctype.h>
 #include <math.h>
 #include <string.h>
@@ -29,6 +31,26 @@ void rtty_tones(uint16_t center, uint16_t shift, bool mark_high, float *mark_hz,
 
     *mark_hz  = center + (mark_high ? half : -half);
     *space_hz = center + (mark_high ? -half : half);
+}
+
+/* ---- the presets ---- */
+
+const rtty_preset_t rtty_presets[RTTY_PRESETS] = {
+    [RTTY_PRESET_WEATHER] = {N_("Weather"), 5000, 450, true},
+    [RTTY_PRESET_HAM]     = {N_("Ham"), 4545, 170, false},
+};
+
+int rtty_preset_find(uint32_t rate, uint16_t shift, bool reverse) {
+    for (int i = 0; i < RTTY_PRESETS; i++) {
+        const rtty_preset_t *p = &rtty_presets[i];
+
+        if (p->rate == rate && p->shift == shift && p->reverse == reverse) return i;
+    }
+    return -1;
+}
+
+int rtty_preset_next(int current) {
+    return current == RTTY_PRESET_HAM ? RTTY_PRESET_WEATHER : RTTY_PRESET_HAM;
 }
 
 /* ---- ITA2 ---- */

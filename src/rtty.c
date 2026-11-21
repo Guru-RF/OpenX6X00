@@ -425,6 +425,20 @@ static void settings_set(uint16_t rate, uint16_t shift, bool reverse, bool dirty
     update();
 }
 
+int rtty_preset_now(void) {
+    return rtty_preset_find(params.rtty_rate, params.rtty_shift, params.rtty_reverse);
+}
+
+/* Saved as the knobs save them. RTTY opened by a shortcut (GhostNet): the operator's own come back at the close,
+ * over a preset as over a knob */
+void rtty_preset_set(int preset) {
+    const rtty_preset_t *p;
+
+    if (preset < 0 || preset >= RTTY_PRESETS) return;
+    p = &rtty_presets[preset];
+    settings_set(p->rate, p->shift, p->reverse, true);
+}
+
 void rtty_open_with(uint16_t rate, uint16_t shift, bool reverse) {
     next_settings.set     = true;
     next_settings.rate    = rate;
