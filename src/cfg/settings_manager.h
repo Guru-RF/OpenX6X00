@@ -700,6 +700,11 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<std::string> p_meteo_place{"meteo_place", "", meteo_place_validate,
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
+    // The units the weather is shown in (Settings > General > STATION > Weather units, #315): 0 metric, as the
+    // services give it, 1 US (°F, mph, inHg, inches, miles). Only what is shown: the data and the warnings'
+    // thresholds stay metric (meteo.h, meteo_format)
+    Parameter<int32_t> p_meteo_units{"meteo_units", 0, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // Waterfall Mode Fixed (Settings > Display > WATERFALL, live, #10): the view moves on when 0 the line (or what is
     // received) is 40% of the span from the centre, 1 the passband's edge 100 Hz from the screen's edge, 2 the line

@@ -12,3 +12,5 @@ typedef struct ParamText ParamText;
 extern ParamInt  *cfg_meteo_from;
 extern ParamText *cfg_meteo_place;
 size_t param_t_get(const ParamText *p, char *out, size_t size);
+/* Weather units, which meteo.c reads for the notices' words (METEO_UNITS_*) */
+extern ParamInt  *cfg_meteo_units;

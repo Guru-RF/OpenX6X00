@@ -20,7 +20,8 @@ a stand-in that serves them by address. Nothing here goes to any service.
    asking Nominatim; run as a program with the saved answers (X6100_METEO_SAMPLES, as the PC screenshots run it).
 5. With bottle: the page's /api/meteo by the radio's position from the GUI's socket (pos_get: GPS, the country's
    capital, the place typed in Settings > General > STATION), by the QTH locator and the country of params.db when
-   the GUI does not answer, by a locator typed, and its refusals.
+   the GUI does not answer, by a locator typed, and its refusals; Weather units from the GUI or params.db (#315).
+   The page's own script, under Node when there is one, is meteo_page_test.js (the Makefile runs it).
 """
 import calendar
 import importlib.machinery
@@ -416,6 +417,10 @@ class Computed(Case):
         self.assertTrue(all(a["kind"] == "computed" and a["src"] == "forecast" and a["mine"] for a in al))
         self.assertEqual((al[0]["from"], al[0]["to"]), ("2026-11-16 00:00", "2026-11-16 23:59"))
         self.assertEqual(al[3]["event"], "Heat: high of 41 °C")
+        tenth = self.m.computed_alerts([{"date": "2026-11-16", "tmax": 36.44, "gust_max": 64.96}], "Somewhere",
+                                       self.zone())
+        self.assertEqual([(a["calc"], a["value"]) for a in tenth], [("heat", 36.4)],
+                         "the number to a tenth, metric, as the forecast has it: the GUI's US units convert it (#315)")
         again = self.m.computed_alerts(days, "Somewhere", self.zone())
         self.assertEqual([a["id"] for a in al], [a["id"] for a in again], "the same id each time: shown once")
         top = self.m.computed_alerts([{"date": "2026-11-16", "gust_max": 130, "rain_mm": 160, "tmax": 45}], "", self.zone())
@@ -657,6 +662,7 @@ class Web(unittest.TestCase):
         self.assertEqual((d["where"], d["place"], d["alerts_src"]), ("GPS", "Brussels, Brussels-Capital, Belgium",
                                                                      "MeteoAlarm"))
         self.assertIs(d["notices"], True, "APP > Weather > Notices, as the GUI says")
+        self.assertIs(d["us"], False, "no units in the GUI's answer: metric")
         self.assertEqual(self.args(), [["update", "--asked", "50.84670", "4.35250", "BE", "GPS", "nl",
                                         WEB[1].METEO_FILE]], "the GUI's answer file, shared")
         self.get("/api/meteo?asked=0")
@@ -664,10 +670,12 @@ class Web(unittest.TestCase):
 
     def test_the_countrys_capital(self):
         self.gui({"t": "pos", "lat": 50.8333, "lon": 4.3333, "src": "Country", "cc": "BE", "country": "Belgium",
-                  "lang": "en"})
+                  "lang": "en", "units": 1})
         st, data = self.get("/api/meteo")
         self.assertEqual(st, 200, data)
         self.assertEqual(json.loads(data)["where"], "Country Belgium")
+        self.assertIs(json.loads(data)["us"], True, "Weather units US, as the GUI says")
+        self.assertEqual(json.loads(data)["now"]["temp"], 9.4, "the answer itself metric")
         self.assertIs(json.loads(data)["notices"], False, "no notices in the GUI's answer: off")
         self.assertEqual(self.args()[0][3:5], ["BE", "Country"])
 
@@ -686,6 +694,9 @@ class Web(unittest.TestCase):
         self.assertEqual(st, 200, data)
         self.assertEqual(json.loads(data)["where"], "Locator JO20ft")
         self.assertIs(json.loads(data)["notices"], True, "the notices' setting of params.db")
+        self.assertIs(json.loads(data)["us"], False, "no Weather units in params.db: metric")
+        self.param("meteo_units", 1)
+        self.assertIs(json.loads(self.get("/api/meteo")[1])["us"], True, "Weather units of params.db")
         self.assertEqual(self.args()[0][2:6], ["4.45833", "BE", "Locator", "en"],
                          "JO20ft's centre, the country of params.db")
 

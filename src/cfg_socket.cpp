@@ -18,13 +18,14 @@
  *                                                        Wavelog; frequency and mode only, refused while transmitting
  *    {"cmd":"pos_get"}                                -> {"t":"pos","lat":..,"lon":..,"src":"GPS"|"Phone"|"Locator"|
  *                                                        "Typed"|"Country","place":..,"cc":"BE","country":..,
- *                                                        "lang":"nl","notices":0|1}: where the weather is asked for
- *                                                        (meteo_position: where the radio is, or the locator or the
- *                                                        place typed as Settings > General > STATION > Weather from
- *                                                        says, else the place of its country), "src":"" without any;
- *                                                        "place" the one typed; the country, the GUI's language and
- *                                                        APP > Weather > Notices. For the web Flights page (which
- *                                                        leaves "Country" aside) and the web Weather page
+ *                                                        "lang":"nl","notices":0|1,"units":0|1}: where the weather
+ *                                                        is asked for (meteo_position: where the radio is, or the
+ *                                                        locator or the place typed as Settings > General > STATION >
+ *                                                        Weather from says, else the place of its country), "src":""
+ *                                                        without any; "place" the one typed; the country, the GUI's
+ *                                                        language, APP > Weather > Notices and Weather units
+ *                                                        (METEO_UNITS_*). For the web Flights page (which leaves
+ *                                                        "Country" aside) and the web Weather page
  *  The values are checked here and applied on the LVGL thread through the scheduler, as the
  *  Settings pages apply them.
  *
@@ -122,6 +123,8 @@ static const struct {
     {"indep_vfo", &cfg_sm.p_indep_vfo, 0, 1},           /* Station: independent VFOs */
     {"mode_from_plan", &cfg_sm.p_mode_from_plan, 0, 1}, /* Station: the mode follows the band plan */
     {"band_region", &cfg_sm.p_band_region, 0, BP_PLAN_COUNT - 1},  /* Station: the band plan; live, screen_main.c */
+    {"meteo_units", &cfg_sm.p_meteo_units, 0, 1},       /* Station: Weather units, the web Weather page (#315); live,
+                                                         * dialog_meteo.c draws again */
     {"birdie_marks", &cfg_sm.p_birdie_marks, 0, 2},     /* Main screen: Birdie Cal's carriers */
     {"zoom_step_per_mode", &cfg_sm.p_zoom_step_per_mode, 0, 1},   /* Main screen: live, zoom_step_scope follows it */
     {"step_per_zoom", &cfg_sm.p_step_per_zoom, 0, 1},   /* Main screen (#132): live, step_zoom follows it */
@@ -482,6 +485,7 @@ static const char *pos_get(char *out, size_t size, int *l) {
     cJSON_AddStringToObject(o, "country", country_name(country_now()));
     cJSON_AddStringToObject(o, "lang", i18n_code()[0] ? i18n_code() : "en");
     cJSON_AddNumberToObject(o, "notices", cfg_sm.p_meteo_alerts.get());
+    cJSON_AddNumberToObject(o, "units", cfg_sm.p_meteo_units.get());
     text = cJSON_PrintUnformatted(o);
     cJSON_Delete(o);
     if (!text)

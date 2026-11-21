@@ -26,18 +26,21 @@
 warnings in force, in the place's own time. The radio asks for it (it needs WiFi or Ethernet) while this page is open and
 in view, every 15 minutes. Its position leaves the radio rounded to 0.1 degree (about 11 km): the radio's GPS, the
 phone's from the Panel, its QTH locator, else the capital of the country set on the radio; or, as Weather from in
-Settings &gt; General &gt; STATION says, the QTH locator alone or a place typed there (Weather place).</p>
+Settings &gt; General &gt; STATION says, the QTH locator alone or a place typed there (Weather place). In metric units or
+US units (°F, mph, inHg, inches, miles), as Weather units there says.</p>
 
 <section class="dp-card">
 <div class="dp-body">
 <div class="mt-ctl">
   <div><label for="mt-grid">Place</label><input id="mt-grid" maxlength="8" placeholder="the radio's position" autocomplete="off" spellcheck="false"></div>
+  <div><label for="mt-units">Units</label><select id="mt-units"><option value="0">Metric</option><option value="1">US</option></select></div>
   <button id="mt-upd" type="button"><svg class="i"><use href="#i-sync"/></svg>Update</button>
   <span class="status" id="mt-status"></span>
 </div>
 <p class="mt-note">Place: empty for the radio's own position, or a locator (JO20, JO20ab) for a look somewhere else. The
 country, the QTH locator and where the radio's weather is for are set on the radio: Settings &gt; General &gt; STATION
-(Weather from, Weather place).</p>
+(Weather from, Weather place). Units is the radio's Weather units there: set here, it changes on the radio too, and
+APP &gt; Weather and its notices follow.</p>
 </div>
 </section>
 
@@ -82,7 +85,7 @@ country, the QTH locator and where the radio's weather is for are set on the rad
 <p class="mt-errors" id="mt-errors"></p>
 
 <script>
-const mt = {data: null, timer: null, next: 0, busy: false};
+const mt = {data: null, timer: null, next: 0, busy: false, us: false, unitsGen: 0};
 const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const LEVELS = ["Notice", "Minor", "Yellow", "Orange", "Red"], SEVERITY = ["Notice", "Minor", "Moderate", "Severe", "Extreme"];
@@ -101,6 +104,28 @@ function n(v, dec, unit) {
   if (r === 0) r = 0;
   return r.toFixed(dec || 0) + (unit || "");
 }
+// Weather units (#315): the answer is metric, as the services give it; in US units each number as a US forecast has
+// it, whole degrees and mph, inHg and inches to the hundredth, miles to the tenth under 10. The rules of src/meteo.c
+// (meteo_value, meteo_format), rounded as C's round(), so that the page and the radio's screen say the same
+const UNITS = {temp: ["°C", "°F"], speed: ["km/h", "mph"], press: ["hPa", "inHg"], rain: ["mm", "in"], dist: ["km", "mi"]};
+function rounded(v, dec) {
+  const p = Math.pow(10, dec), r = Math.sign(v * p) * Math.round(Math.abs(v * p)) / p;
+  return r === 0 ? 0 : r;
+}
+// v (metric) of what q is, dec its metric decimals; show: "deg" a degree sign alone, "bare" no unit
+function wx(v, q, dec, show) {
+  if (v == null) return "--";
+  dec = dec || 0;
+  if (mt.us) {
+    if (q === "temp") { v = v * 9 / 5 + 32; dec = 0; }
+    else if (q === "speed") { v = v / 1.609344; dec = 0; }
+    else if (q === "press") { v = v / 33.86389; dec = 2; }
+    else if (q === "rain") { v = v / 25.4; dec = 2; }
+    else if (q === "dist") { v = v / 1.609344; dec = rounded(v, 1) < 10 ? 1 : 0; }
+  }
+  const r = rounded(v, dec).toFixed(dec);
+  return show === "deg" ? r + "°" : show === "bare" ? r : r + " " + UNITS[q][mt.us ? 1 : 0];
+}
 function compass(b) { return COMPASS[Math.floor(((b % 360) + 360 + 22.5) / 45) % 8]; }
 function uvWord(u) { return u < 3 ? "low" : u < 6 ? "moderate" : u < 8 ? "high" : u < 11 ? "very high" : "extreme"; }
 function tz() { return mt.data.tz_abbr || mt.data.tz || ""; }
@@ -112,9 +137,9 @@ function when(s) { return s ? weekday(s) + " " + Number(s.slice(8, 10)) + " " + 
 function title(a) {
   const level = (a.src === "NWS" ? SEVERITY : LEVELS)[a.level] || "Notice";
   if (!a.calc) return level + ": " + a.event;
-  const v = a.value, what = {gust: "gusts up to " + v + " km/h", rain: v + " mm of rain", storm: "thunderstorms",
-    hail: "thunderstorms with hail", heat: "heat, a high of " + v + " °C", cold: "cold, a low of " + v + " °C",
-    uv: "extreme UV, index " + v}[a.calc] || a.event;
+  const v = a.value, what = {gust: "gusts up to " + wx(v, "speed"), rain: wx(v, "rain") + " of rain",
+    storm: "thunderstorms", hail: "thunderstorms with hail", heat: "heat, a high of " + wx(v, "temp"),
+    cold: "cold, a low of " + wx(v, "temp"), uv: "extreme UV, index " + n(v)}[a.calc] || a.event;
   return level + ": " + what + ", from the forecast";
 }
 function span(a) {
@@ -129,16 +154,16 @@ function tile(name, value) {
 function renderNow() {
   const d = mt.data, c = d.now || {}, d0 = (d.days || [])[0] || {};
   $("#mt-place").text(d.place + "  ·  " + d.where + "  ·  updated " + d.updated + " " + tz());
-  $("#mt-temp").text(n(c.temp, 1, " °C"));
+  $("#mt-temp").text(wx(c.temp, "temp", 1));
   $("#mt-sky").text(c.text || "");
-  $("#mt-feels").text("Feels like " + n(c.feels, 0, " °C"));
-  $("#mt-lohi").text("Low " + n(d0.tmin, 0, "°") + ", high " + n(d0.tmax, 0, " °C"));
+  $("#mt-feels").text("Feels like " + wx(c.feels, "temp"));
+  $("#mt-lohi").text("Low " + wx(d0.tmin, "temp", 0, "deg") + ", high " + wx(d0.tmax, "temp"));
   $("#mt-sun").text(d.sun && d.sun.rise ? "Sun " + d.sun.rise + " to " + d.sun.set : "");
   $("#mt-tiles").empty().append(
-    tile("Wind", c.wind_kmh != null && c.wind_dir != null ? compass(c.wind_dir) + " " + n(c.wind_kmh, 0, " km/h") : n(c.wind_kmh, 0, " km/h")),
-    tile("Gusts", n(c.gust_kmh, 0, " km/h")), tile("Humidity", n(c.hum, 0, " %")),
-    tile("Pressure", n(c.press, 0, " hPa")), tile("Rain today", n(d0.prob, 0, " %") + ", " + n(d0.rain_mm, 1, " mm")),
-    tile("Clouds", n(c.cloud, 0, " %")), tile("Dew point", n(c.dew, 1, " °C")), tile("Visibility", n(c.vis_km, 0, " km")),
+    tile("Wind", (c.wind_kmh != null && c.wind_dir != null ? compass(c.wind_dir) + " " : "") + wx(c.wind_kmh, "speed")),
+    tile("Gusts", wx(c.gust_kmh, "speed")), tile("Humidity", n(c.hum, 0, " %")),
+    tile("Pressure", wx(c.press, "press")), tile("Rain today", n(d0.prob, 0, " %") + ", " + wx(d0.rain_mm, "rain", 1)),
+    tile("Clouds", n(c.cloud, 0, " %")), tile("Dew point", wx(c.dew, "temp", 1)), tile("Visibility", wx(c.vis_km, "dist")),
     tile("UV index", c.uv != null ? n(c.uv, 0) + ", " + uvWord(c.uv) : "--"));
   $("#mt-now-card").prop("hidden", false);
 }
@@ -147,9 +172,9 @@ function renderDays() {
   const tb = $("#mt-days tbody").empty();
   (mt.data.days || []).forEach((d, i) => {
     const tr = $("<tr>");
-    [[(i === 0 ? "Today" : weekday(d.date)) + " " + Number(d.date.slice(8))], [d.text], [n(d.tmax, 0, " °C"), "r"],
-     [n(d.tmin, 0, " °C"), "r"], [n(d.prob, 0, " %") + ", " + n(d.rain_mm, 1, " mm"), "r"],
-     [(d.wind_dir != null ? compass(d.wind_dir) + " " : "") + n(d.wind_max, 0, " km/h"), "r"], [n(d.gust_max, 0, " km/h"), "r"],
+    [[(i === 0 ? "Today" : weekday(d.date)) + " " + Number(d.date.slice(8))], [d.text], [wx(d.tmax, "temp"), "r"],
+     [wx(d.tmin, "temp"), "r"], [n(d.prob, 0, " %") + ", " + wx(d.rain_mm, "rain", 1), "r"],
+     [(d.wind_dir != null ? compass(d.wind_dir) + " " : "") + wx(d.wind_max, "speed"), "r"], [wx(d.gust_max, "speed"), "r"],
      [n(d.uv, 0), "r"], [d.rise ? d.rise + " to " + d.set : ""]]
       .forEach((v) => tr.append($("<td>").addClass(v[1] || "").text(v[0] || "")));
     tb.append(tr);
@@ -210,8 +235,13 @@ function update(asked) {
   if (document.hidden) { mt.timer = null; return; }
   mt.busy = true;
   mtStatus("Asking…");
+  const gen = mt.unitsGen;    // Units changed meanwhile: the radio's answer is from before
   $.ajax({url: "/api/meteo", data: {grid: $("#mt-grid").val().trim(), asked: asked ? 1 : 0}, dataType: "json", timeout: 160000,
-    success: (d) => { mt.data = d; render(); mtStatus(d.where + " · " + d.updated + " " + tz()); schedule(900); },
+    success: (d) => {
+      mt.data = d;
+      if (gen === mt.unitsGen) { mt.us = !!d.us; $("#mt-units").val(mt.us ? "1" : "0"); }
+      render(); mtStatus(d.where + " · " + d.updated + " " + tz()); schedule(900);
+    },
     error: (x) => { mtStatus(x.responseJSON ? x.responseJSON.msg : "No answer from the radio", true); schedule(120); },
     complete: () => { mt.busy = false; }});
 }
@@ -220,6 +250,21 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden && !mt.busy && (mt.timer === null || Date.now() >= mt.next)) update(false);
 });
 $("#mt-grid").on("change", () => update(true));
+// Units: the radio's Weather units, set there through the Display page's call (the GUI checks it); shown at once,
+// back as it was when the radio does not take it
+$("#mt-units").on("change", function () {
+  const was = mt.us;
+  mt.us = this.value === "1";
+  mt.unitsGen++;
+  render();
+  $.ajax({url: "/api/display", type: "POST", data: JSON.stringify({name: "meteo_units", val: mt.us ? 1 : 0}),
+    contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
+    success: () => mtStatus((mt.us ? "US units" : "Metric units") + ": set on the radio too"),
+    error: (x, why) => {
+      mt.us = was; $("#mt-units").val(was ? "1" : "0"); render();
+      mtStatus(x6100FailText(x, why), true);
+    }});
+});
 $("#mt-upd").on("click", () => update(true));
 update(true);
 </script>

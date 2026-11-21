@@ -15,7 +15,9 @@
  *  - the levels' names (the US weather service's severity words, the colours of the others) and colours;
  *  - the place's times as the screen shows them ("Mon 16 15:00"), the day's name in the GUI's language;
  *  - a warning on one line: the service's own words, or one worked out from the forecast in the GUI's words; its time
- *    span, "today" and "tomorrow" for the worked-out ones.
+ *    span, "today" and "tomorrow" for the worked-out ones;
+ *  - Weather units (#315): each number in metric and in US units as units_cases.txt has it (the web page's test reads
+ *    the same file), the units' names, the decimals, and the worked-out warnings in US units.
  */
 
 #include "meteo.h"
@@ -87,6 +89,8 @@ static ParamInt  from;
 static ParamText place;
 ParamInt        *cfg_meteo_from  = &from;
 ParamText       *cfg_meteo_place = &place;
+static ParamInt  units;     /* Weather units */
+ParamInt        *cfg_meteo_units = &units;
 
 int32_t param_i_get(const ParamInt *p) {
     return p->v;
@@ -133,6 +137,7 @@ const char *i18n_tr(const char *s) {
 
 static void reset(void) {
     from.v     = METEO_FROM_RADIO;
+    units.v    = METEO_UNITS_METRIC;
     place.v[0] = 0;
     gps_ok = phone_ok = false;
     gps_age = phone_age = 5;
@@ -369,6 +374,90 @@ static void test_warnings(void) {
     cJSON_Delete(heat);
 }
 
+/* Each case of units_cases.txt (its header says the form) */
+static void test_units_cases(void) {
+    static const char *const qty[] = {"temp", "speed", "press", "rain", "dist"};
+    static const char *const how[] = {"unit", "deg", "bare"};
+    FILE *f = fopen("units_cases.txt", "r");
+    char  line[200], u[16], q[16], h[16], want[64], got[64];
+    int   n = 0, dec, qi, hi;
+    double v;
+
+    check(f != NULL, "units_cases.txt", "not found: run from tools/meteo");
+    if (!f) return;
+    while (fgets(line, sizeof(line), f)) {
+        if (line[0] == '#' || line[0] == '\n') continue;
+        if (sscanf(line, "%15s %15s %lf %d %15s %63[^\n]", u, q, &v, &dec, h, want) != 6) {
+            check(false, "a case of units_cases.txt", line);
+            continue;
+        }
+        for (qi = 0; qi < 5 && strcmp(q, qty[qi]); qi++) {}
+        for (hi = 0; hi < 3 && strcmp(h, how[hi]); hi++) {}
+        check(qi < 5 && hi < 3, "a case's quantity and form", line);
+        if (qi == 5 || hi == 3) continue;
+        units.v = !strcmp(u, "us") ? METEO_UNITS_US : METEO_UNITS_METRIC;
+        meteo_format(got, sizeof(got), (meteo_qty_t)qi, v, dec, (meteo_show_t)hi);
+        snprintf(line + strcspn(line, "\n"), 2, "%s", "");
+        check_str(got, want, line);
+        n++;
+    }
+    fclose(f);
+    check(n >= 30, "the cases read", "fewer than 30");
+    units.v = METEO_UNITS_METRIC;
+}
+
+static void test_units(void) {
+    char   b[200];
+    int    dec = -1;
+    cJSON *gust = warning("{\"src\":\"forecast\",\"level\":3,\"calc\":\"gust\",\"value\":95,\"day\":0}");
+    cJSON *rain = warning("{\"src\":\"forecast\",\"level\":3,\"calc\":\"rain\",\"value\":120,\"day\":0}");
+    cJSON *heat = warning("{\"src\":\"forecast\",\"level\":2,\"calc\":\"heat\",\"value\":36.4,\"day\":0}");
+    cJSON *cold = warning("{\"src\":\"forecast\",\"level\":3,\"calc\":\"cold\",\"value\":-21,\"day\":1}");
+    cJSON *nws  = warning("{\"src\":\"NWS\",\"level\":3,\"event\":\"High Wind Warning\"}");
+
+    test_units_cases();
+    reset();
+    check(!meteo_us() && !strcmp(meteo_unit(METEO_PRESS), "hPa"), "metric by default", meteo_unit(METEO_PRESS));
+    cfg_meteo_units = NULL;
+    check(!meteo_us(), "no setting: metric", NULL);
+    cfg_meteo_units = &units;
+    meteo_value(METEO_RAIN, 6.4, 1, &dec);
+    check(dec == 1, "metric: the decimals asked", NULL);
+    meteo_warning_title(b, sizeof(b), heat);
+    check_str(b, "Yellow: heat, a high of 36 °C, from the forecast", "metric: a tenth rounded as the forecast's");
+    meteo_warning_title(b, sizeof(b), rain);
+    check_str(b, "Orange: 120 mm of rain, from the forecast", "metric rain");
+
+    units.v = METEO_UNITS_US;
+    check(meteo_us(), "US units", NULL);
+    check_str(meteo_unit(METEO_TEMP), "°F", "US: °F");
+    check_str(meteo_unit(METEO_SPEED), "mph", "US: mph");
+    check_str(meteo_unit(METEO_PRESS), "inHg", "US: inHg");
+    check_str(meteo_unit(METEO_RAIN), "in", "US: in");
+    check_str(meteo_unit(METEO_DIST), "mi", "US: mi");
+    meteo_value(METEO_PRESS, 1013.25, 0, &dec);
+    check(dec == 2, "US: inHg to the hundredth whatever the screen asks", NULL);
+    meteo_value(METEO_TEMP, 9.4, 1, &dec);
+    check(dec == 0, "US: whole degrees", NULL);
+    check(meteo_value(METEO_TEMP, 100, 0, NULL) == 212, "US: 100 °C is 212 °F", NULL);
+    meteo_warning_title(b, sizeof(b), gust);
+    check_str(b, "Orange: gusts up to 59 mph, from the forecast", "US: gusts in mph");
+    meteo_warning_title(b, sizeof(b), rain);
+    check_str(b, "Orange: 4.72 in of rain, from the forecast", "US: rain in inches");
+    meteo_warning_title(b, sizeof(b), heat);
+    check_str(b, "Yellow: heat, a high of 98 °F, from the forecast", "US: the heat from the tenth, not 36 °C");
+    meteo_warning_title(b, sizeof(b), cold);
+    check_str(b, "Orange: cold, a low of -6 °F, from the forecast", "US: the cold");
+    meteo_warning_title(b, sizeof(b), nws);
+    check_str(b, "Severe: High Wind Warning", "US: a service's own words as they are");
+    units.v = METEO_UNITS_METRIC;
+    cJSON_Delete(gust);
+    cJSON_Delete(rain);
+    cJSON_Delete(heat);
+    cJSON_Delete(cold);
+    cJSON_Delete(nws);
+}
+
 int main(void) {
     test_position();
     test_from();
@@ -377,6 +466,7 @@ int main(void) {
     test_levels();
     test_times();
     test_warnings();
+    test_units();
     printf("%s: %d of %d checks failed\n", fails ? "FAILED" : "ok", fails, checks);
     return fails ? 1 : 0;
 }

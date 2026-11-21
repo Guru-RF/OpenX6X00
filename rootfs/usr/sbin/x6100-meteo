@@ -735,7 +735,8 @@ def cap_feed_alerts(src, lat, lon, lang, zone):
 
 def computed_alerts(days, where, zone):
     """Today's and tomorrow's: gusts, rain, thunderstorms, heat, cold, UV; not official ("calc" names it, "value"
-    gives its number, for the GUI's own words)"""
+    gives its number, for the GUI's own words: metric to a tenth as the forecast has it, so that the GUI's US units
+    convert the forecast's own number, #315)"""
     out = []
     for k, d in enumerate((days or [])[:2]):
         g, mm, code = d.get("gust_max"), d.get("rain_mm"), d.get("code")
@@ -757,7 +758,7 @@ def computed_alerts(days, where, zone):
         for level, what, value, text in checks:
             a = warning("forecast", level, text, "", "", where, f"{d['date']}T00:00", f"{d['date']}T23:59", True,
                         zone, ident=f"calc|{d['date']}|{what}|{level}")
-            a.update(kind="computed", calc=what, value=round(value) if value is not None else None, day=k)
+            a.update(kind="computed", calc=what, value=round(value, 1) if value is not None else None, day=k)
             out.append(a)
     return out
 
