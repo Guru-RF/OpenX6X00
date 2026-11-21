@@ -141,9 +141,18 @@ static void page_press(button_data_t *btn) {
     if (btn->next && btn->next->items[1]) tab_press(btn->next->items[1]);
 }
 
-static button_data_t btn_p1        = { .type = BTN_TEXT, .label = "(SETTINGS\n1:3)", .press = page_press };
-static button_data_t btn_p2        = { .type = BTN_TEXT, .label = "(SETTINGS\n2:3)", .press = page_press };
-static button_data_t btn_p3        = { .type = BTN_TEXT, .label = "(SETTINGS\n3:3)", .press = page_press };
+/* Held: the page before, and its first tab (#317) */
+static void page_hold(button_data_t *btn) {
+    buttons_page_t *prev = buttons_page_before(btn);
+
+    if (!prev) return;
+    buttons_load_page(prev);
+    if (prev->items[1]) tab_press(prev->items[1]);
+}
+
+static button_data_t btn_p1        = { .type = BTN_TEXT, .label = "(SETTINGS\n1:3)", .press = page_press, .hold = page_hold };
+static button_data_t btn_p2        = { .type = BTN_TEXT, .label = "(SETTINGS\n2:3)", .press = page_press, .hold = page_hold };
+static button_data_t btn_p3        = { .type = BTN_TEXT, .label = "(SETTINGS\n3:3)", .press = page_press, .hold = page_hold };
 static button_data_t btn_general   = { .type = BTN_TEXT, .label = "General", .press = tab_press };
 static button_data_t btn_display   = { .type = BTN_TEXT, .label = "Display", .press = tab_press };
 static button_data_t btn_audio     = { .type = BTN_TEXT, .label = "Audio", .press = tab_press };
@@ -1812,13 +1821,28 @@ static lv_obj_t * wl_button(uint8_t row, const char *text, lv_event_cb_t cb) {
     return obj;
 }
 
+/* The notes' font: two lines of it fill a row */
+static const lv_font_t * wl_note_font() {
+    return theme_shape.vision ? &sony_18 : &sony_20;   /* one size up: two would overflow */
+}
+
 /* Note to the right of a 3-column control: two lines in its own columns, a longer one ran off the card */
 static lv_obj_t * wl_note(uint8_t row) {
-    lv_obj_t *obj = wl_label(grid, theme_shape.vision ? &sony_18 : &sony_20, theme_hex(TC_text_dim), 0);   /* one size up: two would overflow */
+    lv_obj_t *obj = wl_label(grid, wl_note_font(), theme_hex(TC_text_dim), 0);
 
     lv_obj_set_width(obj, SMALL_3);
     lv_label_set_long_mode(obj, LV_LABEL_LONG_WRAP);
     lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_START, 4, 3, LV_GRID_ALIGN_CENTER, row, 1);
+    return obj;
+}
+
+/* A note of a list that may run long (the clients allowed, the paired browsers): its two lines, dots at the end of
+ * the second. It was made 330 px wide in its 181 px cell, and ran off the screen instead (#311) */
+static lv_obj_t * wl_note_list(uint8_t row) {
+    lv_obj_t *obj = wl_note(row);
+
+    lv_obj_set_height(obj, 2 * lv_font_get_line_height(wl_note_font()));
+    lv_label_set_long_mode(obj, LV_LABEL_LONG_DOT);
     return obj;
 }
 
@@ -2553,13 +2577,13 @@ static uint8_t make_headphones(uint8_t row) {
     return row;
 }
 
-/* TCI server (tci_server.c): on/off, the port and the connected client */
+/* TCI server (tci_server.c): on/off, the port, the clients connected */
 
 static struct {
     lv_obj_t *sw;
     lv_obj_t *port;
     lv_obj_t *pill;
-    lv_obj_t *client;
+    lv_obj_t *client;    /* the row under the pill: every client's address */
     lv_obj_t *trust;     /* Operate / Listen only (R3) */
     lv_obj_t *ask;       /* a client on the network asks before it transmits */
     lv_obj_t *allowed;   /* the note beside Forget: the clients allowed always */
@@ -2587,8 +2611,10 @@ static void rs_update() {
     }
     wl_pill(rs.pill, n ? (n == 1 ? "1 viewer" : "viewers") : NULL, theme_hex(TC_ok_bg), theme_hex(TC_ok));
     nn_load(name, sizeof(name));
+    /* a viewer's address alone: the port is the radio's, as without one, and beside the pill there is no room for
+     * both (#311) */
     if (ip)
-        snprintf(text, sizeof(text), "%s, port %d", ip, remote_server_port());
+        snprintf(text, sizeof(text), "%s", ip);
     else
         snprintf(text, sizeof(text), "%s.local/remote, port %d", name, remote_server_port());
     lv_label_set_text(rs.info, text);
@@ -2598,7 +2624,7 @@ static void rs_update() {
         char names[160];
         int  k = remote_server_sessions(names, sizeof(names));
         if (k)
-            snprintf(text, sizeof(text), "%d paired: %s", k, names);
+            snprintf(text, sizeof(text), "%d paired:\n%s", k, names);
         else
             snprintf(text, sizeof(text), "no browser paired yet");
         lv_label_set_text(rs.sess, text);
@@ -2643,9 +2669,11 @@ static uint8_t make_remote(uint8_t row) {
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(obj, 12, 0);
     lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_START, 1, 6, LV_GRID_ALIGN_CENTER, row, 1);
+    lv_obj_set_width(obj, SMALL_6);    /* the text takes what the pill leaves of the cell, dots at its end */
     rs.pill = wl_pill_create(obj, 0);
     rs.info = wl_label(obj, SF(22), theme_hex(TC_text), 0);
-    lv_obj_set_size(rs.info, 400, lv_font_get_line_height(SF(22)));
+    lv_obj_set_height(rs.info, lv_font_get_line_height(SF(22)));
+    lv_obj_set_flex_grow(rs.info, 1);
     lv_label_set_long_mode(rs.info, LV_LABEL_LONG_DOT);
     row++;
 
@@ -2658,15 +2686,14 @@ static uint8_t make_remote(uint8_t row) {
 
     wl_row_label(row, "Sessions");
     wl_button(row, "Forget all", rs_forget_cb);
-    rs.sess = wl_note(row);
-    lv_label_set_long_mode(rs.sess, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(rs.sess, 330);
+    rs.sess = wl_note_list(row);
     return row + 1;
 }
 
 static void wv_update() {
-    const char *name = tci_server_client();
-    char        port[24];
+    const char      *name = tci_server_client();
+    char             port[24], addrs[320];
+    const lv_font_t *font = SF(22);
 
     rs_update();
 
@@ -2678,7 +2705,23 @@ static void wv_update() {
     snprintf(port, sizeof(port), "TCP %d", tci_server_port());
     lv_label_set_text(wv.port, port);
     wl_pill(wv.pill, name ? "connected" : NULL, theme_hex(TC_ok_bg), theme_hex(TC_ok));
-    lv_label_set_text(wv.client, name ? name : "no client");
+    /* The addresses in the row's size when they fit on one line, else on two in the notes', the first line ending
+     * after the last address that fits: LVGL would break one at a dot */
+    snprintf(addrs, sizeof(addrs), "%s", name ? name : _("no client"));
+    if (name && lv_txt_get_width(addrs, strlen(addrs), font, 0, LV_TEXT_FLAG_NONE) > SMALL_6) {
+        char *cut = NULL;
+
+        font = wl_note_font();
+        for (char *p = strstr(addrs, ", "); p; p = strstr(p + 2, ", ")) {
+            if (lv_txt_get_width(addrs, p + 1 - addrs, font, 0, LV_TEXT_FLAG_NONE) > SMALL_6) break;
+            cut = p;
+        }
+        if (cut) cut[1] = '\n';
+    }
+    if (strcmp(lv_label_get_text(wv.client), addrs)) {
+        lv_obj_set_style_text_font(wv.client, font, 0);
+        lv_label_set_text(wv.client, addrs);
+    }
     lv_obj_set_style_text_color(wv.client, name ? TC(text) : TC(text_faint), 0);
     /* Not while the list is open: the knob moves the dropdown's selection before the press
      * confirms it, and putting it back to the setting every second turned a Listen only
@@ -2696,7 +2739,7 @@ static void wv_update() {
         char list[160], text[176];
         int  k = tci_server_allowed(list, sizeof(list));
         if (k)
-            snprintf(text, sizeof(text), "%d allowed: %s", k, list);
+            snprintf(text, sizeof(text), "%d allowed:\n%s", k, list);
         else
             snprintf(text, sizeof(text), "none allowed always");
         if (strcmp(lv_label_get_text(wv.allowed), text))
@@ -2740,9 +2783,16 @@ static uint8_t make_tci(uint8_t row) {
     lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_START, 1, 6, LV_GRID_ALIGN_CENTER, row, 1);
     wv.port = wl_label(obj, SF(22), theme_hex(TC_text_dim), 0);
     wv.pill = wl_pill_create(obj, 0);
-    wv.client = wl_label(obj, SF(22), theme_hex(TC_text), 0);
-    lv_obj_set_size(wv.client, 170, lv_font_get_line_height(SF(22)));   /* one line, then dots */
-    lv_label_set_long_mode(wv.client, LV_LABEL_LONG_DOT);
+    row++;
+
+    /* The clients' addresses under it, all of them: beside the port and the pill there was room for 9 characters
+     * of one, and 192.168.8.123 ran off the screen (#311). On one line when they fit, else on two in the notes' size
+     * (wv_update): four addresses, or one over Funnel with its IPv6 address */
+    wl_row_label(row, "Connected from");
+    wv.client = wl_label(grid, SF(22), theme_hex(TC_text), 0);
+    lv_obj_set_width(wv.client, SMALL_6);
+    lv_label_set_long_mode(wv.client, LV_LABEL_LONG_WRAP);
+    lv_obj_set_grid_cell(wv.client, LV_GRID_ALIGN_START, 1, 6, LV_GRID_ALIGN_CENTER, row, 1);
     row++;
 
     /* What a client may do: tune and key as always, or only hear and follow */
@@ -2762,9 +2812,7 @@ static uint8_t make_tci(uint8_t row) {
     /* Those it was answered Always for: by their address */
     wl_row_label(row, "Allowed");
     wl_button(row, "Forget all", wv_forget_cb);
-    wv.allowed = wl_note(row);
-    lv_label_set_long_mode(wv.allowed, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(wv.allowed, 330);
+    wv.allowed = wl_note_list(row);
     lv_label_set_text(wv.allowed, "");
     return row + 1;
 }

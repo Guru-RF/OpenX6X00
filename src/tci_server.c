@@ -2758,19 +2758,21 @@ int tci_server_audio_clients(void) {
 }
 
 const char *tci_server_client(void) {
-    static char buf[64];
+    static char buf[MAX_CLIENTS * 72];
+    size_t      k = 0;
 
+    buf[0] = 0;
     for (int i = 0; i < MAX_CLIENTS; i++) {
         client_t *c = &clients[i];
         pthread_mutex_lock(&c->lock);
-        bool up = c->fd >= 0 && c->up;
-        if (up)
-            snprintf(buf, sizeof(buf), "%s%s", c->ip, c->funnel ? " via Funnel" : c->bt ? " via Bluetooth" : "");
+        if (c->fd >= 0 && c->up && k + 1 < sizeof(buf)) {
+            int w = snprintf(buf + k, sizeof(buf) - k, "%s%s%s", k ? ", " : "", c->ip,
+                             c->funnel ? " via Funnel" : c->bt ? " via Bluetooth" : "");
+            k += w > 0 ? (size_t)w : 0;
+        }
         pthread_mutex_unlock(&c->lock);
-        if (up)
-            return buf;
     }
-    return NULL;
+    return k ? buf : NULL;
 }
 
 /* Queued for the socket thread (bt_handed): it alone touches the clients */

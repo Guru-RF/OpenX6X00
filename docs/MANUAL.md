@@ -81,7 +81,9 @@ Where: Settings > General > STATION > First-start guide (Start runs it again).
    locator: Use <locator> sets it.
 5. Country. The country you operate from, as Settings > General > STATION >
    Country has it: Country opens the list (the names in the screen's
-   language, "-" for none). With a callsign, the line From the callsign
+   language, "-" for none; the MFK goes down it to the last one, Zimbabwe;
+   up to v0.3.13 the list stopped scrolling at Tuvalu, issue #310). With a
+   callsign, the line From the callsign
    offers its country (from cty.dat): Use <country> sets it. The line under
    it says what the band plan takes now: "Auto, Region 1 from the country",
    from the GPS, the locator or the callsign (see [Band plan](#band-plan)).
@@ -293,8 +295,16 @@ closes the grid. Four rows are in sight; the grid scrolls to the rows below
 as the MFK goes there (or by a swipe on the touch screen). "APP > CW Keyboard" in this manual is the tile, or the
 button on APP 3:6.
 
-- Each app has its own button pages, named like `(JS8 1:4)`. The first
-  button goes to the next page.
+- Each app has its own button pages, named like `(JS8 1:4)`, as the main
+  screen's buttons have theirs (`APP 3:6`, `KEY 1:2`). The first button, the
+  page button, goes to the next page; held (1 s, half a second in JS8), it
+  goes one page back, from the first page round to the last. The same on
+  every bar of more than one page, in every app, and on the touch screen.
+  Up to v0.3.13 only the main screen and some apps (JS8, WSPR, PSK, Olivia,
+  RTTY, JTTY, RADE, the CW Trainer, Walkie and a few more) went back: held,
+  the page button did nothing in FT8, the cluster, SSTV, WeFax, Field Ops,
+  NAVTEX/DSC, Settings, the CW and voice messages and the CW Keyboard
+  (issue #317).
 - The MFK walks the items of an app or a list; a press chooses.
 - ESC closes popups and apps.
 - A press of VOL does not close menus or apps, and in a text field it types
@@ -1782,7 +1792,8 @@ restart.
 APP (page 2) > Settings. The tabs are on three button pages: General, Display,
 Audio, Wireless (page 1); Bluetooth, Keys, Cluster, TX Cal (page 2); Info,
 Walkie (page 3). The page button, or the APP key pressed again, turns the
-page and opens its first tab.
+page and opens its first tab. The page button held goes one page back and
+opens that page's first tab.
 
 The MFK walks the controls and stops at the first and last one. There the
 page shows its top or its end, so status rows below the last control are
@@ -1794,12 +1805,12 @@ base is too old.
 
 | Card | Options |
 |---|---|
-| STATION | First-start guide (Start runs the [first-start guide](#first-start-guide) again), callsign (an empty field clears it), QTH locator, Country (the country you operate from, "-" for none, the default; the names in the screen's language, from the Unicode CLDR; the band plan's Auto takes its region when the GPS and the locator do not tell, see [Band plan](#band-plan); the [CB](#cb) app takes its plan until one is chosen there), Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Weather from (where APP > Weather, its notices and the web Weather page ask the weather for: Auto, the default, where the radio is; Locator, the QTH locator whatever the GPS says; Typed, the Weather place below), Weather place (degrees, "50.85, 4.35" or "34.9S 56.16W", or a locator, typed with the keyboard; typing one sets Weather from to Typed, an empty field clears it and Weather from goes back to Auto; see [Weather](#weather)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
+| STATION | First-start guide (Start runs the [first-start guide](#first-start-guide) again), callsign (an empty field clears it), QTH locator, Country (the country you operate from, "-" for none, the default; the names in the screen's language, from the Unicode CLDR; the MFK goes down the list to the last one, its lines a little closer together than in a short list, where up to v0.3.13 it stopped scrolling at Suriname, issue #310; the band plan's Auto takes its region when the GPS and the locator do not tell, see [Band plan](#band-plan); the [CB](#cb) app takes its plan until one is chosen there), Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Weather from (where APP > Weather, its notices and the web Weather page ask the weather for: Auto, the default, where the radio is; Locator, the QTH locator whatever the GPS says; Typed, the Weather place below), Weather place (degrees, "50.85, 4.35" or "34.9S 56.16W", or a locator, typed with the keyboard; typing one sets Weather from to Typed, an empty field clears it and Weather from goes back to Auto; see [Weather](#weather)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone, 12-hour clock (the clock at the top right as `1:05:30 PM`, off as `13:05:30`, the default; VISION shows `1:05 PM`, Ops Room's digits the hours 1 to 12 without AM or PM; Field Ops' clock and its QSO times and Walkie Talkie's clock follow it, `1:05 PM`; the logs, FT8 and the other digital modes stay on UTC; #54) |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off, the default on both radios (see [Amateur bands only](#amateur-bands-only) and [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
 | WR12 RECEIVER | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
-| TCI SERVER | on/off, port and status, connected client, Clients (Operate or Listen only), Ask before TX (on by default) and Allowed with Forget all (see [TCI server](#tci-server)) |
+| TCI SERVER | on/off, Port / Status (the port, "connected" while a client is), Connected from (the address of each client connected), Clients (Operate or Listen only), Ask before TX (on by default) and Allowed with Forget all (see [TCI server](#tci-server)) |
 | TEXT LOG | Keyboard modes (on by default), Size limit (1-100 MB, 10 MB by default): what PSK, Olivia, Contestia and JTTY receive and send, and what RTTY receives, on the card (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
 
 Main knob acceleration. Where: Settings > General > CONTROLS > Freq
@@ -8845,8 +8856,12 @@ the radio, hears it, keys it and sends CW with it.
     keys at once, as before. A `/mnt/tci.conf` from before has no
     `tx_confirm` and asks. Turning it off while the radio asks closes the
     question; the client's next start keys.
-- The TCI SERVER card shows the connected client (address), "no client"
-  otherwise.
+- The TCI SERVER card shows "connected" beside the port while a client is,
+  and on the row under it, Connected from, the address of each client
+  connected ("via Funnel" or "via Bluetooth" after one that came so), "no
+  client" otherwise. Addresses that do not fit on one line go on two in a
+  smaller size: four addresses, or an IPv6 one over Funnel. Allowed shows how
+  many are kept and as many of them as fit on its two lines.
 - What it carries: `vfo`, `modulation` (lsb, usb, cw, cwr, am, nfm, digl,
   digu), `rx_filter_band`, `agc_mode`, `rit_enable` / `rit_offset`,
   `drive` (TX power, 0-100 %: 0.1 W up to 10 W, 8 W on the X6200; on

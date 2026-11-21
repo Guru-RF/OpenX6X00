@@ -195,26 +195,27 @@ static time_t      join_t0;         /* the start of the chart joined */
  * Page 1 what the app is for off-grid, 2 reception by hand, 3 the live picture's settings and TX power, 4 the
  * charts at night. The tiles, a chart large and the full screen have their own buttons, F5 one level up there */
 
-static button_data_t btn_page_1   = {.type = BTN_TEXT, .label = "(FAX 1:4)", .press = page_2_cb};
+/* Each page button held goes to the page before (#317) */
+static button_data_t btn_page_1   = {.type = BTN_TEXT, .label = "(FAX 1:4)", .press = page_2_cb, .hold = page_4_cb};
 static button_data_t btn_plan     = {.type = BTN_TEXT_FN, .label_fn = plan_label, .press = plan_cb};
 static button_data_t btn_bulletin = {.type = BTN_TEXT, .label = "Bulletin", .press = bulletin_cb};
 static button_data_t btn_all      = {.type = BTN_TEXT, .label = "All\nCharts", .press = all_charts_cb};
 static button_data_t btn_close    = {.type = BTN_TEXT, .label = "Close", .press = close_cb};
 
-static button_data_t btn_page_2  = {.type = BTN_TEXT, .label = "(FAX 2:4)", .press = page_3_cb};
+static button_data_t btn_page_2  = {.type = BTN_TEXT, .label = "(FAX 2:4)", .press = page_3_cb, .hold = page_1_cb};
 static button_data_t btn_freq    = {.type = BTN_TEXT, .label = "Freq.", .press = freq_cb};
 static button_data_t btn_rx_mode = {.type = BTN_TEXT_FN, .label_fn = rx_mode_label, .press = rx_mode_cb};
 static button_data_t btn_view    = {.type = BTN_TEXT, .label = "View\nBig", .press = view_cb};
 static button_data_t btn_clear   = {.type = BTN_TEXT, .label = "Clear", .press = clear_cb};
 
-static button_data_t btn_page_3 = {.type = BTN_TEXT, .label = "(FAX 3:4)", .press = page_4_cb};
+static button_data_t btn_page_3 = {.type = BTN_TEXT, .label = "(FAX 3:4)", .press = page_4_cb, .hold = page_2_cb};
 static button_data_t btn_align  = {.type = BTN_TEXT_FN, .label_fn = align_label, .press = align_cb,
                                    .ctrl = CTRL_WEFAX_ALIGN, .encoder_allowed = true};
 static button_data_t btn_tilt   = {.type = BTN_TEXT_FN, .label_fn = tilt_label, .press = tilt_cb,
                                    .ctrl = CTRL_WEFAX_TILT, .encoder_allowed = true};
 static button_data_t btn_save   = {.type = BTN_TEXT, .label = "Save", .press = save_cb};
 
-static button_data_t btn_page_4 = {.type = BTN_TEXT, .label = "(FAX 4:4)", .press = page_1_cb};
+static button_data_t btn_page_4 = {.type = BTN_TEXT, .label = "(FAX 4:4)", .press = page_1_cb, .hold = page_3_cb};
 static button_data_t btn_night  = {.type = BTN_TEXT_FN, .label_fn = night_label, .press = night_cb};
 
 static buttons_page_t page_1 = {.items = {&btn_page_1, &btn_plan, &btn_bulletin, &btn_all, &btn_close}};
