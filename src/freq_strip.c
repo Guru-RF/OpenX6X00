@@ -7,7 +7,8 @@
  *  below it. A line under the digit the tuning step changes, and NR NB DNF (RIT XIT when set)
  *  over the locator, as upstream v1.0.0's step marker and indicators row. LOCK in front of the frequency while
  *  the user's frequency lock is on. The callsign in front of the locator with Settings > Display > MAIN SCREEN >
- *  Callsign on (#292).
+ *  Callsign on (#292). In CW, with Settings > Display > MAIN SCREEN > CW tune and WPM > Frequency strip, the CW
+ *  Tuner's bars and the decoder's speed between the band and the frequency (#308).
  */
 
 #include <stdbool.h>
@@ -38,9 +39,12 @@ int freq_strip_step_char(const char *text, int32_t step, bool *big) {
 #include "broadcast_db.h"
 #include "cfg/cfg_api.h"
 #include "cluster/spots.h"
+#include "cw_strip_fit.h"
+#include "cw_tune_view.h"
 #include "info.h"
 #include "main_call.h"
 #include "main_screen.h"
+#include "panel.h"
 #include "params/params.h"
 #include "station.h"
 #include "styles.h"
@@ -67,8 +71,19 @@ static lv_obj_t *lock_tag;          /* LOCK: the user's frequency lock (an app's
 static bool      user_locked;
 static lv_coord_t lock_w;           /* its width, left of the frequency */
 static bool      dialog_open;       /* deck: an app window over the strip's lower half, the frequency smaller */
+static bool      window_open;       /* any window: it covers the spectrum, where the CW group would be (#308) */
+
+/* In the frequency strip (#308): the decoder's speed, its number over "WPM", and where the group of it and the CW
+ * Tuner's bars starts, -1 not in the strip (on the spectrum). The bars are cw_tune_view.c's, placed from here */
+static lv_obj_t  *wpm_box, *wpm_num, *wpm_unit;
+static int        wpm_value = -1;   /* the last speed the decoder sent, -1 none yet */
+static lv_coord_t cw_x = -1;
+static int32_t    cw_laid[4];       /* the speed's box as last laid out: not again at each tuning step */
 
 #define LOCK_GAP 12
+#define CW_GAP   12                 /* between the CW group and the band, the frequency or LOCK */
+#define CW_NUM_FONT  sony_24        /* the speed's number, as the band's name and the mode */
+#define CW_UNIT_FONT sony_16        /* "WPM" under it; stacked, "22 WPM" */
 
 static void vision_fit(void);
 static void call_fit(void);
@@ -180,6 +195,126 @@ static lv_coord_t lock_room(void) {
     return user_locked && !theme_shape.deck && !theme_shape.vision ? lock_w + LOCK_GAP : 0;
 }
 
+/* Where the band label has to end: before the frequency (and LOCK in front of it), or before the CW group */
+static lv_coord_t band_end(void) {
+    return cw_x >= 0 ? cw_x - CW_GAP : lv_obj_get_x(mid) - 12 - lock_room();
+}
+
+/* The CW group wanted in the strip: the setting, CW or CW-R, the bars or the speed on. Not in the deck themes, whose
+ * strip holds the meter on the left and the other VFO, LOCK and the A/B badge on the right, nor in Amber Trey; and
+ * not under a window, which covers the spectrum where they are otherwise: the app's name has the strip */
+static bool cw_wanted(void) {
+    radio_mode_t mode = cparam_i_get(cfg_cur_mode);
+
+    return param_i_get(cfg_cw_tune_place) && (mode == radio_mode_cw || mode == radio_mode_cwr) &&
+           (param_i_get(cfg_cw_tune) || param_i_get(cfg_cw_decoder)) && !theme_shape.deck && !theme_amber &&
+           !window_open && !app[0];
+}
+
+/* The sizes cw_strip_fit() picks from, in this theme's fonts; the room it is to fit left empty */
+static cw_strip_in_t cw_sizes(void) {
+    const lv_font_t *num = &CW_NUM_FONT, *unit = &CW_UNIT_FONT;
+    cw_strip_in_t    in = {
+        .bars = param_i_get(cfg_cw_tune) && !theme_amber,
+        .wpm = param_i_get(cfg_cw_decoder),
+        .num_w = lv_txt_get_width("88", 2, num, 0, LV_TEXT_FLAG_NONE),     /* two digits, 5 to 50 */
+        .num_h = lv_font_get_line_height(num),
+        .unit_w = lv_txt_get_width("WPM", 3, unit, 0, LV_TEXT_FLAG_NONE),
+        .unit_h = lv_font_get_line_height(unit),
+        .line_w = lv_txt_get_width("88 WPM", 6, unit, 0, LV_TEXT_FLAG_NONE),
+    };
+
+    return in;
+}
+
+/* What the band label keeps beside the CW group: the band's name ("160m") whole; a broadcast station's or a memory's
+ * name is cut to what is left, a station down to its tag with "..." */
+static lv_coord_t band_min_w(void) {
+    const lv_font_t *font = lv_obj_get_style_text_font(band_label, 0);
+    lv_coord_t       ls = lv_obj_get_style_text_letter_space(band_label, 0);
+    const char      *name = cluster_band_name(cluster_band_of(cparam_i_get(cfg_fg_freq)));
+    lv_coord_t       w = lv_txt_get_width(name, strlen(name), font, ls, LV_TEXT_FLAG_NONE);
+
+    if (bc_tagged) w = LV_MAX(w, lv_txt_get_width("BC  ...", 7, font, ls, LV_TEXT_FLAG_NONE) + 2 * 6 + 2);
+    return w;
+}
+
+static void wpm_show(void) {
+    if (!wpm_box) return;
+    if (wpm_value < 0) {
+        lv_label_set_text(wpm_num, "");
+    } else if (lv_obj_has_flag(wpm_unit, LV_OBJ_FLAG_HIDDEN)) {     /* stacked: "22 WPM" on one line */
+        lv_label_set_text_fmt(wpm_num, "%d WPM", wpm_value);
+    } else {
+        lv_label_set_text_fmt(wpm_num, "%d", wpm_value);
+    }
+}
+
+/* The speed's box at x, y in the strip: the number over "WPM", or "22 WPM" on one line (stacked) */
+static void wpm_layout(const cw_strip_fit_t *fit, bool shown, lv_coord_t x, lv_coord_t y) {
+    if (!shown) {
+        lv_obj_add_flag(wpm_box, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    lv_obj_clear_flag(wpm_box, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_pos(wpm_box, x, y);
+    lv_obj_set_size(wpm_box, fit->wpm_w, fit->wpm_h);
+    if (fit->one_line) {
+        lv_obj_add_flag(wpm_unit, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_style_text_font(wpm_num, &CW_UNIT_FONT, 0);
+        lv_obj_align(wpm_num, LV_ALIGN_CENTER, 0, 0);
+    } else {
+        lv_obj_clear_flag(wpm_unit, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_style_text_font(wpm_num, &CW_NUM_FONT, 0);
+        lv_obj_align(wpm_num, LV_ALIGN_TOP_MID, 0, 0);
+        lv_obj_align(wpm_unit, LV_ALIGN_BOTTOM_MID, 0, 0);
+    }
+    wpm_show();
+}
+
+/* The CW group into the room between the band's name and the frequency, at the frequency's (LOCK's) side: the first
+ * form of cw_strip_fit.h that fits, or none (back on the spectrum, as with Spectrum). The panel above the
+ * waterfall drops the speed it shows there, VISION's panel its top line */
+static void cw_fit(void) {
+    bool           was = cw_x >= 0;
+    cw_strip_fit_t fit = {.form = CW_STRIP_NONE};
+    lv_coord_t     right = 0, content_h = 0;
+    cw_strip_in_t  in;
+
+    cw_x = -1;
+    if (wpm_box && cw_wanted()) {
+        lv_obj_update_layout(strip);
+        in = cw_sizes();
+        right = lv_obj_get_x(mid) - 12 - lock_room();
+        content_h = lv_obj_get_content_height(strip);
+        in.room_w = right - (lv_obj_get_x(band_label) + band_min_w() + CW_GAP);
+        in.room_h = content_h - 2;
+        fit = cw_strip_fit(&in);
+    }
+    if (fit.form == CW_STRIP_NONE) {
+        if (wpm_box) lv_obj_add_flag(wpm_box, LV_OBJ_FLAG_HIDDEN);
+        memset(cw_laid, 0, sizeof(cw_laid));
+        cw_tune_set_strip(NULL, 0, 0);
+    } else {
+        lv_coord_t x = right - fit.w, y = (content_h - fit.h) / 2;
+        int32_t    laid[4] = {in.wpm ? fit.one_line + 1 : 0, x + fit.wpm_x, y + fit.wpm_y, fit.wpm_w};
+        lv_area_t  c, bars;
+
+        cw_x = x;
+        if (memcmp(laid, cw_laid, sizeof(laid))) {
+            memcpy(cw_laid, laid, sizeof(laid));
+            wpm_layout(&fit, in.wpm, x + fit.wpm_x, y + fit.wpm_y);
+        }
+        lv_obj_get_content_coords(strip, &c);
+        bars.x1 = c.x1 + x + fit.bars_x;
+        bars.y1 = c.y1 + y + fit.bars_y;
+        bars.x2 = bars.x1 + fit.bars_w - 1;
+        bars.y2 = bars.y1 + fit.bars_h - 1;
+        cw_tune_set_strip(in.bars ? &bars : NULL, fit.bar_w, fit.gap);
+    }
+    if (was != (cw_x >= 0)) panel_info_place();
+}
+
 /* A broadcast station in a tag, "BC" in front, so it is not read as a band or a memory */
 static void bc_tag(bool on) {
     lv_obj_set_style_border_width(band_label, on ? 1 : 0, 0);
@@ -217,7 +352,7 @@ static void band_fit(const char *band) {
 
     lv_obj_update_layout(strip);
 
-    lv_coord_t room = lv_obj_get_x(mid) - lv_obj_get_x(band_label) - 12 - lock_room();
+    lv_coord_t room = band_end() - lv_obj_get_x(band_label);
 
     if (lv_obj_get_width(band_label) <= room) return;
     snprintf(t, sizeof(t), "%s%s%s", app, a ? " " : "", band);
@@ -252,8 +387,9 @@ static void vision_fit(void) {
         lv_obj_align(mid, LV_ALIGN_CENTER, -over, 0);
         lv_obj_update_layout(strip);
     }
+    cw_fit();   /* where the big digits are now */
 
-    lv_coord_t room = lv_obj_get_x(mid) - lv_obj_get_x(band_label) - 12 - lock_room();
+    lv_coord_t room = band_end() - lv_obj_get_x(band_label);
 
     if (bc_tagged) {
         bc_fit(room);
@@ -276,9 +412,13 @@ static lv_coord_t band_room(void) {
 
     const char *t = lv_label_get_text(band_label);
 
+    /* The CW group as narrow as it goes (#308): the callsign gives way to it as to the band's name */
+    cw_strip_in_t in = cw_sizes();
+    lv_coord_t    cw = cw_wanted() ? cw_strip_min_w(&in) : 0;
+
     return lv_txt_get_width(t, strlen(t), lv_obj_get_style_text_font(band_label, 0),
                             lv_obj_get_style_text_letter_space(band_label, 0), LV_TEXT_FLAG_RECOLOR) +
-           12 + lock_room();
+           12 + lock_room() + (cw > 0 ? cw + CW_GAP : 0);
 }
 
 /* The callsign in front of the locator while the frequency leaves it the room: in a split the two frequencies take
@@ -364,13 +504,15 @@ static void update_cb(Subject *subj, void *user_data) {
         if (theme_shape.vision) lv_obj_set_style_text_font(band_label, &sony_36, 0);
         lv_label_set_text(band_label, band);
     }
+    bc_tagged = band == bc;
+    cw_fit();       /* first: the band's name then has the room the CW group leaves (#308) */
     /* A station: in its tag, on one line up to the frequency (deck: 300 px, before the other
      * VFO), cut with dots */
     if (theme_shape.deck ? bc[0] && !app[0] : band == bc) {
         bc_tag(true);
         lv_obj_set_size(band_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
         lv_obj_update_layout(strip);
-        bc_fit(theme_shape.deck ? 300 : lv_obj_get_x(mid) - lv_obj_get_x(band_label) - 12 - lock_room());
+        bc_fit(theme_shape.deck ? 300 : band_end() - lv_obj_get_x(band_label));
     } else {
         bc_tag(false);
         lv_obj_set_size(band_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -383,7 +525,6 @@ static void update_cb(Subject *subj, void *user_data) {
     } else {
         lv_obj_add_flag(tx_label, LV_OBJ_FLAG_HIDDEN);
     }
-    bc_tagged = band == bc;
     if (!theme_shape.deck && !theme_shape.vision && !bc_tagged) band_fit(band);
     call_fit();
     vision_fit();
@@ -477,6 +618,7 @@ lv_obj_t *freq_strip_init(lv_obj_t *parent) {
 
     lock_tag    = NULL;
     call_label  = NULL;           /* made again below: the old one went with the old strip */
+    wpm_box     = NULL;
     dialog_open = false;          /* the frequency in its full size again */
 
     strip = lv_obj_create(parent);
@@ -623,6 +765,21 @@ lv_obj_t *freq_strip_init(lv_obj_t *parent) {
     lv_obj_add_event_cb(freq_label, step_mark_draw_cb, LV_EVENT_DRAW_POST, NULL);
     lock_create(right);
     subject_subscribe_delayed((Subject *)main_call_subject, call_cb, NULL);
+
+    /* The decoder's speed in the frequency strip (#308): the number in the frequency's colour over "WPM" in the dim
+     * one. Placed by cw_fit(), out of the strip's alignments */
+    wpm_box = lv_obj_create(strip);
+    lv_obj_remove_style_all(wpm_box);
+    lv_obj_clear_flag(wpm_box, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(wpm_box, LV_OBJ_FLAG_HIDDEN);
+    wpm_num = make_label(wpm_box, LV_ALIGN_TOP_MID, 0, &CW_NUM_FONT, theme_hex(TC_text));
+    wpm_unit = make_label(wpm_box, LV_ALIGN_BOTTOM_MID, 0, &CW_UNIT_FONT, theme_hex(TC_text_dim));
+    lv_label_set_text(wpm_unit, "WPM");
+    lv_label_set_text(wpm_num, "");
+    memset(cw_laid, 0, sizeof(cw_laid));     /* the new box laid out at the first fit */
+    subject_subscribe_delayed((Subject *)cfg_cw_tune_place, update_cb, NULL);
+    subject_subscribe_delayed((Subject *)cfg_cw_tune, update_cb, NULL);
+    subject_subscribe_delayed((Subject *)cfg_cw_decoder, update_cb, NULL);
     update_cb(NULL, NULL);
     qth_update_cb(NULL);
     if (!again) lv_timer_create(qth_update_cb, QTH_POLL_MS, NULL);
@@ -643,6 +800,10 @@ void freq_strip_set_app(const char *name) {
 void freq_strip_set_dialog(bool open) {
     extern const lv_font_t rcond_freq_88, rcond_freq_54;
 
+    if (open != window_open) {
+        window_open = open;
+        if (strip && param_i_get(cfg_cw_tune_place)) update_cb(NULL, NULL);    /* the CW group goes, or comes back */
+    }
     if (!strip || !theme_shape.deck) return;
     dialog_open = open;
     lv_obj_set_style_text_font(freq_label, open ? &rcond_freq_54 : &rcond_freq_88, 0);
@@ -664,6 +825,15 @@ void freq_strip_set_lock(bool user_lock) {
 void freq_strip_set_offset(int32_t offset_hz) {
     tx_offset = offset_hz;
     if (strip) update_cb(NULL, NULL);
+}
+
+void freq_strip_set_wpm(int wpm) {
+    wpm_value = wpm;
+    wpm_show();
+}
+
+bool freq_strip_holds_cw(void) {
+    return cw_x >= 0;
 }
 
 void freq_strip_set_wr12(bool in_use) {

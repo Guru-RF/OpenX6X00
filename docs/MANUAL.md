@@ -1875,7 +1875,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | BACKLIGHT | Timeout (0 off), Brightness (see below), buttons brightness (Always Off, Always On, Temporarily On), Screensaver (None, Matrix rain), Screensaver (min) (with a screensaver: 1-120 minutes without use), Rain speed (Normal, Slow, Very slow), Screen off (min) (minutes without use, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser, no screensaver; POWER shows it for the blank time, a minute at least); see [Screensaver](#screensaver); Panel stripes fix (off by default; see [Panel stripes fix](#panel-stripes-fix)) |
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Fill by level, Filter colour, Filter shade, Shaded part, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
-| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom, Tuning steps from, to (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see below) |
+| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom, Tuning steps from, to (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see below), CW tune and WPM (Spectrum, Frequency strip; see [CW decoder](#cw-decoder)) |
 | INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Keep knob lines, Knob press: next control, Theme, Font, Language, Decoder text, FT8/FT4 info |
 
 - Timeout (0 off), Brightness: the seconds without a key or a knob before
@@ -1947,6 +1947,11 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
     [Boot picture](#boot-picture)) is shown as it is.
 
   No callsign set: nothing is shown.
+- CW tune and WPM (Spectrum by default, from v0.3.14; issue #308): where
+  the CW Tuner's bars and the decoder's speed are in CW and CW-R. Spectrum
+  keeps them over the spectrum or the waterfall, as before. Frequency strip
+  puts them in the strip between the band and the frequency; see
+  [CW decoder](#cw-decoder).
 
 All these options are also on the web configurator's Display page.
 
@@ -4879,6 +4884,28 @@ it in CW-R, and in CW its ZAP and Tuner went the wrong way (#115).
   the spectrum, at the left. Amber Trey shows them as CWT on its bar graph.
   Up to v0.3.9, with the spectrum off, they were drawn over the frequency
   scale and the band plan, where they hardly showed (#185, #217).
+- In the frequency strip. Where: Settings > Display > MAIN SCREEN > CW tune
+  and WPM > Frequency strip (Spectrum by default; also on the web
+  configurator's Display page; from v0.3.14, issue #308). In CW and CW-R
+  the bars and the speed move into the frequency strip, between the band
+  and the frequency, and the spectrum and the waterfall stay clear. The
+  speed is the number over "WPM", the bars at its right, at their size on
+  the spectrum where the strip has the room. With less room they get
+  narrower: LOCK in front of the frequency, a split's two frequencies,
+  where "22 WPM" goes on one line over the bars. The band's name stays
+  whole; a broadcast station's or a memory's name is cut shorter. The
+  frequency, the mode, the callsign and the locator do not move. The bars
+  work as on the spectrum: the lit bar solid, the others faint. With the
+  Tuner off only the speed is there, with the decoder off only the bars.
+  Where the strip has no room for them, they are back on the spectrum
+  until it has: a split with LOCK on, and VISION in a split. Under a
+  window (Settings, the CW messages, an app) they are back on the
+  spectrum too, which the window covers, as before. VISION, with its taller
+  strip, has the speed over the bars and its decoder panel no longer has a
+  top line for them; its callsign makes room for them as for the band.
+  Black Metal, Total Black and Amber Trey keep them where they are: their
+  strips hold the meter, the other VFO and the A/B badge, Amber Trey its
+  bar graph. Other modes do not change.
 
 While you send in CW or CW-R, the waterfall and the spectrum draw your
 carrier on the VFO line, as they draw a station on the dial. On an X6100
@@ -7345,7 +7372,7 @@ them.
 | Backlight | Brightness, Brightness when idle (greyed with Idle after Off), Idle after (Off, 5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver); Panel stripes fix (see [Panel stripes fix](#panel-stripes-fix)) |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX ranges (Ham bands, South Korea, Own list), TX outside ham bands (Settings > TX Cal), and the own list as a text field: Save writes `tx_ranges.conf` and the radio reads it at once, the ranges it took and a line it could not read said under it (see [Amateur bands only](#amateur-bands-only)) |
-| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom, Tuning steps from, Tuning steps to (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see [Display tab](#display-tab)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
+| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom, Tuning steps from, Tuning steps to (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see [Display tab](#display-tab)), CW tune and WPM (Spectrum, Frequency strip; see [CW decoder](#cw-decoder)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate

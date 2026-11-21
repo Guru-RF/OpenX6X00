@@ -26,6 +26,7 @@ void panel_update_visibility(bool clear);     /* shown for the mode and the deco
 void panel_add_text(const char *text);        /* any thread: decoded text, '\n' a new line */
 void panel_add_tx_text(const char *text);     /* any thread: text sent (RTTY's TX), in the TX colour, on lines of its own */
 void panel_set_info(const char *text);        /* any thread: the line above the panel (CW WPM) */
+void panel_info_place(void);                  /* that line again: the frequency strip took the CW speed or gave it back */
 
 /* The spectrum got taller: the panel starts at y, shorter */
 void panel_keep_below(lv_coord_t y);

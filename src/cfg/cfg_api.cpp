@@ -161,6 +161,7 @@ ParamInt         *cfg_paddle_swap         = nullptr;
 ParamInt         *cfg_paddle_serial       = nullptr;
 ParamInt         *cfg_cw_decoder          = nullptr;
 ParamInt         *cfg_cw_tune             = nullptr;
+ParamInt         *cfg_cw_tune_place       = nullptr;
 ParamInt         *cfg_cw_live             = nullptr;
 ParamFloat       *cfg_cw_decoder_snr      = nullptr;
 ParamInt         *cfg_agc_hang            = nullptr;
@@ -406,6 +407,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_paddle_serial    = &cfg_sm.p_paddle_serial;
     cfg_cw_decoder       = &cfg_sm.p_cw_decoder;
     cfg_cw_tune          = &cfg_sm.p_cw_tune;
+    cfg_cw_tune_place    = &cfg_sm.p_cw_tune_place;
     cfg_cw_live          = &cfg_sm.p_cw_live;
     cfg_cw_decoder_snr   = &cfg_sm.p_cw_decoder_snr;
     cfg_agc_hang         = &cfg_sm.p_agc_hang;

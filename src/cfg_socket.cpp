@@ -132,6 +132,7 @@ static const struct {
     {"freq_step_hi", &cfg_sm.p_freq_step_hi, 0, FREQ_STEPS_N - 1},
     {"power_display", &cfg_sm.p_power_display, 0, 3},  /* Main screen: live, clock.c reads it */
     {"callsign_show", &cfg_sm.p_callsign_show, 0, 1},  /* Main screen (#292): live, main_call.c follows it */
+    {"cw_tune_place", &cfg_sm.p_cw_tune_place, 0, 1},  /* Main screen (#308): live, freq_strip.c follows it */
     {"tx_outside_bands", &cfg_sm.p_tx_outside_bands, 0, 1},   /* TX Cal (#121): live, radio.c, info_bar.c and
                                                                  * freq_strip.c follow it */
     {"tx_ranges", &cfg_sm.p_tx_ranges, TX_RANGES_BANDS, TX_RANGES_OWN},  /* TX Cal (#247): the same; Own list reads

@@ -673,6 +673,11 @@ class SettingsManager {
     // the main screen (main_call.c), and on the boot logo from the next start (bootanim/bootanim.c reads it)
     Parameter<int32_t> p_callsign_show{"callsign_show", 0, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // CW tune and WPM (Settings > Display > MAIN SCREEN, live, #308): in CW the CW Tuner's bars and the decoder's
+    // speed on the spectrum (0, as up to v0.3.13) or in the frequency strip, between the band and the frequency (1,
+    // freq_strip.c), back on the spectrum while the strip has no room for them
+    Parameter<int32_t> p_cw_tune_place{"cw_tune_place", 0, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // Text log of the keyboard modes (digi_textlog.c, #55): on by default, and the most the folder keeps, MB
     Parameter<int32_t> p_textlog{"textlog", true, 0, 1,

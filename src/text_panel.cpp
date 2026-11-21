@@ -23,6 +23,7 @@ extern "C" {
     #include "params/params.h"
     #include "cw_parse.h"
     #include "cw_tune_view.h"
+    #include "freq_strip.h"
 }
 
 /* The decoder text over the waterfall (CW decoder, RTTY, NavTex): a label of the last lines,
@@ -447,21 +448,52 @@ void panel_clear(void) {
     lv_label_set_text_static(obj, buf);
 }
 
-/* CW with the decoder on, or SSB with RTTY (and NavTex) running */
-void panel_update_visibility(bool clear) {
+/* CW with the decoder on, or SSB with RTTY (and NavTex) running; *rtty for the second */
+static bool decoder_on(bool *rtty) {
     radio_mode_t mode = (radio_mode_t)cfg_sm.cp_cur_mode.get();
     bool         cw = mode == radio_mode_cw || mode == radio_mode_cwr;
     bool         ssb = (unsigned)mode <= (unsigned)radio_mode_usb_dig;   /* LSB, LSB-D, USB, USB-D */
     bool         on = cw ? cfg_sm.p_cw_decoder.get() : ssb && rtty_get_state() != RTTY_OFF;
 
-    /* RTTY: the scope, and the text keeps clear of it */
-    bool rtty = on && !cw;
-    /* The CW speed above the panel is CW's: RTTY (NavTex) showed the last "WPM: 22" over the frequency scale */
-    if (rtty) {
+    *rtty = on && !cw;
+    return on;
+}
+
+/* The CW speed above the panel, and VISION's top line of the panel for it with the CW tuning bars at its left
+ * (styles.c). The speed is CW's: RTTY (NavTex) showed the last "WPM: 22" over the frequency scale. In the frequency
+ * strip (Settings > Display > MAIN SCREEN > CW tune and WPM, #308) both are there, and VISION's text starts at the
+ * panel's top */
+static void info_place(bool on, bool rtty) {
+    bool strip = freq_strip_holds_cw();
+
+    if (rtty || strip) {
         lv_obj_add_flag(info_line, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_clear_flag(info_line, LV_OBJ_FLAG_HIDDEN);
     }
+
+    bool was_cw = vision_cw;
+
+    vision_cw = theme_shape.vision && on && !rtty && !strip;
+    if (theme_shape.vision) {
+        lv_obj_set_style_pad_top(obj, rtty || strip ? 10 : 10 + lv_font_get_line_height(&sony_24), 0);   /* styles.c */
+        text_size_cb(NULL, NULL);
+        cw_tune_set_y(vision_cw ? lv_obj_get_style_y(obj, 0) + 2 : -1);
+    } else if (was_cw) {
+        cw_tune_set_y(-1);      /* VISION left for another theme */
+    }
+}
+
+void panel_info_place(void) {
+    bool rtty, on = decoder_on(&rtty);
+
+    if (obj) info_place(on, rtty);
+}
+
+void panel_update_visibility(bool clear) {
+    bool rtty, on = decoder_on(&rtty);
+
+    /* RTTY: the scope, and the text keeps clear of it */
     if (rtty) {
         lv_obj_clear_flag(scope_box, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_style_pad_right(obj, SCOPE_SZ + 12, 0);
@@ -471,18 +503,7 @@ void panel_update_visibility(bool clear) {
         lv_obj_remove_local_style_prop(obj, LV_STYLE_PAD_RIGHT, 0);
     }
 
-    /* VISION: the CW speed on a line of its own at the top (styles.c), the text and the CW
-     * tuning bars (at its left) under it */
-    bool was_cw = vision_cw;
-
-    vision_cw = theme_shape.vision && on && !rtty;
-    if (theme_shape.vision) {
-        lv_obj_set_style_pad_top(obj, rtty ? 10 : 10 + lv_font_get_line_height(&sony_24), 0);   /* its font in styles.c */
-        text_size_cb(NULL, NULL);
-        cw_tune_set_y(vision_cw ? lv_obj_get_style_y(obj, 0) + 2 : -1);
-    } else if (was_cw) {
-        cw_tune_set_y(-1);      /* VISION left for another theme */
-    }
+    info_place(on, rtty);
 
     if (on && lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) {
         lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);

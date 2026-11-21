@@ -4570,6 +4570,11 @@ static void make_display_page() {
     row = make_param_choice(row, "Power display", " % + time \n Volts \n Alternate \n % + V ", cfg_sm.p_power_display);
     /* The callsign of General > STATION small on the main screen (main_call.h) and on the boot logo (#292) */
     row = make_param_switch(row, "Callsign", cfg_sm.p_callsign_show);
+    /* In CW the CW Tuner's bars and the decoder's WPM over the spectrum, or in the frequency strip between the band
+     * and the frequency (freq_strip.c, #308). Four columns: "Frequency strip" ran over the arrow at three */
+    wl_row_label(row, "CW tune and WPM");
+    row_choice(row++, 1, 4, SMALL_4, " Spectrum \n Frequency strip ", cfg_sm.p_cw_tune_place.get(), int_choice_cb,
+               &cfg_sm.p_cw_tune_place);
     card_end(row);
 
     row = card_begin("INTERFACE");

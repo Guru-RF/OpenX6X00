@@ -25,6 +25,10 @@ void cw_tune_set_y(lv_coord_t y);
 /* The highest it goes where no panel places it: under the band plan, on the waterfall */
 void cw_tune_set_floor(lv_coord_t y);
 
+/* In the frequency strip (freq_strip.c, #308): the bars at a, on the screen, a bar every bar_w + gap px (the box's
+ * width as cw_strip_fit.h has it); NULL: back on the spectrum, where cw_tune_set_y() and the floor put them */
+void cw_tune_set_strip(const lv_area_t *a, lv_coord_t bar_w, lv_coord_t gap);
+
 /* Any thread: the last offset (Hz, as cw_tune_set_freq() had it) when it came in the
  * last second, for the remote clients */
 bool cw_tune_recent(int *hz);
