@@ -3265,7 +3265,7 @@ static uint8_t make_country(uint8_t row) {
 
 /* Where APP > Weather, its notices and the web Weather page ask the weather for (meteo.h): where the radio is (its GPS,
  * the phone's, the QTH locator), the QTH locator whatever the GPS says, or the place typed on the row below. Four cells
- * wide, out to the left as the band plan's */
+ * wide, out to the left as the band plan's. Then the units the three show it in: metric, or the US ones (#315) */
 static uint8_t make_weather(uint8_t row) {
     char place[METEO_PLACE_MAX];
 
@@ -3280,7 +3280,12 @@ static uint8_t make_weather(uint8_t row) {
     lv_obj_set_size(obj, SMALL_4, ROW_H - 4);
     lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_END, 1, 1, LV_GRID_ALIGN_CENTER, row, 1);
     lv_obj_set_user_data(obj, (void *)(intptr_t)ST_PLACE);
-    return row + 1;
+    row++;
+
+    wl_row_label(row, "Weather units");
+    row_choice(row++, 1, 1, SMALL_4, " Metric \n US ", cfg_sm.p_meteo_units.get(), int_choice_cb,
+               &cfg_sm.p_meteo_units);
+    return row;
 }
 
 /* The first-start guide again (first_start.c): Settings gives way to it once this press is over, its window going with

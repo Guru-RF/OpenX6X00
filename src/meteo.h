@@ -37,6 +37,37 @@ enum { METEO_FROM_RADIO, METEO_FROM_LOCATOR, METEO_FROM_TYPED };
 
 #define METEO_PLACE_MAX 41      /* Weather place's text, its end included */
 
+/* Settings > General > STATION > Weather units (cfg_meteo_units, #315): metric, as the services give every number, or
+ * the US units. Only what is shown changes: the helper's answer and the warnings' thresholds stay metric. The web
+ * Weather page (views/meteo.html, wx()) shows them by the same rules */
+enum { METEO_UNITS_METRIC, METEO_UNITS_US };
+
+/* A number of the weather, by its metric unit */
+typedef enum {
+    METEO_TEMP,     /* °C, in US units °F */
+    METEO_SPEED,    /* km/h, mph */
+    METEO_PRESS,    /* hPa, inHg */
+    METEO_RAIN,     /* mm, in */
+    METEO_DIST,     /* km, mi */
+} meteo_qty_t;
+
+/* What follows the number: its unit after a space ("12.3 °C"), a degree sign alone ("12°"), nothing */
+typedef enum { METEO_UNIT, METEO_DEG, METEO_BARE } meteo_show_t;
+
+/* Weather units is US */
+bool meteo_us(void);
+
+/* v, metric, in the units shown and rounded as there: dec the decimals in metric (as each screen asks); in US units
+ * as a US forecast has them, whole degrees and mph, inHg and inches to the hundredth, miles to the tenth under 10.
+ * *shown_dec: those decimals (NULL: not wanted). Never -0 */
+double meteo_value(meteo_qty_t q, double v, int dec, int *shown_dec);
+
+/* Its unit in the units shown: "°C", "km/h", "hPa", "mm", "km"; "°F", "mph", "inHg", "in", "mi" */
+const char *meteo_unit(meteo_qty_t q);
+
+/* v, metric, as shown: "12.3 °C" or "54 °F", "29.92 inHg", "12°", "40" (show) */
+void meteo_format(char *out, size_t size, meteo_qty_t q, double v, int dec, meteo_show_t show);
+
 /* Where the weather is asked for, by Weather from: where the radio is (station_position: its GPS, the phone's, the QTH
  * locator), the QTH locator alone, or the place typed; else the place of the country set in Settings > General >
  * STATION (its capital or largest city, as the time zone database has it): the locator is never set from it. A place
@@ -70,7 +101,8 @@ const char *meteo_weekday(const char *date);
 struct cJSON;
 
 /* A warning of the helper's answer on one line, its level's name first: "Yellow: Yellow wind warning" (the service's
- * own words), "Orange: gusts up to 95 km/h, from the forecast" (one worked out here, in the GUI's language) */
+ * own words), "Orange: gusts up to 95 km/h, from the forecast" (one worked out here, in the GUI's language and the
+ * units of Weather units: "gusts up to 59 mph") */
 void meteo_warning_title(char *out, size_t size, const struct cJSON *a);
 
 /* Its time in the place's: "Mon 16 15:00 to Tue 17 09:00 CET" (tz: the zone's abbreviation), "today" or "tomorrow"

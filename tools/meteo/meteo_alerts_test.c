@@ -10,7 +10,8 @@
  *  - which warnings make a notice: the place's own, from a service yellow and up, worked out orange and up, not over;
  *  - a notice only while receiving (not in TX, the tuner, the SWR scan), with the screen lit and APP > Weather shut:
  *    held back till then, one at a time, each once, also after a restart (/mnt/meteo/seen), and none for a warning
- *    the app has shown; those over leave the list; a helper's error: nothing; off: those held back dropped.
+ *    the app has shown; those over leave the list; a helper's error: nothing; off: those held back dropped;
+ *  - in US units (Weather units, #315) a worked-out one in them: "gusts up to 59 mph".
  */
 
 #include <pthread.h>
@@ -59,6 +60,8 @@ int32_t param_i_get(const ParamInt *p) {
 static ParamInt from = {0};     /* Weather from: where the radio is */
 ParamInt       *cfg_meteo_from  = &from;
 ParamText      *cfg_meteo_place = NULL;
+static ParamInt units = {0};    /* Weather units: metric */
+ParamInt       *cfg_meteo_units = &units;
 
 size_t param_t_get(const ParamText *p, char *out, size_t size) {
     (void)p;
@@ -189,8 +192,9 @@ static void warn(FILE *f, bool first, const char *id, bool mine, const char *kin
             end, id, calc ? ",\"calc\":\"" : "", calc ? calc : "", calc ? "\",\"value\":95,\"day\":0" : "");
 }
 
-/* The warnings in force from T0 + 7200, when the notices are turned on; more_id: one more, orange */
-static void answer(const char *more_id) {
+/* The warnings in force from T0 + 7200, when the notices are turned on; more_id: one more, orange, from the service
+ * or (more_calc) worked out */
+static void answer(const char *more_id, const char *more_calc) {
     FILE *f = fopen(ANSWER, "w");
     long  on = T0 + 7200;
 
@@ -203,7 +207,7 @@ static void answer(const char *more_id) {
     warn(f, false, "f1", true, "official", 4, on - 10, NULL);        /* over: none */
     warn(f, false, "", true, "official", 3, on + 3600, NULL);        /* no id: none */
     warn(f, false, "h1", true, "official", 3, 0, NULL);              /* no end: a notice */
-    if (more_id) warn(f, false, more_id, true, "official", 3, T0 + 30000, NULL);
+    if (more_id) warn(f, false, more_id, true, more_calc ? "computed" : "official", 3, T0 + 30000, more_calc);
     fprintf(f, "]}\n");
     fclose(f);
 }
@@ -266,7 +270,7 @@ int main(void) {
 
     /* On: the first check 2 minutes after */
     fake_now = T0 + 7200;
-    answer(NULL);
+    answer(NULL, NULL);
     notices.v = 1;
     tick(T0 + 7200);
     tick(T0 + 7200 + 119);
@@ -282,7 +286,7 @@ int main(void) {
 
     /* Only while receiving, the screen lit, the app shut */
     fake_now = T0 + 7400;
-    answer(NULL);
+    answer(NULL, NULL);
     state = RADIO_TX;
     tick(T0 + 7400);
     state = RADIO_ATU_RUN;
@@ -343,14 +347,14 @@ int main(void) {
         cJSON_Delete(data);
     }
     check(seen_file_has("n1"), "shown by the app: in the seen list");
-    answer("n1");
+    answer("n1", NULL);
     tick(T0 + 11120 + 1800);
     check(pump(), "the next check");
     for (int i = 0; i < 4; i++) tick(T0 + 13000 + i * 5);
     check(shown_n == 3, "none for the warning the app showed");
 
     /* A new one held back, then the setting off: dropped */
-    answer("x1");
+    answer("x1", NULL);
     tick(T0 + 11120 + 3600);
     check(pump() && waiting_n == 1, "a new one held back");
     notices.v = 0;
@@ -367,6 +371,16 @@ int main(void) {
     tick(T0 + 15120 + 60);
     check(runs(NULL, 0) == 6, "not asked again at once: %d runs", runs(NULL, 0));
     unsetenv("METEO_TEST_FAIL");
+
+    /* In US units: a worked-out one in them (meteo_warning_title, as APP > Weather has it) */
+    units.v = 1;
+    answer("u1", "gust");
+    tick(T0 + 15120 + 1800);
+    check(pump() && waiting_n == 1, "a worked-out one held back");
+    for (int i = 0; i < 4; i++) tick(T0 + 17000 + i * 5);
+    check(shown_n == 4 && !strcmp(shown[3], "Weather warning. Orange: gusts up to 59 mph, from the forecast\ntoday"),
+          "in US units: \"%s\"", shown[3]);
+    units.v = 0;
 
     /* Those over leave the list: a1 ended at T0 + 10800, h1 (no end) is kept 3 days */
     fake_now = T0 + 20000;

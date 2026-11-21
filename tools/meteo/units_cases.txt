@@ -1,0 +1,44 @@
+# Weather units (#315): what APP > Weather (src/meteo.c, meteo_format) and the web Weather page (views/meteo.html,
+# wx()) show for a number the services give in metric units. Both tests read this file (meteo_c_test.c,
+# meteo_page_test.js), so the radio's screen and the page say the same. A case a line: the units (metric, us), what
+# the number is (temp, speed, press, rain, dist), the number, its decimals in metric as the screen asks, how it is
+# written (unit: after a space, deg: a degree sign alone, bare: no unit), then what is shown, the rest of the line.
+# US units as a US forecast has them: whole degrees and mph, inHg and inches to the hundredth, miles to the tenth
+# under 10. Halves away from zero, as C's round(); never "-0".
+metric temp 9.4 1 unit 9.4 °C
+metric temp -0.04 1 unit 0.0 °C
+metric temp 6.9 0 unit 7 °C
+metric temp 10.8 0 deg 11°
+us temp 9.4 1 unit 49 °F
+us temp 0 0 unit 32 °F
+us temp -40 0 unit -40 °F
+us temp -17.9 1 unit 0 °F
+us temp 36.5 0 unit 98 °F
+us temp 37.5 0 unit 100 °F
+us temp -22.5 0 unit -9 °F
+us temp 10.8 0 deg 51°
+metric speed 24.5 0 unit 25 km/h
+metric speed 31.2 0 bare 31
+us speed 24.5 0 unit 15 mph
+us speed 52.9 0 unit 33 mph
+us speed 95 0 unit 59 mph
+us speed 31.2 0 bare 19
+us speed 0 0 unit 0 mph
+metric press 1008.6 0 unit 1009 hPa
+us press 1008.6 0 unit 29.78 inHg
+us press 1013.25 0 unit 29.92 inHg
+us press 950 0 unit 28.05 inHg
+metric rain 6.4 1 unit 6.4 mm
+metric rain 1.45 1 unit 1.5 mm
+us rain 6.4 1 unit 0.25 in
+us rain 49.6 1 unit 1.95 in
+us rain 120 1 unit 4.72 in
+us rain 0.1 1 unit 0.00 in
+us rain 0 1 unit 0.00 in
+metric dist 18.2 0 unit 18 km
+us dist 18.2 0 unit 11 mi
+us dist 15.9 0 unit 9.9 mi
+us dist 16.0 0 unit 9.9 mi
+us dist 16.05 0 unit 10 mi
+us dist 0.6 0 unit 0.4 mi
+us dist 0 0 unit 0.0 mi

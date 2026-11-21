@@ -5122,20 +5122,22 @@ def flights_get():
 # rounded to 0.1 degree). Asked only while the page is open and seen: its script asks again every 15 minutes, and
 # only the first ask and Update let the helper look up a place's name (Nominatim's policy). The country, the QTH
 # locator and where the weather is for (Weather from, Weather place) are set on the radio, Settings > General >
-# STATION: this page only reads them.
+# STATION: this page only reads them. Weather units (#315) its Units choice sets too (/api/display, meteo_units): the
+# answer stays metric, the page's script shows it in the radio's units.
 
 
 def meteo_position(grid):
-    """{lat, lon, src, where, cc, lang, notices} for the page: the locator typed on it, else what the radio asks for
-    (its GPS, the phone's, the QTH locator, else the country's capital, or the locator alone or a place typed as its
-    Weather from says: pos_get on the GUI's socket, as the Flights page asks), else the QTH locator of params.db
-    while the GUI does not answer. None without any. notices: APP > Weather > Notices is on"""
+    """{lat, lon, src, where, cc, lang, notices, us} for the page: the locator typed on it, else what the radio asks
+    for (its GPS, the phone's, the QTH locator, else the country's capital, or the locator alone or a place typed as
+    its Weather from says: pos_get on the GUI's socket, as the Flights page asks), else the QTH locator of params.db
+    while the GUI does not answer. None without any. notices: APP > Weather > Notices is on; us: Weather units is US"""
     reply = display_call({"cmd": "pos_get"}) or {}
     ok = reply.get("t") == "pos"
     cc = str(reply.get("cc") or "") if ok else read_param("country")
     lang = str(reply.get("lang") or "") if ok else read_param("language")
     pos = {"cc": cc if re.fullmatch(r"[A-Z]{2}", cc or "") else "-", "lang": lang or "en",
-           "notices": bool(reply.get("notices")) if ok else read_param("meteo_alerts") == "1"}
+           "notices": bool(reply.get("notices")) if ok else read_param("meteo_alerts") == "1",
+           "us": reply.get("units") == 1 if ok else read_param("meteo_units") == "1"}
     if grid:
         c = locator_center(grid)
         return dict(pos, lat=c[0], lon=c[1], src="Locator", where=grid.strip().upper()) if c else None
@@ -5188,6 +5190,7 @@ def meteo_get():
         return api_error(502, f"Can't read the answer: {e}")
     doc["where"] = pos["where"]
     doc["notices"] = pos["notices"]
+    doc["us"] = pos["us"]
     return doc
 
 

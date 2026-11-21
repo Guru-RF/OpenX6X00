@@ -1773,7 +1773,7 @@ base is too old.
 
 | Card | Options |
 |---|---|
-| STATION | First-start guide (Start runs the [first-start guide](#first-start-guide) again), callsign (an empty field clears it), QTH locator, Country (the country you operate from, "-" for none, the default; the names in the screen's language, from the Unicode CLDR; the band plan's Auto takes its region when the GPS and the locator do not tell, see [Band plan](#band-plan); the [CB](#cb) app takes its plan until one is chosen there), Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Weather from (where APP > Weather, its notices and the web Weather page ask the weather for: Auto, the default, where the radio is; Locator, the QTH locator whatever the GPS says; Typed, the Weather place below), Weather place (degrees, "50.85, 4.35" or "34.9S 56.16W", or a locator, typed with the keyboard; typing one sets Weather from to Typed, an empty field clears it and Weather from goes back to Auto; see [Weather](#weather)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
+| STATION | First-start guide (Start runs the [first-start guide](#first-start-guide) again), callsign (an empty field clears it), QTH locator, Country (the country you operate from, "-" for none, the default; the names in the screen's language, from the Unicode CLDR; the band plan's Auto takes its region when the GPS and the locator do not tell, see [Band plan](#band-plan); the [CB](#cb) app takes its plan until one is chosen there), Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Weather from (where APP > Weather, its notices and the web Weather page ask the weather for: Auto, the default, where the radio is; Locator, the QTH locator whatever the GPS says; Typed, the Weather place below), Weather place (degrees, "50.85, 4.35" or "34.9S 56.16W", or a locator, typed with the keyboard; typing one sets Weather from to Typed, an empty field clears it and Weather from goes back to Auto; see [Weather](#weather)), Weather units (Metric, the default, or US: °F, mph, inHg, inches and miles in APP > Weather, its notices and the web Weather page, which sets it too; see [Weather](#weather)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone, 12-hour clock (the clock at the top right as `1:05:30 PM`, off as `13:05:30`, the default; VISION shows `1:05 PM`, Ops Room's digits the hours 1 to 12 without AM or PM; Field Ops' clock and its QSO times and Walkie Talkie's clock follow it, `1:05 PM`; the logs, FT8 and the other digital modes stay on UTC; #54) |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off, the default on both radios (see [Amateur bands only](#amateur-bands-only) and [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
@@ -6763,8 +6763,17 @@ nothing keys it; ESC closes.
   *Typed* works as *Auto*. The place is kept as typed; what leaves the radio
   is rounded as below. The choice came from the CX8ANM edition (condoruy).
 - Times are the place's own (its time zone as Open-Meteo gives it), with the
-  zone's abbreviation: "Mon 16 15:00 to Tue 17 09:00 CET". The units are
-  °C, km/h, hPa, mm and km.
+  zone's abbreviation: "Mon 16 15:00 to Tue 17 09:00 CET".
+- Units: Settings > General > STATION > Weather units. *Metric*, the
+  default: °C, km/h, hPa, mm and km. *US*: °F, mph, inHg, inches and miles,
+  rounded as a US forecast has them: whole degrees and mph, the pressure and
+  the rain to the hundredth (29.92 inHg, 0.25 in), the visibility to a tenth
+  of a mile under 10 miles. The app, its notices and the web page all
+  follow it; the app open on the screen changes at once when the web page
+  sets it. Only what is shown changes: the radio asks for and keeps the
+  weather in metric units, and the warnings worked out from the forecast
+  (below) keep their metric limits. A warning's own text stays as the
+  service wrote it (the NWS's in US units, MeteoAlarm's in metric).
 - The MFK: in Now and 5 days, on to the next view; in Warnings, up and down
   the text.
 - How often: when the app opens, with Update, then every 15 minutes while
@@ -6823,7 +6832,8 @@ each source of what they show, as their terms ask:
   and the warnings in the browser, with a **Place** box for a look somewhere
   else by its locator (empty: the radio's position, as above). It asks while
   the page is open and in view, every 15 minutes. The country and the QTH
-  locator are set on the radio only.
+  locator are set on the radio only. **Units** there is the radio's Weather
+  units: changed on the page, it changes on the radio too.
 - The answers are kept in `/tmp`: `x6100-meteo.json` (the app's and the
   page's), `x6100-meteo-web.json` (a locator typed on the page).
 - After the CX8ANM edition of OpenX6X00 (condoruy), whose Meteo app this is.

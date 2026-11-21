@@ -191,6 +191,7 @@ ParamText        *cfg_country             = nullptr;
 ParamInt         *cfg_meteo_alerts        = nullptr;
 ParamInt         *cfg_meteo_from          = nullptr;
 ParamText        *cfg_meteo_place         = nullptr;
+ParamInt         *cfg_meteo_units         = nullptr;
 ParamText        *cfg_kbd_dev_volume      = nullptr;
 ParamInt         *cfg_wf_fixed_jump       = nullptr;
 ParamInt         *cfg_wf_fixed_after      = nullptr;
@@ -435,6 +436,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_meteo_alerts     = &cfg_sm.p_meteo_alerts;
     cfg_meteo_from       = &cfg_sm.p_meteo_from;
     cfg_meteo_place      = &cfg_sm.p_meteo_place;
+    cfg_meteo_units      = &cfg_sm.p_meteo_units;
     cfg_kbd_dev_volume   = &cfg_sm.p_kbd_dev_volume;
     cfg_wf_fixed_jump    = &cfg_sm.p_wf_fixed_jump;
     cfg_wf_fixed_after   = &cfg_sm.p_wf_fixed_after;
