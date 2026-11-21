@@ -81,7 +81,8 @@ void   tci_server_speech_on(bool on);
 size_t tci_server_speech_write(const float *x, size_t n);
 /* Clients that take the RX audio now */
 int    tci_server_audio_clients(void);
-/* The address of the first client ("192.168.1.20"), NULL when none; a static buffer */
+/* The addresses of the clients connected now, ", " between them ("192.168.1.20, 192.168.1.21"; " via Funnel" or
+ * " via Bluetooth" after one that came so), NULL when none; a static buffer, for one thread (Settings' row) */
 const char *tci_server_client(void);
 
 /* TCI over Bluetooth (bt_dev.c): BlueZ's "OpenX6X00 TCI" service hands each connection over as a socket, a byte

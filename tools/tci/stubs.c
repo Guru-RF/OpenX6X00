@@ -357,7 +357,7 @@ int main(int argc, char **argv) {
             stub_cw_end(true);
         pthread_mutex_unlock(&cw_mux);
         if (n % 20 == 0 && tci_server_clients())
-            fprintf(stderr, "[stub] %d client(s), first %s\n", tci_server_clients(), tci_server_client());
+            fprintf(stderr, "[stub] %d client(s): %s\n", tci_server_clients(), tci_server_client());
     }
 }
 #endif

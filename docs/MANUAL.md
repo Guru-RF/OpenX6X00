@@ -1778,7 +1778,7 @@ base is too old.
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off, the default on both radios (see [Amateur bands only](#amateur-bands-only) and [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
 | WR12 RECEIVER | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
-| TCI SERVER | on/off, port and status, connected client, Clients (Operate or Listen only), Ask before TX (on by default) and Allowed with Forget all (see [TCI server](#tci-server)) |
+| TCI SERVER | on/off, Port / Status (the port, "connected" while a client is), Connected from (the address of each client connected), Clients (Operate or Listen only), Ask before TX (on by default) and Allowed with Forget all (see [TCI server](#tci-server)) |
 | TEXT LOG | Keyboard modes (on by default), Size limit (1-100 MB, 10 MB by default): what PSK, Olivia, Contestia and JTTY receive and send, and what RTTY receives, on the card (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
 
 Main knob acceleration. Where: Settings > General > CONTROLS > Freq
@@ -8824,8 +8824,12 @@ the radio, hears it, keys it and sends CW with it.
     keys at once, as before. A `/mnt/tci.conf` from before has no
     `tx_confirm` and asks. Turning it off while the radio asks closes the
     question; the client's next start keys.
-- The TCI SERVER card shows the connected client (address), "no client"
-  otherwise.
+- The TCI SERVER card shows "connected" beside the port while a client is,
+  and on the row under it, Connected from, the address of each client
+  connected ("via Funnel" or "via Bluetooth" after one that came so), "no
+  client" otherwise. Addresses that do not fit on one line go on two in a
+  smaller size: four addresses, or an IPv6 one over Funnel. Allowed shows how
+  many are kept and as many of them as fit on its two lines.
 - What it carries: `vfo`, `modulation` (lsb, usb, cw, cwr, am, nfm, digl,
   digu), `rx_filter_band`, `agc_mode`, `rit_enable` / `rit_offset`,
   `drive` (TX power, 0-100 %: 0.1 W up to 10 W, 8 W on the X6200; on
