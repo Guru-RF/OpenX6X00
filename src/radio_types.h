@@ -48,8 +48,9 @@ typedef enum {
      * falls as the dial goes up. A station on the dial sounds at the key tone on both radios (#115) */
     HW_CAP_CW_SPECTRUM_ON_DIAL = 1 << 16,   /* the spectrum centred on the dial in CW and CW-R too (the X6200) */
     HW_CAP_CW_TONE_RISES       = 1 << 17,   /* CW's tone rises as the dial goes up, as CW-R's does (the X6200) */
-    /* While it transmits, the spectrum centred on the dial, where the carrier is, in CW and CW-R too, and nothing in
-     * the data to say so: Xiegu's X6100 base from 1.1.9 on. Its 1.1.8 keeps it on the oscillator in TX too (#191) */
+    /* While it transmits, the frames as if unzoomed: drawn over the zoom's span, the carrier a key tone over the zoom
+     * off the line in CW and CW-R, and nothing in the data to say so (cfg/lo_offset.h): Xiegu's X6100 base from 1.1.9
+     * on. Its 1.1.8 centres them on the oscillator as in receive, and the GUI zooms them itself (#191) */
     HW_CAP_TX_SPECTRUM_ON_DIAL = 1 << 18,
     /* A TEST ONLY base, not validated on a radio: the X6100's "tx1a2-test" (hw/x6100/test_base.h), labelled so */
     HW_CAP_TEST_BASE           = 1 << 19,

@@ -289,10 +289,10 @@ static void spectrum_follow(uint32_t freq) {
     sp_freq = freq;
 }
 
-/* The same when the base goes into TX or out of it: Xiegu's X6100 base from 1.1.9 on centres the spectrum on the
- * dial while it transmits, a key tone from where it receives in CW and CW-R, and says nothing of it in the data
- * (cfg_mode_tx_lo_offset). Not moved, the carrier fading out of the trace after a transmission would be drawn a key
- * tone off the line, and the stations fading out as TX begins a key tone off theirs (#191). With an IF shift such a
+/* The same when the base goes into TX or out of it: Xiegu's X6100 base from 1.1.9 on sends its TX frames as if
+ * unzoomed, placed the key tone over the zoom from the dial in CW and CW-R, its receive frames a key tone from it, and
+ * says nothing of it in the data (cfg_mode_tx_lo_offset). Not moved, the carrier fading out of the trace after a
+ * transmission would be drawn off the line, and the stations fading out as TX begins off theirs (#191). With an IF shift such a
  * base is tuned that far from the dial, its receive spectrum centred there, its TX one on the dial: the trace moves by
  * that too. A base that sends its frequency (freq) is followed by it (spectrum_follow()) */
 static void spectrum_follow_tx(bool tx, uint32_t freq) {

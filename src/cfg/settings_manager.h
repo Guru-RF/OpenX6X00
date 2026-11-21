@@ -875,7 +875,8 @@ class SettingsManager {
     // CWR → +key_tone, else 0; 0 in every mode with HW_CAP_CW_SPECTRUM_ON_DIAL.
     // Driven by cp_cur_mode, p_key_tone and hw_caps_.
     ComputedParameter<int32_t> cp_mode_lo_offset;
-    // The same while the base transmits: cp_mode_lo_offset's, 0 with HW_CAP_TX_SPECTRUM_ON_DIAL (#191).
+    // The same while the base transmits: cp_mode_lo_offset's, over the zoom (p_mode_zoom) with
+    // HW_CAP_TX_SPECTRUM_ON_DIAL, Xiegu's X6100 base from 1.1.9 on (lo_offset.h, #191).
     ComputedParameter<int32_t> cp_mode_tx_lo_offset;
 
     // Computed current filter params for the active MODE category. The compute

@@ -107,8 +107,8 @@ static lv_coord_t markers_px(lv_coord_t w) {
     return hz_px(bfo + if_shift + waterfall_view_shift(), w);
 }
 
-/* Where the base's spectrum is centred, with no lag; tx: where it is centred while the base transmits, on the dial
- * with Xiegu's X6100 base from 1.1.9 on (#191) */
+/* Where the base's spectrum is centred, with no lag; tx: where it is drawn centred while the base transmits, the key
+ * tone over the zoom from the dial with Xiegu's X6100 base from 1.1.9 on (cfg/lo_offset.h, #191) */
 static lv_coord_t lo_px(bool tx, lv_coord_t w) {
     return hz_px((tx ? tx_lo_offset : lo_offset) + if_shift + waterfall_view_shift(), w);
 }
