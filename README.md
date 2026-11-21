@@ -539,7 +539,7 @@ keyboard, the Bluetooth work and the layer system; Hany El Imam (1KO125) the
 WeFax, NavTex and SSTV decoders; Jordan Sherer KN4CRD and the JS8Call
 contributors the JS8 engine; K1JT and K9AN wsprd (made a library by VA2GKA);
 K1JT and the WSJT-X team JTTY; Rafael Diniz and Rhizomatica's HERMES project
-the Mercury modem; SP2KMO the Bluetooth tab, PSK31, PSK63 and Olivia, the
+the Mercury modem; x0rro the XARA Winlink modem, which NR5P carries on; SP2KMO the Bluetooth tab, PSK31, PSK63 and Olivia, the
 WSJT-X UDP output, the FT8 country and distance, and FT2 (IU8LMC's mode);
 randal007 the PSK and Olivia merge, the Bluetooth scan and
 recovery, the JS8 map, the high-SWR guard and the digital-mode drive level;
@@ -558,14 +558,16 @@ ranges (#171) and knob steps (#188) in board.h, the panel size from
 BOARD_DISP_W/H with a landscape blit (#162), taps on the F-bar and decoded keys
 (#163), the spectrum left unpainted while hidden (#177) and TCI's drive, VFO
 limits and RIT clamp from board.h (#189); Calin Rigo (timerealm) the 3D band
-scope (#161); Spyyena Contestia (#154); DF8MH the Wavelog upload (#12); Trey
+scope (#161); Spyyena Contestia (#154) and the SSH page's FIDO2 security keys,
+with verify-required or no-touch-required (#274); DF8MH the Wavelog upload (#12); Trey
 (rewtraw) the PC build in Docker (#180), LVGL's clock from CLOCK_MONOTONIC
 (#182), the GUI loop that wakes on keys, knobs and events (#183), the
 Propagation and Scanner apps (#184), APPS and Modes over the whole strip, the CW
 bars off the band plan and Settings' switches in the theme's colours (#185), the
 Codec and Ops Room themes (#186, #187) and the performance overlay (#181);
 jochenhammes the RADE app (#129,
-#130) and APP > Mail, Winlink mail read, written and sent on the radio (#295); MAVProxyUser the X6200's base firmware updater, from the radio's screen
+#130) and APP > Mail, Winlink mail read, written and sent on the radio (#295); MAVProxyUser tools/data_partition on Debian and Ubuntu,
+with parted, mkfs.vfat and blkid in /usr/sbin (#287), and the X6200's base firmware updater, from the radio's screen
 and over SSH, Xiegu's UPGRADE steps with their tests (#259), which also writes
 the X6100's base, by the way in of Franco Venturi's (fventuri)
 x6100-base-experiments flasher; erikkt a keyboard's and a Bluetooth knob's
@@ -594,7 +596,8 @@ FT8, JS8 with its chat and WeFax, their waterfalls, maps, flags and countries; C
 and the paddle keyer's start after the settings.
 
 Patches, captures, logs and tests from the issues: BrunoKlu the capture and the
-driver patch of #29; KR8MER the diagnosis and the patch of #50; DL9RP the
+driver patch of #29; KR8MER the diagnosis and the patch of #50; marcoverheiden the panel tests of #239
+that found the cure for the stripes, and R4D4R the photos and readings there; DL9RP the
 S-meter measurements of #125; 123tcpip (Bob G6CKK) the start-pulse captures of
 #53; ea4iln-debug and edegraaff the battery logs; km4gkd, amystikis (M7SVA) and
 joanpao (EA5JTT) the Winlink logs from the air; doodlecomms the Mercury and XARA
