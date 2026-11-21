@@ -975,11 +975,24 @@ static void radio_tx_cb(lv_event_t *e) {
 
 /* ---------- buttons ---------- */
 
+/* While the search box is open the window's buttons close it, nothing searched, as ESC (Search again too): they acted
+ * on the list under the box unseen, or not at all, and the box looked stuck over the window (#316) */
+static bool kbd_shut(void) {
+    if (!kbd_open) {
+        return false;
+    }
+    textarea_window_cancel();
+    return true;
+}
+
 static const char *play_label(void) {
     return atomic_load(&play_on) || pending_on ? "Stop" : "Play";
 }
 
 static void play_cb(button_data_t *b) {
+    if (kbd_shut()) {
+        return;
+    }
     if (atomic_load(&play_on) || pending_on) {
         stop_play();
     } else {
@@ -991,7 +1004,7 @@ static void play_cb(button_data_t *b) {
 /* The station selected into the favourites, or out of them; read again first, the web page may have changed them */
 static void fav_cb(button_data_t *b) {
     (void)b;
-    if (picking || !list_n) {
+    if (kbd_shut() || picking || !list_n) {
         return;
     }
     iradio_station_t s = list[sel];
@@ -1030,6 +1043,9 @@ static void fav_cb(button_data_t *b) {
 /* Favourites, the country's, the most listened, the last search, and round */
 static void list_cb(button_data_t *b) {
     (void)b;
+    if (kbd_shut()) {
+        return;
+    }
     list_kind_t next = picking ? kind : (list_kind_t)((kind + 1) % 4);
 
     if (next == L_SEARCH && !query[0]) {
@@ -1040,6 +1056,9 @@ static void list_cb(button_data_t *b) {
 
 static void country_cb(button_data_t *b) {
     (void)b;
+    if (kbd_shut()) {
+        return;
+    }
     if (picking && country[0]) {
         show_list(L_COUNTRY);
     } else {
@@ -1103,14 +1122,24 @@ static bool search_cancel(void) {
     return true;
 }
 
+/* The box's title is short: the long one ("Station, genre or a stream address (http://...): ") took the whole row and
+ * left the text no room, so what was typed, on the on-screen keys or a keyboard, never showed (#316). What to type is
+ * the empty box's grey text, in a smaller font to fit */
 static void search_cb(button_data_t *b) {
     (void)b;
-    if (kbd_open) {
+    if (kbd_shut()) {
         return;
     }
     kbd_open = true;
     lv_group_remove_obj(dialog.obj);
-    textarea_window_open_w_label(search_ok, search_cancel, "Station, genre or a stream address (http://...): ");
+    textarea_window_open_w_label(search_ok, search_cancel, "Search: ");
+
+    lv_obj_t *text = textarea_window_text();
+
+    lv_textarea_set_max_length(text, sizeof(list[0].url) - 1);     /* a stream address, the box's 64 too few */
+    lv_textarea_set_placeholder_text(text, "station, genre or http://...");
+    lv_obj_set_style_text_font(text, &sony_28, LV_PART_TEXTAREA_PLACEHOLDER);
+    lv_obj_set_style_text_color(text, TC(text_mute), LV_PART_TEXTAREA_PLACEHOLDER);
     if (query[0]) {
         textarea_window_set(query);
     }
