@@ -84,12 +84,13 @@ static const char *mode_label(void);
 static const char *page1_label(void);
 static const char *page2_label(void);
 
-static button_data_t btn_page   = {.type = BTN_TEXT_FN, .label_fn = page1_label, .press = page_cb};
+/* Two pages: held, the page before is the other one too (#317) */
+static button_data_t btn_page   = {.type = BTN_TEXT_FN, .label_fn = page1_label, .press = page_cb, .hold = page_cb};
 static button_data_t btn_freq   = {.type = BTN_TEXT, .label = "Freq.", .press = freq_cb};
 static button_data_t btn_mode   = {.type = BTN_TEXT_FN, .label_fn = mode_label, .press = mode_cb};
 static button_data_t btn_clear  = {.type = BTN_TEXT, .label = "Clear", .press = clear_btn_cb};
 static button_data_t btn_close  = {.type = BTN_TEXT, .label = "Close", .press = close_btn_cb};
-static button_data_t btn_page_2 = {.type = BTN_TEXT_FN, .label_fn = page2_label, .press = page_cb};
+static button_data_t btn_page_2 = {.type = BTN_TEXT_FN, .label_fn = page2_label, .press = page_cb, .hold = page_cb};
 static button_data_t btn_save   = {.type = BTN_TEXT, .label = "Save", .press = save_cb};
 
 static buttons_page_t page_1 = {.items = {&btn_page, &btn_freq, &btn_mode, &btn_clear, &btn_close}};

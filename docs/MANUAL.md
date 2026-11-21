@@ -293,8 +293,16 @@ closes the grid. Four rows are in sight; the grid scrolls to the rows below
 as the MFK goes there (or by a swipe on the touch screen). "APP > CW Keyboard" in this manual is the tile, or the
 button on APP 3:6.
 
-- Each app has its own button pages, named like `(JS8 1:4)`. The first
-  button goes to the next page.
+- Each app has its own button pages, named like `(JS8 1:4)`, as the main
+  screen's buttons have theirs (`APP 3:6`, `KEY 1:2`). The first button, the
+  page button, goes to the next page; held (1 s, half a second in JS8), it
+  goes one page back, from the first page round to the last. The same on
+  every bar of more than one page, in every app, and on the touch screen.
+  Up to v0.3.13 only the main screen and some apps (JS8, WSPR, PSK, Olivia,
+  RTTY, JTTY, RADE, the CW Trainer, Walkie and a few more) went back: held,
+  the page button did nothing in FT8, the cluster, SSTV, WeFax, Field Ops,
+  NAVTEX/DSC, Settings, the CW and voice messages and the CW Keyboard
+  (issue #317).
 - The MFK walks the items of an app or a list; a press chooses.
 - ESC closes popups and apps.
 - A press of VOL does not close menus or apps, and in a text field it types
@@ -1761,7 +1769,8 @@ restart.
 APP (page 2) > Settings. The tabs are on three button pages: General, Display,
 Audio, Wireless (page 1); Bluetooth, Keys, Cluster, TX Cal (page 2); Info,
 Walkie (page 3). The page button, or the APP key pressed again, turns the
-page and opens its first tab.
+page and opens its first tab. The page button held goes one page back and
+opens that page's first tab.
 
 The MFK walks the controls and stops at the first and last one. There the
 page shows its top or its end, so status rows below the last control are

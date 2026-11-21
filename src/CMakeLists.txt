@@ -68,7 +68,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     channel_list.c broadcast_db.c cJSON.c
     text_popup.c cw_encoder.c image_level.c start_trace.c
     cw_beacon.c
-    button_bar.cpp vol_control.cpp recorder.c
+    button_bar.cpp button_page.c vol_control.cpp recorder.c
     cw_tune_view.c adif.c qso_log.c scheduler.cpp
     wifi_window.c wifi.cpp btaudio.cpp bt_dev.c radio_controls.cpp
     usb_devices.cpp knob_info.cpp

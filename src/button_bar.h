@@ -98,6 +98,13 @@ void            buttons_unload_page();
 /* press and hold of a page button */
 void            button_next_page_cb(button_data_t *data);
 void            button_prev_page_cb(button_data_t *data);
+/* The page before data's (a page button's): its prev, else the page whose page button leads to data's page, found
+ * along the next links, which is all most apps give theirs; NULL when they never come back (button_page.c, #317) */
+buttons_page_t *buttons_page_before(const button_data_t *data);
+/* What a hold of data does: its own hold, else, for a page button (its press button_next_page_cb), one page back
+ * (button_prev_page_cb, #317); NULL: nothing */
+void          (*buttons_hold_fn(const button_data_t *data))(button_data_t *);
+/* The press of F1-F5, or its hold */
 void            buttons_press(uint8_t n, bool hold);
 void            buttons_load_page_group(buttons_group_t group);
 /* One of the group's pages is the one loaded (also while Hide buttons hides it) */

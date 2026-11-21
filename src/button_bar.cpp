@@ -769,15 +769,21 @@ void button_next_page_cb(button_data_t *data) {
     buttons_load_page(data->next);
 }
 
+/* No page found leaves the buttons as they are: loading none would empty them */
 void button_prev_page_cb(button_data_t *data) {
-    buttons_load_page(data->prev);
+    buttons_page_t *page = buttons_page_before(data);
+
+    if (page) buttons_load_page(page);
 }
 
 void buttons_press(uint8_t n, bool hold) {
     button_data_t *d = slots[n].data;
 
     if (!d || d->disabled) return;
-    action_t fn = hold ? d->hold : d->press;
+    /* A page button held goes one page back in every app and on every bar, as the main screen's and JS8's did:
+     * most apps gave theirs only the press (FT8, the cluster, the messages, the CW keyboard, #317). One with a
+     * hold of its own keeps it */
+    action_t fn = hold ? buttons_hold_fn(d) : d->press;
     if (fn) fn(d);
 }
 

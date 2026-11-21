@@ -976,6 +976,7 @@ static void list_select(int k) {
 /* Buttons */
 
 static void page_cb(button_data_t *b);
+static void page_back_cb(button_data_t *b);
 static void open_cb(button_data_t *b);
 static void boot_cb(button_data_t *b);
 static void respot_cb(button_data_t *b);
@@ -1011,11 +1012,11 @@ static button_data_t b_exit   = {.type = BTN_TEXT, .label = "Radio", .press = ex
 static button_data_t b_back   = {.type = BTN_TEXT, .label = "Back", .press = back_cb};
 static const char   *ref1_label(void);
 static const char   *ref2_label(void);
-static button_data_t b_ref1   = {.type = BTN_TEXT_FN, .label_fn = ref1_label, .press = page_cb};
-static button_data_t b_ref2   = {.type = BTN_TEXT_FN, .label_fn = ref2_label, .press = page_cb};
-static button_data_t b_ref3   = {.type = BTN_TEXT, .label = "(3:3)", .press = page_cb};
-static button_data_t b_act1   = {.type = BTN_TEXT, .label = "(1:2)", .press = page_cb};
-static button_data_t b_act2   = {.type = BTN_TEXT, .label = "(2:2)", .press = page_cb};
+static button_data_t b_ref1   = {.type = BTN_TEXT_FN, .label_fn = ref1_label, .press = page_cb, .hold = page_back_cb};
+static button_data_t b_ref2   = {.type = BTN_TEXT_FN, .label_fn = ref2_label, .press = page_cb, .hold = page_back_cb};
+static button_data_t b_ref3   = {.type = BTN_TEXT, .label = "(3:3)", .press = page_cb, .hold = page_back_cb};
+static button_data_t b_act1   = {.type = BTN_TEXT, .label = "(1:2)", .press = page_cb, .hold = page_back_cb};
+static button_data_t b_act2   = {.type = BTN_TEXT, .label = "(2:2)", .press = page_cb, .hold = page_back_cb};
 static button_data_t b_act    = {.type = BTN_TEXT_FN, .label_fn = activate_label, .press = activate_cb};
 static const char *spot_label(void);
 static button_data_t b_spot   = {.type = BTN_TEXT_FN, .label_fn = spot_label, .press = spot_cb};
@@ -1110,6 +1111,18 @@ static void page_cb(button_data_t *b) {
 
     buttons_unload_page();
     buttons_load_page(next);
+}
+
+/* Held: the page before (#317) */
+static void page_back_cb(button_data_t *b) {
+    buttons_page_t *prev = b == &b_ref1   ? (map_here() ? &page_ref3 : &page_ref2)
+                           : b == &b_ref2 ? &page_ref1
+                           : b == &b_ref3 ? &page_ref2
+                           : b == &b_act1 ? &page_act2
+                                          : &page_act1;
+
+    buttons_unload_page();
+    buttons_load_page(prev);
 }
 
 static void view_cb(button_data_t *b) {
