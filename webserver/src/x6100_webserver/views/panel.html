@@ -878,21 +878,63 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     ftTab.scrollTop = 0;
     ftOrderShow();
   });
-  function addFt8Row(r) {
-    const shown = ftTab.classList.contains("cur"), h = ftTab.scrollHeight;
-    const follow = ftTop ? ftTab.scrollTop < 40 : ftTab.scrollTop > 0 && h - ftTab.scrollTop - ftTab.clientHeight < 40;
-    const li = $("<li>").addClass("t" + r.t).append($("<span class='x'>").text(r.x));
-    if (r.t >= 2 && r.t <= 4) {
-      li.append($("<span class='i'>").text((r.snr > 0 ? "+" : "") + r.snr + " " + r.f));
-      const dist = r.d ? (r.mi ? Math.round(r.d * 0.621371) + " mi" : r.d + " km") : "";
-      const k = [r.k, dist, r.w === 1 ? "worked" : r.w === 2 ? "worked (mode)" : "", r.p ? "POTA" : ""].filter(Boolean).join(" · ");
-      if (k) li.append($("<span class='k'>").text(k));
-      li.on("click", function() { act("ft8 reply " + r.id); });
+  function addFt8Row(decode) {
+    const isTabVisible = ftTab.classList.contains("cur");
+    const scrollHeightBefore = ftTab.scrollHeight;
+
+    const scrolledToTop = ftTab.scrollTop < 40;
+    const scrolledToBottom = ftTab.scrollTop > 0 && scrollHeightBefore - ftTab.scrollTop - ftTab.clientHeight < 40;
+    const shouldFollow = ftTop ? scrolledToTop : scrolledToBottom;
+
+    const row = $("<li>").addClass("t" + decode.t).append($("<span class='x'>").text(decode.x));
+
+    if (decode.w) {
+          rows.css("text-decoration", "line-through");
     }
-    if (ftTop) $ftrows.prepend(li); else $ftrows.append(li);
-    if (shown && ftTop && !follow) ftTab.scrollTop += ftTab.scrollHeight - h;   /* by the new row, before the trim */
-    if (++ftCount > 200) { (ftTop ? $ftrows.children().last() : $ftrows.children().first()).remove(); ftCount--; }
-    if (shown && !ftTop && follow) ftTab.scrollTop = ftTab.scrollHeight;
+
+    if (decode.t >= 2 && decode.t <= 4) {
+      const snrText = (decode.snr > 0 ? "+" : "") + decode.snr + " " + decode.f;
+      row.append($("<span class='i'>").text(snrText));
+
+      const distanceText = decode.d
+        ? (decode.mi ? Math.round(decode.d * 0.621371) + " mi" : decode.d + " km")
+        : "";
+
+      const details = [
+        decode.k,
+        distanceText,
+        decode.w === 1 ? "worked" : decode.w === 2 ? "worked (mode)" : "",
+        decode.p ? "POTA" : "",
+      ].filter(Boolean).join(" · ");
+
+      if (details) {
+        row.append($("<span class='k'>").text(details));
+      }
+
+      row.on("click", function() {
+        act("ft8 reply " + decode.id);
+      });
+    }
+
+    if (ftTop) {
+      $ftrows.prepend(row);
+    } else {
+      $ftrows.append(row);
+    }
+
+    if (isTabVisible && ftTop && !shouldFollow) {
+      ftTab.scrollTop += ftTab.scrollHeight - scrollHeightBefore;
+    }
+
+    if (++ftCount > 200) {
+      const rowToRemove = ftTop ? $ftrows.children().last() : $ftrows.children().first();
+      rowToRemove.remove();
+      ftCount--;
+    }
+
+    if (isTabVisible && !ftTop && shouldFollow) {
+      ftTab.scrollTop = ftTab.scrollHeight;
+    }
   }
   $("#ft-open").on("click", function() { act("ft8 " + (ft8 && ft8.open ? "close" : "open")); });
   $("#ft-mode").on("click", function() { act("ft8 mode"); });
