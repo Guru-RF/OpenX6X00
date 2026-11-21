@@ -99,7 +99,7 @@ ROUTES = {
     "/files/": None, "/files/<filepath:path>": None, "/files/<filepath:path>/": None,
     "/field/logs/<name>": ["/field/logs/2026-11-13-ONFF-0001.adi"],
     "/textlog/<name>": ["/textlog/2026-11-13.txt"],
-    "/api/macros/<mode>": ["/api/macros/psk", "/api/macros/olivia", "/api/macros/jtty"],
+    "/api/macros/<mode>": ["/api/macros/psk", "/api/macros/olivia", "/api/macros/jtty", "/api/macros/rtty"],
     "/gallery/file/<kind>/<name>": ["/gallery/file/shots/shot.png"],
     "/gallery/thumb/<kind>/<name>": ["/gallery/thumb/shots/shot.png"],
     "/api/backup/download": None,
