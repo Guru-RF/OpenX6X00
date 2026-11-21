@@ -47,7 +47,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -343,6 +342,16 @@ static void load_favs(void) {
     favs_n = iradio_load(FAV_FILE, favs, MAX_ST);
 }
 
+/* The countries' row of the country chosen, the first when it is not in the list */
+static int country_row(void) {
+    for (int i = 0; i < countries_n; i++) {
+        if (!strcmp(countries[i].cc, country)) {
+            return i;
+        }
+    }
+    return 0;
+}
+
 /* The helper's lines into the list or the countries; its "error <reason>" into the note */
 static void fetch_done_cb(void *arg) {
     fetch_done_t *d = arg;
@@ -373,12 +382,7 @@ static void fetch_done_cb(void *arg) {
             sel    = 0;
         } else {
             countries_n = n;
-            cc_sel      = 0;
-            for (int i = 0; i < n; i++) {
-                if (!strcmp(countries[i].cc, country)) {
-                    cc_sel = i;
-                }
-            }
+            cc_sel      = country_row();
         }
         snprintf(list_note, sizeof(list_note), "%s", n ? "" : _("The directory sent no list"));
     }
@@ -787,46 +791,32 @@ static void status_timer_cb(lv_timer_t *t) {
 
 /* ---------- choosing ---------- */
 
+/* The country kept on the card for the next start; its line as the countries' (iradio_list.h) */
 static void save_country(void) {
-    FILE *f;
-    char  tmp[] = CC_FILE ".tmp";
+    iradio_country_t c = {0};
 
-    mkdir(BOARD_DATA "/iradio", 0755);
-    f = fopen(tmp, "w");
-    if (!f) {
-        return;
-    }
-    fprintf(f, "%s\t%s\n", country, country_name);
-    if (fflush(f) == 0 && fsync(fileno(f)) == 0 && fclose(f) == 0) {
-        rename(tmp, CC_FILE);
-    } else {
-        unlink(tmp);
-    }
+    snprintf(c.cc, sizeof(c.cc), "%s", country);
+    snprintf(c.name, sizeof(c.name), "%s", country_name);
+    iradio_save_country(CC_FILE, &c);
 }
 
 static void load_country(void) {
-    FILE *f = fopen(CC_FILE, "r");
-    char  line[100];
+    iradio_country_t c;
 
     country[0] = country_name[0] = 0;
-    if (f && fgets(line, sizeof(line), f)) {
-        iradio_country_t c;
-
-        if (iradio_parse_country(line, &c)) {
-            snprintf(country, sizeof(country), "%s", c.cc);
-            snprintf(country_name, sizeof(country_name), "%s", c.name);
-        }
-    }
-    if (f) {
-        fclose(f);
+    if (iradio_load_country(CC_FILE, &c)) {
+        snprintf(country, sizeof(country), "%s", c.cc);
+        snprintf(country_name, sizeof(country_name), "%s", c.name);
     }
 }
 
+/* The countries, at the one chosen (the list fetched now sets it when it comes, fetch_done_cb) */
 static void open_picker(void) {
     picking = true;
     if (!countries_n) {
         fetch(F_COUNTRIES, "countries", NULL);
     }
+    cc_sel = country_row();
     show();
 }
 

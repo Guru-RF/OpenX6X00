@@ -4,7 +4,8 @@
  *  OpenX6X00 - the Internet radio's station lines (dialog_iradio.c): the lists rootfs/usr/sbin/x6100-iradio prints
  *  and the favourites file (/mnt/iradio/favorites.tsv, also written by the web configurator's Internet radio page),
  *  one station a line: name<TAB>address<TAB>codec<TAB>kbps<TAB>country code<TAB>uuid, the last four may be empty.
- *  Countries: name<TAB>code<TAB>stations. Nothing here touches LVGL, for tools/iradio's test.
+ *  Countries: name<TAB>code<TAB>stations, the country chosen the same. Nothing here touches LVGL, for tools/iradio's
+ *  test.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -48,6 +49,12 @@ void iradio_info(const iradio_station_t *s, bool every, char *buf, size_t size, 
 int  iradio_load(const char *path, iradio_station_t *out, int max);
 bool iradio_save(const char *path, const iradio_station_t *list, int n);
 int  iradio_find(const iradio_station_t *list, int n, const char *url);
+
+/* The country chosen (/mnt/iradio/country, in the Backup as well): one line as the countries' (name<TAB>code),
+ * written as the favourites are. Read back also as v0.3.13 wrote it, the code first, which it then never read: the
+ * country was forgotten at each start (#316). False with no file or no country in it */
+bool iradio_save_country(const char *path, const iradio_country_t *c);
+bool iradio_load_country(const char *path, iradio_country_t *c);
 
 #ifdef __cplusplus
 }

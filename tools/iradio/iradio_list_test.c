@@ -3,7 +3,8 @@
  *
  *  Host test of the Internet radio's station lines (src/iradio_list.c): the lines rootfs/usr/sbin/x6100-iradio
  *  prints and the favourites file, as the window reads them; which stations play with ffmpeg on the image and
- *  without; the list's second column; the favourites written and read back, a long line and junk skipped.
+ *  without; the list's second column; the favourites written and read back, a long line and junk skipped; the country
+ *  chosen written and read back, and read as v0.3.13 wrote it (#316).
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -171,10 +172,83 @@ static void test_file(void) {
     rmdir(dir);
 }
 
+static void write_text(const char *path, const char *text) {
+    FILE *f = fopen(path, "w");
+
+    if (!f) {
+        perror(path);
+        exit(2);
+    }
+    fputs(text, f);
+    fclose(f);
+}
+
+static void read_text(const char *path, char *buf, size_t size) {
+    FILE  *f = fopen(path, "r");
+    size_t n = f ? fread(buf, 1, size - 1, f) : 0;
+
+    buf[n] = 0;
+    if (f) fclose(f);
+}
+
+static void test_country_file(void) {
+    char             dir[] = "/tmp/iradio-test-XXXXXX";
+    char             path[200], tmp[300], text[100];
+    iradio_country_t c = {.name = "Netherlands", .cc = "NL", .stations = 423}, back;
+
+    if (!mkdtemp(dir)) {
+        perror("mkdtemp");
+        exit(2);
+    }
+    snprintf(path, sizeof(path), "%s/iradio/country", dir);     /* the folder made by the save */
+
+    /* None chosen yet: no file */
+    CHECK(!iradio_load_country(path, &back));
+
+    /* Written as a line of the countries, read back: what the window starts with after a restart */
+    CHECK(iradio_save_country(path, &c));
+    read_text(path, text, sizeof(text));
+    STREQ(text, "Netherlands\tNL\n");
+    snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+    CHECK(access(tmp, F_OK) != 0);
+    memset(&back, 0, sizeof(back));
+    CHECK(iradio_load_country(path, &back));
+    STREQ(back.name, "Netherlands");
+    STREQ(back.cc, "NL");
+
+    /* As v0.3.13 wrote it, the code first: read too (it was never read back then, the country forgotten) */
+    write_text(path, "BE\tBelgium\n");
+    memset(&back, 0, sizeof(back));
+    CHECK(iradio_load_country(path, &back));
+    STREQ(back.name, "Belgium");
+    STREQ(back.cc, "BE");
+    write_text(path, "Bosnia and Herzegovina\tBA\r\n");     /* restored from a Backup made on a PC: CR LF */
+    CHECK(iradio_load_country(path, &back));
+    STREQ(back.cc, "BA");
+
+    /* The next choice overwrites the old line */
+    CHECK(iradio_save_country(path, &c));
+    read_text(path, text, sizeof(text));
+    STREQ(text, "Netherlands\tNL\n");
+
+    /* No country in it: empty, a code alone, a lower-case or three-letter code, junk */
+    const char *bad[] = {"", "\n", "BE\n", "be\tBelgium\n", "Belgium\tbe\n", "BEL\tBelgium\n", "junk line\n"};
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        write_text(path, bad[i]);
+        CHECK(!iradio_load_country(path, &back));
+    }
+
+    unlink(path);
+    snprintf(tmp, sizeof(tmp), "%s/iradio", dir);
+    rmdir(tmp);
+    rmdir(dir);
+}
+
 int main(void) {
     test_stations();
     test_countries();
     test_file();
+    test_country_file();
     printf("iradio_list: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }
