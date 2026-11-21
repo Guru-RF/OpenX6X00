@@ -8,9 +8,11 @@
 
 #include "cw_decoder.h"
 
+#include "freq_strip.h"
 #include "lcd_panel.h"
 #include "panel.h"
 #include "remote_server.h"
+#include "scheduler.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -33,6 +35,11 @@ void cw_decoder_text(const char *text, bool own) {
     panel_add_text(text);
 }
 
+/* LVGL thread: the speed in the frequency strip too, where Settings may put it (#308) */
+static void strip_wpm(void *arg) {
+    freq_strip_set_wpm(*(int *)arg);
+}
+
 void cw_decoder_wpm(int wpm) {
     char info[16];
 
@@ -42,4 +49,5 @@ void cw_decoder_wpm(int wpm) {
     }
     snprintf(info, sizeof(info), "WPM: %d", wpm);
     panel_set_info(info);
+    scheduler_put(strip_wpm, &wpm, sizeof(wpm));
 }

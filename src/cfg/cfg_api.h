@@ -201,6 +201,7 @@ extern ParamInt   *cfg_cwt_copy_level;      // p_cwt_copy_level
 extern ParamInt   *cfg_cwt_copy_group;      // p_cwt_copy_group
 extern ParamInt   *cfg_cw_decoder;         // p_cw_decoder
 extern ParamInt   *cfg_cw_tune;            // p_cw_tune
+extern ParamInt   *cfg_cw_tune_place;      // p_cw_tune_place: the bars and the WPM in the frequency strip (#308)
 extern ParamInt   *cfg_cw_live;            // p_cw_live
 extern ParamFloat *cfg_cw_decoder_snr;     // p_cw_decoder_snr
 

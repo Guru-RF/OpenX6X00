@@ -30,6 +30,11 @@ void      freq_strip_set_dialog(bool open);
 void      freq_strip_set_lock(bool user_lock);
 /* The X6200's WR12 in use (WR12 on HOST, set up: radio.c): WR12 left of NR NB DNF, in the theme's info colour */
 void      freq_strip_set_wr12(bool in_use);
+/* The CW decoder's speed (WPM), for the strip's CW group (#308); LVGL thread */
+void      freq_strip_set_wpm(int wpm);
+/* The CW Tuner's bars and the decoder's speed are in the strip now (Settings > Display > MAIN SCREEN > CW tune and
+ * WPM, in CW, the strip with the room): the panel over the waterfall leaves them out */
+bool      freq_strip_holds_cw(void);
 
 #ifdef __cplusplus
 }
