@@ -33,6 +33,7 @@ static lv_obj_t    *info_line;
 static lv_anim_t    dim_anim;       /* tuning dims the text */
 static char         buf[1024];      /* the text as decoded, '\n' between the lines */
 static char        *buf_write = buf;   /* its end, where the next text goes */
+static bool         own[sizeof(buf)];   /* buf's characters that were sent (RTTY's TX, #312), not received */
 static char         shown[6144];    /* buf with the words coloured (label recolour), up to 9 more chars a word */
 static uint8_t      max_line_count;
 static radio_mode_t prev_mode;      /* CW-R kept as CW: switching between them keeps the text */
@@ -156,6 +157,7 @@ static void drop_first_line() {
     for (const char *p = second; p; p = strchr(p + 1, '\n')) lines++;
     if (buf[len - 1] == '\n') lines--;
     if (lines > max_line_count) {
+        memmove(own, own + (second + 1 - buf), buf + len - second);
         memmove(buf, second + 1, buf + len - second);
         buf_write = buf + strlen(buf);
     }
@@ -185,7 +187,7 @@ static bool sent_call(const char *w, size_t len) {
 /* buf into the label, the calls coloured; with Parse also abbreviations (dim) and RST. A word still
  * being decoded stays plain */
 static void show() {
-    char   call[8], abbr[8], rst[8];
+    char   call[8], abbr[8], rst[8], tx[8];
     char  *o = shown, *end = shown + sizeof(shown) - 16;
     size_t n;
     bool   parse = parse_on();
@@ -193,6 +195,7 @@ static void show() {
     snprintf(call, sizeof(call), "%06X", (unsigned)(theme_hex(parse ? TC_accent : TC_text_head) & 0xFFFFFF));
     snprintf(abbr, sizeof(abbr), "%06X", (unsigned)(theme_hex(TC_text_dim) & 0xFFFFFF));
     snprintf(rst, sizeof(rst), "%06X", (unsigned)(theme_hex(TC_text_head) & 0xFFFFFF));
+    snprintf(tx, sizeof(tx), "%06X", (unsigned)(theme_hex(TC_tx) & 0xFFFFFF));
     for (const char *p = buf; *p && o < end; p += n) {
         n = strcspn(p, " \n");
         if (n == 0) {           /* a separator */
@@ -201,7 +204,9 @@ static void show() {
             continue;
         }
         const char *color = NULL;
-        if (p[n] && sent_call(p, n)) {
+        if (own[p - buf]) {
+            color = tx;         /* ours, the word being sent too */
+        } else if (p[n] && sent_call(p, n)) {
             color = call;
         } else if (p[n] && parse) {
             cwp_class_t c = cw_parse_class(p, n);
@@ -238,6 +243,7 @@ static void split_words(char *from) {
             memcpy(raw, p, n);
             m = cw_parse_split(raw, n, buf, out, sizeof(out));
             if (m > n && (size_t)(buf_write - buf) + m - n < sizeof(buf) - 1) {
+                memmove(own + (p + m - buf), own + (p + n - buf), buf_write - (p + n) + 1);
                 memmove(p + m, p + n, buf_write - (p + n) + 1);
                 memcpy(p, out, m);
                 buf_write += m - n;
@@ -256,7 +262,8 @@ const char *panel_last_call(void) {
     call[0] = '\0';
     for (; *p; p += n ? n : 1) {
         n = strcspn(p, " \n");
-        if (n && p[n] && sent_call(p, n)) snprintf(call, sizeof(call), "%.*s", (int)n, p);
+        /* the calls received: in RTTY's own text are the station's and the one it calls (#312) */
+        if (n && p[n] && !own[p - buf] && sent_call(p, n)) snprintf(call, sizeof(call), "%.*s", (int)n, p);
     }
     return call;
 }
@@ -297,12 +304,17 @@ static bool too_wide() {
     return size.x > w;
 }
 
-/* New decoded text at the end of buf. No bound on its length: the decoders send a few
+/* New text at the end of buf, decoded or (mine) sent. No bound on its length: the decoders send a few
  * characters at a time and the lines are kept to the panel's */
-static void add_text(void *arg) {
-    const char *text = (const char *)arg;
-    char       *at = buf_write;
+static void add(const char *text, bool mine) {
+    char *at = buf_write;
 
+    /* Sent and received text never share a line, as in the keyboard modes' windows: a line breaks where one
+     * follows the other (RTTY's TX after what it decoded, the decoder after a TX stopped in a line) */
+    if (at > buf && at[-1] != '\n' && own[at - 1 - buf] != mine && *text != '\n') {
+        *at++ = '\n';
+        *at = '\0';
+    }
     buf_write = stpcpy(at, text);
     if (buf_write - buf >= 2 && !strcmp(buf_write - 2, "\n\n")) {
         buf_write--;            /* one empty line at most: the next text goes over the second '\n' */
@@ -327,8 +339,17 @@ static void add_text(void *arg) {
             if (sp > buf && sp[-1] == ' ') sp[-1] = '\n';
         }
     }
+    memset(own + (at - buf), mine, buf_write - at);
     drop_first_line();
     show();
+}
+
+static void add_text(void *arg) {
+    add((const char *)arg, false);
+}
+
+static void add_tx_text(void *arg) {
+    add((const char *)arg, true);
 }
 
 static void set_info(void *arg) {
@@ -398,6 +419,10 @@ void panel_keep_below(lv_coord_t y) {
 /* From the decoders' threads: copied, added in the LVGL one */
 void panel_add_text(const char *text) {
     scheduler_put(add_text, (void *)text, strlen(text) + 1);
+}
+
+void panel_add_tx_text(const char *text) {
+    scheduler_put(add_tx_text, (void *)text, strlen(text) + 1);
 }
 
 void panel_set_info(const char *text) {

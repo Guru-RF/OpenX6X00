@@ -14,8 +14,11 @@
 #include "cfg/cfg_api.h"
 #include "util.h"
 #include "msg.h"
+#include "theme.h"
 #include "tx_player.h"
 #include "digi_textlog.h"
+#include "digi_qso.h"           /* the DX call from "DE <call>", for the macros */
+#include "rtty_tx.h"            /* the ITA2 table and the transmitter */
 
 #include "lvgl/lvgl.h"
 
@@ -67,17 +70,10 @@ static uint8_t        rx_data       = 0;
 static bool           rx_letter     = true;
 
 static bool         ready = false;
-static rtty_state_t state = RTTY_OFF;
+/* The LVGL thread opens and closes the app, the TX thread takes it from TX back to RX */
+static _Atomic rtty_state_t state = RTTY_OFF;
 
 static radio_mode_t cur_mode;
-
-static const char rtty_letters[32] = {'\0', 'E', '\n', 'A', ' ', 'S', 'I', 'U', '\0', 'D', 'R',
-                                      'J',  'N', 'F',  'C', 'K', 'T', 'Z', 'L', 'W',  'H', 'Y',
-                                      'P',  'Q', 'O',  'B', 'G', ' ', 'M', 'X', 'V',  ' '};
-
-static const char rtty_symbols[32] = {'\0', '3', '\n', '-', ' ', '\0', '8', '7', '\0', '$', '4',
-                                      '\'', ',', '!',  ':', '(', '5',  '"', ')', '2',  '#', '6',
-                                      '0',  '1', '9',  '?', '&', ' ',  '.', '/', ';',  ' '};
 
 static void on_cur_mode_change(Subject *subj, void *user_data);
 
@@ -200,7 +196,7 @@ static char baudot_decoder(uint8_t c) {
         return 0;
     }
 
-    return rx_letter ? rtty_letters[c] : rtty_symbols[c];
+    return rx_letter ? rtty_ita2_letters[c] : rtty_ita2_figures[c];
 }
 
 static bool is_mark_space(uint8_t *correction) {
@@ -220,6 +216,15 @@ static bool is_mark_space(uint8_t *correction) {
 
 static bool is_mark() {
     return rx_symbol[SYMBOL_LEN / 2];
+}
+
+/* The sideband for rtty_mark_high: +1 USB, -1 LSB, 0 another mode */
+static int side(void) {
+    switch (cur_mode) {
+        case radio_mode_usb: case radio_mode_usb_dig: return 1;
+        case radio_mode_lsb: case radio_mode_lsb_dig: return -1;
+        default:                                      return 0;
+    }
 }
 
 /* The text log's frequency: the middle of mark and space, the RTTY centre the dial's side of the audio */
@@ -303,6 +308,7 @@ static void add_symbol(float pwr) {
 
                         panel_add_text(str);
                         digi_textlog_rx("RTTY", log_freq(), DIGI_TEXTLOG_SIG_NONE, 0, str);   /* the card (#55) */
+                        digi_qso_feed_rx(c);    /* "DE <call>": the DX call the macros send to (#312) */
                     }
                 }
                 rx_state = RX_STATE_IDLE;
@@ -319,14 +325,14 @@ void rtty_put_audio_samples(unsigned int n, float *samples) {
         return;
     }
 
-    bool  mark_hi = ((cur_mode == radio_mode_usb || cur_mode == radio_mode_usb_dig) && !params.rtty_reverse) ||
-                    ((cur_mode == radio_mode_lsb || cur_mode == radio_mode_lsb_dig) && params.rtty_reverse);
-    float half = params.rtty_shift / 2.0f;
+    bool  mark_hi = rtty_mark_high(side(), params.rtty_reverse);
     float bw = params.rtty_rate / 100.0f * 1.5f;   /* a baud and a half */
+    float mark_hz, space_hz;
     float c_mark[3], c_space[3];
 
-    bandpass_coef(c_mark, params.rtty_center + (mark_hi ? half : -half), bw);
-    bandpass_coef(c_space, params.rtty_center + (mark_hi ? -half : half), bw);
+    rtty_tones(params.rtty_center, params.rtty_shift, mark_hi, &mark_hz, &space_hz);
+    bandpass_coef(c_mark, mark_hz, bw);
+    bandpass_coef(c_space, space_hz, bw);
 
     for (size_t i = 0; i < n; i++) {
         cfloat cval;
@@ -359,8 +365,7 @@ void rtty_put_audio_samples(unsigned int n, float *samples) {
         float pwr1 = 10.0f * log10f(fskdem_get_symbol_energy(demod, 1, 1));
         float pwr  = pwr0 - pwr1;
 
-        if (((cur_mode == radio_mode_usb || cur_mode == radio_mode_usb_dig) && !params.rtty_reverse) ||
-            ((cur_mode == radio_mode_lsb || cur_mode == radio_mode_lsb_dig) && params.rtty_reverse)) {
+        if (mark_hi) {
             pwr = -pwr;
         }
 
@@ -571,163 +576,185 @@ static void on_cur_mode_change(Subject *subj, void *user_data) {
     cur_mode = cparam_i_get(cfg_cur_mode);
 }
 
-/* TX (web remote): the text in AFSK, ITA2 with 1 start, 5 data (LSB first) and 1.5 stop bits */
+/* ---- TX (#312): the lines of the RTTY buttons (rtty_send.c), sent by rtty_tx.c through tx_player, as the other
+ * digital apps send: the power cap, the ALC levelling, the SWR protection, the amateur bands only. A line queued
+ * while one goes out is sent after it in the same transmission; Stop TX unkeys at the next block of audio and drops
+ * what is left ---- */
 
-#define TX_TEXT_MAX 200
-#define TX_AMP      (32767.0f * 0.8f)
-#define TX_IDLE_S   1.0f    /* mark before the first character */
-#define TX_TAIL     3.0f    /* bits of mark after the last one */
+#define TX_QUEUE_MAX    1024    /* characters waiting */
 
-typedef struct {
-    char  text[TX_TEXT_MAX + 1];
-    float baud, mark_hz, space_hz;
-    int   n;                          /* codes */
-    uint8_t  codes[2 * TX_TEXT_MAX + 1];
-    uint8_t  done[2 * TX_TEXT_MAX + 1];   /* characters of text on air once this code is */
-    uint32_t end[2 * TX_TEXT_MAX + 1];    /* sample where this code ends */
-    struct timespec start;
-} tx_job_t;
+static pthread_mutex_t tx_mux = PTHREAD_MUTEX_INITIALIZER;
+static char            tx_queue[TX_QUEUE_MAX + 1];  /* what is still to go, each line with its '\n' */
+static atomic_bool     tx_on;           /* the TX thread runs: from the first line queued to the end */
+static atomic_bool     tx_stop;         /* Stop TX */
+static atomic_bool     tx_filled;       /* the player asked for audio: the transmission went ahead */
+static uint32_t        tx_freq;         /* for the text log, as log_freq() at the start */
+static char            tx_line[DIGI_TEXTLOG_TEXT_MAX + 1];  /* the line going out, for the text log */
+static size_t          tx_line_len;
 
-typedef struct {
-    int16_t *buf;
-    uint32_t n;
-    double   pos;   /* samples, fractional */
-    float    phase;
-} synth_t;
+/* The next character of the queue, -1 when it is empty. TX thread */
+static int tx_next(void *ctx) {
+    int c = -1;
 
-static atomic_bool tx_abort;
-static atomic_int  tx_sent;
-
-/* ITA2 code of c, -1 if none. *shift: the case it needs, 0 for both */
-static int baudot_code(char c, uint8_t *shift) {
-    for (int i = 0; c && i < 32; i++) {
-        if (i == RTTY_SYMBOL_CODE || i == RTTY_LETTER_CODE)
-            continue;
-        bool l = rtty_letters[i] == c, f = rtty_symbols[i] == c;
-        if (l || f) {
-            *shift = (l && f) ? 0 : l ? RTTY_LETTER_CODE : RTTY_SYMBOL_CODE;
-            return i;
-        }
+    (void)ctx;
+    pthread_mutex_lock(&tx_mux);
+    if (tx_queue[0]) {
+        c = (unsigned char)tx_queue[0];
+        memmove(tx_queue, tx_queue + 1, strlen(tx_queue));
     }
-    return -1;
+    pthread_mutex_unlock(&tx_mux);
+    return c;
 }
 
-/* LTRS first, then the characters with the case shifts; the ones Baudot lacks are dropped */
-static void tx_encode(tx_job_t *job) {
-    uint8_t shift = RTTY_LETTER_CODE;
-
-    job->n        = 0;
-    job->codes[0] = RTTY_LETTER_CODE;
-    job->done[0]  = 0;
-    job->n++;
-    for (int i = 0; job->text[i]; i++) {
-        uint8_t sh;
-        int     code = baudot_code(toupper((unsigned char)job->text[i]), &sh);
-
-        if (code < 0)
-            continue;
-        if (sh && sh != shift) {
-            shift               = sh;
-            job->codes[job->n]  = sh;
-            job->done[job->n++] = i;
-        }
-        job->codes[job->n]  = code;
-        job->done[job->n++] = i + 1;
+static void tx_log_line(void) {
+    if (tx_line_len) {
+        tx_line[tx_line_len] = '\0';
+        digi_textlog_tx("RTTY", tx_freq, tx_line);
+        tx_line_len = 0;
     }
 }
 
-/* Continuous phase; bit edges on the fractional sample position */
-static void tx_bits(synth_t *s, float hz, float bits, float spb) {
-    float    dphi = 2.0f * (float)M_PI * hz / AUDIO_PLAY_RATE;
-    uint32_t to;
+/* A character on its way to the air: into the panel in the TX colour, its line into the text log at its end */
+static void tx_echo(char c, void *ctx) {
+    char s[2] = {c, '\0'};
 
-    s->pos += bits * spb;
-    to = (uint32_t)lround(s->pos);
-    for (; s->n < to; s->n++) {
-        s->phase += dphi;
-        if (s->phase > 2.0f * (float)M_PI)
-            s->phase -= 2.0f * (float)M_PI;
-        s->buf[s->n] = (int16_t)(sinf(s->phase) * TX_AMP);
+    (void)ctx;
+    panel_add_tx_text(s);
+    if (c == '\n') {
+        tx_log_line();
+        return;
     }
+    if (tx_line_len == DIGI_TEXTLOG_TEXT_MAX) tx_log_line();
+    tx_line[tx_line_len++] = c;
+}
+
+static size_t tx_fill(int16_t *buf, size_t n, void *ctx) {
+    atomic_store(&tx_filled, true);
+    return rtty_tx_fill(buf, n, ctx);
 }
 
 static bool tx_abort_cb(void *ctx) {
-    tx_job_t       *job = ctx;
-    struct timespec now;
+    (void)ctx;
+    return atomic_load(&tx_stop) || state != RTTY_TX;    /* Stop TX, or the app closed */
+}
 
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    if (!job->start.tv_sec)
-        job->start = now;
-    double played = ((now.tv_sec - job->start.tv_sec) + (now.tv_nsec - job->start.tv_nsec) * 1e-9) * AUDIO_PLAY_RATE;
-    for (int i = 0; i < job->n && job->end[i] <= played; i++)
-        atomic_store(&tx_sent, job->done[i]);
-    return atomic_load(&tx_abort) || state != RTTY_TX;    /* stopped, or the app closed */
+/* The decoder from where a received character starts, in letters, as at its opening: what it was in the middle of
+ * when the radio keyed is gone */
+static void rx_restart(void) {
+    pthread_mutex_lock(&rtty_mux);
+    rx_state  = RX_STATE_IDLE;
+    rx_letter = true;
+    pthread_mutex_unlock(&rtty_mux);
 }
 
 static void *tx_thread(void *arg) {
-    tx_job_t *job    = arg;
-    float     spb    = AUDIO_PLAY_RATE / job->baud;
-    int       result = -2;
+    rtty_tx_cfg_t *cfg = arg;
+    bool           again;
 
-    tx_encode(job);
+    do {
+        rtty_tx_t tx;
+        bool      ok;
 
-    /* ponytail: the whole waveform in memory (~6 MB for 200 characters at 45 baud); stream it when that hurts */
-    synth_t  s   = {0};
-    uint32_t cap = (uint32_t)((TX_IDLE_S * AUDIO_PLAY_RATE) + (job->n * 7.5f + TX_TAIL) * spb) + 16;
-
-    s.buf = malloc(cap * sizeof(int16_t));
-    if (s.buf) {
-        tx_bits(&s, job->mark_hz, TX_IDLE_S * job->baud, spb);
-        for (int i = 0; i < job->n; i++) {
-            tx_bits(&s, job->space_hz, 1.0f, spb);
-            for (int b = 0; b < 5; b++)
-                tx_bits(&s, (job->codes[i] >> b) & 1 ? job->mark_hz : job->space_hz, 1.0f, spb);
-            tx_bits(&s, job->mark_hz, 1.5f, spb);
-            job->end[i] = s.n;
+        rtty_tx_start(&tx, cfg, tx_next, tx_echo, NULL);
+        atomic_store(&tx_filled, false);
+        ok = tx_player_stream(tx_fill, &tx, TX_PLAYER_AUDIO_HZ, tx_player_base_gain_offset(), tx_abort_cb, NULL);
+        if (tx_line_len) {
+            panel_add_tx_text("\n");     /* stopped in a line: what comes next on a line of its own */
+            tx_log_line();
         }
-        tx_bits(&s, job->mark_hz, TX_TAIL, spb);
+        if (!atomic_load(&tx_filled)) {
+            /* tx_player sent nothing: another transmission (a TUNE, TCI, the PTT) holds the radio */
+            msg_schedule_text_fmt("RTTY: not sent, the radio is transmitting");
+        }
+        /* A line queued while the tail went out goes in a transmission of its own. Else what is left goes: after Stop
+         * TX, a refusal (out of the bands), the SWR protection or the app closed */
+        pthread_mutex_lock(&tx_mux);
+        again = ok && !atomic_load(&tx_stop) && tx_queue[0] && state == RTTY_TX;
+        if (!again) {
+            rtty_state_t was = RTTY_TX;
 
-        bool ok = tx_player_play(s.buf, s.n, TX_PLAYER_AUDIO_HZ, tx_player_base_gain_offset(), tx_abort_cb, job);
-        result  = ok ? 1 : -1;
-        if (ok)
-            atomic_store(&tx_sent, (int)strlen(job->text));
-        free(s.buf);
-    }
-    if (state == RTTY_TX)
-        state = RTTY_RX;
-    free(job);
+            tx_queue[0] = '\0';
+            rx_restart();
+            atomic_compare_exchange_strong(&state, &was, RTTY_RX);     /* not when the app closed meanwhile */
+            atomic_store(&tx_on, false);
+        }
+        pthread_mutex_unlock(&tx_mux);
+    } while (again);
+    free(cfg);
     return NULL;
 }
 
-/* LVGL thread */
-static void tx_start(const char *text) {
-    pthread_t th;
-    tx_job_t *job;
+bool rtty_tx_send(const char *text) {
+    rtty_tx_cfg_t *cfg;
+    pthread_t      th;
+    size_t         len;
 
-    if (state != RTTY_RX) {
-        msg_update_text_fmt("RTTY TX busy");
-        return;
+    if (!text || !*text || state == RTTY_OFF) {
+        return false;
     }
-    job = calloc(1, sizeof(*job));
-    if (!job)
-        return;
-    snprintf(job->text, sizeof(job->text), "%s", text);
-    job->baud = params.rtty_rate / 100.0f;
+    /* The tones are for the sidebands: in AM or FM they would go out as another signal */
+    if (side() == 0) {
+        msg_update_text_fmt("#%06x RTTY TX: LSB or USB only#", theme_hex(TC_err));
+        return false;
+    }
+    pthread_mutex_lock(&tx_mux);
+    len = strlen(tx_queue);
+    if (atomic_load(&tx_on) && state != RTTY_TX) {
+        /* the last transmission still ending after the app closed and opened again */
+        pthread_mutex_unlock(&tx_mux);
+        msg_update_text_fmt("#%06x RTTY: TX busy#", theme_hex(TC_err));
+        return false;
+    }
+    if (len + strlen(text) + 1 > TX_QUEUE_MAX) {
+        pthread_mutex_unlock(&tx_mux);
+        msg_update_text_fmt("#%06x RTTY: TX queue full#", theme_hex(TC_err));
+        return false;
+    }
+    snprintf(tx_queue + len, sizeof(tx_queue) - len, "%s\n", text);
+    if (atomic_load(&tx_on)) {
+        pthread_mutex_unlock(&tx_mux);
+        return true;    /* after what is going out */
+    }
 
-    /* The tones the receiver takes for mark and space (rtty_put_audio_samples) */
-    bool mark_hi = ((cur_mode == radio_mode_usb || cur_mode == radio_mode_usb_dig) && !params.rtty_reverse) ||
-                   ((cur_mode == radio_mode_lsb || cur_mode == radio_mode_lsb_dig) && params.rtty_reverse);
-    float half = params.rtty_shift / 2.0f;
-    job->mark_hz  = params.rtty_center + (mark_hi ? half : -half);
-    job->space_hz = params.rtty_center + (mark_hi ? -half : half);
-
-    atomic_store(&tx_abort, false);
-    atomic_store(&tx_sent, 0);
-    state = RTTY_TX;    /* no RX feed while sending */
-    if (pthread_create(&th, NULL, tx_thread, job)) {
+    /* A new transmission, on the app's settings as they are now: rate, shift, centre and the mark the receiver takes */
+    cfg = malloc(sizeof(*cfg));
+    if (!cfg) {
+        tx_queue[0] = '\0';
+        pthread_mutex_unlock(&tx_mux);
+        return false;
+    }
+    cfg->rate = AUDIO_PLAY_RATE;
+    cfg->baud = params.rtty_rate / 100.0f;
+    rtty_tones(params.rtty_center, params.rtty_shift, rtty_mark_high(side(), params.rtty_reverse), &cfg->mark_hz,
+               &cfg->space_hz);
+    tx_freq = log_freq();
+    tx_line_len = 0;
+    atomic_store(&tx_stop, false);
+    atomic_store(&tx_on, true);
+    state = RTTY_TX;    /* no RX feed while sending (dsp.cpp) */
+    if (pthread_create(&th, NULL, tx_thread, cfg)) {
         state = RTTY_RX;
-        free(job);
-        return;
+        atomic_store(&tx_on, false);
+        tx_queue[0] = '\0';
+        pthread_mutex_unlock(&tx_mux);
+        free(cfg);
+        return false;
     }
     pthread_detach(th);
+    pthread_mutex_unlock(&tx_mux);
+    return true;
+}
+
+void rtty_tx_stop(void) {
+    pthread_mutex_lock(&tx_mux);
+    if (atomic_load(&tx_on)) {
+        atomic_store(&tx_stop, true);
+        tx_queue[0] = '\0';
+        msg_update_text_fmt("RTTY TX stopped");
+    }
+    pthread_mutex_unlock(&tx_mux);
+}
+
+bool rtty_tx_on(void) {
+    return atomic_load(&tx_on);
 }

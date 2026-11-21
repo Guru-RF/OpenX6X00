@@ -1,8 +1,8 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  OpenX6X00 - the text of the keyboard modes on the card (#55): what PSK31, PSK63, Olivia and JTTY receive and
- *  send, and what RTTY receives, a line each in DATA's digi_text/<UTC date>.txt, one file a day:
+ *  OpenX6X00 - the text of the keyboard modes on the card (#55): what PSK31, PSK63, Olivia, JTTY and RTTY receive
+ *  and send, a line each in DATA's digi_text/<UTC date>.txt, one file a day:
  *
  *    2026-10-31 14:05:12Z 14.071000 PSK31 RX Q87% CQ CQ DE ON6URE ON6URE K
  *    2026-10-31 14:05:40Z 14.071000 PSK31 TX - ON6URE DE PA3XYZ PA3XYZ KN

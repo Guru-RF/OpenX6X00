@@ -33,6 +33,7 @@
 #include "main.h"
 #include "text_panel.h"
 #include "rtty.h"
+#include "rtty_send.h"
 #include "screen_shot.h"
 #include "screen_rec.h"
 #include "key_input.h"
@@ -646,6 +647,7 @@ void main_screen_start_app(press_action_t app_action) {
             main_screen_set_freq(freq);
             cparam_i_set(cfg_cur_mode, mode);
         }
+        rtty_send_open();       /* its macros, as the web configurator left them */
         buttons_load_page(&buttons_page_rtty);
         rtty_set_state(RTTY_RX);
         panel_update_visibility(true);
@@ -1534,7 +1536,7 @@ static void spectrum_key_cb(lv_event_t *e) {
             main_screen_buttons_wake();
             break;
     }
-    if (cw_field_key(key)) {
+    if (cw_field_key(key) || rtty_send_key(key)) {
         return;
     }
     switch (key) {
@@ -1712,7 +1714,7 @@ void main_screen_keyboard_gone(void) {
 /* CapsLock and a key (key_input.c, kbd_hyper.c's table): what each chord does, and where. The main screen's act only
  * while it has the keyboard, where they bring hidden buttons back as a key does; in an app, a dialog or a text box
  * they do nothing. The screenshot is taken everywhere, as a long press given it is; PTT goes off everywhere; 1-8 are
- * JTTY's macros while it has the keyboard */
+ * JTTY's macros while it has the keyboard, 1-6 RTTY's on the main screen in RTTY */
 void main_screen_chord(int action) {
     bool here = main_screen_has_keys();
 
@@ -1732,7 +1734,7 @@ void main_screen_chord(int action) {
     if (action >= HYPER_KEY_1 && action <= HYPER_KEY_8) {
         int n = action - HYPER_KEY_1 + 1;
 
-        if (!dialog_jtty_macro(n) && here && n <= 5) {
+        if (!dialog_jtty_macro(n) && here && !rtty_send_macro(n) && n <= 5) {
             cw_field_message(n);    /* in CW, where the CW line keys */
         }
         return;
