@@ -1,0 +1,130 @@
+From: OpenX6X00 <noreply@rf.guru>
+Subject: [PATCH] wifi: rtw88: 8723d: notch the host board's own spurs (host_spur_khz)
+
+The Xiegu X6200's own clocks radiate two steady lines into the 2.4 GHz
+band, at 2457.60 MHz (10 x 245.76 MHz) and 2470.61 MHz, both inside
+WiFi channel 11 where the radio's RTL8723DU hears them. On that channel
+the X6200's WiFi stalled for seconds and dropped connections while an
+X6100 beside it on the same access point did not.
+
+The RTL8723D already has the remedy: a narrow-band interference notch
+(NBI, 0xc40) and a mask of OFDM tones left out of the channel estimate
+(CSI mask, 0xd40-0xd4c), which this driver sets for the chip's own
+2480 MHz spur on channels 13 and 14 (rtw8723d_cfg_notch). This lets the
+board name its own spurs the same way.
+
+host_spur_khz=<kHz>[,...] (up to 4). On channels 1-12, for each spur
+within 10 MHz of the channel's centre: the tone(s) it falls on are
+masked out of the channel estimate (bit t for tone +t, 128 - t for -t,
+both neighbours when it sits between two), and the first such spur gets
+the NBI notch (phydm's 20 MHz table, which gives the coded cases' 0xb
+for +8.0 MHz and 0x5 for -4.0 MHz). Unset, nothing changes. A driver
+without the parameter logs "unknown parameter" and loads as before.
+
+Measured on an X6200 (2026-11-21): a HackRF beside it showed the two
+lines with the radio on and none with it off (the rest of the band the
+same to 0.2 dB). On channel 11, a 3 Mbit/s upload from the radio
+(WSJT-X's TCI audio, 3 minutes a run) got 33 % of real time without the
+notch, or its connection dropped at 74 s; with the notch 99.4-100 %
+(set by hand in debugfs, then by this parameter on a freshly loaded
+driver, off and on in turn).
+
+Not covered: channel 13, where the chip's own notch is set instead
+(2470.6 MHz is 1.4 MHz from that channel's centre).
+---
+diff --git a/rtw8723d.c b/rtw8723d.c
+index 5acddd8..a2818db 100644
+--- a/rtw8723d.c
++++ b/rtw8723d.c
+@@ -293,12 +293,90 @@ static void rtw8723d_cfg_notch(struct rtw_dev *rtwdev, u8 channel, bool notch)
+ 	}
+ }
+ 
++/* Spurs of the host board's own inside the 2.4 GHz band, in kHz: on a channel one falls in, the first is notched
++ * (NBI) and all are masked out of the channel estimate (CSI mask), as the chip's own 2480 MHz is on channels 13 and
++ * 14 below. The X6200's clocks put lines at 2457.6 and 2470.6 MHz into channel 11, where its WiFi stalled for a
++ * second or more now and then while a board beside it on the same access point did not (measured with a HackRF
++ * beside it, on against off). Set from the board's modprobe.d */
++static unsigned int host_spur_khz[4];
++static int n_host_spur;
++module_param_array(host_spur_khz, uint, &n_host_spur, 0444);
++MODULE_PARM_DESC(host_spur_khz, "the host board's own spurs in kHz, notched on the channels they fall in");
++
++/* A spur's NBI index (20 MHz, 64 tones of 312.5 kHz): phydm's table of tone x 10 limits, as the coded channels 13
++ * and 14 below give (+8.0 MHz: 0xb; -4.0 MHz: 0x5) */
++static u8 rtw8723d_nbi_index(u32 off_khz)
++{
++	static const u16 nbi_128[] = {25, 55, 85, 115, 135, 155, 185, 205, 225, 245, 265, 285, 305, 335,
++				      355, 375, 395, 415, 435, 455, 485, 505, 525, 555, 585, 615, 635};
++	u32 tone10 = off_khz * 10 * 10 / 3125;		/* tone x 10 */
++	u8 i;
++
++	for (i = 0; i < ARRAY_SIZE(nbi_128); i++)
++		if (tone10 < nbi_128[i])
++			return i + 1;
++	return 0;
++}
++
++/* The host's spurs on this channel, if any: true when set. CSI bit t for tone +t, 128 - t for -t (the coded cases:
++ * +25.6 tones bit 26, -12.8 tones bit 115); both tones when a spur sits near the middle between two */
++static bool rtw8723d_host_notch(struct rtw_dev *rtwdev, u8 channel)
++{
++	u32 fc = 2412000 + (channel - 1) * 5000, csi[4] = {0};
++	bool nbi = false, any = false;
++	int i;
++
++	for (i = 0; i < n_host_spur && channel <= 13; i++) {
++		s32 off = (s32)host_spur_khz[i] - (s32)fc;
++		u32 a = off < 0 ? -off : off, t100 = a * 100 * 10 / 3125, t = t100 / 100, f = t100 % 100;
++		u32 tones[2], n = 0, k;
++
++		if (a >= 10000)
++			continue;
++		if (f > 65)
++			tones[n++] = t + 1;
++		else if (f < 35)
++			tones[n++] = t;
++		else {
++			tones[n++] = t;
++			tones[n++] = t + 1;
++		}
++		for (k = 0; k < n; k++) {
++			u32 bit = off >= 0 ? tones[k] : 128 - tones[k];
++
++			if (tones[k] == 0 || tones[k] > 31)
++				continue;
++			csi[bit / 32] |= BIT(bit % 32);
++			any = true;
++		}
++		if (!nbi && rtw8723d_nbi_index(a)) {
++			rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_MASK_RXDSP, rtw8723d_nbi_index(a));
++			rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_EN_RXDSP, 0x1);
++			nbi = true;
++		}
++		rtw_dbg(rtwdev, RTW_DBG_PHY, "host spur %u kHz on channel %u: %+d kHz\n", host_spur_khz[i], channel, off);
++	}
++	if (!any && !nbi)
++		return false;
++	if (!nbi) {
++		rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_MASK_RXDSP, 0x1f);
++		rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_EN_RXDSP, 0x0);
++	}
++	rtw_write32(rtwdev, REG_OFDM1_CSI1, csi[0]);
++	rtw_write32(rtwdev, REG_OFDM1_CSI2, csi[1]);
++	rtw_write32(rtwdev, REG_OFDM1_CSI3, csi[2]);
++	rtw_write32(rtwdev, REG_OFDM1_CSI4, csi[3]);
++	rtw_write32_mask(rtwdev, REG_OFDM1_CFOTRK, BIT_EN_CFOTRK, any ? 0x1 : 0x0);
++	return true;
++}
++
+ static void rtw8723d_spur_cal(struct rtw_dev *rtwdev, u8 channel)
+ {
+ 	bool notch;
+ 
+ 	if (channel < 13) {
+-		rtw8723d_cfg_notch(rtwdev, channel, false);
++		if (!rtw8723d_host_notch(rtwdev, channel))
++			rtw8723d_cfg_notch(rtwdev, channel, false);
+ 		return;
+ 	}
+ 

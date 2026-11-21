@@ -9937,6 +9937,17 @@ transmission starts again from the default level. If it happens again, send
 the newest log in `/mnt/app_logs/` (a power-off with the POWER key saves the
 run's log there) and the base log `/mnt/base_i2c.log` with your report.
 
+#### The X6200's WiFi stalls or drops on channel 11
+
+The X6200's own clocks put two steady lines into the 2.4 GHz band, at 2457.6 and 2470.6 MHz, inside WiFi channel
+11, where its WiFi chip hears them: on an access point on that channel its WiFi stalled for seconds and dropped
+under steady upload (a TCI client's audio, for one), while an X6100 beside it did not. The X6200's WiFi driver
+notches both lines on the channels they fall in (`options rtw_8723d host_spur_khz=2457600,2470614` in
+`/etc/modprobe.d/x6200-wifi-spur.conf`): channel 11 held a 3 Mbit/s upload at 99-100 % of real time instead of 33 %.
+The driver comes with a card image built after this change; `cat /sys/module/rtw_8723d/parameters/host_spur_khz`
+says `2457600,2470614` when the radio has it. Channel 13 is not covered. The why and the measurements:
+`buildroot/x6200/rtw88/README.md`.
+
 #### The DX Cluster shows no spots
 
 Read the status line in the Cluster app. It needs WiFi and your callsign.

@@ -204,7 +204,9 @@ if [ $MODEL = x6200 ]; then
     # module-bluez5-device with no path= in the X6200 tree's system.pa: upstream dropped it for the X6100 (ef0d395);
     # the headphones come through module-bluetooth-discover
     sed -i '/^load-module module-bluez5-device$/d' $BOARD/rootfs-overlay/etc/pulse/system.pa
-    # rtw88 (the RTL8723DU WiFi driver, pinned at 461b696): the upstream TX report timeout fixes (buildroot/x6200/rtw88)
+    # rtw88 (the RTL8723DU WiFi driver, pinned at 461b696): the upstream TX report timeout fixes, and the notch for the
+    # X6200's own spurs in channel 11 (host_spur_khz, set in rootfs/etc/modprobe.d/x6200-wifi-spur.conf)
+    # (buildroot/x6200/rtw88, README.md there)
     cp $GUI/buildroot/x6200/rtw88/*.patch $EXT/package/rtw88/
     sed -i "s/BR2_EXTERNAL_X6100_PATH/BR2_EXTERNAL_X6200_PATH/" $BOARD/device_table.txt 2>/dev/null || true
 fi
@@ -376,7 +378,7 @@ make lame mpg123
 make libsndfile-dirclean
 # A package patched after an earlier build here is built again: buildroot applies patches at extraction only
 if [ $MODEL = x6200 ] && ls -d $BR/build/build/rtw88-*/ > /dev/null 2>&1 \
-        && ! grep -qs "0001-wifi-rtw88-TX-report" $BR/build/build/rtw88-*/.applied_patches_list; then
+        && ! grep -qs "0002-wifi-rtw88-8723d-notch" $BR/build/build/rtw88-*/.applied_patches_list; then
     make rtw88-dirclean
 fi
 if [ $MODEL = x6100 ] && ls -d $BR/build/build/rtl8723bu-wifi-*/ > /dev/null 2>&1 \
