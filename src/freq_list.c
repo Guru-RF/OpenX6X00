@@ -5,6 +5,8 @@
  */
 
 #include "freq_list.h"
+#include "voice.h"
+#include "voice_focus.h"
 
 #include "cfg/cfg_api.h"
 #include "events.h"
@@ -51,6 +53,29 @@ static bool is_current(int i) {
     return !items[i].group && dial_of(i) == cparam_i_get(cfg_fg_freq);
 }
 
+/* Spoken: "Northwood, 4.610, U S B, Europe, 3 of 20"; first: the list's title before it */
+static void say_sel(const char *first) {
+    char        f[32], text[240];
+    const char *group = NULL;
+    int         pos = 0, total = 0;
+
+    if (sel < 0 || items[sel].group) return;
+    for (int i = 0; i < count; i++) {
+        if (items[i].group) {
+            if (i < sel) group = items[i].group;
+            continue;
+        }
+        total++;
+        if (i <= sel) pos++;
+    }
+    voice_freq_text(items[sel].freq_hz, f, sizeof(f));
+    snprintf(text, sizeof(text), "%s%s%s, %s, %s%s%s%s%s, %i of %i", first ? first : "", first ? ". " : "",
+             items[sel].name ? items[sel].name : "", f, items[sel].lsb ? "L S B" : "U S B", group ? ", " : "",
+             group ? group : "", items[sel].note && items[sel].note[0] ? ", " : "",
+             items[sel].note ? items[sel].note : "", pos, total);
+    voice_say_clean(text, first == NULL);
+}
+
 static void step(int dir) {
     for (int i = sel + dir; dir && i >= 0 && i < count; i += dir)
         if (!items[i].group) {
@@ -64,6 +89,7 @@ static void step(int dir) {
     for (int i = 0; i < sel; i++) y += t->row_h[i];
     lv_obj_scroll_to_y(table, y + t->row_h[sel] / 2 - TABLE_H / 2, LV_ANIM_OFF);
     lv_obj_invalidate(table);
+    if (dir) say_sel(NULL);
 }
 
 static void tune(void) {
@@ -231,10 +257,17 @@ void freq_list_open(lv_obj_t *parent, const char *title, const freq_list_item_t 
     lv_group_add_obj(keyboard_group, panel);
     lv_obj_add_event_cb(panel, key_cb, LV_EVENT_KEY, NULL);
     lv_obj_add_event_cb(panel, click_cb, LV_EVENT_CLICKED, NULL);
+    voice_focus_quiet(panel);   /* say_sel() speaks the rows */
     lv_group_focus_obj(panel);
     lv_group_set_editing(keyboard_group, true);
 
     step(0);
+    {
+        char head[96];
+
+        snprintf(head, sizeof(head), "%s, frequency list. Small knob: choose, press: tune", title);
+        say_sel(head);
+    }
 }
 
 void freq_list_close(void) {

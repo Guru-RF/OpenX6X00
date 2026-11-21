@@ -18,6 +18,7 @@
 #include "waterfall_view.h"
 #include "knob_info.h"
 #include "screen_main.h"
+#include "voice.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -103,6 +104,7 @@ static void open_window(dialog_t *d, lv_obj_t *parent) {
 
     main_screen_wf_full_end();      /* never under the full-screen waterfall */
     main_screen_buttons_wake();     /* the window's buttons seen (Hide buttons) */
+    voice_say_prefix("");           /* one window for another: no "Closed" before the new one */
     knobs_display(false);
     waterfall_refresh_period_set(2);    /* the waterfall slower under a window */
     main_screen_keys_enable(false);
@@ -136,6 +138,9 @@ static void close_window(dialog_t *d) {
     knobs_display(true);
     waterfall_refresh_reset();
     d->run = false;
+    if (voice_auto_active()) {
+        voice_say_prefix("Closed");     /* with the F-key page that comes back, or alone */
+    }
     freq_strip_set_dialog(false);
 
     /* Closed by a key (ESC): after the key LVGL sends CANCEL to the focused object. destruct_cb
@@ -206,6 +211,10 @@ void dialog_send(lv_event_code_t event_code, void *param) {
 
 bool dialog_is_run() {
     return shown && shown->run;
+}
+
+lv_obj_t *dialog_obj(void) {
+    return shown && shown->run ? shown->obj : NULL;
 }
 
 bool dialog_type_is_run(dialog_t *dialog) {

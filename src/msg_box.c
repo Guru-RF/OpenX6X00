@@ -14,6 +14,7 @@
 #include "gui_styles.h"
 #include "util.h"
 #include "gui_events.h"
+#include "voice.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +27,7 @@ typedef struct {
     char     text[128];
     bool     queued;        /* after the messages already waiting; else now */
     uint16_t ms;            /* on screen, fades included */
+    bool     quiet;         /* not read out: its poster said it already (voice_msg_hold()) */
 } note_t;
 
 static lv_obj_t   *label;
@@ -72,6 +74,9 @@ static void show_cb(lv_timer_t *t) {
     fade_to(LV_OPA_COVER);
     hide_timer = lv_timer_create(hide_cb, note->ms - FADE_MS, NULL);
     lv_timer_set_repeat_count(hide_timer, 1);
+    if (!note->quiet) {
+        voice_say_msg(note->text);  /* spoken feedback: read out as it is shown, in the order shown */
+    }
     free(note);
 }
 
@@ -99,6 +104,10 @@ static void post(bool queued, uint16_t ms, const char *fmt, va_list ap) {
     vsnprintf(note->text, sizeof(note->text), i18n_tr(fmt), ap);   /* the language's, its conversions checked as read */
     note->queued = queued;
     note->ms = ms;
+    note->quiet = voice_msg_held();
+    if (!note->quiet) {
+        voice_count_bump();     /* about to be said: an F-key press that posted it says nothing more */
+    }
 
     event_send(label, EVENT_MSG_UPDATE, note);
 }

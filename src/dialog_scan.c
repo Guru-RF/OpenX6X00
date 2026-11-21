@@ -38,6 +38,7 @@
 #include "scan.h"
 #include "styles.h"
 #include "theme.h"
+#include "voice.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -308,6 +309,33 @@ static bool on_air(void) {
     return true;
 }
 
+/* Spoken: what the scanner does now, and where it stopped ("Busy, 40 meters net, 7.150, L S B") */
+static void say_state(scan_state_t was, scan_state_t st) {
+    int  cur = scan_current();
+    char where[96] = "", f[32], m[32];
+
+    if (st == was || !voice_auto_active()) return;
+    if (cur >= 0 && cur < list_n) {
+        voice_freq_text(list[cur].freq, f, sizeof(f));
+        voice_mode_text(channels_mode_name(list[cur].mode), m, sizeof(m));
+        snprintf(where, sizeof(where), "%s%s%s, %s", list[cur].name, list[cur].name[0] ? ", " : "", f, m);
+    }
+    switch (st) {
+        case SCAN_HOLD:
+            voice_say_text_fmt("Busy, %s", where);
+            break;
+        case SCAN_SEEKING:
+            if (was != SCAN_HOLD) voice_say_text_fmt("Scanning");     /* back to seeking after a stop: quiet */
+            break;
+        case SCAN_PAUSED:
+            voice_say_text_fmt("Paused, %s", where);
+            break;
+        default:
+            voice_say_text_fmt("Scanner stopped");
+            break;
+    }
+}
+
 static void timer_cb(lv_timer_t *t) {
     static int   ticks;
     int64_t      now = mono_ms();
@@ -335,6 +363,7 @@ static void timer_cb(lv_timer_t *t) {
     scan_state_t st = scan_state();
 
     radio_set_scan_mute(st == SCAN_SEEKING);
+    say_state(was, st);     /* with the screen dark too */
     if (!backlight_seen()) return;      /* scanning goes on with the screen dark: only the drawing waits */
     if (st != was) labels_refresh();
     if (++ticks % 5 == 0 || st != was) fill();

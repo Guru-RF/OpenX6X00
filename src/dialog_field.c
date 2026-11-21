@@ -13,6 +13,7 @@
  */
 
 #include "dialog_field.h"
+#include "voice.h"
 #include "adif.h"
 #include "band_plan.h"
 #include "board.h"
@@ -971,6 +972,24 @@ static void list_select(int k) {
         map_fill();
         prog_info_update();
     }
+    {
+        static char said[300];
+        char        text[300];
+        size_t      n   = 0;
+        lv_obj_t   *row = lv_obj_get_child(list, sel);
+
+        text[0] = 0;
+        for (uint32_t c = 0; row && c < lv_obj_get_child_cnt(row) && n + 4 < sizeof(text); c++) {
+            const char *t = lv_label_get_text(lv_obj_get_child(row, c));
+
+            if (t && t[0]) n += snprintf(text + n, sizeof(text) - n, "%s%s", n ? ", " : "", t);
+        }
+        if (n + 20 < sizeof(text)) snprintf(text + n, sizeof(text) - n, ", %i of %i", sel + 1, rows_n);
+        if (strcmp(text, said) && voice_auto_active()) {
+            snprintf(said, sizeof(said), "%s", text);
+            voice_say_clean(text, true);
+        }
+    }
 }
 
 /* Buttons */
@@ -1237,6 +1256,17 @@ static void home_select(int k) {
         lv_obj_set_style_bg_grad_color(t, TC(panel), 0);
     }
     home_reveal(sel);
+    {
+        static int said = -1;
+
+        if (sel != said && voice_auto_active()) {
+            char text[160];
+
+            snprintf(text, sizeof(text), "%s, %s, %i of %i", tile_name(sel), tile_sub(sel), sel + 1, HOME_TILES);
+            voice_say_clean(text, said >= 0);   /* the first one at once (the screen opening) */
+        }
+        said = sel;
+    }
 }
 
 static void tile_click_cb(lv_event_t *e) {
@@ -1628,6 +1658,19 @@ static void act_update(void) {
     lv_label_set_text_fmt(act_qsos, "%d", act_count());
     lv_label_set_text_fmt(act_time, "%d:%02d", s / 3600, s / 60 % 60);
     lv_label_set_text(act_last, qsos_n ? qsos[qsos_n - 1].call : "-");
+    {
+        /* Spoken: each QSO logged, its count and call ("QSO 5, K 1 A B C"); the rest of the screen by the power key */
+        static int said_count = -1;
+        int        count      = act_count();
+
+        if (said_count >= 0 && count > said_count && qsos_n && voice_auto_active()) {
+            char call[48];
+
+            voice_spell_calls(qsos[qsos_n - 1].call, call, sizeof(call));
+            voice_say_text_fmt("Q S O %d, %s", count, call);
+        }
+        said_count = count;
+    }
 
     /* The last three QSOs, the newest at the bottom */
     char      recent[200] = "", line[64];

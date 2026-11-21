@@ -17,6 +17,8 @@
  *  its 6b640aaf).
  */
 #include "dialog_flights.h"
+#include "voice.h"
+#include "voice_focus.h"
 
 #include "buttons.h"
 #include "cJSON.h"
@@ -428,6 +430,24 @@ static void keep_sel(void) {
     sel = 0;
 }
 
+static void say_aircraft(void) {
+    cJSON *a = cJSON_GetArrayItem(aircraft(), sel);
+    double d, b;
+    char   text[360];
+
+    if (!a || !detail) return;
+    snprintf(text, sizeof(text), "%s", lv_label_get_text(detail));
+    if (num(a, "dist_km", &d) && num(a, "brg", &b)) {
+        size_t n = strlen(text);
+
+        snprintf(text + n, sizeof(text) - n, ", %d kilometers %s", (int)lround(d), compass(b));
+    }
+    size_t n = strlen(text);
+
+    snprintf(text + n, sizeof(text) - n, ", %i of %i", sel + 1, aircraft_n());
+    voice_say_clean(text, true);
+}
+
 static void choose(int i) {
     int n = aircraft_n();
 
@@ -435,6 +455,7 @@ static void choose(int i) {
     sel = LV_CLAMP(0, i, n - 1);
     snprintf(sel_hex, sizeof(sel_hex), "%s", str(cJSON_GetArrayItem(aircraft(), sel), "hex"));
     show();
+    say_aircraft();
 }
 
 /* ---- asking: the helper in a thread of its own, its answer back on the LVGL thread ---- */
@@ -667,6 +688,7 @@ static void construct_cb(lv_obj_t *parent) {
 
     lv_group_add_obj(keyboard_group, dialog.obj);
     lv_obj_add_event_cb(dialog.obj, key_cb, LV_EVENT_KEY, NULL);
+    voice_focus_quiet(dialog.obj);      /* say_aircraft() speaks the one chosen */
     lv_group_focus_obj(dialog.obj);
     lv_group_set_editing(keyboard_group, true);
 

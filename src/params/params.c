@@ -124,9 +124,9 @@ params_t params = {
     .long_app               = ACTION_APP_RECORDER,
     .long_key               = ACTION_NONE,
     .long_msg               = ACTION_RECORDER,
-    .long_dfn               = ACTION_NONE,
+    .long_dfn               = ACTION_VOICE_MODE,    /* speech: always, screen off only, off */
     /* The full-screen waterfall out of the box (#302): DFL had no action, and its page (the filter) is the one of
-     * the three free keys that has to do with the waterfall. A radio whose DFL was given an action, None too, keeps
+     * the free keys that has to do with the waterfall. A radio whose DFL was given an action, None too, keeps
      * it: only a setting never changed is not in the settings' file */
     .long_dfl               = ACTION_WF_FULL,
     .long_fst               = ACTION_STEP_DOWN, /* as before it could be set; the stock firmware locks the dial */

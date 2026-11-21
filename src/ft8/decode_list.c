@@ -18,6 +18,8 @@
 #include "../i18n.h"
 #include "../styles.h"
 #include "../theme.h"
+#include "../voice.h"
+#include "../voice_focus.h"
 
 /* The list keeps up to KEEP_ROWS rows; one more and the oldest DROP_ROWS go together, so the
  * whole table is copied up once in a while and not on every decode */
@@ -91,6 +93,77 @@ static bool has_time(const cell_data_t *cd) {
 /* What the list shows of a row: a decode and our TX without the time, which their slot line has */
 static const char *list_text(const cell_data_t *cd) {
     return has_time(cd) ? cd->text + 9 : cd->text;
+}
+
+/* ---- speech: a row as said, the messages for this station at once, a count after each slot ---- */
+
+static void row_said(const cell_data_t *cd, char *out, size_t size) {
+    const char *t = cd->text;
+    char        spelled[160];
+
+    /* the list's own line over a slot's rows: just its time */
+    if (cd->cell_type == CELL_SLOT_SEP) {
+        snprintf(out, size, "Slot %s", t);
+        return;
+    }
+    /* "12:00:15 CQ K1ABC FN42": the slot's time, which its slot line says, not worth saying again */
+    if (cd->cell_type != CELL_RX_INFO && cd->cell_type != CELL_START_QSO) {
+        t = list_text(cd);
+        voice_spell_calls(t, spelled, sizeof(spelled));
+    } else {
+        snprintf(spelled, sizeof(spelled), "%s", t);
+    }
+    snprintf(out, size, "%s%s%s%s", cd->cell_type == CELL_TX_MSG ? "Sent, " : "", spelled,
+             cd->country[0] ? ", " : "", cd->country);
+    if (cd->cell_type == CELL_RX_CQ) {
+        size_t n = strlen(out);
+
+        if (cd->worked_type == SEARCH_WORKED_SAME_MODE) {
+            snprintf(out + n, size - n, ", worked");
+        } else if (cd->worked_type == SEARCH_WORKED_YES) {
+            snprintf(out + n, size - n, ", worked on another band or mode");
+        } else if (cd->worked_type == SEARCH_WORKED_NO) {
+            snprintf(out + n, size - n, ", new");
+        }
+    }
+}
+
+static int heard_cq, heard_other;       /* since the last slot row */
+
+static void speech_on_row(const cell_data_t *cd) {
+    char said[220];
+
+    if (!voice_auto_active()) {
+        heard_cq = heard_other = 0;
+        return;
+    }
+    switch (cd->cell_type) {
+        case CELL_RX_TO_ME:
+            row_said(cd, said, sizeof(said));
+            voice_say_text_fmt("For you: %s", said);
+            heard_other++;
+            break;
+        case CELL_RX_CQ:
+            heard_cq++;
+            break;
+        case CELL_RX_MSG:
+            heard_other++;
+            break;
+        case CELL_RX_INFO:
+            if (heard_cq || heard_other) {
+                if (heard_cq && heard_other) {
+                    voice_delay_say_text_fmt("%i C Q, %i other", heard_cq, heard_other);
+                } else if (heard_cq) {
+                    voice_delay_say_text_fmt("%i C Q", heard_cq);
+                } else {
+                    voice_delay_say_text_fmt("%i decoded", heard_other);
+                }
+            }
+            heard_cq = heard_other = 0;
+            break;
+        default:
+            break;
+    }
 }
 
 /* ---- the pin table ---- */
@@ -272,6 +345,8 @@ void table_view_push_ui(const cell_data_t *cd) {
         }
         r--;    /* a message takes its place: the slot row only shows that receiving goes on */
     }
+
+    speech_on_row(cd);
 
     /* A slot's rows under a line with its time (F4OLI's redesign): the rows go without theirs. The times are the
      * slots' starts (ft8_window.c), the same for each row of a slot */
@@ -684,6 +759,20 @@ static void list_key_cb(lv_event_t *e) {
     uint32_t key = *(uint32_t *)lv_event_get_param(e);
 
     pin_follow_key(key);
+    if (!pin.own_key && voice_auto_active() &&
+        (key == LV_KEY_LEFT || key == LV_KEY_RIGHT || key == LV_KEY_UP || key == LV_KEY_DOWN)) {
+        uint16_t     row, col;
+
+        lv_table_get_selected_cell(list, &row, &col);
+        cell_data_t *cd = row_data(list, row);
+
+        if (cd) {
+            char said[220];
+
+            row_said(cd, said, sizeof(said));
+            voice_delay_say_text_fmt("%s, %u of %u", said, (unsigned)row + 1, (unsigned)list_rows.n);
+        }
+    }
     if (key == LV_KEY_ESC) {
         if (actions.on_close) actions.on_close();
     } else if (key == KEY_VOL_LEFT_EDIT || key == KEY_VOL_LEFT_SELECT) {
@@ -721,6 +810,7 @@ void table_view_build(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w
     memset(&actions, 0, sizeof(actions));
 
     list = rows_table(parent, x, y, w);
+    voice_focus_quiet(list);    /* list_key_cb() and speech_on_row() speak it */
     lv_obj_add_event_cb(list, tiles_key_cb, LV_EVENT_KEY | LV_EVENT_PREPROCESS, NULL);
     lv_obj_add_event_cb(list, list_key_cb, LV_EVENT_KEY, NULL);
     lv_obj_add_event_cb(list, touch_cb, LV_EVENT_PRESSED | LV_EVENT_PREPROCESS, NULL);

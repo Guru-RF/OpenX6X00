@@ -10,6 +10,7 @@
  *      INCLUDES
  *********************/
 #include "radio.h"
+#include "voice.h"
 #include "board.h"
 
 #include "hw/hw.h"
@@ -171,9 +172,25 @@ static bool radio_tick();
 static void * radio_thread(void *arg);
 
 /* The tuner found its network, on the LVGL thread (see the flow handler) */
+/* The SWR the base last reported during a tune (radio thread writes, the GUI reads after it): said with the result */
+static volatile float atu_last_swr;
+
+/* Spoken once the carrier is off and the radio receives again ("Tuner done, S W R 1.2"): nothing is said on the air */
+static void atu_say_cb(lv_timer_t *t) {
+    float swr = atu_last_swr;
+
+    (void)t;
+    if (swr >= 1.0f) {
+        voice_say_text_fmt("Tuner done, S W R %.1f", swr);
+    } else {
+        voice_say_text_fmt("Tuner done");
+    }
+}
+
 static void atu_done_cb(void *arg) {
     cfg_atu_save_network(*(uint32_t *)arg);
     param_i_set(cfg_atu_enabled, true);
+    lv_timer_set_repeat_count(lv_timer_create(atu_say_cb, 500, NULL), 1);
 }
 
 /* The base's warnings, on the LVGL thread: bit 0 battery hot, 1 PA hot, 2 DC in too low,
@@ -807,6 +824,9 @@ uint16_t radio_change_vol(int16_t df) {
     if (new_val != vol) {
         param_i_set(cfg_volume, new_val);
     };
+    /* Spoken here, so that the apps and the first-start guide, which turn the volume themselves, say it too
+     * (vol_update() and mfk_update() leave a turned volume to this) */
+    voice_say_prompted_fmt("Volume,", " %i", new_val);
 
     return new_val;
 }
@@ -889,6 +909,7 @@ void radio_start_atu() {
     }
     WITH_RADIO_LOCK(open_tx_key());     /* the X6200's open TX still due first: the tuner keys at the next packet */
     atomic_store(&atu_band_stop, false);    /* one asked of a tune over already */
+    atu_last_swr = 0.0f;
     state_move(RADIO_RX, RADIO_ATU_START);
 }
 
@@ -1237,6 +1258,7 @@ static void tx_prepare(void) {
     void (*fn)(void) = atomic_load(&tx_prepare_fn);
 
     audio_listen_cut();
+    voice_stop();       /* spoken feedback: an announcement still playing is cut off, never sent */
     if (fn) {
         fn();
     }
@@ -3021,6 +3043,7 @@ static bool radio_tick() {
                     state_move(RADIO_ATU_RUN, RADIO_RX);
                 } else if (pack->tx) {
                     tx_info_update(pack->tx_power * 0.1f, pack->vswr * 0.1f, pack->alc_level * 0.1f);
+                    atu_last_swr = pack->vswr * 0.1f;
                     atu_time = now_time;
                 } else if (now_time - atu_time > ATU_NO_MATCH_MS) {
                     /* out of TX without the done flag; the X6200 library's own example ends a tune there */

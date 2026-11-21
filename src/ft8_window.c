@@ -53,6 +53,7 @@
 #include "remote_server.h"
 #include "scheduler.h"
 #include "station.h"
+#include "voice.h"
 #include "gui_styles.h"
 #include "text_popup.h"
 #include "theme.h"
@@ -447,9 +448,30 @@ static void board_update(void) {
     }
 }
 
+/* Speech: a tile as said, "Calling you, K 1 A B C, CQ, minus 12 dB, United States, 1200 km, new country, 3 of 9" */
+static void tile_say(int k) {
+    const ft8_heard_t *st = board_st[k];
+    const cell_data_t *cd = &st->cd;
+    char               call[48], what[64] = "", where[80] = "";
+
+    if (!voice_auto_active()) return;
+    voice_spell_calls(cd->meta.call_de, call, sizeof(call));
+    if (ft8_heard_calls_you(st, lv_tick_get())) snprintf(what, sizeof(what), "Calling you, ");
+    if (cd->country[0] && cd->dist > 0) snprintf(where, sizeof(where), ", %s, %i km", cd->country, cd->dist);
+    else if (cd->country[0]) snprintf(where, sizeof(where), ", %s", cd->country);
+    voice_delay_say_text_fmt("%s%s%s, %i d B%s%s%s, %i of %i", what, call,
+                             cd->cell_type == CELL_RX_CQ ? ", C Q" : "", cd->meta.local_snr, where,
+                             cd->new_dxcc ? ", new country" : "",
+                             cd->cell_type == CELL_RX_CQ && cd->worked_type == SEARCH_WORKED_SAME_MODE ? ", worked" : "",
+                             k + 1, board_n);
+}
+
 /* The MFK on the tiles: the next one, the tiles' page following it; its station's offset marked on the waterfall */
 static void board_move(int step) {
-    if (!board_n) return;
+    if (!board_n) {
+        if (voice_auto_active()) voice_say_text_fmt("No stations yet");
+        return;
+    }
 
     int k = board_sel >= 0 ? (board_sel + step + board_n) % board_n : 0;
 
@@ -457,6 +479,7 @@ static void board_move(int step) {
     lv_finder_set_cursor(finder, board_st[k]->cd.meta.freq_hz);
     board_update();
     lane_update();
+    tile_say(board_sel >= 0 ? board_sel : k);     /* board_update() sorted the tiles again: the one chosen by its call */
 }
 
 static void board_call(int k) {
@@ -1224,6 +1247,13 @@ static void view_cb(button_data_t *btn) {
     if (kb_open) return;
     board_show(!board_on);
     buttons_refresh(btn);
+    if (voice_auto_active()) {
+        if (board_on)
+            voice_say_text_fmt("Tiles, %i station%s. M F K: station by station, press: call it", board_n,
+                               board_n == 1 ? "" : "s");
+        else
+            voice_say_text_fmt("Traffic, the decode list");
+    }
 }
 
 /* FT8 -> FT4 -> FT2 -> FT8 */

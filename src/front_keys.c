@@ -19,6 +19,19 @@
 #include "control_owner.h"
 #include "key_input.h"
 #include "main.h"
+#include "voice.h"
+#include "app_window.h"
+#include "dialog_field.h"
+#include "wefax_window.h"
+
+/* The VOL press with speech on, in a window: ESC, the way back out of a menu, a list or a window. The X6100
+ * has no ESC key, and GEN closes the whole window. Field Ops and WeFax keep their own VOL press */
+static uint32_t vol_press_key(void) {
+    if (voice_is_on() && dialog_is_run() && !dialog_field->run && !dialog_wefax->run) {
+        return LV_KEY_ESC;
+    }
+    return KEY_VOL_PRESS;
+}
 
 #include <fcntl.h>
 #include <linux/input.h>
@@ -198,12 +211,12 @@ static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
         if (in.type == EV_KEY) {
             if (in.value)
                 ctl_local_input();   /* a key at the radio: control is the operator's (unless injected) */
-            if (backlight_tick() && in.value) {
+            if (backlight_tick() && in.value && !voice_is_on()) {
                 /* the press woke the screen: that was its job, the radio does not see it */
             } else if (in.code == VOL_PRESS) {
                 vol_down = in.value != 0;
                 if (in.value == 1) {    /* the press only: let go below, whatever the key does */
-                    pad->evdev_key   = KEY_VOL_PRESS;
+                    pad->evdev_key   = vol_press_key();
                     pad->evdev_state = LV_INDEV_STATE_PRESSED;
                 }
             } else if (in.code == MFK_PRESS) {
@@ -232,7 +245,7 @@ void keypad_power_set(bool down) {
     if (down) {
         ctl_local_input();
     }
-    if (backlight_tick() && down) {
+    if (backlight_tick() && down && !voice_is_on()) {
         return;     /* the press woke the screen: that was its job */
     }
     button_event(NULL, &in);

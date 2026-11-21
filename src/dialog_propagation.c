@@ -15,6 +15,8 @@
  */
 
 #include "dialog_propagation.h"
+#include "voice.h"
+#include "voice_focus.h"
 #include "screen_light.h"
 
 #include "app_frame.h"
@@ -452,6 +454,22 @@ static void draw_map(time_t t) {
     drawn_s = t;
 }
 
+/* Spoken: the conditions as lines, a band group with its day and night ratings on one */
+static void cond_say(void) {
+    char line[160];
+
+    voice_lines_begin();
+    for (int i = 0; i < 3; i++) voice_lines_add(lv_label_get_text(cond_lbl[i]));
+    for (int g = 0; g < COND_GROUPS; g++) {
+        snprintf(line, sizeof(line), "%s, day %s, night %s", lv_label_get_text(cond_cells[g][0]),
+                 lv_label_get_text(cond_cells[g][1]), lv_label_get_text(cond_cells[g][2]));
+        voice_lines_add(line);
+    }
+    voice_lines_add(lv_label_get_text(frame.status));
+    voice_lines_add(lv_label_get_text(frame.head_right));
+    voice_lines_done("Propagation, conditions");
+}
+
 static void show_view(view_t v) {
     view = v;
     if (v == VIEW_BEACONS) {
@@ -469,6 +487,7 @@ static void show_view(view_t v) {
         lv_label_set_text(frame.head_left, have_qth ? "PROPAGATION" : "PROPAGATION   no QTH set");
         conditions_refresh(false);
         cond_fill();
+        cond_say();
     }
     draw_map(time(NULL));
 }
@@ -537,6 +556,7 @@ static void select_beacon(int d) {
         if (follow == FOLLOW_BEACON) bcn_listen();
         bcn_fill(time(NULL));
         draw_map(time(NULL));
+        if (frame.status) voice_say_clean(lv_label_get_text(frame.status), true);   /* the beacon, where, heard */
     }
 }
 
@@ -549,11 +569,13 @@ static void key_cb(lv_event_t *e) {
             break;
         case LV_KEY_UP:
         case LV_KEY_LEFT:
-            select_beacon(-1);
+            if (view == VIEW_COND && voice_is_on()) voice_lines_step(-1);   /* the conditions, line by line */
+            else select_beacon(-1);
             break;
         case LV_KEY_DOWN:
         case LV_KEY_RIGHT:
-            select_beacon(1);
+            if (view == VIEW_COND && voice_is_on()) voice_lines_step(1);
+            else select_beacon(1);
             break;
         case LV_KEY_ENTER:   /* the chosen beacon, followed */
             if (view == VIEW_BEACONS) {

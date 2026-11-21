@@ -111,6 +111,9 @@ void            buttons_load_page_group(buttons_group_t group);
 bool            buttons_group_shown(buttons_group_t group);
 buttons_page_t *buttons_get_cur_page();
 
+/* The F-keys of the page loaded, as said: "F1 Run, F2 Scale, Log, F3 Span, 200 kHz"; "" with none */
+void            buttons_page_text(char *out, size_t size);
+
 #ifdef __cplusplus
 }
 #endif

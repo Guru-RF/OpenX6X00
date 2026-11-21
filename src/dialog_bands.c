@@ -11,6 +11,8 @@
  */
 
 #include "dialog_bands.h"
+#include "voice.h"
+#include "voice_focus.h"
 
 #include "app_frame.h"
 #include "buttons.h"
@@ -129,6 +131,7 @@ static void timer_cb(lv_timer_t *t) {
 static void select_band(int b) {
     sel = b < 0 ? 0 : b >= FIELD_RBN_BANDS ? FIELD_RBN_BANDS - 1 : b;
     fill();
+    voice_focus_read_as(NULL, rows[sel].cell);     /* the band, its word, spots / RBN, heard */
 }
 
 static void beacon_cb(button_data_t *b) {
@@ -237,6 +240,7 @@ static void construct_cb(lv_obj_t *parent) {
     lv_group_add_obj(keyboard_group, dialog.obj);
     lv_obj_add_event_cb(dialog.obj, key_cb, LV_EVENT_KEY, NULL);
     lv_obj_add_event_cb(dialog.obj, click_cb, LV_EVENT_CLICKED, NULL);
+    voice_focus_quiet(dialog.obj);      /* select_band() reads the band's row */
     lv_group_focus_obj(dialog.obj);
     lv_group_set_editing(keyboard_group, true);
 

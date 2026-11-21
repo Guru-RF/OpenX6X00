@@ -16,6 +16,8 @@
  */
 
 #include "dialog_aero.h"
+#include "voice.h"
+#include "voice_focus.h"
 
 #include "aero.h"
 #include "app_frame.h"
@@ -137,6 +139,26 @@ static void fill(void) {
     }
 }
 
+/* Spoken: "2950 kilohertz, CAR, Caribbean, on the air: New York VOLMET, 3 of 40" */
+static void say_sel(const char *first) {
+    broadcast_match_t m;
+    char              text[240];
+    int               pos = 0, total = 0;
+
+    if (sel < 0 || !rows[sel].khz) return;
+    for (int r = 0; r < rows_n; r++) {
+        if (!rows[r].khz) continue;
+        total++;
+        if (r <= sel) pos++;
+    }
+    const aero_family_t *f  = aero_family(rows[sel].fam);
+    const char          *st = on_air(rows[sel].khz, &m);
+
+    snprintf(text, sizeof(text), "%s%s%u kilohertz, %s, %s%s%s, %i of %i", first ? first : "", first ? ". " : "",
+             rows[sel].khz, f->code, _(f->name), st ? ", on the air: " : "", st ? st : "", pos, total);
+    voice_say_clean(text, first == NULL);
+}
+
 /* The selected row in the middle of the list, its heading above it in sight */
 static void show_sel(void) {
     lv_table_t *t = (lv_table_t *)table;
@@ -157,6 +179,7 @@ static void step(int dir) {
             break;
         }
     show_sel();
+    say_sel(NULL);
 }
 
 /* The row the radio is on, else the first frequency */
@@ -354,6 +377,7 @@ static void construct_cb(lv_obj_t *parent) {
     lv_group_add_obj(keyboard_group, dialog.obj);
     lv_obj_add_event_cb(dialog.obj, key_cb, LV_EVENT_KEY, NULL);
     lv_obj_add_event_cb(dialog.obj, click_cb, LV_EVENT_CLICKED, NULL);
+    voice_focus_quiet(dialog.obj);      /* say_sel() speaks the rows */
     lv_group_focus_obj(dialog.obj);
     lv_group_set_editing(keyboard_group, true);
 
@@ -361,6 +385,13 @@ static void construct_cb(lv_obj_t *parent) {
     fill();
     lv_obj_update_layout(table);
     select_current();
+    {
+        char head[120];
+
+        snprintf(head, sizeof(head), "HF Air Band, %s. Small knob: the frequencies, press: tune. F1 area, F3 save, F4 scan",
+                 _(aero_area_name(dialog_aero_area())));
+        say_sel(head);
+    }
     freq_obs = subject_subscribe_delayed((Subject *)cfg_fg_freq, freq_changed, NULL);
 }
 

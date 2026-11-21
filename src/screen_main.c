@@ -11,6 +11,10 @@
 
 #include "screen_main.h"
 #include "board.h"
+#include "voice.h"
+#include "voice_focus.h"
+#include "ft8_udp.h"
+#include "channel_list.h"
 
 #include "ft8/ft2.h"
 #include "gui_styles.h"
@@ -115,6 +119,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 
 static lv_obj_t     *obj;                   /* the screen */
 static lv_obj_t     *spectrum;              /* also the target of the keys and the MFK press */
@@ -446,19 +451,89 @@ void mem_save(uint16_t id) {
 /* AGC key and the MFK "AGC" button: Off, Slow, Fast, Auto and round, the order of radio_agc_t */
 void main_screen_agc_next() {
     cparam_i_set(cfg_cur_agc, (cparam_i_get(cfg_cur_agc) + 1) % 4);
+    voice_say_text_fmt("AGC %s", info_params_agc());
     if (params.mag_info.x) {
         msg_tiny_set_text_fmt("AGC: %s", info_params_agc());
     }
 }
 
-/* The small note in the middle of the screen, when Settings asks for it */
+/* The small note in the middle of the screen, when Settings asks for it; said in any case */
 static void tiny_on_off(const char *what, bool on) {
+    voice_say_text_fmt("%s %s", what, on ? "on" : "off");
     if (params.mag_info.x) {
         msg_tiny_set_text_fmt("%s: %s", what, on ? "On" : "Off");
     }
 }
 
+/* Spoken feedback: the mode as it is said ("U S B digital") */
+static void voice_mode_now(char *out, size_t size) {
+    voice_mode_text(channels_mode_name(cparam_i_get(cfg_cur_mode)), out, size);
+}
+
+static void say_band(void);
+
+/* The power key's tap with speech on: the open window's text, or on the main screen where the radio is ("14.074, U S B,
+ * VFO A, 20 meters, 10:42, battery 80 percent"). A blind operator has no use for the screen off/on it does otherwise */
+static void say_screen(void) {
+    lv_obj_t *win = dialog_obj();
+
+    char keys[300], tail[320] = "";
+
+    buttons_page_text(keys, sizeof(keys));
+    if (keys[0]) snprintf(tail, sizeof(tail), "F-keys: %s", keys);
+    if (win) {
+        voice_focus_read_full(NULL, win, tail);
+        return;
+    }
+
+    char        f[32], m[32], t[16], bat[48] = "", band[32] = "";
+    const char *l = info_params_vfo_label_get();
+    const char *bn = ft8_udp_band_name(cparam_i_get(cfg_fg_freq));
+    time_t      now = time(NULL);
+    struct tm   tm;
+    float       ext, volts;
+    uint8_t     cap;
+    bool        charge;
+
+    voice_freq_text(cparam_i_get(cfg_fg_freq), f, sizeof(f));
+    voice_mode_text(channels_mode_name(cparam_i_get(cfg_cur_mode)), m, sizeof(m));
+    localtime_r(&now, &tm);
+    clock_hm(&tm, t, sizeof(t));
+    clock_power_get(&ext, &volts, &cap, &charge);
+    if (volts > 0.0f) {
+        snprintf(bat, sizeof(bat), ", battery %u percent%s", (unsigned)cap, charge ? ", charging" : "");
+    }
+    if (bn && bn[0]) {
+        size_t n = strlen(bn);
+
+        if (bn[n - 1] == 'm') snprintf(band, sizeof(band), ", %.*s meters", (int)(n - 1), bn);
+    }
+    char ipt[80], addr[96] = "";
+
+    voice_ip_text(ipt, sizeof(ipt));
+    if (ipt[0]) snprintf(addr, sizeof(addr), ", WiFi address %s", ipt);
+    voice_say_text_fmt("%s, %s, %s%s%s, %s%s%s%s%s%s", f, m, strncmp(l, "SPL-", 4) == 0 ? "Split " : "VFO ", l + 4,
+                       band, t, bat, subject_i_get(freq_lock) ? ", dial locked" : "", addr, tail[0] ? ". " : "", tail);
+}
+
+/* "VFO-B" said "VFO B, 14.074", "SPL-A" "Split A, ..." */
+static void say_vfo(void) {
+    char        vfo[32], f[32];
+    const char *l = info_params_vfo_label_get();
+
+    if (strncmp(l, "SPL-", 4) == 0) {
+        snprintf(vfo, sizeof(vfo), "Split %s", l + 4);
+    } else if (strncmp(l, "VFO-", 4) == 0) {
+        snprintf(vfo, sizeof(vfo), "VFO %s", l + 4);
+    } else {
+        snprintf(vfo, sizeof(vfo), "%s", l);
+    }
+    voice_freq_text(cparam_i_get(cfg_fg_freq), f, sizeof(f));
+    voice_say_text_fmt("%s, %s", vfo, f);
+}
+
 static void tiny_vfo(void) {
+    say_vfo();
     if (params.mag_info.x) {
         msg_tiny_set_text_fmt("%s", info_params_vfo_label_get());
     }
@@ -497,9 +572,33 @@ static bool toggle_cparam(ComputedParamInt *p) {
 }
 
 /* Band up/down, unless an app holds the band; the app hears of it anyway */
+/* Spoken feedback: "20 meters, 14.074, U S B", the band the radio is on now */
+static void say_band(void) {
+        int32_t     freq = cparam_i_get(cfg_fg_freq);
+        const char *band = ft8_udp_band_name(freq);
+        char        f[32], m[32], b[32];
+
+        voice_freq_text(freq, f, sizeof(f));
+        voice_mode_now(m, sizeof(m));
+        b[0] = '\0';
+        if (band && band[0]) {
+            size_t n = strlen(band);
+
+            if (band[n - 1] == 'm' && n < sizeof(b)) {
+                snprintf(b, sizeof(b), "%.*s meters, ", (int)(n - 1), band);
+            } else {
+                snprintf(b, sizeof(b), "%s, ", band);
+            }
+        }
+        voice_say_text_fmt("%s%s, %s", b, f, m);
+}
+
 static void band_step(bool up) {
     if (!band_lock) {
         cfg_band_load_next(up);
+        say_band();
+    } else {
+        voice_say_text_fmt("Band locked by the app");
     }
     dialog_send(up ? EVENT_BAND_UP : EVENT_BAND_DOWN, NULL);
 }
@@ -672,6 +771,12 @@ void main_screen_start_app(press_action_t app_action) {
         rtty_set_state(RTTY_RX);
         panel_update_visibility(true);
     }
+    /* Spoken feedback: the app's name, said with the first thing its window focuses (voice_focus.c) */
+    const char *name = app_name(app_action);
+
+    if (name && name[0]) {
+        voice_focus_hint(name);
+    }
     for (size_t i = 0; i < sizeof(windows) / sizeof(windows[0]); i++) {
         if (windows[i].app == app_action) {
             dialog_construct(*windows[i].window, obj);
@@ -686,6 +791,9 @@ static void wf_full_toggle(bool say);
 /* What a long press (or a hand mic F key) was given in Settings */
 void main_screen_action(press_action_t action) {
     switch (action) {
+        case ACTION_NONE:
+            if (voice_auto_active()) voice_say_text_fmt("No long press action set");
+            break;
         case ACTION_SCREENSHOT:     screenshot_take(); break;
         case ACTION_RECORDER:       recorder_set_on(!recorder_is_on()); break;
         case ACTION_SCREEN_REC:     screen_rec_toggle(); break;
@@ -695,6 +803,7 @@ void main_screen_action(press_action_t action) {
         case ACTION_ATU_TUNE:       radio_start_atu(); break;   /* as a long press of the ATU key */
         case ACTION_EXT_TUNE:       ext_tune_toggle(); break;   /* an external tuner's: started, or stopped */
         case ACTION_FREQ_LOCK:      say_lock(toggle_freq_lock()); break;
+        case ACTION_VOICE_MODE:     voice_change_mode(); break;
 
         case ACTION_NR_TOGGLE:      say_state("NR", toggle_param(cfg_nr) ? "On" : "Off"); break;
         case ACTION_NB_TOGGLE:      say_state("NB", toggle_param(cfg_nb) ? "On" : "Off"); break;
@@ -802,6 +911,11 @@ static void mode_key(keypad_key_t key, bool hold) {
         mode = ssb_key_mode(mode, hold);
     }
     cparam_i_set(cfg_cur_mode, mode);
+
+    char m[32];
+
+    voice_mode_now(m, sizeof(m));
+    voice_say_text_fmt("%s", m);
 }
 
 /* The keys over the buttons: their pages, or the action given to the long press. The hand
@@ -886,6 +1000,7 @@ static bool ptt_key(keypad_state_t state) {
  * VFOs */
 static void ab_key(bool tap, bool hold) {
     if (ab_lock) {
+        if ((tap || hold) && voice_auto_active()) voice_say_text_fmt("VFO locked by the app");
         return;
     }
     if (tap) {
@@ -896,7 +1011,10 @@ static void ab_key(bool tap, bool hold) {
         bool on_a = param_i_get(cfg_band_current_vfo) == RADIO_VFO_A;
 
         cfg_band_vfo_copy();
+        voice_msg_hold(true);
         msg_update_text_fmt("Clone VFO %s", on_a ? "A->B" : "B->A");
+        voice_msg_hold(false);
+        voice_say_text_fmt("VFO %s copied to %s", on_a ? "A" : "B", on_a ? "B" : "A");
     }
 }
 
@@ -1024,6 +1142,8 @@ static void front_key_cb(lv_event_t *e) {
         case KEYPAD_MODE_AM: case KEYPAD_MODE_CW: case KEYPAD_MODE_SSB:
             if (!mode_lock && (tap || hold)) {
                 mode_key(ev->key, hold);
+            } else if (tap || hold) {
+                voice_say_text_fmt("Mode locked by the app");
             }
             break;
 
@@ -1074,9 +1194,11 @@ static void front_key_cb(lv_event_t *e) {
             ab_key(tap, hold);
             break;
 
-        case KEYPAD_POWER:  /* a press: the screen off/on */
+        case KEYPAD_POWER:  /* a press: the screen off/on; with speech on, the screen read aloud instead */
             if (tap) {
-                backlight_switch();
+                /* speech switched off (DFN held): this one readout still spoken */
+                voice_sure();
+                say_screen();
             } else if (hold) {
                 msg_update_text_fmt("Power off");
                 cluster_client_stop();      /* the cluster link closed, not left to time out at the node */
@@ -1108,11 +1230,14 @@ static void front_key_cb(lv_event_t *e) {
         case KEYPAD_VM:
             if (tap && step && !dialog_is_run()) {
                 buttons_load_page_group(buttons_group_vm);
+            } else if (tap && dialog_is_run()) {
+                voice_say_text_fmt("V M, not used here");
             }
             break;
 
         default:
             LV_LOG_WARN("Unsuported key: %u", ev->key);
+            if (tap && voice_auto_active()) voice_say_text_fmt("Not used");
             break;
     }
 }
@@ -1194,6 +1319,9 @@ static void mic_key_cb(lv_event_t *e) {
             }
             if (tap && !band_lock) {
                 controls_set_band_m(ev->h22 ? h22_m[digit] : band_m[digit]);
+                say_band();
+            } else if (tap) {
+                voice_say_text_fmt("Band locked by the app");
             } else if (hold && digit > 0 && digit < 10) {
                 mem_load(digit);
             }
@@ -1208,7 +1336,7 @@ static void mic_key_cb(lv_event_t *e) {
 
         case HKEY_TUNER:    /* as the ATU key, without the note */
             if (tap) {
-                toggle_atu();
+                voice_say_text_fmt("ATU %s", toggle_atu() ? "on" : "off");
             } else if (hold) {
                 radio_start_atu();
             }
@@ -1218,6 +1346,7 @@ static void mic_key_cb(lv_event_t *e) {
             if (tap && !ab_lock) {
                 radio_toggle_vfo();
                 spectrum_clear();
+                say_vfo();
             }
             break;
 
@@ -1233,7 +1362,13 @@ static void mic_key_cb(lv_event_t *e) {
             } else if (ud.what == MIC_UD_TUNE) {
                 knob_turn(ud.dir, 0);
             } else if (ud.what == MIC_UD_CHANNEL && dialog_channels_recall_relative(ud.dir)) {
+                char f[32];
+
                 channel_overlay_show(dialog_channels_last_recalled_name());
+                voice_freq_text(cparam_i_get(cfg_fg_freq), f, sizeof(f));
+                voice_say_text_fmt("Channel %s, %s", dialog_channels_last_recalled_name(), f);
+            } else if (ud.what == MIC_UD_CHANNEL) {
+                voice_say_text_fmt("No channels");
             }
             break;
         }
@@ -1269,6 +1404,11 @@ static void mic_key_cb(lv_event_t *e) {
                     i++;
                 }
                 cparam_i_set(cfg_cur_mode, order[(i + 1) % n_order]);
+
+                char m[32];
+
+                voice_mode_now(m, sizeof(m));
+                voice_say_text_fmt("%s", m);
             } else if (!mode_lock && hold) {
                 mode_key(KEYPAD_MODE_SSB, true);
             }
@@ -1323,6 +1463,7 @@ static void mic_key_cb(lv_event_t *e) {
 
         default:
             LV_LOG_WARN("Unsuported key: %u", ev->key);
+            if (tap && voice_auto_active()) voice_say_text_fmt("Not used");
             break;
     }
 }
@@ -1407,6 +1548,7 @@ static void freq_shift(int16_t diff, uint16_t dt) {
     }
     cparam_i_set(cfg_fg_freq, freq);
     plan_mode(old, freq);
+    voice_say_freq(cparam_i_get(cfg_fg_freq));     /* spoken once the knob rests (voice.cpp) */
 }
 
 /* Settings > General > Mode from band plan: the knob turned into another segment of the band plan
@@ -1450,6 +1592,7 @@ static void vol_toggle(void) {
     vol->state = edit ? VOL_STATE_EDIT : VOL_STATE_SELECT;
     knobs_set_vol_state(edit);
     vol_update(0);
+    vol_say_state();
 }
 
 /* The MFK's, as VOL's */
@@ -1459,6 +1602,7 @@ static void mfk_toggle(void) {
     mfk_state = edit ? MFK_STATE_EDIT : MFK_STATE_SELECT;
     knobs_set_mfk_state(edit);
     mfk_update(0);
+    mfk_say_state();
 }
 
 /* Knob press: next control (#282), as the stock firmware does it: a short press takes the knob's next control
@@ -1561,6 +1705,7 @@ void main_screen_mfk(int dir) {
 static void spectrum_key_cb(lv_event_t *e) {
     uint32_t key = *(uint32_t *)lv_event_get_param(e);
 
+    voice_trace("spectrum key %u", key);
     if (key == KEY_VOL_PRESS) {
         key = LV_KEY_ESC;   /* on the main screen VOL press does what ESC does */
     }

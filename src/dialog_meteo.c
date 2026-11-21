@@ -14,6 +14,8 @@
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 #include "dialog_meteo.h"
+#include "voice.h"
+#include "voice_focus.h"
 
 #include "app_frame.h"
 #include "buttons.h"
@@ -506,7 +508,27 @@ static void show_status(void) {
     lv_label_set_text(frame.status, st);
 }
 
+static void show_body(void);
+
+/* Spoken: the view shown, all of it ("Weather, now. 12 C, Partly cloudy, ...") */
+static void say_view(void) {
+    static const char *names[] = {"now", "5 days", "warnings"};
+
+    if (!body) return;
+    char head[48];
+
+    snprintf(head, sizeof(head), "Weather, %s", view < 3 ? names[view] : "");
+    voice_lines_set(body, head);
+}
+
+static bool quiet_update;   /* the background refresh: drawn, not read again */
+
 static void show(void) {
+    show_body();
+    say_view();
+}
+
+static void show_body(void) {
     if (!body) return;
     shown_us = meteo_us();
     lv_obj_clean(body);
@@ -580,7 +602,10 @@ static void update_done(void *arg) {
             meteo_alerts_seen(data);    /* shown here: no notice for them later */
         }
     }
-    show();
+    if (quiet_update)
+        show_body();
+    else
+        show();
 }
 
 static void *update_thread(void *arg) {
@@ -611,6 +636,7 @@ static void start_update(bool asked) {
     char       args[160];
 
     if (updating) return;
+    quiet_update = !asked;
     if (!meteo_position(&lat, &lon, &pos_src)) {
         next_at = time(NULL) + RETRY_S;
         show();
@@ -624,8 +650,10 @@ static void start_update(bool asked) {
     error[0] = 0;
     if (data)
         show_status();      /* the last answer stays while the new one comes */
-    else
+    else if (asked)
         show();
+    else
+        show_body();
     if (pthread_create(&t, NULL, update_thread, q) == 0) {
         pthread_detach(t);
     } else {
@@ -702,13 +730,17 @@ static void key_cb(lv_event_t *e) {
         case LV_KEY_ESC:
             dialog_destruct();
             break;
+        /* With speech on the small knob reads line by line (voice_lines); F1 Now, F2 5 days, F3 Warnings change
+         * the view. Without it, as before: the warnings' text up and down, else the views */
         case LV_KEY_UP:
         case LV_KEY_LEFT:
-            step(-1);
+            if (voice_is_on()) voice_lines_step(-1);
+            else step(-1);
             break;
         case LV_KEY_DOWN:
         case LV_KEY_RIGHT:
-            step(1);
+            if (voice_is_on()) voice_lines_step(1);
+            else step(1);
             break;
         case LV_KEY_ENTER:
             start_update(true);
@@ -741,6 +773,7 @@ static void construct_cb(lv_obj_t *parent) {
 
     lv_group_add_obj(keyboard_group, dialog.obj);
     lv_obj_add_event_cb(dialog.obj, key_cb, LV_EVENT_KEY, NULL);
+    voice_focus_quiet(dialog.obj);      /* say_view() reads the views */
     lv_group_focus_obj(dialog.obj);
     lv_group_set_editing(keyboard_group, true);
 
@@ -757,11 +790,12 @@ static void construct_cb(lv_obj_t *parent) {
     }
     if (data) meteo_alerts_seen(data);  /* shown here: no notice for them later */
     start_update(true);
-    show();
+    show_body();        /* start_update() has read it already: the new forecast is read when it comes */
     timer = lv_timer_create(timer_cb, 1000, NULL);
 }
 
 static void destruct_cb(void) {
+    voice_lines_clear();
     gen++;                  /* an answer still on its way is dropped */
     updating = false;
     if (timer) lv_timer_del(timer);

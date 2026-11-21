@@ -18,6 +18,7 @@
 #include "screen_main.h"
 #include "button_bar.h"
 #include "msg.h"
+#include "voice.h"
 
 #include <math.h>
 #include <pthread.h>
@@ -338,6 +339,27 @@ static void scan_move(int32_t freq) {
     pthread_mutex_unlock(&scan_mux);
 }
 
+/* Spoken after Stop only, the carrier off (nothing is said while it is on): the lowest and highest SWR of the points
+ * read, and where ("Stopped, lowest S W R 1.3 at 14.150, highest 2.8 at 14.350"). GUI thread */
+static void say_result(const char *head) {
+    int  lo = -1, hi = -1;
+    char flo[32], fhi[32];
+
+    for (int i = 0; i < points; i++) {
+        if (!measured[i]) continue;
+        if (lo < 0 || smooth[i] < smooth[lo]) lo = i;
+        if (hi < 0 || smooth[i] > smooth[hi]) hi = i;
+    }
+    if (lo < 0) {
+        voice_say_text_fmt("%s, nothing measured", head);
+        return;
+    }
+    /* to the kilohertz: "14.118", not the sweep point's "14.117.877" */
+    voice_freq_text((point_freq(lo) + 500) / 1000 * 1000, flo, sizeof(flo));
+    voice_freq_text((point_freq(hi) + 500) / 1000 * 1000, fhi, sizeof(fhi));
+    voice_say_text_fmt("%s, lowest S W R %.1f at %s, highest %.1f at %s", head, smooth[lo], flo, smooth[hi], fhi);
+}
+
 /* One reading at the current point, then on to the next frequency */
 static void scan_step(float v) {
     const int reach = points <= 25 ? 0 : 2;     /* few points: an average lifted a dip of 1.5 to 1.7 */
@@ -366,6 +388,7 @@ static void scan_step(float v) {
     event_send(plot, LV_EVENT_REFRESH, NULL);
 
     order_at = (order_at + 1) % points;
+
     /* the dial may have changed the sweep's points under this thread: never a frequency past its end */
     pos = LV_MIN(order[order_at], points - 1);
     scan_move(point_freq(pos));
@@ -462,6 +485,7 @@ static void run_cb(button_data_t *b) {
         radio_set_tx_freq(0);
         mem_load(MEM_BACKUP_ID);
         lv_obj_invalidate(plot);    /* the line on the point being read goes: it stayed on until the next redraw */
+        say_result("Stopped");
     } else if (radio_get_state() != RADIO_RX) {
         msg_update_text_fmt("SWR scan: not while transmitting or tuning");
     } else {

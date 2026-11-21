@@ -44,6 +44,8 @@
 #include "qth/qth.h"
 #include "radio.h"
 #include "screen_main.h"
+#include "voice.h"
+#include "voice_focus.h"
 #include "settings_window.h"
 #include "station.h"
 #include "text_popup.h"
@@ -246,9 +248,22 @@ static lv_obj_t *text(lv_obj_t *parent, const lv_font_t *font, lv_color_t color,
     return l;
 }
 
+/* What the step says aloud as it opens: its number, title and paragraphs (build(), para()) */
+static char step_said[760];
+
+static void step_said_add(const char *s) {
+    size_t n = strlen(step_said);
+
+    if (s && s[0] && n + 3 < sizeof(step_said)) {
+        snprintf(step_said + n, sizeof(step_said) - n, "%s%s", n ? ". " : "", s);
+    }
+}
+
 /* A line across the window, wrapped */
 static lv_obj_t *para(const lv_font_t *font, lv_color_t color, const char *s) {
     lv_obj_t *l = text(body, font, color, s);
+
+    step_said_add(s);
 
     lv_obj_set_width(l, lv_pct(100));
     lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
@@ -538,6 +553,11 @@ static void btk_echo_show(void) {
     }
 }
 
+/* Speech: the keyboard step built again because Bluetooth's state changed (btk_tick) says only what changed, not the
+ * whole step again: its state line, the code to type digit by digit, how many keyboards were found */
+static bool btk_quiet;
+static char btk_said[240];
+
 static void build_keyboard(void) {
     char        line[128];
     const char *say   = line;
@@ -612,6 +632,17 @@ static void build_keyboard(void) {
             break;
     }
     status = para(&sony_24, color, say);
+    {
+        size_t n = (size_t)snprintf(btk_said, sizeof(btk_said), "%s", say);
+
+        if (btk_out.state == FSK_PASSKEY) {
+            for (const char *c = btk_out.code; *c && n + 3 < sizeof(btk_said); c++)
+                n += (size_t)snprintf(btk_said + n, sizeof(btk_said) - n, " %c", *c);
+        } else if (list && btk_out.n_shown) {
+            snprintf(btk_said + n, sizeof(btk_said) - n, ". %i keyboard%s found", btk_out.n_shown,
+                     btk_out.n_shown == 1 ? "" : "s");
+        }
+    }
 
     if (btk_out.state == FSK_PASSKEY) {
         lv_obj_t *l = text(body, &sony_60, TC(accent), btk_out.code);
@@ -655,7 +686,9 @@ static void btk_tick(void) {
                 focus_back = i;
             }
         }
+        btk_quiet = true;
         build();
+        btk_quiet = false;
     }
 }
 
@@ -1160,6 +1193,15 @@ static void build(void) {
         lv_label_set_text_fmt(text(head, &sony_20, TC(text_dim), ""), "%i / %i", step + 1, STEP_DONE);
     }
     text(body, &sony_30, TC(text), titles[step]);
+    step_said[0] = '\0';
+    if (step < STEP_DONE) {
+        char head_said[96];
+
+        snprintf(head_said, sizeof(head_said), "First start, step %i of %i, %s", step + 1, STEP_DONE, titles[step]);
+        step_said_add(head_said);
+    } else {
+        step_said_add(titles[step]);
+    }
 
     switch (step) {
         case STEP_LANG:     build_lang(); break;
@@ -1178,7 +1220,27 @@ static void build(void) {
         lv_group_remove_obj(dialog.obj);
     }
     lv_group_set_editing(keyboard_group, false);
-    lv_group_focus_obj(items_n ? items[focus_back < items_n ? focus_back : 0] : dialog.obj);
+    /* Said with the control focused next: "First start, step 1 of 5, Language. <the text>. Language, English" */
+    {
+        char keys[128];
+        const char *a1 = act1_label(), *a2 = act2_label();
+
+        snprintf(keys, sizeof(keys), "%s%s%s%s%s%sF4 skip, F5 %s", step > STEP_LANG ? "F1 back, " : "",
+                 a1[0] ? "F2 " : "", a1, a1[0] ? ", " : "", a2[0] ? "F3 locator, " : "", "",
+                 step < STEP_DONE ? "next" : "done");
+        if (step >= STEP_DONE) {
+            snprintf(keys, sizeof(keys), "F5 done");
+        }
+        step_said_add(keys);
+    }
+    if (btk_quiet && step == STEP_KEYBOARD) {
+        /* only the change said, then the control the MFK is on (the list may be new), not the whole step again */
+        voice_focus_hint(btk_said);
+        lv_group_focus_obj(items_n ? items[focus_back < items_n ? focus_back : 0] : dialog.obj);
+    } else {
+        voice_focus_hint(step_said);
+        lv_group_focus_obj(items_n ? items[focus_back < items_n ? focus_back : 0] : dialog.obj);
+    }
     focus_back = 0;
     for (int i = 0; i < BUTTONS; i++) {
         buttons_refresh(page.items[i]);

@@ -15,6 +15,8 @@
 #include "radio.h"
 #include "styles.h"
 #include "theme.h"
+#include "voice.h"
+#include "voice_focus.h"
 #include "cfg/cfg_api.h"
 #include "dialog_psk.h"
 
@@ -109,6 +111,17 @@ static void show_sel(void) {
     }
 }
 
+/* Spoken: the mode chosen, its note, and where in the list; first: the menu's name before it */
+static void say_sel(const char *first) {
+    const char *sep = modes[sel].note[0] ? ", " : "";
+
+    if (first) {
+        voice_say_text_fmt("%s, %s%s%s, %i of %i", first, modes[sel].name, sep, modes[sel].note, sel + 1, MODES_N);
+    } else {
+        voice_delay_say_text_fmt("%s%s%s, %i of %i", modes[sel].name, sep, modes[sel].note, sel + 1, MODES_N);
+    }
+}
+
 static void start_async(void *action) {
     main_screen_start_app((press_action_t)(intptr_t)action);
 }
@@ -130,18 +143,22 @@ static void key_cb(lv_event_t *e) {
         case LV_KEY_LEFT:
             if (sel > 0) sel--;
             show_sel();
+            say_sel(NULL);
             break;
         case LV_KEY_RIGHT:
             if (sel < MODES_N - 1) sel++;
             show_sel();
+            say_sel(NULL);
             break;
         case LV_KEY_UP:
             if (tiles ? sel >= T_COLS : sel > 0) sel -= tiles ? T_COLS : 1;
             show_sel();
+            say_sel(NULL);
             break;
         case LV_KEY_DOWN:
             if (tiles ? sel + T_COLS < MODES_N : sel < MODES_N - 1) sel += tiles ? T_COLS : 1;
             show_sel();
+            say_sel(NULL);
             break;
         case LV_KEY_ENTER:
             open_sel();
@@ -262,8 +279,10 @@ static void construct_cb(lv_obj_t *parent) {
     lv_group_add_obj(keyboard_group, box);
     lv_obj_add_event_cb(box, key_cb, LV_EVENT_KEY, NULL);
     lv_obj_add_event_cb(box, click_cb, LV_EVENT_CLICKED, NULL);
+    voice_focus_quiet(box);
     lv_group_focus_obj(box);
     lv_group_set_editing(keyboard_group, true);
+    say_sel("Digital modes");
 }
 
 static void destruct_cb(void) {

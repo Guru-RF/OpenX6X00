@@ -20,6 +20,8 @@
  */
 
 #include "dialog_cb.h"
+#include "voice.h"
+#include "voice_focus.h"
 
 #include "app_frame.h"
 #include "band_plan.h"
@@ -200,11 +202,25 @@ static void select_current(void) {
     show_sel();
 }
 
+static void say_sel(const char *first) {
+    char text[240];
+    int  n = cb_channels(dialog_cb_plan());
+
+    if (sel < 0 || !table) return;
+    const char *c3 = lv_table_get_cell_value(table, sel, 3);
+
+    snprintf(text, sizeof(text), "%s%s%s, %s, %s%s%s, %i of %i", first ? first : "", first ? ". " : "",
+             lv_table_get_cell_value(table, sel, 0), lv_table_get_cell_value(table, sel, 1),
+             lv_table_get_cell_value(table, sel, 2), c3 && c3[0] ? ", " : "", c3 ? c3 : "", sel + 1, n);
+    voice_say_clean(text, first == NULL);
+}
+
 static void step(int dir) {
     int n = cb_channels(dialog_cb_plan());
 
     if (sel + dir >= 0 && sel + dir < n) sel += dir;
     show_sel();
+    say_sel(NULL);
 }
 
 static void tune_row(int r) {
@@ -432,6 +448,7 @@ static void construct_cb(lv_obj_t *parent) {
     lv_group_add_obj(keyboard_group, dialog.obj);
     lv_obj_add_event_cb(dialog.obj, key_cb, LV_EVENT_KEY, NULL);
     lv_obj_add_event_cb(dialog.obj, click_cb, LV_EVENT_CLICKED, NULL);
+    voice_focus_quiet(dialog.obj);      /* say_sel() speaks the channels */
     lv_group_focus_obj(dialog.obj);
     lv_group_set_editing(keyboard_group, true);
 

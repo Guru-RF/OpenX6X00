@@ -31,6 +31,8 @@
 #include "radio.h"
 #include "theme.h"
 #include "cw_beacon.h"
+#include "voice.h"
+#include "voice_focus.h"
 
 #define MAX_MSGS     64
 #define TIMER_MS     100
@@ -456,6 +458,22 @@ static void list_draw_cb(lv_event_t *e) {
     }
 }
 
+/* Spoken: the message chosen, its callsigns spelled, and its place; first: the window's name before it */
+static void say_sel(const char *first) {
+    char spelled[300], text[400];
+
+    if (count == 0) {
+        snprintf(text, sizeof(text), "%s%sNo messages yet. F3 adds one", first ? first : "", first ? ". " : "");
+    } else if (sel >= 0 && sel < count && texts[sel]) {
+        voice_spell_calls(texts[sel], spelled, sizeof(spelled));
+        snprintf(text, sizeof(text), "%s%s%s, %i of %i", first ? first : "", first ? ". " : "", spelled, sel + 1,
+                 count);
+    } else {
+        return;
+    }
+    voice_say_clean(text, first == NULL);
+}
+
 static void move_sel(int step) {
     if (sending() || count == 0) return;
     sel += step;
@@ -468,6 +486,7 @@ static void move_sel(int step) {
     lv_obj_scroll_to_y(list, y + t->row_h[sel] / 2 - LIST_H / 2, LV_ANIM_OFF);
     lv_obj_invalidate(list);
     delete_armed = 0;
+    say_sel(NULL);
 }
 
 /* Keys */
@@ -831,10 +850,12 @@ static void window_open(lv_obj_t *parent) {
     lv_group_add_obj(keyboard_group, dialog.obj);
     lv_obj_add_event_cb(dialog.obj, key_cb, LV_EVENT_KEY, NULL);
     lv_obj_add_event_cb(dialog.obj, click_cb, LV_EVENT_CLICKED, NULL);
+    voice_focus_quiet(dialog.obj);  /* say_sel() speaks the messages */
     lv_group_focus_obj(dialog.obj);
     lv_group_set_editing(keyboard_group, true);
 
     load_msgs(0);
+    say_sel("CW messages. Small knob: the messages. F2 send, F3 new, F4 edit");
     main_screen_lock_mode(true);
     timer = lv_timer_create(timer_cb, TIMER_MS, NULL);
     timer_cb(NULL);

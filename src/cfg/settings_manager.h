@@ -521,6 +521,32 @@ class SettingsManager {
     Parameter<int32_t> p_voice_msg_gain{"voice_msg_gain", 0, -20, 10,
         StorageType::GLOBAL, pending_writes_, &global_params_};
 
+    // Spoken feedback (voice.cpp, Settings > Voice). The same names in the database as the
+    // X6100 Accessibility fork's. Mode: 0 Off, 1 only while the screen is dark, 2 Always; this
+    // build speaks from the first start (a blind operator could not find the setting otherwise)
+    Parameter<int32_t> p_voice_mode{"voice_mode", 2, 0, 2,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_voice_lang{"voice_lang", 0, 0, 5,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_voice_rate{"voice_rate", 100, 50, 150,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_voice_pitch{"voice_pitch", 100, 50, 150,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_voice_volume{"voice_volume", 100, 50, 150,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // A new announcement cuts off the one speaking (screen-reader style), after this delay
+    Parameter<int32_t> p_voice_interrupt{"voice_interrupt", true, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_voice_repeat_count{"voice_repeat_count", 5, 0, 20,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_voice_interrupt_delay_ms{"voice_interrupt_delay_ms", 100, 0, 1000,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_voice_freq_interrupt_delay_ms{"voice_freq_interrupt_delay_ms", 1000, 0, 1000,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // What the CW decoder, RTTY, PSK, Olivia and JTTY receive, read aloud (voice_text.c)
+    Parameter<int32_t> p_voice_read_text{"voice_read_text", true, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+
     // SWR scan
     Parameter<int32_t> p_swrscan_linear{"swrscan_linear", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};

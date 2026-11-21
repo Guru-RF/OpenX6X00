@@ -34,6 +34,9 @@ void mfk_update(int16_t diff);
 /* The next (dir > 0) or previous control bound to the MFK */
 void mfk_change_ctrl(int16_t dir);
 
+/* Spoken after an MFK press: choosing or changing, and the control */
+void mfk_say_state();
+
 /* Give it this control, in edit state, and show the value */
 void mfk_set_ctrl(cfg_ctrl_t mode);
 

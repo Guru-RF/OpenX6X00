@@ -9,6 +9,7 @@
  */
 
 #include "dialog_birdie.h"
+#include "voice.h"
 
 #include "birdie.h"
 #include "buttons.h"
@@ -71,6 +72,12 @@ static void progress_cb(const char *text, bool done, void *arg) {
     if (done) {
         known_update();
         buttons_refresh(&btn_start);
+        if (known_label && voice_auto_active()) {
+            char said[300];
+
+            snprintf(said, sizeof(said), "%s. %s", text, lv_label_get_text(known_label));
+            voice_say_clean(said, false);     /* the scan's result, said once it ends */
+        }
     }
 }
 

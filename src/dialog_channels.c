@@ -23,6 +23,8 @@
 #include "theme.h"
 #include "msg_box.h"
 #include "screen_main.h"         /* the locks */
+#include "voice.h"
+#include "voice_focus.h"
 
 static void window_open_cb(lv_obj_t *parent);
 static void window_close_cb(void);
@@ -119,6 +121,21 @@ static void draw_row_cb(lv_event_t *e) {
 }
 
 /* Row under the cursor, -1 when there is none */
+/* Spoken: "40 meters net, 7.150, L S B" */
+static void row_said(lv_obj_t *t, uint16_t row, char *buf, size_t size) {
+    const channel_t *c = channels_get(row);
+    char             f[32], m[32];
+
+    (void)t;
+    if (!c) {
+        snprintf(buf, size, "%s", channels_count() ? "" : "No channels. F2 adds the current frequency");
+        return;
+    }
+    voice_freq_text(c->freq, f, sizeof(f));
+    voice_mode_text(channels_mode_name(c->mode), m, sizeof(m));
+    snprintf(buf, size, "%s%s%s, %s", c->name[0] ? c->name : "", c->name[0] ? ", " : "", f, m);
+}
+
 static int16_t cursor_row(void) {
     uint16_t row = LV_TABLE_CELL_NONE, col;
 
@@ -166,6 +183,7 @@ static void make_table(void) {
     lv_obj_add_event_cb(table, pressed_cb, LV_EVENT_PRESSED, NULL);
     lv_obj_add_event_cb(table, moved_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(table, draw_row_cb, LV_EVENT_DRAW_PART_END, NULL);
+    voice_focus_set_row_cb(table, row_said);
     give_table_the_mfk();
 }
 
@@ -321,6 +339,12 @@ static void key_drag_cb(button_data_t *data) {
     if (row < 0) return;
     dragging = row;
     set_f5(&btn_drop);
+    {
+        const channel_t *c = channels_get(row);
+
+        voice_say_text_fmt("Moving %s. Turn the small knob to move it, F5 to drop it there",
+                           c && c->name[0] ? c->name : "the channel");
+    }
 }
 
 static void key_drop_cb(button_data_t *data) {
@@ -330,6 +354,14 @@ static void key_drop_cb(button_data_t *data) {
     bool saved = channels_save();
 
     if (!saved) channels_load();
+    {
+        int16_t row = cursor_row();
+
+        if (saved)
+            voice_say_text_fmt("Dropped at %d of %d, saved", row + 1, (int)channels_count());
+        else
+            voice_say_text_fmt("Not saved: the order is as before");
+    }
     dragging = -1;
     set_f5(&btn_drag);
     if (!saved) make_table();

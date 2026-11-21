@@ -8,6 +8,7 @@
  */
 
 #include "dialog_cw_kbd.h"
+#include "voice.h"
 
 #include "buttons.h"
 #include "cfg/cfg_api.h"
@@ -293,6 +294,7 @@ static void change_speed(int d) {
         param_i_set(cfg_key_speed, v);
     }
     update_view();
+    voice_delay_say_text_fmt("%d W P M", (int)param_i_get(cfg_key_speed));
 }
 
 /* On-screen keyboard. With Live on its letters are keyed as they are typed, as a keyboard's are: the line
@@ -401,6 +403,7 @@ static void key_cb(lv_event_t *e) {
         case LV_KEY_BACKSPACE:
             if (*lv_textarea_get_text(input)) {
                 lv_textarea_del_char(input);
+                voice_say_text_fmt("deleted");
             } else if (param_i_get(cfg_cw_live) && queue[0]) {   /* Live: the last letter not keyed yet */
                 unqueue_last();
                 update_view();
@@ -454,6 +457,8 @@ static void key_cb(lv_event_t *e) {
                 enqueue_raw(c, false);
             } else {
                 lv_textarea_add_text(input, c);
+                /* the letter typed, said (not in Live: keyed at once, the sidetone tells) */
+                voice_say_text_fmt("%s", c[0] == ' ' ? "space" : c);
             }
             break;
         }

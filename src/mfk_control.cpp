@@ -19,6 +19,7 @@
 extern "C" {
 #include "msg_box.h"
 }
+#include "voice.h"
 
 mfk_state_t mfk_state = MFK_STATE_EDIT;
 cfg_ctrl_t  mfk_ctrl  = CTRL_SPECTRUM_FACTOR;
@@ -27,6 +28,13 @@ cfg_ctrl_t  mfk_ctrl  = CTRL_SPECTRUM_FACTOR;
 static void show_ctrl(void) {
     knobs_set_mfk_param(mfk_ctrl);
     cluster_column_set_active(mfk_ctrl == CTRL_CLUSTER);
+}
+
+void mfk_say_state() {
+    std::string msg(64, '\0');
+
+    controls_encoder_update(mfk_ctrl, 0, msg);
+    voice_say_knob_state("M F K", mfk_state == MFK_STATE_SELECT, msg.c_str());
 }
 
 void mfk_init() {
@@ -40,11 +48,17 @@ void mfk_update(int16_t diff) {
     std::string msg(64, '\0');
 
     controls_encoder_update(mfk_ctrl, diff, msg);
+    voice_trace("mfk_update diff %i ctrl %i: [%s]", diff, (int)mfk_ctrl, msg.c_str());
+    if (!(mfk_ctrl == CTRL_VOL && diff)) {     /* a turned volume: radio_change_vol() says it */
+        voice_say_ctrl(msg.c_str());
+    }
 
     uint32_t color = mfk_state == MFK_STATE_EDIT ? theme_hex(TC_text) : theme_hex(TC_text_soft);
 
     if (!knobs_visible()) {
+        voice_msg_hold(true);   /* said above already */
         msg_update_text_fmt("#%06x %s", color, msg.c_str());
+        voice_msg_hold(false);
     }
 }
 

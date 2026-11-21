@@ -31,6 +31,8 @@ extern "C" {
 #include <algorithm>
 #include <array>
 
+#include "voice.h"
+
 #define WLAN_IFACE "wlan0"
 #define EMPTY_SSID_STR "--"
 
@@ -840,6 +842,38 @@ static void fill_access_point_info(GBytes *active_ssid, NMAccessPoint *ap, wifi_
     /* else open: no validator */
 }
 
+/* Spoken once the network is joined: its address, which a blind operator has no other way to find
+ * (the WiFi window shows it). "192 dot 168 dot 50 dot 80": RHVoice reads "192.168" as a number */
+void voice_ip_text(char *out, size_t size) {
+    char  ip[64] = "", gw[64] = "";
+    char *ipp = ip, *gwp = gw;
+    size_t n = 0;
+
+    if (!out || !size) return;
+    out[0] = 0;
+    if (wifi_get_status() != WIFI_CONNECTED || !wifi_get_ipaddr(&ipp, &gwp) || !ip[0]) return;
+    for (const char *c = ip; *c && n + 6 < size; c++) {
+        if (*c == '.') {
+            n += snprintf(out + n, size - n, " dot ");
+        } else {
+            out[n++] = *c;
+            out[n] = 0;
+        }
+    }
+}
+
+static void say_ip_cb(lv_timer_t *t) {
+    char spoken[128];
+
+    (void)t;
+    voice_ip_text(spoken, sizeof(spoken));
+    if (!spoken[0]) {
+        voice_say_text_fmt("WiFi connected");
+        return;
+    }
+    voice_say_text_fmt("WiFi connected, address %s", spoken);
+}
+
 static void set_status(wifi_status_t val) {
     wifi_status_t prev_val = status;
     status = val;
@@ -1015,6 +1049,7 @@ static void device_state_changed_sig_cb(NMDevice *device, guint new_state, guint
         retry_uuid[0] = '\0';
         retry_n = 0;
         set_status(WIFI_CONNECTED);
+        lv_timer_set_repeat_count(lv_timer_create(say_ip_cb, 1500, NULL), 1);   /* after "ready", the address */
         break;
     case NM_DEVICE_STATE_DISCONNECTED:
         set_status(WIFI_DISCONNECTED);

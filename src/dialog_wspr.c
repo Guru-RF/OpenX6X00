@@ -25,6 +25,7 @@
  */
 
 #include "dialog_wspr.h"
+#include "voice.h"
 
 #include "app_frame.h"
 #include "audio.h"
@@ -620,7 +621,24 @@ static void decoded_cb(void *arg) {
     }
     table_fill();
     lv_obj_scroll_to_y(table, 0, LV_ANIM_OFF);
+    voice_msg_hold(true);
     msg_update_text_fmt("WSPR: %d spot%s", res->n, res->n == 1 ? "" : "s");
+    voice_msg_hold(false);
+
+    /* Spoken: the spots of the cycle, up to four ("WSPR, 2 spots: K 1 A B C, F N 4 2, minus 15 dB; ...") */
+    {
+        char   said[400];
+        size_t n = (size_t)snprintf(said, sizeof(said), "WSPR, %d spot%s:", res->n, res->n == 1 ? "" : "s");
+
+        for (int k = 0; k < res->n && k < 4 && n + 40 < sizeof(said); k++) {
+            char call[48], loc[32];
+
+            voice_spell_calls(res->spots[k].call, call, sizeof(call));
+            voice_spell_calls(res->spots[k].loc, loc, sizeof(loc));
+            n += snprintf(said + n, sizeof(said) - n, "%s %s, %s, %d dB", k ? ";" : "", call, loc, res->spots[k].snr);
+        }
+        if (voice_auto_active()) voice_say_text_fmt("%s", said);
+    }
 }
 
 void dialog_wspr_show_spots(const wspr_spot_t *spots, int n) {

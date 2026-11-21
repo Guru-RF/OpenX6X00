@@ -19,6 +19,7 @@
 #include "msg.h"
 #include "params/params.h"
 #include "scheduler.h"
+#include "voice.h"
 
 char            *recorder_path = BOARD_DATA "/rec";
 
@@ -82,6 +83,7 @@ void recorder_set_on(bool x) {
         } else {
             msg_update_text_fmt("RX recorder is on");
         }
+        voice_stop();       /* an announcement still playing: not into the recording; nothing new is said while on */
         atomic_store(&on, true);
     } else {
         msg_update_text_fmt("RX recorder is off");

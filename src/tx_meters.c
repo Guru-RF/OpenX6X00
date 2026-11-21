@@ -484,6 +484,8 @@ lv_obj_t *tx_info_init(lv_obj_t *parent) {
 /* From the base, in the radio thread. The ALC from 0 (at rest) up: the X6100 backend turns its count round, the
  * X6200 sends it this way (as gdyuldin's X6200 GUI reads it, 34ec351 "Invert ALC"). From 0 lpf takes the reading as
  * it is */
+static volatile float last_pwr, last_vswr;   /* tx_info_last() */
+
 void tx_info_update(float p, float s, float a) {
     s = LV_MIN(SWR_MAX, s);
     if (cur_mode == radio_mode_lsb_dig || cur_mode == radio_mode_usb_dig) {
@@ -495,8 +497,17 @@ void tx_info_update(float p, float s, float a) {
         lpf(&alc, a, 0.9f, 0.0f);
         lpf(&vswr, s, 0.9f, 0.0f);
     }
+    if (p > 0.0f) {
+        last_pwr  = pwr;
+        last_vswr = vswr;
+    }
     msg_id++;
     scheduler_put_coalesced(update_tx_info);
+}
+
+void tx_info_last(float *p, float *s) {
+    *p = last_pwr;
+    *s = last_vswr;
 }
 
 /* The radio thread, out of TX or a tune (radio.c tx_over). They went to 0 at the TX event, in the LVGL thread: after

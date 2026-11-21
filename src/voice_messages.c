@@ -36,6 +36,8 @@
 #include "msg_box.h"
 #include "radio.h"
 #include "theme.h"
+#include "voice.h"
+#include "voice_focus.h"
 
 #define PLAY_CHUNK   1024
 #define MAX_ITEMS    64
@@ -206,6 +208,25 @@ static float file_secs(const char *name) {
     if (!f) return 0;
     sf_close(f);
     return info.samplerate > 0 ? (float)info.frames / info.samplerate : 0;
+}
+
+/* Spoken: the message chosen, its length and place; first: the window's name before it */
+static void say_sel(const char *first) {
+    char text[200];
+
+    if (count == 0) {
+        snprintf(text, sizeof(text), "%s%sNo messages yet. F2 records one", first ? first : "", first ? ". " : "");
+    } else if (sel >= 0 && sel < count) {
+        snprintf(text, sizeof(text), "%s%s%s, %.1f seconds, %i of %i", first ? first : "", first ? ". " : "",
+                 items[sel].name, items[sel].secs, sel + 1, count);
+    } else {
+        return;
+    }
+    if (first) {
+        voice_say_clean(text, false);
+    } else {
+        voice_say_clean(text, true);
+    }
 }
 
 static void show_list(void) {
@@ -383,6 +404,7 @@ static void start_rec(const char *name) {
         msg_update_text_fmt("Cannot create %s", p);
         return;
     }
+    voice_stop();       /* an announcement still playing would be recorded */
     radio_set_play_mode(AUDIO_PLAY_VOICE_REC);
     pthread_mutex_lock(&rec_mutex);
     rec_filter_init();
@@ -545,6 +567,12 @@ static void update_buttons(void) {
 /* Status panel */
 
 static void set_state(const char *text, uint32_t bg, uint32_t fg) {
+    static char said[16];
+
+    if ((strcmp(text, "LISTEN") == 0 || strcmp(text, "READY") == 0) && strcmp(said, text) != 0 && said[0]) {
+        voice_say_text_fmt("%s", strcmp(text, "LISTEN") == 0 ? "Listening" : "Ready");
+    }
+    snprintf(said, sizeof(said), "%s", text);
     lv_label_set_text(state_lbl, text);
     lv_obj_set_style_bg_color(state_lbl, lv_color_hex(bg), 0);
     lv_obj_set_style_text_color(state_lbl, lv_color_hex(fg), 0);
@@ -651,6 +679,7 @@ static void move_sel(int step) {
     lv_obj_scroll_to_y(list, y + t->row_h[sel] / 2 - LIST_H / 2, LV_ANIM_OFF);
     lv_obj_invalidate(list);
     delete_armed = 0;
+    say_sel(NULL);
 }
 
 /* Keys */
@@ -663,6 +692,7 @@ static void change_interval(int step) {
     params.voice_msg_period = v;
     params_unlock(&params.dirty.voice_msg_period);
     buttons_refresh(&btn_interval);
+    voice_delay_say_text_fmt("%i seconds", v);
 }
 
 /* MFK or VOL turn the interval while Interval is selected, else the list / volume. */
@@ -768,6 +798,11 @@ static void interval_cb(button_data_t *btn) {
     adjusting = !adjusting;
     buttons_refresh(&btn_interval);
     timer_cb(NULL);
+    /* Only the arrows round the number showed it: said */
+    if (adjusting)
+        voice_say_text_fmt("Interval, %i seconds. Turn the small knob to change, F2 to keep", interval_s());
+    else
+        voice_say_text_fmt("Interval kept, %i seconds", interval_s());
 }
 
 static void delete_cb(button_data_t *btn) {
@@ -938,6 +973,7 @@ static void window_open(lv_obj_t *parent) {
     lv_group_add_obj(keyboard_group, dialog.obj);
     lv_obj_add_event_cb(dialog.obj, list_key_cb, LV_EVENT_KEY, NULL);
     lv_obj_add_event_cb(dialog.obj, click_cb, LV_EVENT_CLICKED, NULL);
+    voice_focus_quiet(dialog.obj);  /* say_sel() speaks the messages */
     lv_group_focus_obj(dialog.obj);
     lv_group_set_editing(keyboard_group, true);
 
@@ -945,6 +981,7 @@ static void window_open(lv_obj_t *parent) {
     sel       = 0;
     adjusting = false;
     load_items(NULL);
+    say_sel("Voice keyer. Small knob: the messages, press: listen. F2 record, F3 listen, F4 send, F5 auto call");
     timer = lv_timer_create(timer_cb, TIMER_MS, NULL);
     timer_cb(NULL);
 }

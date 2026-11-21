@@ -30,6 +30,8 @@
 #include <strings.h>
 #include <time.h>
 #include "fonts/font_select.h"
+#include "voice.h"
+#include "voice_focus.h"
 
 /* VISION: one size over the other themes here, not VISION_FONT_STEPS (too big for these tables) */
 #define VF(n) (theme_shape.vision ? font_down(&sony_##n, VISION_FONT_STEPS - 1) : &sony_##n)
@@ -800,6 +802,21 @@ static void tune_to(int idx) {
     follow_vfo = dialog_cluster_tune_spot(&view[idx]);
 }
 
+/* Spoken: "K 1 A B C, 14.025, up 2, spotted by W 1 A W, 3 of 40" */
+static void say_spot(void) {
+    char dx[64], by[64], f[32], cm[96];
+
+    if (sel < 0 || sel >= view_count || !voice_auto_active()) return;
+    const cluster_spot_t *s = &view[sel];
+
+    voice_spell_calls(s->dx, dx, sizeof(dx));
+    voice_spell_calls(s->spotter, by, sizeof(by));
+    voice_freq_text(s->freq_hz, f, sizeof(f));
+    voice_clean_text(s->comment, cm, sizeof(cm));
+    voice_delay_say_text_fmt("%s, %s%s%s, spotted by %s, %i of %i", dx, f, cm[0] ? ", " : "", cm, by, sel + 1,
+                             view_count);
+}
+
 static void move_selection(int step) {
     if (view_count == 0) return;
     follow_vfo = false;
@@ -809,6 +826,7 @@ static void move_selection(int step) {
     if (sel >= view_count) sel = view_count - 1;
     scroll_to_show_row(row_of_spot(sel));
     lv_obj_invalidate(table);
+    say_spot();
 }
 
 static void key_cb(lv_event_t *e) {
@@ -942,8 +960,10 @@ static void construct_cb(lv_obj_t *parent) {
     lv_group_add_obj(keyboard_group, dialog.obj);
     lv_obj_add_event_cb(dialog.obj, key_cb, LV_EVENT_KEY, NULL);
     lv_obj_add_event_cb(dialog.obj, dialog_click_cb, LV_EVENT_CLICKED, NULL);
+    voice_focus_quiet(dialog.obj);  /* say_spot() speaks the spots */
     lv_group_focus_obj(dialog.obj);
     lv_group_set_editing(keyboard_group, true);
+    voice_say_text_fmt("DX cluster. Small knob: the spots, press: tune. F3 tune");
 
     load_server();
 

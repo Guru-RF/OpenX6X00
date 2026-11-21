@@ -9,6 +9,7 @@
  *  whatever page is loaded (an app's too), and the knob marks on the buttons.
  */
 #include "button_bar.h"
+#include "voice_focus.h"
 
 #include "board.h"
 #include "radio_controls.h"
@@ -36,6 +37,7 @@ extern "C" {
 #include "screen_light.h"
 #include "rtty_send.h"
 }
+#include "voice.h"
 
 #define STATE_ASSIGNED LV_STATE_USER_1  /* bound to a knob in the knob binds */
 #define STATE_ACTIVE   LV_STATE_USER_2  /* the knob is on this control now */
@@ -740,6 +742,129 @@ void buttons_screen_rec_update() {
     buttons_refresh(&btn_screen_rec);
 }
 
+/* ---- spoken feedback (voice.cpp) ---- */
+
+/* The button's text as shown now, "Name:\nvalue" as "Name, value" */
+static const char *button_text(button_data_t *d) {
+    static char s[96];
+    const char *t = d->type == BTN_TEXT_FN ? d->label_fn() : d->type == BTN_TEXT ? d->label : "";
+    const char *c = t ? strstr(t, ":\n") : NULL;
+
+    if (!t) {
+        s[0] = '\0';
+    } else if (c) {
+        snprintf(s, sizeof(s), "%.*s, %s", (int)(c - t), t, c + 2);
+    } else {
+        int  page, pages, len = 0;
+        char name[40];
+
+        /* a page key, "(BANDS\n1:1)": said "BANDS, page 1 of 1" */
+        if (sscanf(t, "(%39[^\n]\n%d:%d)%n", name, &page, &pages, &len) == 3 && len && !t[len])
+            snprintf(s, sizeof(s), "%s, page %d of %d", name, page, pages);
+        else
+            snprintf(s, sizeof(s), "%s", t);
+    }
+    /* a word split for the screen, "Propa-\ngation", is said whole; other line breaks are spaces */
+    char *w = s;
+    for (const char *p = s; *p; p++) {
+        if (p[0] == '-' && p[1] == '\n') {
+            p++;
+            continue;
+        }
+        *w++ = *p == '\n' ? ' ' : *p;
+    }
+    *w = '\0';
+    return s;
+}
+
+void buttons_page_text(char *out, size_t size) {
+    size_t n = 0;
+
+    if (!out || !size) return;
+    out[0] = 0;
+    for (int i = 0; cur_page && i < 5 && n + 8 < size; i++) {
+        button_data_t *d = cur_page->items[i];
+
+        if (!d) continue;
+        const char *raw = d->type == BTN_TEXT_FN ? d->label_fn() : d->type == BTN_TEXT ? d->label : NULL;
+
+        if (raw && raw[0] == '(') continue;      /* the page's own name button */
+        const char *t = button_text(d);
+
+        if (!t || !t[0]) continue;
+        n += snprintf(out + n, size - n, "%sF%d %s", n ? ", " : "", i + 1, t);
+    }
+}
+
+/* A page loaded: "(SETTINGS\n1:3)" on its first button is said "SETTINGS page 1" */
+static void say_page(buttons_page_t *page) {
+    button_data_t *first = page->items[0];
+
+    if (page == &page_dfl && voice_auto_active()) {    /* DFL's one page has no page button to name it */
+        char s2[300];
+        size_t n2 = (size_t)snprintf(s2, sizeof(s2), "Filter page");
+
+        for (int i = 0; i < 5 && n2 + 8 < sizeof(s2); i++) {
+            button_data_t *d = page->items[i];
+
+            if (!d) continue;
+            const char *t = button_text(d);
+
+            if (!t || !t[0]) continue;
+            n2 += snprintf(s2 + n2, sizeof(s2) - n2, "%s F%d %s", i == 0 ? "." : ",", i + 1, t);
+        }
+        voice_say_clean(s2, true);
+        return;
+    }
+    if (voice_auto_active() && (!first || first->type != BTN_TEXT || !first->label || first->label[0] != '(')) {
+        char keys[300];
+
+        cur_page = page;    /* buttons_page_text() reads the one loaded */
+        buttons_page_text(keys, sizeof(keys));
+        if (keys[0]) voice_focus_hint_add(keys);
+        return;
+    }
+    if (!first || first->type != BTN_TEXT || !first->label || first->label[0] != '(' || !voice_auto_active()) {
+        return;
+    }
+
+    char        name[48];
+    int         num = 0;
+    const char *p = first->label + 1;
+    size_t      n = 0;
+
+    while (*p && *p != '\n' && *p != ' ' && *p != ')' && n + 1 < sizeof(name)) {
+        name[n++] = *p++;
+    }
+    name[n] = '\0';
+    while (*p == '\n' || *p == ' ') p++;
+    if (sscanf(p, "%d:", &num) == 1 && n) {
+        char s[80];
+
+        char   s2[400];
+        size_t n2;
+
+        snprintf(s2, sizeof(s2), "%s page %d", name, num);
+        n2 = strlen(s2);
+        /* What F2 to F5 hold: "VOL page 1. F2 Volume, 25, F3 Squelch, 0, ..." */
+        for (int i = 1; i < 5 && n2 + 8 < sizeof(s2); i++) {
+            button_data_t *d = page->items[i];
+
+            if (!d) continue;
+            const char *t = button_text(d);
+
+            if (!t || !t[0]) continue;
+            n2 += snprintf(s2 + n2, sizeof(s2) - n2, "%s F%d %s", i == 1 ? "." : ",", i + 1, t);
+        }
+        (void)s;
+        if (voice_focus_hint_waiting()) {
+            voice_focus_hint_add(s2);   /* a window opening: with its name, not cut short by it */
+        } else {
+            voice_say_clean(s2, true);
+        }
+    }
+}
+
 void buttons_load(uint8_t n, button_data_t *data) {
     slot_clear(&slots[n]);
     slots[n].data = data;
@@ -756,6 +881,7 @@ void buttons_load_page(buttons_page_t *page) {
     if (!page) return;
     cur_page = page;
     for (uint8_t i = 0; i < BUTTONS; i++) buttons_load(i, page->items[i]);
+    say_page(page);
 }
 
 void buttons_unload_page() {
@@ -777,12 +903,42 @@ void button_prev_page_cb(button_data_t *data) {
 void buttons_press(uint8_t n, bool hold) {
     button_data_t *d = slots[n].data;
 
-    if (!d || d->disabled) return;
+    if (!d) {
+        if (voice_auto_active()) voice_say_text_fmt("F%d, not used", n + 1);   /* an empty place on this page */
+        return;
+    }
+    if (d->disabled) {
+        if (voice_auto_active()) {
+            char s[96];
+
+            snprintf(s, sizeof(s), "%s, unavailable", button_text(d));
+            voice_say_clean(s, false);
+        }
+        return;
+    }
     /* A page button held goes one page back in every app and on every bar, as the main screen's and JS8's did:
      * most apps gave theirs only the press (FT8, the cluster, the messages, the CW keyboard, #317). One with a
      * hold of its own keeps it */
     action_t fn = hold ? buttons_hold_fn(d) : d->press;
-    if (fn) fn(d);
+
+    if (!fn) {
+        if (voice_auto_active()) {
+            char s[120];
+
+            snprintf(s, sizeof(s), "%s, %s", button_text(d), hold ? "no long press" : "not used");
+            voice_say_clean(s, false);
+        }
+        return;
+    }
+
+    /* Spoken feedback: a press that said nothing itself (no message, no page) says its button as it
+     * reads now, a toggle its new state */
+    uint32_t said = voice_say_count();
+
+    fn(d);
+    if (voice_auto_active() && voice_say_count() == said && slots[n].data == d) {
+        voice_say_clean(button_text(d), false);
+    }
 }
 
 /* A group's key: its next page when one of its pages is shown, else its first */

@@ -172,6 +172,17 @@ extern ParamInt *cfg_dmr_tg;         // p_dmr_tg
 extern ParamInt *cfg_field_boot;     // p_field_boot
 extern ParamInt *cfg_field_respot;   // p_field_respot
 extern ParamInt *cfg_voice_msg_gain; // p_voice_msg_gain
+// Spoken feedback (voice.cpp)
+extern ParamInt *cfg_voice_mode;     // p_voice_mode: 0 Off, 1 screen dark, 2 Always
+extern ParamInt *cfg_voice_lang;     // p_voice_lang: voice_item[]
+extern ParamInt *cfg_voice_rate;     // p_voice_rate, %
+extern ParamInt *cfg_voice_pitch;    // p_voice_pitch, %
+extern ParamInt *cfg_voice_volume;   // p_voice_volume, %
+extern ParamInt *cfg_voice_interrupt;          // p_voice_interrupt
+extern ParamInt *cfg_voice_read_text;          // p_voice_read_text
+extern ParamInt *cfg_voice_repeat_count;       // p_voice_repeat_count
+extern ParamInt *cfg_voice_interrupt_delay_ms;      // p_voice_interrupt_delay_ms
+extern ParamInt *cfg_voice_freq_interrupt_delay_ms; // p_voice_freq_interrupt_delay_ms
 extern ParamInt *cfg_ft8_max_repeats; // p_ft8_max_repeats
 extern ParamInt *cfg_ft8_info;       // p_ft8_info
 

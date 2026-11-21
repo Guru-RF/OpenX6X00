@@ -522,7 +522,7 @@ static void owner_apply(void) {
 
 int audio_user_open(audio_user_t u) {
     static const char *const names[AUDIO_USERS] = {"X6100 GUI Station", "X6100 GUI Zello", "X6100 GUI SVXConnect",
-                                                    "X6100 GUI DMR"};
+                                                    "X6100 GUI DMR", "X6100 GUI Speech"};
     pa_sample_spec spec = { .format = PA_SAMPLE_S16NE, .rate = AUDIO_PLAY_RATE, .channels = 1 };
     pa_buffer_attr attr;
     char           sink[128];

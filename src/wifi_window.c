@@ -21,6 +21,8 @@
 #include "text_popup.h"
 #include "theme.h"
 #include "wifi.h"
+#include "voice.h"
+#include "voice_focus.h"
 
 #include "lvgl/lvgl.h"
 #include <stdio.h>
@@ -159,6 +161,41 @@ static void list_stop(void) {
     }
 }
 
+/* Spoken: the network the knob is on, what it is, and its place. Only when it or its state changed: the list is
+ * refreshed every second */
+static char pick_said[160];     /* what was said, without the signal: its changing alone is not news */
+static bool pick_intro;         /* the window just opened: its name goes first */
+
+static void say_pick(const wifi_ap_info_t *ap) {
+    char       *last = pick_said;
+    char        key[160], text[200];
+    uint16_t    row, col;
+
+    lv_table_get_selected_cell(nets, &row, &col);
+    if (!ap) {
+        snprintf(key, sizeof(key), "%s", params.wifi_enabled.x ? "No networks found yet" : "WiFi is off");
+        snprintf(text, sizeof(text), "%s", key);
+    } else {
+        const char *kind = ap->unsupported ? ap->unsupported : ap->password_validator ? "secured" : "open";
+
+        snprintf(key, sizeof(key), "%s%s%s, %s, %u of %u", ap->ssid, ap->is_connected ? ", connected" : "",
+                 ap->known ? ", saved" : "", kind, (unsigned)row + 1, (unsigned)lv_table_get_row_cnt(nets));
+        snprintf(text, sizeof(text), "%s%s%s, %s, signal %u percent, %u of %u", ap->ssid,
+                 ap->is_connected ? ", connected" : "", ap->known ? ", saved" : "", kind, (unsigned)ap->strength,
+                 (unsigned)row + 1, (unsigned)lv_table_get_row_cnt(nets));
+    }
+    if (strcmp(key, last) == 0) {
+        return;
+    }
+    snprintf(last, sizeof(pick_said), "%s", key);
+    if (pick_intro) {
+        pick_intro = false;
+        voice_say_text_fmt("WiFi. %s. Small knob: the networks. F-keys: connect, scan, password, delete", text);
+    } else {
+        voice_delay_say_text_fmt("%s", text);
+    }
+}
+
 /* A row chosen: the buttons follow what kind of network it is */
 static void pick_cb(lv_event_t *e) {
     bool            any;
@@ -166,6 +203,7 @@ static void pick_cb(lv_event_t *e) {
     pick_t          now = !ap ? PICK_NONE : ap->known ? PICK_KNOWN : PICK_NEW;
 
     snprintf(chosen, sizeof(chosen), "%s", ap ? ap->ssid : "");   /* a refresh puts the selection back first */
+    say_pick(ap);
     if (!any || now != picked) {
         picked = now;
         state_changed();
@@ -242,6 +280,7 @@ static bool password_ok(void) {
 static void ask_password(const wifi_ap_info_t *ap) {
     editing = *ap;
     lv_group_remove_obj(nets);
+    voice_focus_hint("Password for the network. Turn the small knob for the keys, press it to type, done to finish");
     textarea_window_open(password_ok, password_cancel);
     if (typed[0]) {
         textarea_window_set(typed);
@@ -418,6 +457,16 @@ static void state_cb(void *s, lv_msg_t *m) {
         default:              text = "Disconnected"; break;
     }
     lv_label_set_text(state_val, text);
+    {
+        static wifi_status_t said = (wifi_status_t)-1;
+        wifi_status_t        now  = wifi_get_status();
+
+        /* Connected is said by wifi.c with the address */
+        if (said != (wifi_status_t)-1 && now != said && now != WIFI_CONNECTED) {
+            voice_say_text_fmt("WiFi %s", text);
+        }
+        said = now;
+    }
     if (!addr_timer) {
         addr_timer = lv_timer_create(address_cb, 100, NULL);
     }
@@ -485,11 +534,16 @@ static void construct_cb(lv_obj_t *parent) {
     lv_obj_add_event_cb(nets, key_cb, LV_EVENT_KEY, NULL);
     lv_obj_add_event_cb(nets, pick_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(nets, row_draw_cb, LV_EVENT_DRAW_PART_END, NULL);
+    voice_focus_quiet(nets);    /* say_pick() speaks the rows */
     lv_group_add_obj(keyboard_group, nets);
     lv_group_set_editing(keyboard_group, true);
 
     state_sub = lv_msg_subscribe(MSG_WIFI_STATE_CHANGED, state_cb, NULL);
     state_changed();
+
+    /* Its name, said with the first network at the next refresh (say_pick): two announcements cut each other */
+    pick_said[0] = '\0';
+    pick_intro   = true;
 
     /* A scan as the window opens: while connected nothing else scans (the background scans are off, see
      * dispatcher.d/20-wifi-steady), and the networks last seen drop out of the list after a few minutes */

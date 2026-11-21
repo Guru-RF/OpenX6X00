@@ -40,6 +40,9 @@ void tx_info_get(float *pwr, float *swr);
  * (CW, CW-R) */
 float tx_info_get_alc(bool *greyed);
 
+/* The power and SWR of the last over, kept after it ends (tx_info_clear() zeroes the live ones): said after a TUNE */
+void tx_info_last(float *p, float *s);
+
 /* The length of the transmission starting, seconds (a slot: FT8 15, JS8 by its speed, WSPR 120): the
  * strip counts up to it, "5 / 15 s". 0 (the TX player at the end): the time alone. Any thread. */
 void tx_info_set_length(float seconds);

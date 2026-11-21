@@ -18,6 +18,7 @@
 #include "digi_textlog.h"
 
 #include "cfg/cfg_api.h"
+#include "voice_text.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -153,6 +154,7 @@ static void line_sig(line_t *l, int sig) {
 static void start_writer(void);
 
 void digi_textlog_rx(const char *mode, uint32_t freq_hz, digi_textlog_sig_t kind, int sig, const char *text) {
+    voice_text_add(text);   /* read aloud: PSK, Olivia, RTTY */
     line_t *l   = &lines[0];
     time_t  now = time(NULL);
 

@@ -63,6 +63,8 @@ void dialog_on_close(dialog_t *d, lv_async_cb_t back);
 /* An event to the open window (queued, from any thread) */
 void dialog_send(lv_event_code_t code, void *param);
 bool dialog_is_run();
+/* The open window's object, NULL with none (the power key reads it aloud) */
+lv_obj_t *dialog_obj(void);
 bool dialog_type_is_run(dialog_t *which);
 
 /* The window's object, and each of its controls */

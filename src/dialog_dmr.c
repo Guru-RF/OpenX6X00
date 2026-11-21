@@ -50,6 +50,8 @@
 #include "styles.h"
 #include "theme.h"
 #include "util.h"
+#include "voice.h"
+#include "voice_focus.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -527,6 +529,22 @@ static void cell(uint16_t row, uint16_t col, const char *txt) {
 }
 
 /* The talkgroups: the one heard marked */
+/* Speech: a talkgroup's row, "T G 91, Worldwide, listening" (the table's cells have the number and name apart) */
+static void tg_row_said(lv_obj_t *t, uint16_t row, char *buf, size_t size) {
+    uint32_t now_tg = ss_on ? ss.tg : (uint32_t)param_i_get(cfg_dmr_tg);
+
+    (void)t;
+    if (row >= tgs_n) {
+        buf[0] = '\0';
+        return;
+    }
+    if (tgs[row].tg)
+        snprintf(buf, size, "T G %u%s%s%s", (unsigned)tgs[row].tg, tgs[row].name[0] ? ", " : "", tgs[row].name,
+                 tgs[row].tg == now_tg && ss_on ? ", listening" : "");
+    else
+        snprintf(buf, size, "%s%s", _("the master's talkgroups"), now_tg == 0 && ss_on ? ", listening" : "");
+}
+
 static void show_tgs(bool again) {
     char     line[96], tg[48];
     uint32_t now_tg = ss_on ? ss.tg : (uint32_t)param_i_get(cfg_dmr_tg);
@@ -589,13 +607,29 @@ static void show_state(void) {
 }
 
 static void show_talk(void) {
-    char who[DMR_NAME_MAX + 8], t[16];
+    char        who[DMR_NAME_MAX + 8], t[16];
+    static char said_talker[DMR_NAME_MAX + 40];  /* speech: the call said, "" none under way */
 
     if (ss_on && ss.talking) {
         const dmr_call_t *c = &ss.talker;
+        char              now[sizeof(said_talker)];
 
         dmr_proto_who(c, who, sizeof(who));
         ago_text(t, sizeof(t), get_time() - c->start_ms);
+        snprintf(now, sizeof(now), "%s %u %llu", who, (unsigned)(c->private_call ? 0 : c->dst),
+                 (unsigned long long)c->start_ms);
+        if (strcmp(now, said_talker)) {         /* a new call: who, and where (the seconds go on, not said) */
+            char spelled[DMR_NAME_MAX + 40];
+
+            snprintf(said_talker, sizeof(said_talker), "%s", now);
+            voice_spell_calls(who, spelled, sizeof(spelled));
+            if (voice_auto_active()) {
+                if (c->private_call)
+                    voice_say_text_fmt("Talking: %s, a private call to you", spelled);
+                else
+                    voice_say_text_fmt("Talking: %s, T G %u", spelled, (unsigned)c->dst);
+            }
+        }
         if (c->private_call)
             lv_label_set_text_fmt(talk_lbl, "#%06x %s# #%06x %s# #%06x %s %s#", theme_hex(TC_text_dim),
                                   _("Talking now:"), theme_hex(TC_accent), who, theme_hex(TC_text_dim),
@@ -610,6 +644,7 @@ static void show_talk(void) {
     } else {
         lv_label_set_text(talk_lbl, "");
     }
+    if (!(ss_on && ss.talking)) said_talker[0] = '\0';
 }
 
 static void status_cb(lv_timer_t *t) {
@@ -626,6 +661,11 @@ static void status_cb(lv_timer_t *t) {
     show_talk();
     show_tgs(again);
     show_heard();
+    {
+        static char said_state[200];
+
+        voice_say_label_change(state_lbl, said_state, sizeof(said_state), "DMR");
+    }
     if (conn_label() != conn_shown) {
         conn_shown = conn_label();
         buttons_refresh(&btn_conn);
@@ -1023,6 +1063,8 @@ static void construct_cb(lv_obj_t *parent) {
     lv_obj_add_event_cb(table, key_cb, LV_EVENT_KEY, NULL);
     lv_obj_add_event_cb(table, pressed_cb, LV_EVENT_PRESSED, NULL);
     lv_group_add_obj(keyboard_group, table);
+    voice_focus_set_row_cb(table, tg_row_said);
+    voice_focus_hint("DMR, talkgroups on the internet, listening only. MFK: choose a talkgroup");
     lv_group_focus_obj(table);
     lv_group_set_editing(keyboard_group, true);
     show_tgs(true);

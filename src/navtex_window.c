@@ -25,6 +25,8 @@
 #include "dsp.h"
 #include "gui_events.h"
 #include "msg_box.h"
+#include "voice.h"
+#include "voice_text.h"
 
 #include <pthread.h>        /* rx_lock */
 #include <stdio.h>          /* snprintf, the Save file */
@@ -457,10 +459,21 @@ static void ui_timer_cb(lv_timer_t *t)
         time_t now = time(NULL);
         char   hms[16];
         strftime(hms, sizeof(hms), "%H:%M:%S", gmtime(&now));
-        for (int i = 0; i < ncalls; i++)
+        for (int i = 0; i < ncalls; i++) {
+            char detail[160], said[180];
+
             dsc_add_row(&calls[i], hms, cparam_i_get(cfg_fg_freq) + 1000);
+            dsc_detail(&calls[i], "", detail, sizeof(detail));
+            snprintf(said, sizeof(said), "D S C call, %s", detail);
+            if (voice_auto_active()) voice_say_clean(said, false);
+        }
     }
     if (nchars) {
+        char said[RX_CHARS + 1];
+
+        memcpy(said, chars, nchars);
+        said[nchars] = '\0';
+        voice_text_add(said);       /* read aloud as it comes (Settings > Voice > Read decoded text) */
         text_add(chars, nchars);
         lv_label_set_text(label, screen_text);
         if (follow)

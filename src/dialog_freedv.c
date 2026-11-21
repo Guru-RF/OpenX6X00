@@ -8,6 +8,7 @@
 // Reporter (page 2, off by default) shows the radio on qso.freedv.org while the app is open (src/freedv_report.c).
 
 #include "dialog_freedv.h"
+#include "voice.h"
 #include "freedv_rx.h"
 #include "freedv_tx.h"
 #include "freedv_report.h"
@@ -301,6 +302,22 @@ static void ui_timer_cb(lv_timer_t *t)
         return;
     }
     set_text(lbl_sync, s.sync ? "SYNC" : "searching", s.sync ? TC(toggle_on) : TC(text_dim));
+    {
+        /* Spoken: a signal found or lost, and the callsign an over ended with ("Heard K 1 A B C") */
+        static int  said_sync = -1;
+        static char said_call[32];
+
+        if (said_sync >= 0 && (int)s.sync != said_sync)
+            voice_say_text_fmt("%s", s.sync ? "R A D E sync" : "R A D E searching");
+        said_sync = s.sync;
+        if (s.callsign[0] && strcmp(s.callsign, said_call)) {
+            char spelled[64];
+
+            snprintf(said_call, sizeof(said_call), "%s", s.callsign);
+            voice_spell_calls(s.callsign, spelled, sizeof(spelled));
+            voice_say_text_fmt("Heard %s", spelled);
+        }
+    }
     if (s.sync)
         snprintf(b, sizeof(b), "%.1f dB   %+.0f Hz", s.snr_db, s.foff_hz);
     else

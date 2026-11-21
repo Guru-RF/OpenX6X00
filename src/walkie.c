@@ -9,6 +9,7 @@
  */
 
 #include "walkie.h"
+#include "voice.h"
 #include "board.h"
 
 #include "styles.h"
@@ -275,12 +276,33 @@ static void wch_recall(int i) {
     cparam_i_set(cfg_cur_att, c->att ? radio_att_on : radio_att_off);
 }
 
+/* Spoken: the memory slot and what it holds ("Channel 3, 145.500, F M"), or that it is empty */
+static void say_channel(const char *head, bool delayed) {
+    int              i = param_i_get(cfg_walkie_ch);
+    const channel_t *c = &wch[i];
+    char             f[32], m[32], text[160];
+
+    if (!c->freq) {
+        snprintf(text, sizeof(text), "%s%sChannel %d, empty, Store puts the frequency in it", head ? head : "",
+                 head ? ", " : "", i + 1);
+    } else {
+        voice_freq_text(c->freq, f, sizeof(f));
+        voice_mode_text(channels_mode_name(c->mode), m, sizeof(m));
+        snprintf(text, sizeof(text), "%s%sChannel %d, %s, %s", head ? head : "", head ? ", " : "", i + 1, f, m);
+    }
+    if (delayed)
+        voice_delay_say_text_fmt("%s", text);
+    else
+        voice_say_text_fmt("%s", text);
+}
+
 /* The main knob in MEM: every slot in turn, the empty ones too (they can be stored into) */
 static void mem_step(int dir) {
     int i = (param_i_get(cfg_walkie_ch) + dir + WCH_N) % WCH_N;
 
     param_i_set(cfg_walkie_ch, i);
     wch_recall(i);
+    say_channel(NULL, true);
 }
 
 static void rotary_cb(lv_event_t *e) {
@@ -315,8 +337,12 @@ static void key_hold_cb(button_data_t *d) {
 
 static void mem_toggle_cb(button_data_t *d) {
     param_i_set(cfg_walkie_mem, !param_i_get(cfg_walkie_mem));
-    if (param_i_get(cfg_walkie_mem))
+    if (param_i_get(cfg_walkie_mem)) {
         wch_recall(param_i_get(cfg_walkie_ch));
+        say_channel("Memory mode, the tuning knob steps the channels", false);
+    } else {
+        voice_say_text_fmt("V F O mode, the tuning knob tunes");
+    }
 }
 
 /* Store: the VFO (frequency, mode, AGC, PRE, ATT) into the current slot, then MEM. Clear (held): the slot emptied */
@@ -332,11 +358,13 @@ static void store_cb(button_data_t *d) {
     };
     wch_save();
     param_i_set(cfg_walkie_mem, 1);
+    say_channel("Stored", false);
 }
 
 static void clear_cb(button_data_t *d) {
     wch[param_i_get(cfg_walkie_ch)] = (channel_t){0};
     wch_save();
+    voice_say_text_fmt("Channel %d cleared", (int)param_i_get(cfg_walkie_ch) + 1);
 }
 
 static void exit_cb(button_data_t *d) {
@@ -689,6 +717,7 @@ static void enter(void) {
     /* The F1-F5 keys are under the screen in landscape: in portrait they run down the left
      * edge, F1 on top, so the main screen's buttons go there and the knobs work as there */
     buttons_vertical(scr, SIDE_W, SIDE_KEY_H);
+    voice_say_prefix("Walkie screen, the F-keys down the left, F1 at the top");     /* with the page said next */
     buttons_load_page(&wlk_1);
     lv_timer_resume(timer);
     lv_scr_load(scr);
@@ -700,6 +729,7 @@ static void leave(void) {
     radio_set_mic_override(-1);                     /* cfg_mic again, never changed */
     vol_set_ctrl(vol_saved);
     buttons_horizontal(main_scr);
+    voice_say_prefix("Walkie off");
     buttons_load_page(&buttons_page_vol_1);         /* as at start */
     main_display_portrait(false);
     lv_scr_load(main_scr);

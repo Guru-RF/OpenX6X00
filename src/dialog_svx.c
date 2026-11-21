@@ -19,6 +19,7 @@
  */
 #include "ctcss.h"
 #include "dialog_svx.h"
+#include "voice_focus.h"
 
 #include "buttons.h"
 #include "cfg/cfg_api.h"
@@ -487,6 +488,11 @@ static void show_talk(void) {
     } else {
         lv_label_set_text(talk_lbl, "");
     }
+    {
+        static char said_talk[200];
+
+        voice_say_label_change(talk_lbl, said_talk, sizeof(said_talk), NULL);
+    }
 }
 
 static void status_cb(lv_timer_t *t) {
@@ -499,6 +505,11 @@ static void status_cb(lv_timer_t *t) {
     show_tgs();
     show_recent();
     refresh_buttons();
+    {
+        static char said_state[200];
+
+        voice_say_label_change(state_lbl, said_state, sizeof(said_state), "SVXConnect");
+    }
 }
 
 static int selected(void) {

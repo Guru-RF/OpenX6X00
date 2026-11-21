@@ -16,6 +16,7 @@
  * the button callbacks.
  */
 #include "app_sstv.h"
+#include "voice.h"
 #include "board.h"
 #include "app_sstv_int.h"
 
@@ -781,6 +782,16 @@ static void timer_cb(lv_timer_t *t)
         show_decoding(sstv_mode_info(rec_mode)->name);
         if (sstv_bar) lv_bar_set_value(sstv_bar, 1000, LV_ANIM_OFF);
         if (!start_worker(auto_thread)) auto_dec = false;
+    }
+    {
+        static bool said_rec;   /* a picture starting: said once ("Receiving picture, Martin 1") */
+
+        if (auto_rec && rec_want > 0 && !said_rec) {
+            said_rec = true;
+            if (voice_auto_active()) voice_say_text_fmt("Receiving picture, %s", sstv_mode_info(rec_mode)->name);
+        } else if (!auto_rec) {
+            said_rec = false;
+        }
     }
     if (auto_rec && rec_want > 0) {       /* the bar follows the recording */
         show_decoding(sstv_mode_info(rec_mode)->name);

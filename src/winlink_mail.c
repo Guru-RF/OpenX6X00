@@ -22,6 +22,8 @@
 #endif
 
 #include "winlink_mail.h"
+#include "voice.h"
+#include "voice_focus.h"
 
 #include "app_frame.h"
 #include "buttons.h"
@@ -1078,6 +1080,198 @@ static void show_session_lines(void) {
     (lv_label_set_text)(l2, buf);   /* Pat's and the gateway's words: past the language hook */
 }
 
+
+/* ---- Speech: the window draws its lists and fields itself, so it says them itself ----------------------------------
+ * A view as it opens: its name and its help line, then what is chosen in it. The lists: the row chosen, "Unread, from
+ * K1ABC, Subject, 11-16 21:05, 2 of 9". Compose: the field moved to and what is in it, the characters typed echoed. A
+ * message: read a line at a time (the line reader), Up / Down or the MFK. The connection: its state and what goes over
+ * it as they change, Pat's question with its answers on the F-keys. The status line's notes as they come */
+
+static char     prompt_labels[3][24];   /* Pat's answers on the F-keys (defined with the buttons) */
+static unsigned said_view_seq = ~0u;
+static int      said_sel = -1, said_box = -1;
+static char     said_empty[300], said_l0[300], said_l1[200], said_note[200], said_prompt[300];
+
+static void clean_of(lv_obj_t *l, char *buf, size_t size) {
+    buf[0] = '\0';
+    if (l) voice_clean_text(lv_label_get_text(l), buf, size);
+}
+
+/* The row chosen, as said */
+static void sel_said(char *buf, size_t size) {
+    int n = list_n();
+
+    buf[0] = '\0';
+    if (sel < 0 || sel >= n) return;
+    if (view == V_LIST) {
+        const cJSON *m = cJSON_GetArrayItem(list, sel);
+        char         who[120], subj[200];
+
+        voice_spell_calls(box_i == 0 ? jstr(m, "from") : jstr(m, "to"), who, sizeof(who));
+        voice_clean_text(jstr(m, "subject"), subj, sizeof(subj));
+        snprintf(buf, size, "%s%s %s, %s%s, %s, %d of %d", jbool(m, "unread") ? "Unread, " : "",
+                 box_i == 0 ? "from" : "to", who, subj[0] ? subj : "no subject",
+                 jint(m, "files", 0) ? ", with attachments" : "", jstr(m, "date"), sel + 1, n);
+    } else {
+        const cJSON *g = cJSON_GetArrayItem(gateways, sel);
+        char         call[60];
+
+        voice_spell_calls(jstr(g, "call"), call, sizeof(call));
+        if (jint(g, "dist", -1) >= 0)
+            snprintf(buf, size, "%s, %.1f kilohertz, %d kilometres, %s%s, %d of %d", call, jnum(g, "dial"),
+                     jint(g, "dist", -1), jstr(g, "modes"), jbool(g, "recent") ? ", called lately" : "", sel + 1, n);
+        else
+            snprintf(buf, size, "%s, %.1f kilohertz, %s%s, %d of %d", call, jnum(g, "dial"), jstr(g, "modes"),
+                     jbool(g, "recent") ? ", called lately" : "", sel + 1, n);
+    }
+}
+
+/* A field of the message being written, as said: "Subject, Weekly net" */
+static void field_said(char *buf, size_t size) {
+    static const char *names[FIELDS] = {"To", "Cc", "Subject", "Message"};
+    const char        *t             = fields[field_i] ? lv_textarea_get_text(fields[field_i]) : "";
+    char               v[300];
+
+    voice_clean_text(t, v, sizeof(v));
+    snprintf(buf, size, "%s, %s", names[field_i], v[0] ? v : "empty");
+}
+
+/* The message's lines for the line reader: the head's, then the text's, blank lines left out */
+static void read_lines(void) {
+    voice_lines_begin();
+    if (read_box) {
+        for (uint32_t c = 0; c < lv_obj_get_child_cnt(read_box); c++) {
+            char *t = strdup(lv_label_get_text(lv_obj_get_child(read_box, c)));
+
+            if (!t) continue;
+            for (char *line = strtok(t, "\n"); line; line = strtok(NULL, "\n")) {
+                char clean[400];
+
+                voice_clean_text(line, clean, sizeof(clean));
+                if (clean[0]) voice_lines_add(clean);
+            }
+            free(t);
+        }
+    }
+    voice_lines_done("Message. Up, Down or M F K: line by line. R: reply. Escape: back");
+}
+
+static void mail_speech(void) {
+    char head[400] = "", item[1200] = "";
+
+    if (!body || !voice_auto_active()) return;
+
+    if (view_seq != said_view_seq) {        /* a view opened: its name and help */
+        char name[160], help[200];
+
+        said_view_seq = view_seq;
+        said_sel = said_box = -1;
+        said_empty[0] = said_l0[0] = said_l1[0] = '\0';
+        voice_lines_clear();
+        clean_of(frame.head_left, name, sizeof(name));
+        clean_of(frame.status, help, sizeof(help));
+        snprintf(said_note, sizeof(said_note), "%s", help);     /* said here, not again as a note */
+        snprintf(head, sizeof(head), "%s%s%s", name, help[0] ? ". " : "", help);
+        if (view == V_READ) {
+            read_lines();
+            return;
+        }
+    } else {
+        char now[200];
+
+        clean_of(frame.status, now, sizeof(now));
+        if (strcmp(now, said_note)) {       /* a note: what was done, what is wrong, a second press asked */
+            snprintf(said_note, sizeof(said_note), "%s", now);
+            if (note[0] && time(NULL) < note_until && now[0]) snprintf(head, sizeof(head), "%s", now);
+        }
+    }
+
+    switch (view) {
+        case V_LIST:
+        case V_GATEWAYS:
+            if (list_n() > 0) {
+                if (sel != said_sel || box_i != said_box) {
+                    said_sel = sel;
+                    said_box = box_i;
+                    sel_said(item, sizeof(item));
+                }
+            } else {
+                char e[300];
+
+                clean_of(empty_lbl, e, sizeof(e));
+                if (strcmp(e, said_empty)) {
+                    snprintf(said_empty, sizeof(said_empty), "%s", e);
+                    snprintf(item, sizeof(item), "%s", e);
+                }
+                said_sel = -1;
+            }
+            break;
+
+        case V_COMPOSE:
+            if (head[0] && fields[field_i]) field_said(item, sizeof(item));
+            break;
+
+        case V_SESSION: {
+            lv_obj_t *l0 = lv_obj_get_child(body, 0), *l1 = lv_obj_get_child(body, 1), *l2 = lv_obj_get_child(body, 2);
+            char      a[300], b[300];
+
+            if (prompt_on) {
+                char q[300], answers[160] = "";
+
+                snprintf(q, sizeof(q), "%s %s", prompt_id, prompt_msg);
+                if (strcmp(q, said_prompt)) {
+                    char t0[300], t1[200], t2[700];
+
+                    snprintf(said_prompt, sizeof(said_prompt), "%s", q);
+                    clean_of(l0, t0, sizeof(t0));
+                    clean_of(l1, t1, sizeof(t1));
+                    clean_of(l2, t2, sizeof(t2));
+                    for (int i = 0; i < 3; i++) {
+                        size_t n = strlen(answers);
+
+                        if (prompt_labels[i][0])
+                            snprintf(answers + n, sizeof(answers) - n, "%sF%d %s", n ? ", " : "", i + 2,
+                                     prompt_labels[i]);
+                    }
+                    snprintf(item, sizeof(item), "%s. %s%s%s%s%s", t0, t1, t1[0] ? ". " : "", t2, t2[0] ? ". " : "",
+                             answers);
+                }
+                break;
+            }
+            said_prompt[0] = '\0';
+            clean_of(l0, a, sizeof(a));
+            if (prog_total > 0) {           /* the bytes go on: said once per message, not each count */
+                snprintf(b, sizeof(b), "%s %s", prog_rx ? "Receiving" : "Sending", prog_subject);
+            } else {
+                clean_of(l1, b, sizeof(b));
+            }
+            if (strcmp(a, said_l0)) {
+                snprintf(said_l0, sizeof(said_l0), "%s", a);
+                snprintf(item, sizeof(item), "%s", a);
+            }
+            if (strcmp(b, said_l1)) {
+                size_t n = strlen(item);
+
+                snprintf(said_l1, sizeof(said_l1), "%s", b);
+                if (b[0]) snprintf(item + n, sizeof(item) - n, "%s%s", n ? ". " : "", b);
+            }
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    if (head[0] && item[0])
+        voice_say_text_fmt("%s. %s", head, item);
+    else if (head[0])
+        voice_say_text_fmt("%s", head);
+    else if (item[0] && (view == V_LIST || view == V_GATEWAYS))
+        voice_delay_say_text_fmt("%s", item);   /* the knob turned on: the row it stops at */
+    else if (item[0])
+        voice_say_text_fmt("%s", item);
+}
+
 /* The header, the status line, and the view's body */
 static void show(void) {
     char right[120] = "", left[120];
@@ -1187,6 +1381,7 @@ static void show(void) {
         case V_SESSION:  show_session(); break;
         default:         break;
     }
+    mail_speech();
 }
 
 /* ---- Buttons ----------------------------------------------------------------------------------------------------- */
@@ -1591,6 +1786,12 @@ static void reply_cb(button_data_t *b) {
 static void field_move(int d) {
     field_i = (field_i + d + FIELDS) % FIELDS;
     show_fields();
+    if (voice_auto_active() && fields[field_i]) {
+        char t[400];
+
+        field_said(t, sizeof(t));
+        voice_say_text_fmt("%s", t);
+    }
 }
 
 static void next_field_cb(button_data_t *b) {
@@ -2448,9 +2649,11 @@ static void compose_key(uint32_t key) {
             break;
         case LV_KEY_BACKSPACE:
             lv_textarea_del_char(ta);
+            if (voice_auto_active()) voice_say_text_fmt("deleted");
             break;
         case LV_KEY_DEL:
             lv_textarea_del_char_forward(ta);
+            if (voice_auto_active()) voice_say_text_fmt("deleted");
             break;
         case LV_KEY_LEFT:
         case LV_KEY_RIGHT:
@@ -2488,6 +2691,11 @@ static void compose_key(uint32_t key) {
             if (key >= ' ') {
                 lv_textarea_add_char(ta, key);
                 discard_armed = false;
+                if (voice_auto_active() && key < 0x7f) {      /* the character echoed, as CW Keyboard does */
+                    char c[2] = {(char)key, 0};
+
+                    voice_say_text_fmt("%s", key == ' ' ? "space" : c);
+                }
             }
             break;
     }
@@ -2585,10 +2793,12 @@ static void key_cb(lv_event_t *e) {
                 case LV_KEY_UP:
                 case LV_KEY_LEFT:
                     lv_obj_scroll_by_bounded(read_box, 0, 60, LV_ANIM_OFF);
+                    if (voice_auto_active()) voice_lines_step(-1);
                     break;
                 case LV_KEY_DOWN:
                 case LV_KEY_RIGHT:
                     lv_obj_scroll_by_bounded(read_box, 0, -60, LV_ANIM_OFF);
+                    if (voice_auto_active()) voice_lines_step(1);
                     break;
                 case ' ':           /* a page on */
                     lv_obj_scroll_by_bounded(read_box, 0, -(APP_FRAME_BODY_H - 40), LV_ANIM_OFF);
@@ -2691,6 +2901,9 @@ static void construct_cb(lv_obj_t *parent) {
 /* Closed: a connection under way goes on (Pat's, as one from the web mailbox), followed no more; its answers and
  * the jobs' come back to a newer gen and are dropped */
 static void destruct_cb(void) {
+    voice_lines_clear();
+    said_view_seq = ~0u;
+    said_prompt[0] = '\0';
     if (osk_open_now || textarea_window_is_open()) {
         textarea_window_close();
         osk_open_now = false;

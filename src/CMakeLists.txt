@@ -85,8 +85,27 @@ target_sources(${PROJECT_NAME} PUBLIC
     control_owner.c
     winlink.c
     i18n.cpp
+    voice.cpp voice_focus.c voice_text.c
     winlink_mail.c
 )
+
+# Spoken feedback (voice.cpp): RHVoice, when the system has it (the radio's image with BR2_PACKAGE_RHVOICE).
+# Without it the GUI builds the same and says nothing
+find_path(RHVOICE_INCLUDE RHVoice/core/engine.hpp PATH_SUFFIXES RHVoice)
+find_library(RHVOICE_LIB RHVoice)
+find_library(RHVOICE_CORE_LIB RHVoice_core)
+find_library(RHVOICE_AUDIO_LIB RHVoice_audio)
+if(RHVOICE_INCLUDE AND RHVOICE_LIB AND RHVOICE_CORE_LIB AND RHVOICE_AUDIO_LIB)
+    message(STATUS "Speech: RHVoice found")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_RHVOICE=1)
+    # RHVoice's headers include <utf8.h> and <rapidxml/rapidxml.hpp>, which its package does not install:
+    # utf8-cpp (Boost Software License) and RapidXml (Boost Software License or MIT), header only, in third-party
+    target_include_directories(${PROJECT_NAME} PRIVATE ${RHVOICE_INCLUDE} ${RHVOICE_INCLUDE}/RHVoice
+        ${CMAKE_SOURCE_DIR}/third-party/utf8 ${CMAKE_SOURCE_DIR}/third-party/rapidxml)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${RHVOICE_LIB} ${RHVOICE_CORE_LIB} ${RHVOICE_AUDIO_LIB})
+else()
+    message(STATUS "Speech: no RHVoice, the GUI is silent")
+endif()
 
 # The languages (i18n.h): every GUI source gets i18n_hook.h first, so the texts it hands to LVGL are translated.
 # Only this target's sources: LVGL's own and the libraries below do not

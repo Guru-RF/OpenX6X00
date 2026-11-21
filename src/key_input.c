@@ -11,6 +11,7 @@
  * (kbd_hyper.h): CapsLock+L logs a QSO, CapsLock+Space is PTT, and the others. */
 
 #include "key_input.h"
+#include "voice_focus.h"
 
 #include "cw_encoder.h"
 #include "cw_field.h"
@@ -591,6 +592,7 @@ void keyboard_init() {
     keyboard_group = lv_group_create();
     /* The MFK stops at the first and last item of a page instead of jumping round */
     lv_group_set_wrap(keyboard_group, false);
+    voice_focus_init(keyboard_group);   /* spoken feedback: what the knob lands on */
     lv_msg_subscribe(MSG_USB_DEVICE_CHANGED, usb_change_cb, NULL);
 
     char *path = find_keyboard();

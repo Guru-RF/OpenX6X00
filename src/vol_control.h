@@ -33,6 +33,9 @@ void vol_set_ctrl(cfg_ctrl_t mode);
 /* What it controls */
 cfg_ctrl_t vol_get_ctrl();
 
+/* Spoken after a VOL press: choosing or changing, and the control */
+void vol_say_state();
+
 #ifdef __cplusplus
 }
 #endif

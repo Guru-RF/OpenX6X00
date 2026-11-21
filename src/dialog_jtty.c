@@ -29,6 +29,7 @@
 #include "dialog.h"
 #include "styles.h"
 #include "cfg/cfg_api.h"
+#include "voice_text.h"
 #include "radio.h"
 #include "audio.h"
 #include "dsp.h"
@@ -378,6 +379,7 @@ static void rx_msg_ui(void *data)
         return;
     digi_textlog_msg("JTTY", m->id, (uint32_t)cparam_i_get(cfg_fg_freq) + (uint32_t)lroundf(m->freq),
                      DIGI_TEXTLOG_SIG_DB, m->snr, m->text, m->complete);
+    voice_text_message(m->id, m->text, m->complete);    /* read aloud once whole */
     l = txt_find(m->id);
     win = l ? l->kind == 0 : in_window(m->freq);
     if (!l)

@@ -13,6 +13,7 @@
 #include "panel.h"
 #include "remote_server.h"
 #include "scheduler.h"
+#include "voice_text.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -27,6 +28,9 @@ void cw_decoder_set_sink(void (*text)(const char *, bool), void (*wpm)(int)) {
 
 void cw_decoder_text(const char *text, bool own) {
     remote_server_cw_text(text);    /* the browser panel too, wherever the text goes here */
+    if (!own) {
+        voice_text_add(text);       /* read aloud, the main screen's and the CW apps' alike; not what we send */
+    }
     if (to_text) {
         to_text(text, own);
         return;

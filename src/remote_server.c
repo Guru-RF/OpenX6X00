@@ -130,6 +130,7 @@
 #include "tci_ws.h"
 #include "tx_meters.h"
 #include "wefax_window.h"
+#include "voice.h"
 
 #include <arpa/inet.h>
 #include <ctype.h>
@@ -724,7 +725,16 @@ static void pair_msg_apply(void *arg) {
     char code[8];
     snprintf(code, sizeof(code), "%s", pair_code);
     pthread_mutex_unlock(&sess_mux);
+    /* spoken digit by digit, twice: read as it is shown, six digits are one big number */
+    char spoken[24] = "";
+    for (const char *d = code; *d; d++) {
+        size_t n = strlen(spoken);
+        snprintf(spoken + n, sizeof(spoken) - n, "%s%c", n ? " " : "", *d);
+    }
+    voice_msg_hold(true);
     msg_schedule_text_ms(PAIR_SHOW_MS, "Pair code: #ffb020 %s#  (2 min)", code);
+    voice_msg_hold(false);
+    voice_say_text_fmt("Pair code: %s. Again: %s. Good for 2 minutes.", spoken, spoken);
 }
 
 /* LVGL thread: pairing paused, for how many minutes */

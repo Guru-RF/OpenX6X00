@@ -19,6 +19,8 @@
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 #include "dialog_iradio.h"
+#include "voice.h"
+#include "voice_focus.h"
 
 #include "app_frame.h"
 #include "audio.h"
@@ -889,6 +891,16 @@ static void move_sel(int d) {
     *s = (*s + d + n) % n;
     show_row(*s);
     lv_obj_invalidate(table);
+
+    /* Spoken: the station (or country) and what the list shows of it, "BBC World Service, 64k MP3, 3 of 120" */
+    if (*s < lv_table_get_row_cnt(table)) {
+        char        text[300];
+        const char *c1 = lv_table_get_cell_value(table, *s, 1);
+
+        snprintf(text, sizeof(text), "%s%s%s, %i of %i", lv_table_get_cell_value(table, *s, 0), c1 && c1[0] ? ", " : "",
+                 c1 ? c1 : "", *s + 1, n);
+        voice_say_clean(text, true);
+    }
 }
 
 static void key_cb(lv_event_t *e) {
@@ -1060,6 +1072,7 @@ static void kbd_end(void) {
     textarea_window_close();
     kbd_open = false;
     lv_group_add_obj(keyboard_group, dialog.obj);
+    voice_focus_quiet(dialog.obj);      /* move_sel() speaks the rows */
     lv_group_focus_obj(dialog.obj);
     lv_group_set_editing(keyboard_group, true);
 }
@@ -1199,6 +1212,7 @@ static void construct_cb(lv_obj_t *parent) {
     lv_obj_add_event_cb(dialog.obj, key_cb, LV_EVENT_KEY, NULL);
     lv_obj_add_event_cb(dialog.obj, click_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(dialog.obj, radio_tx_cb, EVENT_RADIO_TX, NULL);
+    voice_focus_quiet(dialog.obj);      /* move_sel() speaks the rows */
     lv_group_focus_obj(dialog.obj);
     lv_group_set_editing(keyboard_group, true);
 

@@ -7,6 +7,8 @@
  */
 
 #include "ext_tune.h"
+#include "voice.h"
+#include "tx_meters.h"
 
 #include <pthread.h>
 #include <stdatomic.h>
@@ -72,12 +74,25 @@ static void over_cb(void *arg) {
     static const char *const whys[] = {"", "", ": tuned away", ": mode changed", ": VFO changed",
                                        ": browser gone", ": ATU on"};
 
+    float pw, swr;
+    char  reading[64] = "";
+
+    /* Spoken: how it ended and what it read, "Tune over, 10 second limit, 5.0 watts, S W R 1.3" */
+    tx_info_last(&pw, &swr);
+    if (pw > 0.0f && swr >= 1.0f) snprintf(reading, sizeof(reading), ", %.1f watts, S W R %.1f", pw, swr);
+
     switch (o->end) {
         case TUNE_END_LIMIT:
+            voice_msg_hold(true);
             msg_update_text_fmt("TUNE over: %d s limit", o->limit_s);
+            voice_msg_hold(false);
+            voice_say_text_fmt("Tune over, %d second limit%s", o->limit_s, reading);
             break;
         case TUNE_END_STOP:
+            voice_msg_hold(true);
             msg_update_text_fmt("TUNE stopped%s", whys[o->why >= 0 && o->why <= WHY_ATU ? o->why : 0]);
+            voice_msg_hold(false);
+            voice_say_text_fmt("Tune stopped%s%s", whys[o->why >= 0 && o->why <= WHY_ATU ? o->why : 0], reading);
             break;
         case TUNE_END_CUT:
             if (!o->swr)    /* else "TX stopped: SWR 6.0" is on the screen already */

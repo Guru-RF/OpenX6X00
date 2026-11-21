@@ -30,6 +30,7 @@
 #include "util.h"
 
 #include "radio.h"
+#include "voice.h"
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -253,6 +254,11 @@ bool backlight_saver_tick() {
 bool backlight_knob_tick() {
     uint64_t now = get_time();
 
+    if (voice_is_on()) {
+        backlight_saver_tick();     /* the screen wakes, and the turn acts as well */
+        knob_woke = false;
+        return false;
+    }
     if (backlight_saver_tick()) {
         knob_woke    = true;
         knob_woke_ms = now;
