@@ -125,6 +125,8 @@ static const struct {
     {"birdie_marks", &cfg_sm.p_birdie_marks, 0, 2},     /* Main screen: Birdie Cal's carriers */
     {"zoom_step_per_mode", &cfg_sm.p_zoom_step_per_mode, 0, 1},   /* Main screen: live, zoom_step_scope follows it */
     {"step_per_zoom", &cfg_sm.p_step_per_zoom, 0, 1},   /* Main screen (#132): live, step_zoom follows it */
+    {"freq_step_lo", &cfg_sm.p_freq_step_lo, 0, FREQ_STEPS_N - 1},  /* Main screen: Tuning steps, read at each FST */
+    {"freq_step_hi", &cfg_sm.p_freq_step_hi, 0, FREQ_STEPS_N - 1},
     {"power_display", &cfg_sm.p_power_display, 0, 3},  /* Main screen: live, clock.c reads it */
     {"callsign_show", &cfg_sm.p_callsign_show, 0, 1},  /* Main screen (#292): live, main_call.c follows it */
     {"tx_outside_bands", &cfg_sm.p_tx_outside_bands, 0, 1},   /* TX Cal (#121): live, radio.c, info_bar.c and

@@ -180,11 +180,14 @@ int cfg_bands_region(void);
 void cfg_band_vfo_copy(void);
 
 // --- Step cycling ---
-// Cycle freq_step through [10, 100, 500, 1000, 5000, 10000, 25000, 100000] Hz (#234). Returns new step.
+// Cycle freq_step through [10, 100, 500, 1000, 5000, 10000, 25000, 100000] Hz (#234), or the range of them Settings >
+// Display > Tuning steps has (freq_steps.h). Returns new step.
 int32_t cfg_mode_change_freq_step(bool up);
+/* The step in use is at the top (up) or bottom end of Settings > Display > Tuning steps, or past it */
+bool cfg_freq_step_at_end(bool up);
 
-// The step's ends, for a knob that stops at them (FST goes round)
-#define CFG_FREQ_STEP_MIN 10
+// The largest step the Panel's API takes (remote_server.c): it takes any step up to it, the list's or not. A knob
+// stops at the ends of Tuning steps (cfg_freq_step_at_end)
 #define CFG_FREQ_STEP_MAX 100000
 
 // The tuning step as the radio writes it: in Hz up to 5000 Hz, as it always did, then in kHz ("25 kHz")
