@@ -806,7 +806,7 @@ msgstr "Routes océaniques, VOLMET"
 msgid "27 MHz channels"
 msgstr "Canaux 27 MHz"
 
-#: src/apps_menu.c src/button_bar.cpp src/screen_main.c
+#: src/apps_menu.c src/button_bar.cpp src/rtty_tx.c src/screen_main.c
 msgid "Weather"
 msgstr "Météo"
 
@@ -1166,12 +1166,12 @@ msgid "Removed from MFK encoder"
 msgstr "Retiré du bouton MFK"
 
 #: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
-#: src/screen_main.c src/settings_window.cpp
+#: src/rtty_send.c src/screen_main.c src/settings_window.cpp
 msgid "On"
 msgstr "Oui"
 
 #: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
-#: src/screen_light.c src/screen_main.c src/settings_window.cpp
+#: src/rtty_send.c src/screen_light.c src/screen_main.c src/settings_window.cpp
 #: src/wifi_window.c src/wspr/wspr_hop.c
 msgid "Off"
 msgstr "Non"
@@ -2758,7 +2758,7 @@ msgstr "(fenêtre fermée ; la base reste prêtée jusqu'à l'extinction de la r
 
 #: src/dialog_birdie.c src/dialog_cw_kbd.c src/dialog_cw_trainer.c
 #: src/dialog_jtty.c src/dialog_scan.c src/dialog_wspr.c src/js8_window.c
-#: src/navtex_window.c src/wefax_window.c
+#: src/navtex_window.c src/rtty_send.c src/wefax_window.c
 msgid "Clear"
 msgstr "Effacer"
 
@@ -3624,7 +3624,7 @@ msgstr "Non connecté : choisissez un talkgroup avec le MFK, ou Connecter"
 
 #: src/dialog_dmr.c
 msgid "hotspot"
-msgstr ""
+msgstr "relais"
 
 #: src/dialog_dmr.c
 msgid "Logging in to the network"
@@ -5020,8 +5020,12 @@ msgid "Not a stream address"
 msgstr "Pas une adresse de flux"
 
 #: src/dialog_iradio.c
-msgid "Station, genre or a stream address (http://...): "
-msgstr "Station, genre ou adresse de flux (http://...) : "
+msgid "Search: "
+msgstr "Chercher : "
+
+#: src/dialog_iradio.c
+msgid "station, genre or http://..."
+msgstr "station, genre ou http://..."
 
 #: src/dialog_iradio.c
 msgid "Stations from the directory of radio-browser.info"
@@ -5039,7 +5043,7 @@ msgstr ""
 "Texte\n"
 "libre"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid ""
 "Stop\n"
 "TX"
@@ -5077,7 +5081,7 @@ msgstr ""
 msgid "Knob: dial, 1 kHz steps"
 msgstr "Bouton : cadran, pas de 1 kHz"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid ""
 "DX call\n"
@@ -5125,11 +5129,11 @@ msgstr "Son indic."
 msgid "599 Nr"
 msgstr "599 N°"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Macro deleted"
 msgstr "Macro supprimée"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Macro saved"
 msgstr "Macro enregistrée"
 
@@ -5143,7 +5147,7 @@ msgstr "#%06x Impossible d'écrire %s#"
 msgid "Text (%M %H %E):"
 msgstr "Texte (%M %H %E) :"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Macro name:"
 msgstr "Nom de la macro :"
 
@@ -5170,11 +5174,11 @@ msgstr "Message JTTY :"
 msgid "JTTY RX restart"
 msgstr "JTTY RX relancée"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "DX call:"
 msgstr "Indicatif DX :"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "QSO cleared"
 msgstr "QSO effacé"
 
@@ -5379,10 +5383,6 @@ msgid "Pressure"
 msgstr "Pression"
 
 #: src/dialog_meteo.c
-msgid " hPa"
-msgstr ""
-
-#: src/dialog_meteo.c
 msgid "Rain today"
 msgstr "Pluie aujourd'hui"
 
@@ -5560,7 +5560,7 @@ msgid ""
 "%s%s"
 msgstr ""
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid ""
 "RST snt\n"
@@ -5589,21 +5589,21 @@ msgstr "%s : arrêt après ce bloc"
 msgid "%s RX resync"
 msgstr "%s RX resynchronisée"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Empty slot - hold to create a macro"
 msgstr "Emplacement vide - maintenir pour créer une macro"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid "#%06x No DX call - set it on page 2#"
 msgstr "#%06x Pas d'indicatif DX - réglez-le en page 2#"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid "#%06x %s is empty#"
 msgstr "#%06x %s est vide#"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid "#%06x All %d macro slots are used#"
 msgstr "#%06x Les %d emplacements de macro sont tous utilisés#"
@@ -5613,7 +5613,7 @@ msgstr "#%06x Les %d emplacements de macro sont tous utilisés#"
 msgid "#%06x Could not write /mnt/olivia_macros.txt#"
 msgstr "#%06x Impossible d'écrire /mnt/olivia_macros.txt#"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Macro text:"
 msgstr "Texte de la macro :"
 
@@ -8508,7 +8508,7 @@ msgstr "Auto : x%d"
 msgid "Query >"
 msgstr "Demander >"
 
-#: src/js8_window.c
+#: src/js8_window.c src/rtty_send.c
 msgid "Send..."
 msgstr "Envoyer..."
 
@@ -10683,7 +10683,11 @@ msgid "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYPSaaaaaaaceeeeiiiidnooooo/ouuuuypy"
 msgstr ""
 
 #: src/main.h
-msgid "OpenX6X00 - v0.3.12"
+msgid "OpenX6X00 - v0.3.13"
+msgstr ""
+
+#: src/meteo.c
+msgid "hPa"
 msgstr ""
 
 #: src/meteo.c
@@ -10720,8 +10724,18 @@ msgstr "Extrême"
 
 #: src/meteo.c
 #, c-format
+msgid "gusts up to %d mph"
+msgstr "rafales jusqu'à %d mph"
+
+#: src/meteo.c
+#, c-format
 msgid "gusts up to %d km/h"
 msgstr "rafales jusqu'à %d km/h"
+
+#: src/meteo.c
+#, c-format
+msgid "%.2f in of rain"
+msgstr "%.2f in de pluie"
 
 #: src/meteo.c
 #, c-format
@@ -10738,8 +10752,18 @@ msgstr "orages avec grêle"
 
 #: src/meteo.c
 #, c-format
+msgid "heat, a high of %d °F"
+msgstr "chaleur, maximum de %d °F"
+
+#: src/meteo.c
+#, c-format
 msgid "heat, a high of %d °C"
 msgstr "chaleur, maximum de %d °C"
+
+#: src/meteo.c
+#, c-format
+msgid "cold, a low of %d °F"
+msgstr "froid, minimum de %d °F"
 
 #: src/meteo.c
 #, c-format
@@ -10950,11 +10974,11 @@ msgstr ""
 msgid "CQ CQ CQ de <MYCALL> <MYCALL> <MYCALL> pse k"
 msgstr ""
 
-#: src/olivia_macro.c src/psk_macro.c
+#: src/olivia_macro.c src/psk_macro.c src/rtty_macro.c
 msgid "Answer"
 msgstr "Réponse"
 
-#: src/olivia_macro.c src/psk_macro.c
+#: src/olivia_macro.c src/psk_macro.c src/rtty_macro.c
 msgid "Report"
 msgstr "Report"
 
@@ -11612,8 +11636,63 @@ msgid " (admin)"
 msgstr ""
 
 #: src/rtty.c
-msgid "RTTY TX busy"
-msgstr "RTTY TX occupée"
+msgid "RTTY: not sent, the radio is transmitting"
+msgstr "RTTY : non envoyé, la radio émet"
+
+#: src/rtty.c
+#, c-format
+msgid "#%06x RTTY TX: LSB or USB only#"
+msgstr "#%06x RTTY TX : LSB ou USB seulement#"
+
+#: src/rtty.c
+#, c-format
+msgid "#%06x RTTY: TX busy#"
+msgstr "#%06x RTTY : TX occupé#"
+
+#: src/rtty.c
+#, c-format
+msgid "#%06x RTTY: TX queue full#"
+msgstr "#%06x RTTY : file d'attente TX pleine#"
+
+#: src/rtty.c
+msgid "RTTY TX stopped"
+msgstr "RTTY TX arrêté"
+
+#: src/rtty_macro.c
+msgid "CQ CQ CQ DE <MYCALL> <MYCALL> <MYCALL> K"
+msgstr ""
+
+#: src/rtty_macro.c
+msgid "QRZ? DE <MYCALL> <MYCALL> K"
+msgstr ""
+
+#: src/rtty_send.c
+#, c-format
+msgid ""
+"Preset:\n"
+"%s"
+msgstr ""
+"Préréglage :\n"
+"%s"
+
+#: src/rtty_send.c
+#, c-format
+msgid "%g Bd, %i Hz, Reverse %s"
+msgstr "%g Bd, %i Hz, inversion %s"
+
+#: src/rtty_send.c
+#, c-format
+msgid "#%06x No callsign: Settings > General > STATION#"
+msgstr "#%06x Pas d'indicatif : Réglages > Général > STATION#"
+
+#: src/rtty_send.c
+#, c-format
+msgid "#%06x Could not write /mnt/rtty_macros.txt#"
+msgstr "#%06x Impossible d'écrire /mnt/rtty_macros.txt#"
+
+#: src/rtty_tx.c
+msgid "Ham"
+msgstr "Radioam."
 
 #: src/screen_main.c
 msgid "Dial locked"
@@ -11894,6 +11973,10 @@ msgstr "Info"
 #: src/settings_window.cpp
 msgid "Font: this theme has its own"
 msgstr "Police : ce thème a la sienne"
+
+#: src/settings_window.cpp
+msgid "Tuning steps from, to"
+msgstr "Pas d'accord de, à"
 
 #: src/settings_window.cpp
 msgid "Timeout (0 off), Brightness"
@@ -12420,18 +12503,17 @@ msgstr "1 spectateur"
 
 #: src/settings_window.cpp
 #, c-format
-msgid "%s, port %d"
-msgstr ""
-
-#: src/settings_window.cpp
-#, c-format
 msgid "%s.local/remote, port %d"
 msgstr "%s.local/remote, port %d"
 
 #: src/settings_window.cpp
 #, c-format
-msgid "%d paired: %s"
-msgstr "%d appairés : %s"
+msgid ""
+"%d paired:\n"
+"%s"
+msgstr ""
+"%d appairé(s) :\n"
+"%s"
 
 #: src/settings_window.cpp
 msgid "no browser paired yet"
@@ -12475,8 +12557,12 @@ msgstr "aucun client"
 
 #: src/settings_window.cpp
 #, c-format
-msgid "%d allowed: %s"
-msgstr "%d autorisés : %s"
+msgid ""
+"%d allowed:\n"
+"%s"
+msgstr ""
+"%d autorisé(s) :\n"
+"%s"
 
 #: src/settings_window.cpp
 msgid "none allowed always"
@@ -12485,6 +12571,10 @@ msgstr "aucun autorisé en permanence"
 #: src/settings_window.cpp
 msgid "Port / Status"
 msgstr "Port / État"
+
+#: src/settings_window.cpp
+msgid "Connected from"
+msgstr "Connecté depuis"
 
 #: src/settings_window.cpp
 msgid "Clients"
@@ -12603,6 +12693,18 @@ msgstr ""
 #: src/settings_window.cpp
 msgid "Weather place"
 msgstr "Lieu météo"
+
+#: src/settings_window.cpp
+msgid "Weather units"
+msgstr "Unités météo"
+
+#: src/settings_window.cpp
+msgid ""
+" Metric \n"
+" US "
+msgstr ""
+" Métrique \n"
+" US "
 
 #: src/settings_window.cpp
 msgid "First-start guide"
@@ -12879,16 +12981,12 @@ msgid "its [ ] keys"
 msgstr "ses touches [ ]"
 
 #: src/settings_window.cpp
-msgid "[ ] keys"
-msgstr "Touches [ ]"
+msgid "[ ] keys by device"
+msgstr "Touches [ ] par appareil"
 
 #: src/settings_window.cpp
-msgid "set for each device above"
-msgstr "à régler pour chaque appareil ci-dessus"
-
-#: src/settings_window.cpp
-msgid "connect a keyboard or knob, then open this page"
-msgstr "branchez un clavier ou un bouton, puis rouvrez cette page"
+msgid "none connected"
+msgstr "aucun connecté"
 
 #: src/settings_window.cpp
 msgid "FRONT KEYS, LONG PRESS"
@@ -13381,6 +13479,18 @@ msgid ""
 msgstr ""
 
 #: src/settings_window.cpp
+msgid "CW tune and WPM"
+msgstr "Accord CW et WPM"
+
+#: src/settings_window.cpp
+msgid ""
+" Spectrum \n"
+" Frequency strip "
+msgstr ""
+" Spectre \n"
+" Bandeau fréquence "
+
+#: src/settings_window.cpp
 msgid "INTERFACE"
 msgstr "INTERFACE"
 
@@ -13702,10 +13812,6 @@ msgstr "visible et appairable"
 #: src/settings_window.cpp
 msgid "bridge not running"
 msgstr "pont arrêté"
-
-#: src/settings_window.cpp
-msgid "none connected"
-msgstr "aucun connecté"
 
 #: src/settings_window.cpp
 #, c-format
@@ -15415,11 +15521,11 @@ msgstr "Winlink : pas de QSY vers %s MHz, %s"
 #: src/winlink.c
 #, c-format
 msgid "the radio is in %s, not USB-D%s"
-msgstr ""
+msgstr "la radio est en %s, pas en USB-D%s"
 
 #: src/winlink.c
 msgid " (an app holds the mode)"
-msgstr ""
+msgstr " (une app bloque le mode)"
 
 #: src/winlink.c
 #, c-format
@@ -17515,6 +17621,27 @@ msgstr "Activation"
 #. not in the list: a line or a word of a longer text
 msgid "stopping"
 msgstr "arrêt"
+
+#~ msgid "Station, genre or a stream address (http://...): "
+#~ msgstr "Station, genre ou adresse de flux (http://...) : "
+
+#~ msgid "RTTY TX busy"
+#~ msgstr "RTTY TX occupée"
+
+#~ msgid "%d paired: %s"
+#~ msgstr "%d appairés : %s"
+
+#~ msgid "%d allowed: %s"
+#~ msgstr "%d autorisés : %s"
+
+#~ msgid "[ ] keys"
+#~ msgstr "Touches [ ]"
+
+#~ msgid "set for each device above"
+#~ msgstr "à régler pour chaque appareil ci-dessus"
+
+#~ msgid "connect a keyboard or knob, then open this page"
+#~ msgstr "branchez un clavier ou un bouton, puis rouvrez cette page"
 
 #~ msgid "TX %4.0f Hz %s  sending %d/%d   %s"
 #~ msgstr "TX %4.0f Hz %s  envoi %d/%d   %s"

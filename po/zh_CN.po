@@ -806,7 +806,7 @@ msgstr "远洋航路、VOLMET"
 msgid "27 MHz channels"
 msgstr "27 MHz 频道"
 
-#: src/apps_menu.c src/button_bar.cpp src/screen_main.c
+#: src/apps_menu.c src/button_bar.cpp src/rtty_tx.c src/screen_main.c
 msgid "Weather"
 msgstr "天气"
 
@@ -1166,12 +1166,12 @@ msgid "Removed from MFK encoder"
 msgstr "已从 MFK 旋钮移除"
 
 #: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
-#: src/screen_main.c src/settings_window.cpp
+#: src/rtty_send.c src/screen_main.c src/settings_window.cpp
 msgid "On"
 msgstr "开"
 
 #: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
-#: src/screen_light.c src/screen_main.c src/settings_window.cpp
+#: src/rtty_send.c src/screen_light.c src/screen_main.c src/settings_window.cpp
 #: src/wifi_window.c src/wspr/wspr_hop.c
 msgid "Off"
 msgstr "关"
@@ -2764,7 +2764,7 @@ msgstr "(窗口已关闭; 关机前基带一直被借用)"
 
 #: src/dialog_birdie.c src/dialog_cw_kbd.c src/dialog_cw_trainer.c
 #: src/dialog_jtty.c src/dialog_scan.c src/dialog_wspr.c src/js8_window.c
-#: src/navtex_window.c src/wefax_window.c
+#: src/navtex_window.c src/rtty_send.c src/wefax_window.c
 msgid "Clear"
 msgstr "清除"
 
@@ -5056,8 +5056,12 @@ msgid "Not a stream address"
 msgstr "不是流地址"
 
 #: src/dialog_iradio.c
-msgid "Station, genre or a stream address (http://...): "
-msgstr "电台, 类型或流地址 (http://...): "
+msgid "Search: "
+msgstr "搜索: "
+
+#: src/dialog_iradio.c
+msgid "station, genre or http://..."
+msgstr "电台、类型或 http://..."
 
 #: src/dialog_iradio.c
 msgid "Stations from the directory of radio-browser.info"
@@ -5075,7 +5079,7 @@ msgstr ""
 "自由\n"
 "文本"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid ""
 "Stop\n"
 "TX"
@@ -5113,7 +5117,7 @@ msgstr ""
 msgid "Knob: dial, 1 kHz steps"
 msgstr "旋钮: 调频率, 1 kHz 步进"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid ""
 "DX call\n"
@@ -5161,11 +5165,11 @@ msgstr "对方呼号"
 msgid "599 Nr"
 msgstr "599 序号"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Macro deleted"
 msgstr "宏已删除"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Macro saved"
 msgstr "宏已保存"
 
@@ -5179,7 +5183,7 @@ msgstr "#%06x 无法写入 %s#"
 msgid "Text (%M %H %E):"
 msgstr "文本 (%M %H %E):"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Macro name:"
 msgstr "宏名称:"
 
@@ -5206,11 +5210,11 @@ msgstr "JTTY 消息:"
 msgid "JTTY RX restart"
 msgstr "JTTY 接收重启"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "DX call:"
 msgstr "DX 呼号:"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "QSO cleared"
 msgstr "QSO 已清除"
 
@@ -5410,10 +5414,6 @@ msgid "Pressure"
 msgstr "气压"
 
 #: src/dialog_meteo.c
-msgid " hPa"
-msgstr ""
-
-#: src/dialog_meteo.c
 msgid "Rain today"
 msgstr "今日降水"
 
@@ -5595,7 +5595,7 @@ msgstr ""
 "模式\n"
 "%s%s"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid ""
 "RST snt\n"
@@ -5624,21 +5624,21 @@ msgstr "%s: 本块后停止"
 msgid "%s RX resync"
 msgstr "%s 接收重新同步"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Empty slot - hold to create a macro"
 msgstr "空位 - 长按创建宏"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid "#%06x No DX call - set it on page 2#"
 msgstr "#%06x 无 DX 呼号 - 在第 2 页设置#"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid "#%06x %s is empty#"
 msgstr "#%06x %s 为空#"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid "#%06x All %d macro slots are used#"
 msgstr "#%06x %d 个宏位都已用完#"
@@ -5648,7 +5648,7 @@ msgstr "#%06x %d 个宏位都已用完#"
 msgid "#%06x Could not write /mnt/olivia_macros.txt#"
 msgstr "#%06x 无法写入 /mnt/olivia_macros.txt#"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Macro text:"
 msgstr "宏文本:"
 
@@ -8538,7 +8538,7 @@ msgstr "自动: x%d"
 msgid "Query >"
 msgstr "查询 >"
 
-#: src/js8_window.c
+#: src/js8_window.c src/rtty_send.c
 msgid "Send..."
 msgstr "发送..."
 
@@ -10708,7 +10708,11 @@ msgid "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYPSaaaaaaaceeeeiiiidnooooo/ouuuuypy"
 msgstr ""
 
 #: src/main.h
-msgid "OpenX6X00 - v0.3.12"
+msgid "OpenX6X00 - v0.3.13"
+msgstr ""
+
+#: src/meteo.c
+msgid "hPa"
 msgstr ""
 
 #: src/meteo.c
@@ -10745,8 +10749,18 @@ msgstr "极端"
 
 #: src/meteo.c
 #, c-format
+msgid "gusts up to %d mph"
+msgstr "阵风最高 %d mph"
+
+#: src/meteo.c
+#, c-format
 msgid "gusts up to %d km/h"
 msgstr "阵风最高 %d km/h"
+
+#: src/meteo.c
+#, c-format
+msgid "%.2f in of rain"
+msgstr "%.2f in 降水"
 
 #: src/meteo.c
 #, c-format
@@ -10763,8 +10777,18 @@ msgstr "雷暴伴冰雹"
 
 #: src/meteo.c
 #, c-format
+msgid "heat, a high of %d °F"
+msgstr "高温, 最高 %d °F"
+
+#: src/meteo.c
+#, c-format
 msgid "heat, a high of %d °C"
 msgstr "高温, 最高 %d °C"
+
+#: src/meteo.c
+#, c-format
+msgid "cold, a low of %d °F"
+msgstr "低温, 最低 %d °F"
 
 #: src/meteo.c
 #, c-format
@@ -10975,11 +10999,11 @@ msgstr ""
 msgid "CQ CQ CQ de <MYCALL> <MYCALL> <MYCALL> pse k"
 msgstr ""
 
-#: src/olivia_macro.c src/psk_macro.c
+#: src/olivia_macro.c src/psk_macro.c src/rtty_macro.c
 msgid "Answer"
 msgstr "应答"
 
-#: src/olivia_macro.c src/psk_macro.c
+#: src/olivia_macro.c src/psk_macro.c src/rtty_macro.c
 msgid "Report"
 msgstr "报告"
 
@@ -11636,8 +11660,63 @@ msgid " (admin)"
 msgstr " (管理员)"
 
 #: src/rtty.c
-msgid "RTTY TX busy"
-msgstr "RTTY 发射忙"
+msgid "RTTY: not sent, the radio is transmitting"
+msgstr "RTTY: 未发送, 电台正在发射"
+
+#: src/rtty.c
+#, c-format
+msgid "#%06x RTTY TX: LSB or USB only#"
+msgstr "#%06x RTTY 发射: 仅限 LSB 或 USB#"
+
+#: src/rtty.c
+#, c-format
+msgid "#%06x RTTY: TX busy#"
+msgstr "#%06x RTTY: 发射忙#"
+
+#: src/rtty.c
+#, c-format
+msgid "#%06x RTTY: TX queue full#"
+msgstr "#%06x RTTY: 发送队列已满#"
+
+#: src/rtty.c
+msgid "RTTY TX stopped"
+msgstr "RTTY 发射已停止"
+
+#: src/rtty_macro.c
+msgid "CQ CQ CQ DE <MYCALL> <MYCALL> <MYCALL> K"
+msgstr ""
+
+#: src/rtty_macro.c
+msgid "QRZ? DE <MYCALL> <MYCALL> K"
+msgstr ""
+
+#: src/rtty_send.c
+#, c-format
+msgid ""
+"Preset:\n"
+"%s"
+msgstr ""
+"预设:\n"
+"%s"
+
+#: src/rtty_send.c
+#, c-format
+msgid "%g Bd, %i Hz, Reverse %s"
+msgstr "%g Bd, %i Hz, 反向 %s"
+
+#: src/rtty_send.c
+#, c-format
+msgid "#%06x No callsign: Settings > General > STATION#"
+msgstr "#%06x 无呼号: 设置 > 常规 > 电台#"
+
+#: src/rtty_send.c
+#, c-format
+msgid "#%06x Could not write /mnt/rtty_macros.txt#"
+msgstr "#%06x 无法写入 /mnt/rtty_macros.txt#"
+
+#: src/rtty_tx.c
+msgid "Ham"
+msgstr "业余"
 
 #: src/screen_main.c
 msgid "Dial locked"
@@ -11918,6 +11997,10 @@ msgstr "信息"
 #: src/settings_window.cpp
 msgid "Font: this theme has its own"
 msgstr "字体: 此主题自带字体"
+
+#: src/settings_window.cpp
+msgid "Tuning steps from, to"
+msgstr "调谐步进 从, 到"
 
 #: src/settings_window.cpp
 msgid "Timeout (0 off), Brightness"
@@ -12444,18 +12527,17 @@ msgstr "1 位观看者"
 
 #: src/settings_window.cpp
 #, c-format
-msgid "%s, port %d"
-msgstr "%s, 端口 %d"
-
-#: src/settings_window.cpp
-#, c-format
 msgid "%s.local/remote, port %d"
 msgstr "%s.local/remote, 端口 %d"
 
 #: src/settings_window.cpp
 #, c-format
-msgid "%d paired: %s"
-msgstr "已配对 %d 个: %s"
+msgid ""
+"%d paired:\n"
+"%s"
+msgstr ""
+"%d 个已配对:\n"
+"%s"
 
 #: src/settings_window.cpp
 msgid "no browser paired yet"
@@ -12499,8 +12581,12 @@ msgstr "无客户端"
 
 #: src/settings_window.cpp
 #, c-format
-msgid "%d allowed: %s"
-msgstr "已允许 %d 个: %s"
+msgid ""
+"%d allowed:\n"
+"%s"
+msgstr ""
+"%d 个已允许:\n"
+"%s"
 
 #: src/settings_window.cpp
 msgid "none allowed always"
@@ -12509,6 +12595,10 @@ msgstr "无始终允许的"
 #: src/settings_window.cpp
 msgid "Port / Status"
 msgstr "端口 / 状态"
+
+#: src/settings_window.cpp
+msgid "Connected from"
+msgstr "连接来自"
 
 #: src/settings_window.cpp
 msgid "Clients"
@@ -12627,6 +12717,18 @@ msgstr ""
 #: src/settings_window.cpp
 msgid "Weather place"
 msgstr "天气地点"
+
+#: src/settings_window.cpp
+msgid "Weather units"
+msgstr "天气单位"
+
+#: src/settings_window.cpp
+msgid ""
+" Metric \n"
+" US "
+msgstr ""
+" 公制 \n"
+" 美制 "
 
 #: src/settings_window.cpp
 msgid "First-start guide"
@@ -12907,16 +13009,12 @@ msgid "its [ ] keys"
 msgstr "其 [ ] 键"
 
 #: src/settings_window.cpp
-msgid "[ ] keys"
-msgstr "[ ] 键"
+msgid "[ ] keys by device"
+msgstr "各设备的 [ ] 键"
 
 #: src/settings_window.cpp
-msgid "set for each device above"
-msgstr "在上方为每个设备分别设置"
-
-#: src/settings_window.cpp
-msgid "connect a keyboard or knob, then open this page"
-msgstr "连接键盘或旋钮后再打开此页"
+msgid "none connected"
+msgstr "无连接设备"
 
 #: src/settings_window.cpp
 msgid "FRONT KEYS, LONG PRESS"
@@ -13413,6 +13511,18 @@ msgstr ""
 " % + V "
 
 #: src/settings_window.cpp
+msgid "CW tune and WPM"
+msgstr "CW 调谐和 WPM"
+
+#: src/settings_window.cpp
+msgid ""
+" Spectrum \n"
+" Frequency strip "
+msgstr ""
+" 频谱 \n"
+" 频率栏 "
+
+#: src/settings_window.cpp
 msgid "INTERFACE"
 msgstr "界面"
 
@@ -13734,10 +13844,6 @@ msgstr "可见且可配对"
 #: src/settings_window.cpp
 msgid "bridge not running"
 msgstr "桥接未运行"
-
-#: src/settings_window.cpp
-msgid "none connected"
-msgstr "无连接设备"
 
 #: src/settings_window.cpp
 #, c-format
@@ -15444,11 +15550,11 @@ msgstr "Winlink: 未 QSY 到 %s MHz, %s"
 #: src/winlink.c
 #, c-format
 msgid "the radio is in %s, not USB-D%s"
-msgstr ""
+msgstr "电台处于 %s, 而非 USB-D%s"
 
 #: src/winlink.c
 msgid " (an app holds the mode)"
-msgstr ""
+msgstr " (有应用占用了模式)"
 
 #: src/winlink.c
 #, c-format
@@ -16127,6 +16233,30 @@ msgstr "自动同步"
 #. not in the list: a line or a word of a longer text
 msgid "SETTINGS"
 msgstr "设置"
+
+#~ msgid "Station, genre or a stream address (http://...): "
+#~ msgstr "电台, 类型或流地址 (http://...): "
+
+#~ msgid "RTTY TX busy"
+#~ msgstr "RTTY 发射忙"
+
+#~ msgid "%s, port %d"
+#~ msgstr "%s, 端口 %d"
+
+#~ msgid "%d paired: %s"
+#~ msgstr "已配对 %d 个: %s"
+
+#~ msgid "%d allowed: %s"
+#~ msgstr "已允许 %d 个: %s"
+
+#~ msgid "[ ] keys"
+#~ msgstr "[ ] 键"
+
+#~ msgid "set for each device above"
+#~ msgstr "在上方为每个设备分别设置"
+
+#~ msgid "connect a keyboard or knob, then open this page"
+#~ msgstr "连接键盘或旋钮后再打开此页"
 
 #~ msgid "TX %4.0f Hz %s  sending %d/%d   %s"
 #~ msgstr "TX %4.0f Hz %s  发送中 %d/%d   %s"

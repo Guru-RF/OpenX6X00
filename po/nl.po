@@ -805,7 +805,7 @@ msgstr "Oceaanroutes, VOLMET"
 msgid "27 MHz channels"
 msgstr "27 MHz-kanalen"
 
-#: src/apps_menu.c src/button_bar.cpp src/screen_main.c
+#: src/apps_menu.c src/button_bar.cpp src/rtty_tx.c src/screen_main.c
 msgid "Weather"
 msgstr "Weer"
 
@@ -1165,12 +1165,12 @@ msgid "Removed from MFK encoder"
 msgstr "Verwijderd van de MFK-knop"
 
 #: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
-#: src/screen_main.c src/settings_window.cpp
+#: src/rtty_send.c src/screen_main.c src/settings_window.cpp
 msgid "On"
 msgstr "Aan"
 
 #: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
-#: src/screen_light.c src/screen_main.c src/settings_window.cpp
+#: src/rtty_send.c src/screen_light.c src/screen_main.c src/settings_window.cpp
 #: src/wifi_window.c src/wspr/wspr_hop.c
 msgid "Off"
 msgstr "Uit"
@@ -2757,7 +2757,7 @@ msgstr "(venster gesloten; de basis blijft vrijgegeven tot de radio uitgaat)"
 
 #: src/dialog_birdie.c src/dialog_cw_kbd.c src/dialog_cw_trainer.c
 #: src/dialog_jtty.c src/dialog_scan.c src/dialog_wspr.c src/js8_window.c
-#: src/navtex_window.c src/wefax_window.c
+#: src/navtex_window.c src/rtty_send.c src/wefax_window.c
 msgid "Clear"
 msgstr "Leegmaken"
 
@@ -3619,7 +3619,7 @@ msgstr "Niet verbonden: kies een gespreksgroep met de MFK, of Verbinden"
 
 #: src/dialog_dmr.c
 msgid "hotspot"
-msgstr ""
+msgstr "hotspot"
 
 #: src/dialog_dmr.c
 msgid "Logging in to the network"
@@ -5015,8 +5015,12 @@ msgid "Not a stream address"
 msgstr "Geen streamadres"
 
 #: src/dialog_iradio.c
-msgid "Station, genre or a stream address (http://...): "
-msgstr "Zender, genre of een streamadres (http://...): "
+msgid "Search: "
+msgstr "Zoeken: "
+
+#: src/dialog_iradio.c
+msgid "station, genre or http://..."
+msgstr "zender, genre of http://..."
 
 #: src/dialog_iradio.c
 msgid "Stations from the directory of radio-browser.info"
@@ -5034,7 +5038,7 @@ msgstr ""
 "Vrije\n"
 "tekst"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid ""
 "Stop\n"
 "TX"
@@ -5068,7 +5072,7 @@ msgstr ""
 msgid "Knob: dial, 1 kHz steps"
 msgstr "Knop: dial, stappen van 1 kHz"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid ""
 "DX call\n"
@@ -5116,11 +5120,11 @@ msgstr "Zijn call"
 msgid "599 Nr"
 msgstr ""
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Macro deleted"
 msgstr "Macro gewist"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Macro saved"
 msgstr "Macro opgeslagen"
 
@@ -5134,7 +5138,7 @@ msgstr "#%06x Kon %s niet schrijven#"
 msgid "Text (%M %H %E):"
 msgstr "Tekst (%M %H %E):"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Macro name:"
 msgstr "Macronaam:"
 
@@ -5161,11 +5165,11 @@ msgstr "JTTY-bericht:"
 msgid "JTTY RX restart"
 msgstr "JTTY RX herstart"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "DX call:"
 msgstr "DX-call:"
 
-#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_jtty.c src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "QSO cleared"
 msgstr "QSO gewist"
 
@@ -5365,10 +5369,6 @@ msgid "Pressure"
 msgstr "Luchtdruk"
 
 #: src/dialog_meteo.c
-msgid " hPa"
-msgstr ""
-
-#: src/dialog_meteo.c
 msgid "Rain today"
 msgstr "Regen vandaag"
 
@@ -5548,7 +5548,7 @@ msgstr ""
 "Modus\n"
 "%s%s"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid ""
 "RST snt\n"
@@ -5577,21 +5577,21 @@ msgstr "%s: stopt na dit blok"
 msgid "%s RX resync"
 msgstr ""
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Empty slot - hold to create a macro"
 msgstr "Lege plaats - vasthouden om een macro te maken"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid "#%06x No DX call - set it on page 2#"
 msgstr "#%06x Geen DX-call - stel die in op pagina 2#"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid "#%06x %s is empty#"
 msgstr "#%06x %s is leeg#"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 #, c-format
 msgid "#%06x All %d macro slots are used#"
 msgstr "#%06x Alle %d macroplaatsen zijn in gebruik#"
@@ -5601,7 +5601,7 @@ msgstr "#%06x Alle %d macroplaatsen zijn in gebruik#"
 msgid "#%06x Could not write /mnt/olivia_macros.txt#"
 msgstr "#%06x Kon /mnt/olivia_macros.txt niet schrijven#"
 
-#: src/dialog_olivia.c src/dialog_psk.c
+#: src/dialog_olivia.c src/dialog_psk.c src/rtty_send.c
 msgid "Macro text:"
 msgstr "Macrotekst:"
 
@@ -8485,7 +8485,7 @@ msgstr ""
 msgid "Query >"
 msgstr ""
 
-#: src/js8_window.c
+#: src/js8_window.c src/rtty_send.c
 msgid "Send..."
 msgstr "Zenden..."
 
@@ -10645,7 +10645,11 @@ msgid "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYPSaaaaaaaceeeeiiiidnooooo/ouuuuypy"
 msgstr ""
 
 #: src/main.h
-msgid "OpenX6X00 - v0.3.12"
+msgid "OpenX6X00 - v0.3.13"
+msgstr ""
+
+#: src/meteo.c
+msgid "hPa"
 msgstr ""
 
 #: src/meteo.c
@@ -10682,8 +10686,18 @@ msgstr "Extreem"
 
 #: src/meteo.c
 #, c-format
+msgid "gusts up to %d mph"
+msgstr "windstoten tot %d mph"
+
+#: src/meteo.c
+#, c-format
 msgid "gusts up to %d km/h"
 msgstr "windstoten tot %d km/h"
+
+#: src/meteo.c
+#, c-format
+msgid "%.2f in of rain"
+msgstr "%.2f in regen"
 
 #: src/meteo.c
 #, c-format
@@ -10700,8 +10714,18 @@ msgstr "onweer met hagel"
 
 #: src/meteo.c
 #, c-format
+msgid "heat, a high of %d °F"
+msgstr "hitte, maximaal %d °F"
+
+#: src/meteo.c
+#, c-format
 msgid "heat, a high of %d °C"
 msgstr "hitte, maximaal %d °C"
+
+#: src/meteo.c
+#, c-format
+msgid "cold, a low of %d °F"
+msgstr "kou, minimaal %d °F"
 
 #: src/meteo.c
 #, c-format
@@ -10912,11 +10936,11 @@ msgstr ""
 msgid "CQ CQ CQ de <MYCALL> <MYCALL> <MYCALL> pse k"
 msgstr ""
 
-#: src/olivia_macro.c src/psk_macro.c
+#: src/olivia_macro.c src/psk_macro.c src/rtty_macro.c
 msgid "Answer"
 msgstr "Antwoord"
 
-#: src/olivia_macro.c src/psk_macro.c
+#: src/olivia_macro.c src/psk_macro.c src/rtty_macro.c
 msgid "Report"
 msgstr "Rapport"
 
@@ -11573,8 +11597,63 @@ msgid " (admin)"
 msgstr ""
 
 #: src/rtty.c
-msgid "RTTY TX busy"
-msgstr "RTTY TX bezig"
+msgid "RTTY: not sent, the radio is transmitting"
+msgstr "RTTY: niet verzonden, de radio zendt"
+
+#: src/rtty.c
+#, c-format
+msgid "#%06x RTTY TX: LSB or USB only#"
+msgstr "#%06x RTTY TX: alleen LSB of USB#"
+
+#: src/rtty.c
+#, c-format
+msgid "#%06x RTTY: TX busy#"
+msgstr "#%06x RTTY: TX bezet#"
+
+#: src/rtty.c
+#, c-format
+msgid "#%06x RTTY: TX queue full#"
+msgstr "#%06x RTTY: TX-wachtrij vol#"
+
+#: src/rtty.c
+msgid "RTTY TX stopped"
+msgstr "RTTY TX gestopt"
+
+#: src/rtty_macro.c
+msgid "CQ CQ CQ DE <MYCALL> <MYCALL> <MYCALL> K"
+msgstr ""
+
+#: src/rtty_macro.c
+msgid "QRZ? DE <MYCALL> <MYCALL> K"
+msgstr ""
+
+#: src/rtty_send.c
+#, c-format
+msgid ""
+"Preset:\n"
+"%s"
+msgstr ""
+"Preset:\n"
+"%s"
+
+#: src/rtty_send.c
+#, c-format
+msgid "%g Bd, %i Hz, Reverse %s"
+msgstr "%g Bd, %i Hz, omgekeerd %s"
+
+#: src/rtty_send.c
+#, c-format
+msgid "#%06x No callsign: Settings > General > STATION#"
+msgstr "#%06x Geen roepnaam: Instellingen > Algemeen > STATION#"
+
+#: src/rtty_send.c
+#, c-format
+msgid "#%06x Could not write /mnt/rtty_macros.txt#"
+msgstr "#%06x Kon /mnt/rtty_macros.txt niet schrijven#"
+
+#: src/rtty_tx.c
+msgid "Ham"
+msgstr ""
 
 #: src/screen_main.c
 msgid "Dial locked"
@@ -11855,6 +11934,10 @@ msgstr "Info"
 #: src/settings_window.cpp
 msgid "Font: this theme has its own"
 msgstr "Lettertype: dit thema heeft een eigen"
+
+#: src/settings_window.cpp
+msgid "Tuning steps from, to"
+msgstr "Afstemstappen van, tot"
 
 #: src/settings_window.cpp
 msgid "Timeout (0 off), Brightness"
@@ -12381,18 +12464,17 @@ msgstr "1 kijker"
 
 #: src/settings_window.cpp
 #, c-format
-msgid "%s, port %d"
-msgstr "%s, poort %d"
-
-#: src/settings_window.cpp
-#, c-format
 msgid "%s.local/remote, port %d"
 msgstr "%s.local/remote, poort %d"
 
 #: src/settings_window.cpp
 #, c-format
-msgid "%d paired: %s"
-msgstr "%d gekoppeld: %s"
+msgid ""
+"%d paired:\n"
+"%s"
+msgstr ""
+"%d gekoppeld:\n"
+"%s"
 
 #: src/settings_window.cpp
 msgid "no browser paired yet"
@@ -12436,8 +12518,12 @@ msgstr "geen client"
 
 #: src/settings_window.cpp
 #, c-format
-msgid "%d allowed: %s"
-msgstr "%d toegestaan: %s"
+msgid ""
+"%d allowed:\n"
+"%s"
+msgstr ""
+"%d toegestaan:\n"
+"%s"
 
 #: src/settings_window.cpp
 msgid "none allowed always"
@@ -12446,6 +12532,10 @@ msgstr "geen altijd toegestaan"
 #: src/settings_window.cpp
 msgid "Port / Status"
 msgstr "Poort / status"
+
+#: src/settings_window.cpp
+msgid "Connected from"
+msgstr "Verbonden vanaf"
 
 #: src/settings_window.cpp
 msgid "Clients"
@@ -12564,6 +12654,18 @@ msgstr ""
 #: src/settings_window.cpp
 msgid "Weather place"
 msgstr "Weerplaats"
+
+#: src/settings_window.cpp
+msgid "Weather units"
+msgstr "Weereenheden"
+
+#: src/settings_window.cpp
+msgid ""
+" Metric \n"
+" US "
+msgstr ""
+" Metrisch \n"
+" VS "
 
 #: src/settings_window.cpp
 msgid "First-start guide"
@@ -12844,16 +12946,12 @@ msgid "its [ ] keys"
 msgstr "de toetsen [ ]"
 
 #: src/settings_window.cpp
-msgid "[ ] keys"
-msgstr "Toetsen [ ]"
+msgid "[ ] keys by device"
+msgstr "[ ]-toetsen per apparaat"
 
 #: src/settings_window.cpp
-msgid "set for each device above"
-msgstr "per toestel hierboven in te stellen"
-
-#: src/settings_window.cpp
-msgid "connect a keyboard or knob, then open this page"
-msgstr "sluit een toetsenbord of knop aan, open dan deze pagina"
+msgid "none connected"
+msgstr "geen verbonden"
 
 #: src/settings_window.cpp
 msgid "FRONT KEYS, LONG PRESS"
@@ -13350,6 +13448,18 @@ msgstr ""
 " % + V "
 
 #: src/settings_window.cpp
+msgid "CW tune and WPM"
+msgstr "CW-afstemming en WPM"
+
+#: src/settings_window.cpp
+msgid ""
+" Spectrum \n"
+" Frequency strip "
+msgstr ""
+" Spectrum \n"
+" Frequentiebalk "
+
+#: src/settings_window.cpp
 msgid "INTERFACE"
 msgstr ""
 
@@ -13671,10 +13781,6 @@ msgstr "zichtbaar en koppelbaar"
 #: src/settings_window.cpp
 msgid "bridge not running"
 msgstr "brug draait niet"
-
-#: src/settings_window.cpp
-msgid "none connected"
-msgstr "geen verbonden"
 
 #: src/settings_window.cpp
 #, c-format
@@ -15371,11 +15477,11 @@ msgstr "Winlink: geen QSY naar %s MHz, %s"
 #: src/winlink.c
 #, c-format
 msgid "the radio is in %s, not USB-D%s"
-msgstr ""
+msgstr "de radio staat in %s, niet in USB-D%s"
 
 #: src/winlink.c
 msgid " (an app holds the mode)"
-msgstr ""
+msgstr " (een app houdt de modus vast)"
 
 #: src/winlink.c
 #, c-format
@@ -16050,6 +16156,30 @@ msgstr "Auto-sync"
 #. not in the list: a line or a word of a longer text
 msgid "SETTINGS"
 msgstr "INSTELLINGEN"
+
+#~ msgid "Station, genre or a stream address (http://...): "
+#~ msgstr "Zender, genre of een streamadres (http://...): "
+
+#~ msgid "RTTY TX busy"
+#~ msgstr "RTTY TX bezig"
+
+#~ msgid "%s, port %d"
+#~ msgstr "%s, poort %d"
+
+#~ msgid "%d paired: %s"
+#~ msgstr "%d gekoppeld: %s"
+
+#~ msgid "%d allowed: %s"
+#~ msgstr "%d toegestaan: %s"
+
+#~ msgid "[ ] keys"
+#~ msgstr "Toetsen [ ]"
+
+#~ msgid "set for each device above"
+#~ msgstr "per toestel hierboven in te stellen"
+
+#~ msgid "connect a keyboard or knob, then open this page"
+#~ msgstr "sluit een toetsenbord of knop aan, open dan deze pagina"
 
 #~ msgid "TX %4.0f Hz %s  sending %d/%d   %s"
 #~ msgstr "TX %4.0f Hz %s  zendt %d/%d   %s"
