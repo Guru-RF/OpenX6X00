@@ -346,10 +346,10 @@ line, unless Keep knob lines is on).
   switches it; a press of AGC takes it to the next of Off, Slow, Fast, Auto.
 - AGC is on the MFK 2:4 page, PRE, ATT and ATU on VOL 2:2, Step (the tuning
   step, as FST) on the DFL page. On a knob, a turn steps AGC and Step forward
-  or back, stopping at Off and Auto, 10 Hz and 100 kHz (the ends of
-  [Tuning steps](#waterfall); the AGC and FST keys go round), and switches
-  PRE, ATT and ATU. Up to v0.3.7 AGC, PRE and ATT could not
-  go on a knob, and there was no ATU or Step button.
+  or back, stopping at Off and Auto, and at the ends of
+  [Tuning steps from, to](#waterfall), 10 Hz and 100 kHz by default (the AGC
+  and FST keys go round), and switches PRE, ATT and ATU. Up to v0.3.7 AGC,
+  PRE and ATT could not go on a knob, and there was no ATU or Step button.
 - At first VOL has Volume, RF gain, the filter edges and TX power, and the MFK
   Spectrum Zoom and DNF. Volume never leaves VOL.
 - GEN shows the VOL pages, then the MFK pages: VOL 1:2 (Volume, Squelch, RF
@@ -404,7 +404,8 @@ long-press action, and so has FST, the tuning step key: a press steps up,
 held it steps down until you give it another action (Frequency lock on/off,
 as on the stock firmware, say). The steps are 10 Hz, 100 Hz, 500 Hz, 1 kHz,
 5 kHz, 10 kHz, 25 kHz and 100 kHz; up to v0.3.9 they stopped at 5 kHz (#234).
-Tuning steps (Settings > Display) narrows them to a range of them.
+[Tuning steps from, to](#waterfall) (Settings > Display) narrows them to a
+range of them.
 To go further at once, type the frequency (F-INP, or `f` on a keyboard).
 Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 
@@ -1549,19 +1550,21 @@ issue #132).
 - A zoom between those four, which CAT or the browser panel can set, keeps
   the step in use.
 
-Tuning steps. Where: Settings > Display > MAIN SCREEN, under Step per zoom
-(also on the web configurator's Display page, as Tuning steps from and to;
-10 Hz to 100 kHz by default).
+Tuning steps from, to. Where: Settings > Display > MAIN SCREEN, under Step
+per zoom (also on the web configurator's Display page, as Tuning steps from
+and Tuning steps to; 10 Hz to 100 kHz by default).
 
-- The steps FST, a keyboard's `+` and `_` and a knob's Step go through: from
-  the first to the second, of 10 Hz, 100 Hz, 500 Hz, 1 kHz, 5 kHz, 10 kHz,
-  25 kHz and 100 kHz. 10 Hz to 500 Hz, for example, and FST goes 10 Hz,
-  100 Hz, 500 Hz and round to 10 Hz again; held, it goes down and round from
-  10 Hz to 500 Hz. A knob stops at the two ends.
-- A step outside the range (chosen before it was narrowed, by CAT or the
-  browser panel, or brought back by Step per zoom) stays until FST is
-  pressed: then it goes to the step of the range above or below it, round
-  past the end, as FST goes. The main knob tunes with it meanwhile.
+- The steps FST, a keyboard's `+` and `_`, the step up and step down key
+  actions and a knob's Step go through: from the first to the second, of
+  10 Hz, 100 Hz, 500 Hz, 1 kHz, 5 kHz, 10 kHz, 25 kHz and 100 kHz. 10 Hz to
+  500 Hz, for example, and FST goes 10 Hz, 100 Hz, 500 Hz and round to 10 Hz
+  again; held, it goes down and round from 10 Hz to 500 Hz. A knob stops at
+  the two ends.
+- A step outside the range (chosen before it was narrowed, a mode's own
+  with Zoom and step per mode on, set by CAT or the browser panel, or
+  brought back by Step per zoom) stays until FST is pressed: then it goes to
+  the step of the range above or below it, round past the end, as FST goes.
+  The main knob tunes with it meanwhile.
 - The two in either order: 500 Hz to 10 Hz is 10 Hz to 500 Hz. Both the
   same: that one step only.
 
@@ -1859,7 +1862,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | BACKLIGHT | Timeout (0 off), Brightness (see below), buttons brightness (Always Off, Always On, Temporarily On), Screensaver (None, Matrix rain), Screensaver (min) (with a screensaver: 1-120 minutes without use), Rain speed (Normal, Slow, Very slow), Screen off (min) (minutes without use, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser, no screensaver; POWER shows it for the blank time, a minute at least); see [Screensaver](#screensaver); Panel stripes fix (off by default; see [Panel stripes fix](#panel-stripes-fix)) |
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Fill by level, Filter colour, Filter shade, Shaded part, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
-| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom, Tuning steps (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see below) |
+| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom, Tuning steps from, to (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see below) |
 | INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Keep knob lines, Knob press: next control, Theme, Font, Language, Decoder text, FT8/FT4 info |
 
 - Timeout (0 off), Brightness: the seconds without a key or a knob before
@@ -7234,7 +7237,7 @@ them.
 | Backlight | Brightness, Brightness when idle (greyed with Idle after Off), Idle after (Off, 5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver); Panel stripes fix (see [Panel stripes fix](#panel-stripes-fix)) |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX ranges (Ham bands, South Korea, Own list), TX outside ham bands (Settings > TX Cal), and the own list as a text field: Save writes `tx_ranges.conf` and the radio reads it at once, the ranges it took and a line it could not read said under it (see [Amateur bands only](#amateur-bands-only)) |
-| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom, Tuning steps (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see [Display tab](#display-tab)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
+| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom, Tuning steps from, Tuning steps to (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see [Display tab](#display-tab)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate

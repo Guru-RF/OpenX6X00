@@ -512,11 +512,12 @@ static uint8_t make_param_choice(uint8_t row, const char *label, const char *opt
     return row + 1;
 }
 
-/* Tuning steps: the first and the last of the steps FST goes through (freq_steps.h) */
+/* Tuning steps from, to: the first and the last of the steps FST goes through (freq_steps.h). The label names both,
+ * as the other rows of two controls do (Manual min, max): "Tuning steps" over two steps did not say which is which */
 static uint8_t make_freq_steps(uint8_t row) {
     static const char *steps = " 10 Hz \n 100 Hz \n 500 Hz \n 1 kHz \n 5 kHz \n 10 kHz \n 25 kHz \n 100 kHz ";
 
-    wl_row_label(row, "Tuning steps");
+    wl_row_label(row, "Tuning steps from, to");
     row_choice(row, 1, 3, SMALL_3, steps, cfg_sm.p_freq_step_lo.get(), int_choice_cb, &cfg_sm.p_freq_step_lo);
     row_choice(row, 4, 3, SMALL_3, steps, cfg_sm.p_freq_step_hi.get(), int_choice_cb, &cfg_sm.p_freq_step_hi);
     return row + 1;
