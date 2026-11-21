@@ -4719,14 +4719,23 @@ you were on come back when it closes (GEN).
 | 2 sending | Send..., Stop TX, DX call, RST snt |
 | 3 macros | CQ, Answer, Report, Stop TX |
 | 4 macros | TNX, 73, QRZ, Stop TX |
-| 5 | Power, Ext tune, Clear |
+| 5 | Power, Ext tune, Clear, Preset |
 
 Up to v0.3.13 RTTY had two pages: the decoder's and Power.
 
 - Amateur RTTY is Rate 45.45, Shift 170 and Reverse Off, in LSB (the usual)
-  or USB: with Reverse off the mark is the higher radio frequency in either.
-  The transmitter takes mark and space as the decoder does, Reverse too:
-  what you copy right goes out right.
+  or USB: press Preset (page 5) until it shows Ham. With Reverse off the
+  mark is the higher radio frequency in either. The transmitter takes mark
+  and space as the decoder does, Reverse too: what you copy right goes out
+  right.
+- Preset (page 5; held F1 on page 1 goes there): RTTY starts on 50 baud,
+  Shift 450 and Reverse On, for the weather stations, and the button shows
+  Weather. A press sets Rate, Shift and Reverse for ham RTTY at once (Ham,
+  "45.45 Bd, 170 Hz, Reverse Off" in the message); a press on Ham goes back
+  to Weather. It shows "--" when the three are neither, and a press then
+  gives Ham. Center stays where it is. The decoder follows at once, the
+  transmitter from the next transmission, and the three are kept as when
+  turned with the knob.
 - Send... (page 2) opens a line to type, up to 199 characters; Enter (or
   the on-screen keyboard's tick) sends it, Esc closes it unsent (with a
   keyboard the MFK held too). With a USB or Bluetooth keyboard, a letter or
