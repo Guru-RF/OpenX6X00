@@ -69,7 +69,7 @@ function screen() {
   p.run('static/js/radio_session.js');
   const t = stand(p);
   const src = p.source;
-  p.eval(`var $st = $("#st"), screenEl = document.getElementById("screen"), panelEl = document.querySelector(".rm-panel"), knobAcc = {};
+  p.eval(`var $st = $("#st"), screenEl = document.getElementById("screen"), panelEl = document.getElementById("rm"), knobAcc = {};
     var ses = null, ptt = null;
     function keyUp(k) { delete held[k]; } function keysHave() {}`);
   p.eval(between(src, '  function status(', '  function wsUrl(kind) {'));

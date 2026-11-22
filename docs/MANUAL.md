@@ -8691,12 +8691,23 @@ here it is a web page, nothing to install.
   carries 150 kB/s, Sharp gives about 4 and Fast about 9. The choice is kept
   in the browser. A frame goes out only when the last one has reached the
   browser, so a slow link shows fewer, current frames rather than late ones.
-- F1-F5 under the screen, the key block to its right (GEN, KEY, DFN / APP,
-  MSG, DFL / AM, CW, SSB / A/B, PRE, ATU / V/M, AGC, FST), BAND up and down,
-  LOCK, POWER and PTT. A key is held as long as it is pressed, so long presses
-  work; the page releases every key it holds when it loses the connection.
+- The keys and knobs are where the radio has them. Over the screen, the
+  radio's top side: PTT on the left, BAND down and up over AM, CW and SSB,
+  and on the right A/B, PRE, ATU over V/M, AGC, FST. Left of the screen, top
+  to bottom: VOL, POWER, GEN to DFL and the MFK. F1-F5 under the screen. Right
+  of it LOCK and the MAIN knob. The page takes the layout of the radio it is
+  on: the X6100 has GEN, APP / KEY, MSG / DFN, DFL in two columns, the X6200
+  GEN, APP, KEY / MSG, DFN, DFL in two rows, and A/B, ATU, FST in one row
+  (it has no PRE, V/M, AGC or LOCK key, so the page shows none). On a phone
+  the screen takes the whole width, with the left column and the MAIN knob
+  under it, each on its own side. Up to v0.3.13 the knobs and all the keys
+  were in one block right of the screen, on both radios (issue #318).
+- A key is held as long as it is pressed, so long presses work; the page
+  releases every key it holds when it loses the connection.
 - VOL, MFK and the MAIN knob: drag around the ring, the mouse wheel over it,
-  or the - and + buttons; "push" presses the VOL or MFK knob.
+  or the - and + buttons. A click or a tap on the VOL or MFK knob is its push,
+  as on the radio; held, the knob stays pushed until you let go (a long
+  press). A drag is a turn, never a push.
 - Keyboard: F1-F5, left and right arrows turn the main knob (Shift: ten
   detents at a time), `[` and `]` the volume, PageUp and PageDown the MFK,
   Enter pushes the MFK, Space is PTT. As on the Panel, the keys are the

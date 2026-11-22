@@ -9,48 +9,71 @@
 .ptto .sub { margin:2px 0 6px; font-size:13px; }
 .ptto-st { margin:8px 0 0; font-size:13px; }
 .ptto-st:empty { display:none; }
-.rm { display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
-.rm-left { flex:1 1 560px; min-width:300px; }
+/* The radio's own layout (#318): its top side's keys in a strip over the picture (PTT, BAND over the modes, the
+ * block of A/B to FST), the front as it is: VOL, POWER, GEN to DFL and the MFK left of the screen, F1-F5 under it,
+ * LOCK and the main knob to its right. The X6200 (.x6200, from the keys the radio names) has GEN to DFL in two
+ * rows of three and no PRE, V/M, AGC or LOCK key. On a narrow screen the picture takes the whole width, with
+ * the left column and the main knob under it, each on its own side still */
+.rm { display:grid; grid-template-columns:auto minmax(0,1fr) auto; grid-template-areas:"top top top" "l mid r"; gap:12px 14px; align-items:start; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+.rm-top { grid-area:top; display:flex; flex-wrap:wrap; gap:8px 12px; align-items:stretch; }
+.rm-top .tk { flex:0 1 216px; min-width:120px; display:grid; grid-template-columns:repeat(6,1fr); gap:6px; align-content:end; }
+.rm-top .tk .k { grid-column:span 2; height:40px; font-size:13px; }
+.rm-top .tk .k.band { grid-column:span 3; }
+.rm-top .tk.r { margin-left:auto; }
+.rm-l { grid-area:l; width:128px; display:flex; flex-direction:column; gap:10px; }
+.rm.x6200 .rm-l { width:164px; }
+.rm-l .pwr { align-self:flex-end; width:60%; }
+.rm-l .fn { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.rm.x6200 .rm-l .fn { grid-template-columns:repeat(3,1fr); }
+.rm-l .fn .k { height:38px; font-size:13px; }
+.rm-mid { grid-area:mid; min-width:0; }
+.rm-r { grid-area:r; align-self:end; display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
+.rm-r .k.small { width:64px; }
+.rm-r .dial { align-self:center; }
 .rm-screen { position:relative; background:#000; border-radius:10px; overflow:hidden; aspect-ratio:800/480; box-shadow:0 0 0 1px #1a283c, 0 6px 24px #0008; }
 .rm-screen.portrait { aspect-ratio:480/800; max-width:420px; margin:0 auto; }
 .rm-screen canvas { width:100%; height:100%; display:block; image-rendering:auto; }
 .rm-screen .msg { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; color:#9fb3c8; background:#0b1220cc; font-size:15px; }
 .rm-screen .msg[hidden] { display:none; }
 .fkeys { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:10px; }
-.rm-panel { flex:0 0 300px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; align-content:start; }
-.rm-panel .wide { grid-column:1 / -1; }
-.dials { display:flex; justify-content:space-around; gap:10px; }
 .k { background:#141f33; color:#e6edf3; border:1px solid #27385a; border-radius:9px; padding:0; height:46px; font:600 14px/1 system-ui,sans-serif; letter-spacing:.3px; touch-action:manipulation; cursor:pointer; box-shadow:inset 0 -3px 0 #0d1526; }
 .k:hover { background:#1a2a45; }
 .k:active, .k.down { background:#2a7fff; border-color:#2a7fff; box-shadow:none; transform:translateY(1px); }
 .k.f { height:40px; background:#0f1a2c; }
-.k.ptt { height:64px; background:#4a1a1a; border-color:#7a2a2a; font-size:16px; }
+.k.ptt { flex:0 0 120px; flex-direction:column; justify-content:center; align-items:center; gap:2px; height:auto; min-height:86px; padding:4px 6px; line-height:1.15; background:#4a1a1a; border-color:#7a2a2a; font-size:15px; }
 .k.ptt.down { background:#e03030; border-color:#e03030; }
 .k.small { height:36px; font-size:12px; }
 .dial { display:flex; flex-direction:column; align-items:center; gap:6px; }
 .dial .lbl { font-size:11px; color:#9fb3c8; letter-spacing:1px; }
 .dial .ring { position:relative; border-radius:50%; background:radial-gradient(circle at 40% 35%, #3a4b6b, #141f33 70%); border:2px solid #27385a; touch-action:none; cursor:grab; box-shadow:0 4px 14px #0008, inset 0 0 0 6px #0d1526; }
 .dial .ring:active { cursor:grabbing; }
+.dial .ring.down { border-color:#2a7fff; box-shadow:0 0 0 3px #2a7fff, inset 0 0 0 6px #0d1526; }   /* pushed */
 .dial .ring i { position:absolute; left:50%; top:8%; width:8%; height:22%; margin-left:-4%; background:#e5a823; border-radius:4px; transform-origin:50% 190%; }
 .dial.sm .ring { width:84px; height:84px; }
 .dial.lg .ring { width:150px; height:150px; }
 .dial .krow { display:flex; gap:6px; align-items:center; }
 .dial .krow .k { width:40px; height:34px; font-size:16px; }
-.dial .krow .k.press { width:auto; padding:0 10px; font-size:12px; }
 .rm-bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:12px 0; }
 .rm-bar .status { margin-left:auto; }
 .rm-bar button[aria-pressed="true"] { background:#2a7fff; color:#fff; }
-.mainblock { display:flex; gap:10px; align-items:center; justify-content:space-between; }
-.mainblock .side { display:flex; flex-direction:column; gap:8px; }
-.mainblock .side .k { width:64px; height:40px; font-size:12px; }
-@media (max-width: 900px) {
-  .rm-panel { flex:1 1 100%; }
-  .rm-left { flex:1 1 100%; }
+@media (max-width: 760px) {
+  .rm { grid-template-columns:auto minmax(0,1fr); grid-template-areas:"top top" "mid mid" "l r"; }
+  .rm-top { gap:8px; }
+  .rm-top .tk { flex:1 1 108px; min-width:108px; }
+  .rm-top .tk .k { font-size:12px; }
+  .k.ptt { flex-basis:88px; font-size:14px; }
+  .rm-r { justify-self:center; }
 }
-:fullscreen .rm-left { max-width:none; }
+@media (max-width: 380px) {   /* the smallest phones: the left column and the main knob still side by side */
+  .rm { column-gap:8px; }
+  .rm.x6200 .rm-l { width:150px; }
+  .dial.lg .ring { width:120px; height:120px; }
+}
+.rm:fullscreen { background:var(--bg); padding:14px; overflow:auto; align-content:start; }
+.rm:fullscreen .rm-mid { width:100%; max-width:calc((100vh - 190px) * 800 / 480); justify-self:center; }
 /* The link is down or silent: the last picture stays, greyed, with its age (R6) */
 .rm-screen.stale canvas { filter: grayscale(.8); opacity: .5; }
-.rm-panel.stale { opacity: .6; }
+.rm.stale .rm-top, .rm.stale .rm-l, .rm.stale .rm-r, .rm.stale .fkeys { opacity: .6; }
 .rm-bar .health { margin-left: auto; }
 .sesbar { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
 .rm-bar .status { margin-left: 0; }
@@ -76,8 +99,28 @@
   <span class="status" id="st"></span>
 </div>
 
-<div class="rm">
-  <div class="rm-left">
+<div class="rm" id="rm">
+  <div class="rm-top">
+    <button class="k ptt" data-key="PTT" id="pttbtn">PTT (hold)</button>
+    <div class="tk">
+      <button class="k band" data-key="BAND_DOWN">BAND ▼</button><button class="k band" data-key="BAND_UP">BAND ▲</button>
+      <button class="k" data-key="AM">AM</button><button class="k" data-key="CW">CW</button><button class="k" data-key="SSB">SSB</button>
+    </div>
+    <div class="tk r">
+      <button class="k" data-key="AB">A/B</button><button class="k" data-key="PRE">PRE</button><button class="k" data-key="ATU">ATU</button>
+      <button class="k" data-key="VM">V/M</button><button class="k" data-key="AGC">AGC</button><button class="k" data-key="FST">FST</button>
+    </div>
+  </div>
+  <div class="rm-l">
+    <div class="dial sm" id="vol"><span class="lbl">VOL</span><div class="ring" data-push="VOL" role="button" aria-label="VOL knob" title="Drag around it or use the mouse wheel to turn; a click is its push, held for a long press"><i></i></div><div class="krow"><button class="k" data-knob="vol" data-step="-1">−</button><button class="k" data-knob="vol" data-step="1">+</button></div></div>
+    <button class="k small pwr" data-key="POWER" title="Tap: screen on/off">POWER</button>
+    <div class="fn">
+      <button class="k" data-key="GEN">GEN</button><button class="k" data-key="APP">APP</button><button class="k" data-key="KEY">KEY</button>
+      <button class="k" data-key="MSG">MSG</button><button class="k" data-key="DFN">DFN</button><button class="k" data-key="DFL">DFL</button>
+    </div>
+    <div class="dial sm" id="mfk"><span class="lbl">MFK</span><div class="ring" data-push="MFK" role="button" aria-label="MFK knob" title="Drag around it or use the mouse wheel to turn; a click is its push, held for a long press"><i></i></div><div class="krow"><button class="k" data-knob="mfk" data-step="-1">−</button><button class="k" data-knob="mfk" data-step="1">+</button></div></div>
+  </div>
+  <div class="rm-mid">
     <div class="rm-screen" id="screen">
       <canvas id="cv" width="800" height="480"></canvas>
       <div class="msg" id="msg">Connecting...</div>
@@ -86,27 +129,14 @@
       <button class="k f" data-key="F1">F1</button><button class="k f" data-key="F2">F2</button><button class="k f" data-key="F3">F3</button><button class="k f" data-key="F4">F4</button><button class="k f" data-key="F5">F5</button>
     </div>
   </div>
-  <div class="rm-panel">
-    <div class="wide dials">
-      <div class="dial sm" id="vol"><span class="lbl">VOL</span><div class="ring"><i></i></div><div class="krow"><button class="k" data-knob="vol" data-step="-1">−</button><button class="k press" data-key="VOL">push</button><button class="k" data-knob="vol" data-step="1">+</button></div></div>
-      <div class="dial sm" id="mfk"><span class="lbl">MFK</span><div class="ring"><i></i></div><div class="krow"><button class="k" data-knob="mfk" data-step="-1">−</button><button class="k press" data-key="MFK">push</button><button class="k" data-knob="mfk" data-step="1">+</button></div></div>
-    </div>
-    <button class="k" data-key="GEN">GEN</button><button class="k" data-key="KEY">KEY</button><button class="k" data-key="DFN">DFN</button>
-    <button class="k" data-key="APP">APP</button><button class="k" data-key="MSG">MSG</button><button class="k" data-key="DFL">DFL</button>
-    <button class="k" data-key="AM">AM</button><button class="k" data-key="CW">CW</button><button class="k" data-key="SSB">SSB</button>
-    <button class="k" data-key="AB">A/B</button><button class="k" data-key="PRE">PRE</button><button class="k" data-key="ATU">ATU</button>
-    <button class="k" data-key="VM">V/M</button><button class="k" data-key="AGC">AGC</button><button class="k" data-key="FST">FST</button>
-    <div class="wide mainblock">
-      <div class="side"><button class="k small" data-key="BAND_UP">BAND ▲</button><button class="k small" data-key="BAND_DOWN">BAND ▼</button><button class="k small" data-key="LOCK">LOCK</button></div>
-      <div class="dial lg" id="main"><span class="lbl">MAIN</span><div class="ring"><i></i></div><div class="krow"><button class="k" data-knob="main" data-step="-1">−</button><button class="k" data-knob="main" data-step="1">+</button></div></div>
-      <div class="side"><button class="k small" data-key="POWER" title="Tap: screen on/off">POWER</button></div>
-    </div>
-    <button class="k ptt wide" data-key="PTT" id="pttbtn">PTT (hold)</button>
+  <div class="rm-r">
+    <button class="k small" data-key="LOCK">LOCK</button>
+    <div class="dial lg" id="main"><span class="lbl">MAIN</span><div class="ring"><i></i></div><div class="krow"><button class="k" data-knob="main" data-step="-1">−</button><button class="k" data-knob="main" data-step="1">+</button></div></div>
   </div>
 </div>
 
 <div id="pttopts"></div>
-<p class="sub" style="margin-top:14px">Keyboard: F1–F5, ← → the main knob, Shift + ← → faster, [ ] volume, PageUp/PageDown the MFK, Enter the MFK push, Space PTT. Knobs: drag around the ring, or the mouse wheel over it. Sound starts on a tap (browsers ask for one). <span id="httpsnote">Mic needs an https page: <a id="httpslink" href="#">https://this radio/remote</a> (the browser warns of the radio's own certificate: accept it, once for that address).</span></p>
+<p class="sub" style="margin-top:14px">Keyboard: F1–F5, ← → the main knob, Shift + ← → faster, [ ] volume, PageUp/PageDown the MFK, Enter the MFK push, Space PTT. Knobs: drag around the ring, or the mouse wheel over it; a click or a tap on VOL or the MFK is its push, held for a long press. Sound starts on a tap (browsers ask for one). <span id="httpsnote">Mic needs an https page: <a id="httpslink" href="#">https://this radio/remote</a> (the browser warns of the radio's own certificate: accept it, once for that address).</span></p>
 
 <script src="/static/js/radio_link.js?v=2"></script>
 <script src="/static/js/radio_session.js?v=9"></script>
@@ -188,7 +218,7 @@
     send("picture " + pic);
     if (picPointer) { picPointer = false; this.blur(); }
   });
-  const screenEl = document.getElementById("screen"), panelEl = document.querySelector(".rm-panel");
+  const screenEl = document.getElementById("screen"), panelEl = document.getElementById("rm");   /* the keys and knobs around the picture */
   link = RadioLink.create({
     url: function() {
       if (FUNNEL) { conf = {enabled: true, tci_enabled: true}; return wsUrl("remote"); }   /* no web server out there */
@@ -209,7 +239,7 @@
       const w = t.split(" "), sp = t.indexOf(" "), body = sp < 0 ? "" : t.slice(sp + 1);
       if (ses.onText(w[0], body)) return;             /* role, ctl, paired, tx, sessions */
       if (w[0] === "size") { cv.width = +w[1]; cv.height = +w[2]; $("#screen").toggleClass("portrait", +w[2] > +w[1]); }
-      else if (w[0] === "keys") keysHave(w.slice(1));   /* the keys this radio has: the others greyed (the X6200 has no PRE, V/M, AGC or LOCK) */
+      else if (w[0] === "keys") keysHave(w.slice(1));   /* the keys this radio has, and so its layout (the X6200 has no PRE, V/M, AGC or LOCK) */
       else if (w[0] === "err") { if (!ptt.err(body)) status(body, true, ses.holds(body)); }
     },
     onBinary: showFrame,
@@ -232,7 +262,7 @@
    * again, on purpose, once the radio answers */
   function letGo(why) {
     const hadKeys = Object.keys(held).length > 0 || ptt.state === "tx" || ptt.state === "requesting";
-    Object.keys(held).forEach(function(k) { keyUp(k, document.querySelector('[data-key="' + k + '"]')); });
+    Object.keys(held).forEach(function(k) { keyUp(k); });
     Object.keys(knobAcc).forEach(function(k) { knobAcc[k] = 0; });
     ptt.lost(why);
     return hadKeys;
@@ -298,10 +328,25 @@
 
   /* ---- Keys ---- */
   const held = {};
-  function keyDown(name, el) { if (held[name] || !act("key " + name + " 1")) return; held[name] = true; if (el) el.classList.add("down"); if (navigator.vibrate) navigator.vibrate(8); }
-  function keyUp(name, el) { if (!held[name]) return; delete held[name]; send("key " + name + " 0"); if (el) el.classList.remove("down"); }
-  function releaseAll() { Object.keys(held).forEach(function(k) { const el = document.querySelector('[data-key="' + k + '"]'); keyUp(k, el); }); ptt.release(); }
-  function keysHave(names) { document.querySelectorAll("[data-key]").forEach(function(el) { const no = names.indexOf(el.dataset.key) < 0; el.disabled = no; el.title = no ? "Not on this radio" : el.title; }); }
+  /* A key's button, or the knob whose push it is (VOL, MFK) */
+  function keyEl(name) { return document.querySelector('[data-key="' + name + '"]') || document.querySelector('[data-push="' + name + '"]'); }
+  function keyDown(name, el) { if (held[name] || !act("key " + name + " 1")) return; held[name] = true; el = el || keyEl(name); if (el) el.classList.add("down"); if (navigator.vibrate) navigator.vibrate(8); }
+  function keyUp(name, el) { if (!held[name]) return; delete held[name]; send("key " + name + " 0"); el = el || keyEl(name); if (el) el.classList.remove("down"); }
+  function releaseAll() { Object.keys(held).forEach(function(k) { keyUp(k); }); ptt.release(); }
+  /* The radio names its keys: the page shows those, laid out as that radio has them (#318). Without a LOCK key
+   * it is the X6200. Remembered in this browser, so the page opens in that radio's layout the next time */
+  const X6200_KEYS = ["POWER", "GEN", "APP", "KEY", "PTT", "BAND_DOWN", "BAND_UP", "MSG", "DFN", "DFL", "AM", "CW", "SSB", "F1", "F2", "F3", "AB", "ATU", "FST", "F4", "F5"];
+  function keysShow(names) {
+    document.querySelectorAll("[data-key]").forEach(function(el) { el.hidden = names.indexOf(el.dataset.key) < 0; });
+    const x6200 = names.indexOf("LOCK") < 0;
+    document.getElementById("rm").classList.toggle("x6200", x6200);
+    return x6200;
+  }
+  function keysHave(names) {
+    const x6200 = keysShow(names);
+    try { localStorage.setItem("remote_radio", x6200 ? "x6200" : "x6100"); } catch (e) {}
+  }
+  try { if (localStorage.getItem("remote_radio") === "x6200") keysShow(X6200_KEYS); } catch (e) {}
   document.querySelectorAll("[data-key]").forEach(function(el) {
     const name = el.dataset.key;
     /* PTT: held, or tapped on and off (PTT options, #241) */
@@ -332,22 +377,41 @@
     el.addEventListener("pointerup", stop); el.addEventListener("pointercancel", stop); el.addEventListener("pointerleave", stop);
     el.addEventListener("contextmenu", function(e) { e.preventDefault(); });
   });
+  /* A ring is dragged around or wheeled to turn it. VOL and the MFK are also their own push, as on the radio
+   * (#318): a click or a tap that stays where it started (PUSH_SLOP px) is a short press; held there PUSH_HOLD_MS
+   * the key goes down and stays down until the release, for the radio's long press. A drag past the slop is a
+   * turn and never a push, and once pushed the ring does not turn until it is let go */
+  const PUSH_SLOP = 6, PUSH_HOLD_MS = 250, PUSH_TAP_MS = 80;
   ["main", "vol", "mfk"].forEach(function(name) {
-    const ring = document.querySelector("#" + name + " .ring");
+    const ring = document.querySelector("#" + name + " .ring"), push = ring.dataset.push || null;
     const perDetent = name === "main" ? 10 : 15;       /* degrees of drag per detent */
-    let last = null, acc = 0;
+    let last = null, acc = 0, x0 = 0, y0 = 0, turning = false, pushed = false, holdTimer = null;
     const angle = function(e) { const r = ring.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI; };
-    ring.addEventListener("pointerdown", function(e) { e.preventDefault(); ring.setPointerCapture(e.pointerId); last = angle(e); acc = 0; });
+    const noHold = function() { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } };
+    ring.addEventListener("pointerdown", function(e) {
+      e.preventDefault(); ring.setPointerCapture(e.pointerId); last = angle(e); acc = 0;
+      x0 = e.clientX; y0 = e.clientY; turning = !push; pushed = false; noHold();
+      if (push) holdTimer = setTimeout(function() { holdTimer = null; if (last !== null && !turning) { pushed = true; keyDown(push, ring); } }, PUSH_HOLD_MS);
+    });
     ring.addEventListener("pointermove", function(e) {
-      if (last === null) return;
+      if (last === null || pushed) return;
+      if (!turning) {
+        if (Math.abs(e.clientX - x0) < PUSH_SLOP && Math.abs(e.clientY - y0) < PUSH_SLOP) return;
+        turning = true; noHold(); last = angle(e); return;
+      }
       let d = angle(e) - last; last = angle(e);
       if (d > 180) d -= 360; if (d < -180) d += 360;
       acc += d;
       const n = Math.trunc(acc / perDetent);
       if (n) { acc -= n * perDetent; knob(name, n); }
     });
-    const end = function() { last = null; };
-    ring.addEventListener("pointerup", end); ring.addEventListener("pointercancel", end);
+    const end = function(e) {
+      if (last === null) return;
+      last = null; noHold();
+      if (pushed) keyUp(push, ring);
+      else if (push && !turning && e.type === "pointerup") { keyDown(push, ring); setTimeout(function() { keyUp(push, ring); }, PUSH_TAP_MS); }
+    };
+    ring.addEventListener("pointerup", end); ring.addEventListener("pointercancel", end); ring.addEventListener("lostpointercapture", end);
     ring.addEventListener("wheel", function(e) { e.preventDefault(); knob(name, e.deltaY < 0 ? 1 : -1); }, {passive: false});
     ring.addEventListener("contextmenu", function(e) { e.preventDefault(); });
   });
@@ -359,7 +423,7 @@
   const pttEl = document.getElementById("pttbtn");
   document.addEventListener("keydown", function(e) {
     if (!RadioSession.forRadio(e, pttEl)) return;
-    if (e.key in keyMap) { e.preventDefault(); if (e.repeat) return; const n = keyMap[e.key]; if (n === "PTT") ptt.press(); else keyDown(n, document.querySelector('[data-key="' + n + '"]')); return; }
+    if (e.key in keyMap) { e.preventDefault(); if (e.repeat) return; const n = keyMap[e.key]; if (n === "PTT") ptt.press(); else keyDown(n); return; }
     const step = e.shiftKey ? 10 : 1;
     if (e.key === "ArrowRight") { e.preventDefault(); knob("main", step); }
     else if (e.key === "ArrowLeft") { e.preventDefault(); knob("main", -step); }
@@ -369,7 +433,7 @@
     else if (e.key === "PageDown") { e.preventDefault(); knob("mfk", -1); }
   });
   document.addEventListener("keyup", function(e) {
-    if (e.key in keyMap) { const n = keyMap[e.key]; if (n === "PTT") ptt.release(); else keyUp(n, document.querySelector('[data-key="' + n + '"]')); }
+    if (e.key in keyMap) { const n = keyMap[e.key]; if (n === "PTT") ptt.release(); else keyUp(n); }
   });
   /* A button of the page clicked or tapped gives the keyboard back to the page, as Safari does anyway: it
    * takes no focus and clears it from the picture list, a button reached with Tab or the open menu at the
@@ -482,7 +546,7 @@
 
   /* ---- Fullscreen ---- */
   $("#full").on("click", function() {
-    const el = document.querySelector(".rm");
+    const el = document.getElementById("rm");
     if (document.fullscreenElement) document.exitFullscreen(); else if (el.requestFullscreen) el.requestFullscreen();
   });
   window.addEventListener("beforeunload", function() { releaseAll(); link.close(); tlink.close(); });
