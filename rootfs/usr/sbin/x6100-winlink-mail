@@ -157,6 +157,9 @@ def password_where():
 
 
 MODEM_NAMES = {"ardop": "ARDOP", "mercury": "Mercury", "xara": "XARA"}   # x6100-winlink's modem= choices
+# ... and their programs, as x6100-winlink's: a modem that is not on this radio is not offered (the app's Modem)
+MODEM_PROGRAMS = {"ardop": ROOT + "/usr/bin/ardopcf", "mercury": ROOT + "/usr/bin/x6x00-mercury",
+                  "xara": ROOT + "/usr/bin/xara"}
 
 
 def modem():
@@ -641,7 +644,12 @@ def cmd_status(boxes=None):
     conf = read_kv(CONF)
     out = {"enabled": conf.get("enabled") == "1", "state": sup.get("state", "off"), "text": sup.get("text", "Off"),
            "password": password_where(), "modem": sup.get("modem", "off"), "mycall": conf.get("mycall", ""),
-           "transport": transport(), "modem_name": MODEM_NAMES[modem()],
+           "transport": transport(), "modem_name": MODEM_NAMES[modem()], "modem_choice": modem(),
+           # the app's Modem (#322, #323): the ones on this radio, in the order it goes through them, and whether
+           # the one chosen runs (the supervisor's ardop=, mercury= or xara=: running, stopped, or off while the
+           # supervisor has not come to it yet)
+           "modems": [{"id": m, "name": MODEM_NAMES[m]} for m in MODEM_NAMES if os.access(MODEM_PROGRAMS[m], os.X_OK)],
+           "modem_state": sup.get(modem(), "off"),
            "last_text": sup.get("last_text", ""), "last_next": sup.get("last_next", ""),
            "last_result": sup.get("last_result", ""), "last_gateway": sup.get("last_gateway", ""),
            "last_time": int(sup["last_time"]) if sup.get("last_time", "").isdigit() else 0,

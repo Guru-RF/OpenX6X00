@@ -373,7 +373,8 @@ def run(root):
         root.conf(enabled=1, modem=m)
         rc, st, _ = helper(root, "status")
         rc2, gws, _ = helper(root, "gateways")
-        check(rc == 0 and st["transport"] == "varahf" and st["modem_name"] == name and rc2 == 0
+        check(rc == 0 and st["transport"] == "varahf" and st["modem_name"] == name and st["modem_choice"] == m
+              and rc2 == 0
               and [g["call"] for g in gws] == ["N0GWB"] and gws[0]["url"].startswith("varahf:///N0GWB"),
               f"{name}: VARA HF gateways ({gws})")
     root.conf(enabled=1)
@@ -382,6 +383,22 @@ def run(root):
     root.conf(enabled=0)
     rc, st, _ = helper(root, "status")
     check(rc == 0 and not st["enabled"] and not st["pat"] and "in" not in st, f"status, off: {st}")
+    # the app's Modem (#322, #323): the modems on this radio, the one chosen, and whether the supervisor runs it
+    check(st["modems"] == [] and st["modem_choice"] == "ardop" and st["modem_state"] == "off", f"no modem here: {st}")
+    os.makedirs(os.path.join(root.d, "usr/bin"), exist_ok=True)
+    for prog in ("ardopcf", "xara"):
+        with open(os.path.join(root.d, "usr/bin", prog), "w") as f:
+            f.write("#!/bin/sh\n")
+        os.chmod(os.path.join(root.d, "usr/bin", prog), 0o755)
+    root.conf(enabled=0, modem="xara")
+    with open(os.path.join(root.d, "run/winlink/status"), "w") as f:
+        f.write("state=running\ntext=Running as N0AAA\npat=running\nardop=off\nmercury=off\nxara=running\n"
+                "modem=ready\n")
+    rc, st, _ = helper(root, "status")
+    check(rc == 0 and st["modems"] == [{"id": "ardop", "name": "ARDOP"}, {"id": "xara", "name": "XARA"}]
+          and st["modem_choice"] == "xara" and st["modem_state"] == "running" and st["modem"] == "ready",
+          f"the modems here, XARA chosen and running: {st}")
+    os.remove(os.path.join(root.d, "run/winlink/status"))
     root.conf(enabled=1)
 
 

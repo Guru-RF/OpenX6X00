@@ -24,6 +24,10 @@
 #                               our Pat, before it dials through that transport (tools/pat, 0008): the modem for
 #                               it running and ready, switched to when the other one ran; bw=<Hz> on stdout for
 #                               VARA HF. Exit status 1, the reason in Pat's log, when it could not
+#   x6100-winlink modem [ardop|mercury|xara]
+#                               APP > Mail's Modem (#322, #323): the modem chosen, as the web page's Modem and Save
+#                               (Pat restarts, the modem that runs stops, that one starts); without a name, the
+#                               choice. One JSON object on stdout, {"error": ...} and exit status 1 when it is not
 #   x6100-winlink run           the supervisor itself, started by the commands above
 #
 # The settings are in /mnt/winlink.conf (enabled=0|1, mycall=, locator=, bandwidth=200|500|1000|2000,
@@ -1784,10 +1788,72 @@ def cmd_switch(args):
     return 0 if ok else 1
 
 
+# ---- the modem chosen on the radio (APP > Mail's Modem, #322 #323) ----------------------------------------------
+
+def modems_here():
+    """The modems on this radio, in the order the choice goes through them"""
+    return [m for m in MODEMS if os.access(MODEM_PROGRAMS[m], os.X_OK)]
+
+
+def choose_modem(target):
+    """The modem chosen, as the Winlink page's Modem and Save: the setting written (and which of Mercury and XARA was
+    the last), Pat's config with it, and the supervisor poked: it restarts Pat, stops the modem that runs and starts
+    that one. Fail with the reason when it is not chosen. The caller sees it come up in the status"""
+    if target not in MODEMS:
+        raise Fail("the modem is one of " + ", ".join(MODEMS))
+    if not os.access(MODEM_PROGRAMS[target], os.X_OK):
+        raise Fail(f"{MODEM_NAMES[target]} is not on this radio")
+    refused = xara_refused(dict(wanted(), modem=target)) if target == "xara" else ""
+    if refused:
+        raise Fail(refused)
+    os.makedirs(RUN, exist_ok=True)
+    with open(SWITCH_LOCK, "a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            raise Fail("Pat is switching the modem for a connection: after it") from None
+        with conf_lock():
+            conf = read_conf()
+            kind = conf_modem(conf)
+            if kind == target:
+                return False
+            new = {**conf, "modem": target}
+            for m in (target, kind):                   # as the page: the last of Mercury and XARA chosen
+                if m in VARA_MODEMS:
+                    new["varahf_modem"] = m
+                    break
+            # A switch file left by a switch of Pat's that its Abort ended: this choice is not Pat's, and Pat restarts
+            # for it (its service codes are the new modem's)
+            try:
+                os.remove(SWITCH)
+            except OSError:
+                pass
+            write_conf(new)
+    if enabled():
+        cmd_apply()
+    return True
+
+
+def cmd_modem(args):
+    """APP > Mail's Modem: `modem` says the choice, `modem ardop|mercury|xara` makes it. One JSON object on stdout:
+    {"modem": ..., "name": ..., "modems": [the ones on this radio], "changed": true|false}, or {"error": ...} and
+    exit status 1"""
+    try:
+        if len(args) > 1:
+            raise Fail("usage: x6100-winlink modem [ardop|mercury|xara]")
+        changed = choose_modem(args[0]) if args else False
+    except (Fail, OSError) as e:
+        print(json.dumps({"error": str(e)}))
+        return 1
+    kind = conf_modem(read_conf())
+    print(json.dumps({"modem": kind, "name": MODEM_NAMES[kind], "modems": modems_here(), "changed": changed}))
+    return 0
+
+
 def main(argv):
     cmds = {"on": cmd_on, "off": cmd_off, "apply": cmd_apply, "set-password": cmd_set_password,
             "clear-password": cmd_clear_password, "status": cmd_status, "logs": cmd_logs, "stop": cmd_stop,
-            "switch": lambda: cmd_switch(argv[1:]), "run": run}
+            "switch": lambda: cmd_switch(argv[1:]), "modem": lambda: cmd_modem(argv[1:]), "run": run}
     if argv and argv[0] not in cmds:
         print("usage: x6100-winlink [" + "|".join(cmds) + "]", file=sys.stderr)
         return 1

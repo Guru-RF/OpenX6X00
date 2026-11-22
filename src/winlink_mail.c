@@ -10,7 +10,8 @@
  *  here, its JSON answer coming back through the scheduler. The web mailbox and the radio show the same mailbox. A
  *  connection is Pat's, through the modem and src/winlink.c, with every check before a key that a connection from
  *  the web mailbox has; Pat's questions during it (a busy channel, the password, a new account) are answered
- *  here, on the buttons. x6100-winlink turns Winlink on and off and keeps the password, as the web page does.
+ *  here, on the buttons. x6100-winlink turns Winlink on and off, keeps the password and changes the modem, as the web
+ *  page does.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -62,6 +63,7 @@ extern char **environ;
 #define POLL_S        15                 /* s between looks at Pat's state in the lists */
 #define POLL_FAST_S   2                  /* while Winlink starts or stops */
 #define CONFIRM_S     5                  /* s a second press has, for Connect and Delete */
+#define MODEM_WAIT_S  60                 /* s for the modem chosen to be ready: Pat restarts, the other one stops */
 #define TO_MAX        200
 #define SUBJECT_MAX   128                /* Pat refuses longer */
 #define BODY_MAX      8000               /* characters typed on the radio: Winlink over HF is slow */
@@ -127,6 +129,11 @@ static time_t confirm_until;         /* Connect or Delete pressed once */
 static int    confirm_what;          /* 1 Connect, 2 Delete */
 static char   confirm_url[220];      /* the gateway Connect was pressed for */
 
+/* Modem pressed (#322, #323): the one asked for, followed in the status until it is ready or did not come up */
+static bool   modem_moving;
+static char   modem_to[16], modem_to_name[16];
+static time_t modem_until;
+
 /* A view's number: a job's answer for a view that is gone (left, or built again) changes no view */
 static unsigned view_seq, res_seq;
 static int      res_tag;             /* the job's box (a list) or band (the gateways) */
@@ -190,6 +197,7 @@ typedef struct {
 } job_t;
 
 static void load_gateways(void);
+static void modem_followed(void);
 
 /* A helper with its stdin on a socket (the GUI never dies of SIGPIPE writing to one that has gone: MSG_NOSIGNAL) and
  * its stdout on a pipe; its stderr to nowhere. -1: it did not start */
@@ -479,6 +487,35 @@ static const char *modem_name(void) {
 
 /* ---- Refresh: the state, the box shown --------------------------------------------------------------------------- */
 
+/* The modem asked for with Modem, in the status just read: ready (Pat answers again, that modem runs and is on the
+ * radio's audio), not started (the supervisor's reason), or not there in time. Until then the status line says how
+ * far it is (show) */
+static void modem_followed(void) {
+    char t[160];
+
+    if (!modem_moving || !status) {
+        return;
+    }
+    plain(t, sizeof(t), jstr(status, "text"));
+    if (strcmp(jstr(status, "modem_choice"), modem_to)) {
+        modem_moving = false;       /* another one chosen meanwhile, on the Winlink page or by Pat's Connect */
+        say("#%06x Modem:# now %s, chosen elsewhere meanwhile", theme_hex(TC_warn), modem_name());
+    } else if (!winlink_on()) {
+        modem_moving = false;
+        say("Modem: %s, it starts with Winlink On", modem_to_name);
+    } else if (pat_up() && !strcmp(jstr(status, "modem_state"), "running") &&
+               (!strcmp(jstr(status, "modem"), "ready") || !strcmp(jstr(status, "modem"), "behind"))) {
+        modem_moving = false;
+        say("#%06x Modem: %s is ready#", theme_hex(TC_ok), modem_to_name);
+    } else if (!strcmp(jstr(status, "state"), "error") && !strcmp(jstr(status, "modem_state"), "stopped")) {
+        modem_moving = false;
+        say("#%06x Modem: %s did not start:# %s", theme_hex(TC_err), modem_to_name, t);
+    } else if (time(NULL) >= modem_until) {
+        modem_moving = false;
+        say("#%06x Modem: %s is not ready yet:# %s", theme_hex(TC_warn), modem_to_name, t);
+    }
+}
+
 static void view_done(int rc, cJSON *out) {
     cJSON *st, *ls;
 
@@ -515,11 +552,12 @@ static void view_done(int rc, cJSON *out) {
     } else {
         cJSON_Delete(ls);
     }
+    modem_followed();
     {
         const char *state = jstr(status, "state");
         bool        moving = winlink_on() ? !pat_up() : !strcmp(state, "stopping") || !strcmp(state, "starting");
 
-        next_poll = time(NULL) + (moving ? POLL_FAST_S : POLL_S);
+        next_poll = time(NULL) + (moving || modem_moving ? POLL_FAST_S : POLL_S);
     }
     if (sess_result_status_at == -1 && status && jstr(status, "last_text")[0] && sess_call[0] &&
         jint(status, "last_time", 0) >= sess_started - 5 && !strncmp(jstr(status, "last_gateway"), sess_call,
@@ -1061,6 +1099,12 @@ static void show(void) {
         lv_label_set_text(frame.status, note);
     } else if (confirm_until && time(NULL) < confirm_until) {
         /* the note says it */
+    } else if (modem_moving && view == V_LIST) {
+        char t[160];
+
+        plain(t, sizeof(t), status ? jstr(status, "text") : "");
+        lv_label_set_text_fmt(frame.status, "#%06x Modem: switching to %s...# %s", theme_hex(TC_warn), modem_to_name,
+                              t);
     } else if (view == V_LIST && status && winlink_on() && pat_up() && !strcmp(jstr(status, "password"), "none")) {
         lv_label_set_text_fmt(frame.status, "#%06x No Winlink password set:# Password (page 2) sets it",
                               theme_hex(TC_warn));
@@ -1110,6 +1154,7 @@ static void connect_view_cb(button_data_t *b);
 static void close_cb(button_data_t *b);
 static void onoff_cb(button_data_t *b);
 static void password_cb(button_data_t *b);
+static void modem_cb(button_data_t *b);
 static void refresh_cb(button_data_t *b);
 static void session_view_cb(button_data_t *b);
 static void reply_cb(button_data_t *b);
@@ -1134,6 +1179,13 @@ static const char *onoff_label(void) {
     return winlink_on() ? "Winlink:\nOn" : "Winlink:\nOff";
 }
 
+static const char *modem_label(void) {
+    static char s[64];
+
+    snprintf(s, sizeof(s), "%s:\n%s", _("Modem"), modem_moving ? modem_to_name : modem_name());
+    return s;
+}
+
 static const char *band_label(void) {
     static char s[64];
 
@@ -1154,12 +1206,13 @@ static button_data_t btn_close   = {.type = BTN_TEXT, .label = "Close", .press =
 static button_data_t btn_l2      = {.type = BTN_TEXT, .label = "(MAIL 2:2)", .press = button_next_page_cb,
                                     .hold = button_prev_page_cb, .next = &page_list_1, .prev = &page_list_1};
 static button_data_t btn_onoff   = {.type = BTN_TEXT_FN, .label_fn = onoff_label, .press = onoff_cb};
+static button_data_t btn_modem   = {.type = BTN_TEXT_FN, .label_fn = modem_label, .press = modem_cb};
 static button_data_t btn_pass    = {.type = BTN_TEXT, .label = "Password", .press = password_cb};
 static button_data_t btn_refresh = {.type = BTN_TEXT, .label = "Refresh", .press = refresh_cb};
-static button_data_t btn_close2  = {.type = BTN_TEXT, .label = "Close", .press = close_cb};
 
 static buttons_page_t page_list_1 = {{&btn_l1, &btn_box, &btn_new, &btn_conn, &btn_close}};
-static buttons_page_t page_list_2 = {{&btn_l2, &btn_onoff, &btn_pass, &btn_refresh, &btn_close2}};
+/* Close is on page 1 (and Esc): the five buttons of page 2 are taken */
+static buttons_page_t page_list_2 = {{&btn_l2, &btn_onoff, &btn_modem, &btn_pass, &btn_refresh}};
 
 static button_data_t  btn_rd      = {.type = BTN_TEXT, .label = "(READ 1:1)"};
 static button_data_t  btn_reply   = {.type = BTN_TEXT, .label = "Reply", .press = reply_cb};
@@ -1217,6 +1270,7 @@ static void load_page(void) {
                 buttons_refresh(&btn_box);
                 buttons_refresh(&btn_conn);
                 buttons_refresh(&btn_onoff);
+                buttons_refresh(&btn_modem);
             }
             break;
         case V_READ:
@@ -1618,6 +1672,69 @@ static void onoff_cb(button_data_t *b) {
         return;
     }
     say(winlink_on() ? "Stopping Pat and the modem..." : "Starting Pat and the modem...");
+}
+
+/* Modem (#322, #323): the next of the modems on this radio, as the Winlink page's Modem and Save. x6100-winlink
+ * writes the choice and has the supervisor restart Pat, stop the modem that runs and start that one; the status
+ * read every 2 s from then on says when it is ready (modem_followed) */
+static void modem_done(int rc, cJSON *out) {
+    if (rc != 0 || !out) {
+        char e[160];
+
+        plain(e, sizeof(e), out ? jstr(out, "error") : "");
+        modem_moving = false;
+        say("#%06x Modem:# %s", theme_hex(TC_err), e[0] ? e : _("not changed"));
+        load_page();
+        return;
+    }
+    next_poll = 0;
+    refresh();
+}
+
+static void modem_cb(button_data_t *b) {
+    const cJSON *all, *m, *next = NULL;
+    bool         after = false;
+
+    (void)b;
+    if (popup_first()) {
+        return;
+    }
+    if (!status) {
+        say("Wait: reading Winlink's state");
+        return;
+    }
+    if (pat_busy()) {
+        say("A connection is under way: the modem after it");     /* Pat restarts for another modem */
+        return;
+    }
+    if (modem_moving) {
+        say("Wait: switching to %s", modem_to_name);
+        return;
+    }
+    all = cJSON_GetObjectItemCaseSensitive(status, "modems");
+    cJSON_ArrayForEach(m, all) {     /* the one after the choice, the first after the last */
+        if (after && !next) {
+            next = m;
+        }
+        after |= !strcmp(jstr(m, "id"), jstr(status, "modem_choice"));
+    }
+    if (!next) {
+        next = cJSON_GetArrayItem(all, 0);
+    }
+    if (!next || !strcmp(jstr(next, "id"), jstr(status, "modem_choice"))) {
+        say("No other modem on this radio");
+        return;
+    }
+    snprintf(modem_to, sizeof(modem_to), "%s", jstr(next, "id"));
+    snprintf(modem_to_name, sizeof(modem_to_name), "%s", jstr(next, "name"));
+    if (!job_start(modem_done, NULL, SUPERVISOR, "modem", modem_to, NULL)) {
+        say("Wait, still busy");
+        return;
+    }
+    modem_moving = true;
+    modem_until  = time(NULL) + MODEM_WAIT_S;
+    load_page();
+    show();
 }
 
 static void apply_done(int rc, cJSON *out) {
@@ -2425,6 +2542,7 @@ static void construct_cb(lv_obj_t *parent) {
     note[0]        = 0;
     confirm_until  = 0;
     next_poll      = 0;
+    modem_moving   = false;
     if (!sess_on) {
         sess_call[0] = sess_result[0] = 0;
         sess_log_n = 0;

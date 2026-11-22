@@ -1391,6 +1391,96 @@ class Switch(Root):
         self.assertTrue(self.listening(port))
 
 
+class ModemChoice(Switch):
+    """`x6100-winlink modem`, APP > Mail's Modem (#322, #323): the choice made as the Winlink page makes it"""
+
+    def run_cmd(self, *args):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = self.wl.cmd_modem(list(args))
+        return rc, json.loads(out.getvalue())
+
+    def test_says_the_choice_and_the_modems_here(self):
+        self.conf(enabled=1, mycall="N0AAA", modem="mercury")
+        self.assertEqual(self.run_cmd(), (0, {"modem": "mercury", "name": "Mercury",
+                                              "modems": ["ardop", "mercury", "xara"], "changed": False}))
+        os.remove(self.wl.XARA)
+        self.assertEqual(self.run_cmd()[1]["modems"], ["ardop", "mercury"])
+        self.assertEqual(self.pokes, [])
+
+    def test_chosen_as_the_page_does(self):
+        """The setting, the last of Mercury and XARA, Pat's config with that modem's bandwidth and service code, and
+        the supervisor poked with no switch file: it restarts Pat, as for the page's Save"""
+        self.conf(enabled=1, mycall="N0AAA", modem="ardop", bandwidth=1000, xara_bandwidth=2750, own_key="kept")
+        rc, out = self.run_cmd("xara")
+        self.assertEqual((rc, out["modem"], out["name"], out["changed"]), (0, "xara", "XARA", True))
+        conf = self.wl.read_conf()
+        self.assertEqual((conf["modem"], conf["varahf_modem"], conf["bandwidth"], conf["own_key"]),
+                         ("xara", "xara", "1000", "kept"))
+        self.assertEqual(self.pokes, [("xara", None)])
+        self.assertEqual(self.pat_config()["varahf"]["bandwidth"], 2750)
+        self.assertEqual(self.pat_config()["service_codes"], ["PUBLIC", "XARA"])
+        self.assertEqual(self.run_cmd("mercury")[1]["modem"], "mercury")
+        self.assertEqual(self.wl.read_conf()["varahf_modem"], "mercury")
+        self.assertEqual(self.pat_config()["service_codes"], ["PUBLIC", "MERCURY"])
+        self.assertEqual(self.run_cmd("ardop")[1]["modem"], "ardop")
+        self.assertEqual(self.wl.read_conf()["varahf_modem"], "mercury")      # the last of the two stays
+        self.assertEqual(len(self.pokes), 3)
+        # a switch file an aborted switch of Pat's left behind does not make this one Pat's: Pat restarts
+        self.wl.write_kv(self.wl.SWITCH, {"modem": "xara", "at": f"{time.time():.3f}"})
+        self.assertEqual(self.run_cmd("xara")[1]["changed"], True)
+        self.assertEqual(self.pokes[-1], ("xara", None))
+
+    def test_the_same_one_changes_nothing(self):
+        self.conf(enabled=1, mycall="N0AAA", modem="xara")
+        before = read(self.wl.CONF)
+        self.assertEqual(self.run_cmd("xara"), (0, {"modem": "xara", "name": "XARA",
+                                                    "modems": ["ardop", "mercury", "xara"], "changed": False}))
+        self.assertEqual((read(self.wl.CONF), self.pokes), (before, []))
+
+    def test_while_winlink_is_off(self):
+        """Kept for when Winlink is turned on: nothing to restart, Pat's config not written"""
+        self.conf(enabled=0, mycall="N0AAA", modem="ardop")
+        self.assertEqual(self.run_cmd("mercury")[1]["changed"], True)
+        self.assertEqual(self.wl.read_conf()["modem"], "mercury")
+        self.assertEqual(self.pokes, [])
+        self.assertFalse(os.path.exists(self.wl.PAT_CONFIG))
+
+    def test_refused(self):
+        self.conf(enabled=1, mycall="N0AAA", modem="ardop")
+        os.remove(self.wl.MERCURY)
+        self.assertEqual(self.run_cmd("mercury"), (1, {"error": "Mercury is not on this radio"}))
+        self.assertEqual(self.run_cmd("pactor")[0], 1)
+        self.assertEqual(self.run_cmd("xara", "ardop")[0], 1)
+        self.conf(enabled=1, mycall="TOOLONGCALL", modem="ardop")
+        rc, out = self.run_cmd("xara")
+        self.assertEqual(rc, 1)
+        self.assertIn("XARA does not take TOOLONGCALL as a callsign", out["error"])
+        self.assertEqual((self.wl.read_conf()["modem"], self.pokes), ("ardop", []))
+
+    def test_not_during_pats_own_switch(self):
+        """Pat's switch for a connection holds the switch lock: the choice waits for it to be over"""
+        self.conf(enabled=1, mycall="N0AAA", modem="ardop")
+        with open(self.wl.SWITCH_LOCK, "a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            rc, out = self.run_cmd("xara")
+        self.assertEqual((rc, out), (1, {"error": "Pat is switching the modem for a connection: after it"}))
+        self.assertEqual(self.wl.read_conf()["modem"], "ardop")
+        self.assertEqual(self.run_cmd("xara")[0], 0)
+
+    def test_as_a_command(self):
+        """As the GUI runs it: one JSON object on stdout, exit status 1 with the reason when it is not chosen"""
+        self.conf(enabled=0, mycall="N0AAA", modem="ardop")
+        env = dict(os.environ, X6100_WINLINK_ROOT=self.root)
+        r = subprocess.run([sys.executable, "-B", SUPERVISOR, "modem", "xara"], env=env, capture_output=True,
+                           text=True, timeout=20)
+        self.assertEqual((r.returncode, json.loads(r.stdout)["modem"], r.stderr), (0, "xara", ""))
+        os.remove(self.wl.MERCURY)
+        r = subprocess.run([sys.executable, "-B", SUPERVISOR, "modem", "mercury"], env=env, capture_output=True,
+                           text=True, timeout=20)
+        self.assertEqual((r.returncode, json.loads(r.stdout)), (1, {"error": "Mercury is not on this radio"}))
+
+
 class SwitchSupervisor(Root):
     """The supervisor's side: it goes on with Pat through Pat's own switch, and restarts it for the page's"""
 
