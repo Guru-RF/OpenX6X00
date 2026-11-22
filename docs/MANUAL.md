@@ -9945,7 +9945,8 @@ under steady upload (a TCI client's audio, for one), while an X6100 beside it di
 notches both lines on the channels they fall in (`options rtw_8723d host_spur_khz=2457600,2470614` in
 `/etc/modprobe.d/x6200-wifi-spur.conf`): channel 11 held a 3 Mbit/s upload at 99-100 % of real time instead of 33 %.
 The driver comes with a card image built after this change; `cat /sys/module/rtw_8723d/parameters/host_spur_khz`
-says `2457600,2470614` when the radio has it. Channel 13 is not covered. The why and the measurements:
+says `2457600,2470614` when the radio has it. Channel 13 (Europe) is covered too but not tested on the air.
+The why and the measurements:
 `buildroot/x6200/rtw88/README.md`.
 
 #### The DX Cluster shows no spots

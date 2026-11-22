@@ -3,7 +3,7 @@
 Applied by `buildroot/local-build.sh` to lwfinger/rtw88 at the buildroot tree's pin (461b696).
 
 - `0001`: upstream's TX report timeout fixes.
-- `0002`: a notch for the X6200's own spurs in WiFi channel 11, set by
+- `0002`: a notch for the X6200's own spurs in WiFi channel 11 (and 9, 10, 12, 13), set by
   `rootfs/etc/modprobe.d/x6200-wifi-spur.conf`. Explained below.
 
 ## Why channel 11 failed on the X6200
@@ -68,7 +68,11 @@ ours; 0x1f78403f without), 0xd2c bit 28 set, `0xd40 = 0x18000000` and `0xd4c = 0
 - Measured on one X6200. The lines come from the board's clocks, so every X6200 should have them within the
   crystals' tolerance (about 0.1 MHz at 2.4 GHz), under one 312.5 kHz tone.
 - Channels 9, 10 and 12 also hold one or both lines and get the notch, but only channel 11 was measured.
-- Channel 13 is not covered. There the driver sets the chip's own 2480 MHz notch, and 2470.6 MHz sits 1.4 MHz below
-  that channel's centre.
+- Channel 13 (Europe) is covered but **NOT tested on the air**: there is no channel-13 access point here (the
+  bench is in the US). There the driver still sets the chip's own 2480 MHz notch, and the X6200's 2470.6 MHz line
+  (1.4 MHz below that channel's centre) goes on top: its CSI bits added (123-124, `0xd4c = 0x18000000`), and the one
+  NBI notch its own only while the chip's is off (then index 2). These values were checked by compiling the driver's
+  functions on a PC against a register file in place of the chip: channels 1-12 come out byte for byte as measured
+  on the radio, channel 13 as just described. Someone on channel 13 with an X6200: please report how it does.
 - The driver is in the card image: an update bundle brings the modprobe option but not the driver. A driver without
   the parameter logs "unknown parameter" and loads as before.
