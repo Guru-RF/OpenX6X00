@@ -33,6 +33,7 @@ Prints MODEMS OK at the end; exits 1 at the first failure. --keep DIR keeps the 
 import argparse
 import array
 import json
+import math
 import os
 import re
 import shutil
@@ -123,6 +124,14 @@ def host(procs, tmp, name, rig_port, air_in=None, air_out=None):
 def played(h):
     """The transmissions of a winlink_host so far: (samples, stopped) each."""
     return [(int(l.split()[1]), l.split()[3] == "1") for l in text(h["played"] + ".log").splitlines()]
+
+
+def peak_db(h):
+    """The peak of a winlink_host's last transmission as it was played, dBFS"""
+    a = array.array("h")
+    with open(h["played"], "rb") as f:
+        a.frombytes(f.read())
+    return 20 * math.log10(max(max(a), -min(a), 1) / 32768)
 
 
 def freqs(h):
@@ -252,7 +261,7 @@ broadcast_tcp_port = {port - 200}
 callsign = {call}
 
 [audio]
-tx_gain_db = 0.0
+tx_gain_db = -4.0
 tx_delay_ms = 10
 
 [channel]
@@ -302,23 +311,20 @@ def pat_cmd(pat, d, port, call, *args, listen=False):
 
 
 def version_check(port):
-    """Pat's start of the modem, the order that hung it: the WRONG for CWID ON read before VERSION is asked.
-    Pat-Vara's Version() then waits, with no timeout, for a line that starts VERSION or WRONG"""
+    """Pat's start of the modem: its start-up commands, then VERSION. Pat-Vara's Version() waits, with no timeout,
+    for a line that starts VERSION or WRONG. Mercury 1.9.21 said WRONG to CWID ON, which ended that wait only when
+    it came after the question; 1.9.25 takes CWID ON (and sends no CW ID), so its VERSION line alone ends it"""
     c = socket.create_connection(("127.0.0.1", port), timeout=5)
-    got = b""
-    for cmd in ("PUBLIC ON", "CWID ON", "COMPRESSION TEXT", f"MYCALL {CALL_A}", "LISTEN OFF"):
+    cmds = ("PUBLIC ON", "CWID ON", "COMPRESSION TEXT", f"MYCALL {CALL_A}", "LISTEN OFF")
+    for cmd in cmds:
         c.sendall(cmd.encode() + b"\r")
-    end = time.time() + 5
-    while b"WRONG\r" not in got and time.time() < end:
-        got += c.recv(4096)
-    check(b"WRONG\r" in got, "Mercury answers Pat's CWID ON with WRONG")
-    got = b""
+    got = read_until(c, lambda g: g.split(b"\r").count(b"OK") >= len(cmds) or b"WRONG" in g, 5)
+    check(got.split(b"\r").count(b"OK") == len(cmds) and b"WRONG" not in got,
+          f"Mercury takes Pat's start-up commands, CWID ON too ({got!r})")
     c.sendall(b"VERSION\r")
-    end = time.time() + 3
-    while not any(l.startswith(b"VERSION") for l in got.split(b"\r")) and time.time() < end:
-        got += c.recv(4096)
+    got = read_until(c, lambda g: any(l.startswith(b"VERSION") for l in g.split(b"\r")[:-1]), 3)
     line = next((l for l in got.split(b"\r") if l.startswith(b"VERSION")), b"").decode()
-    check(line == "VERSION Mercury 1.9.21", f"and VERSION with a VERSION line, what Pat waits for ({line!r})")
+    check(line == "VERSION Mercury 1.9.25", f"and VERSION with a VERSION line, what Pat waits for ({line!r})")
     c.close()
 
 
@@ -371,12 +377,35 @@ def mercury_test(procs, tmp, mercury, pat):
     check(keys_a and keys_b, f"both radios keyed: A {len(keys_a)} times, B {len(keys_b)} times")
     longest = max(n for n, _ in keys_a + keys_b) / PLAY_RATE
     check(not any(s for _, s in keys_a + keys_b), f"no key stopped by the GUI (the longest {longest:.1f} s)")
+    # The level on the GUI's socket, as the radio's player gets it: each station's last key (A's a data mode, B's
+    # the MFSK of its last answer, or the other way round). Mercury 1.9.25 alone peaks at -2 dBFS (-2.5 MFSK), 4 dB
+    # over 1.9.21 to 1.9.24; with x6100-winlink's tx_gain_db = -4 it is their -6 dBFS (-6.5 MFSK) again
+    for h, n in ((ha, "A"), (hb, "B")):
+        db = peak_db(h)
+        check(-7.5 <= db <= -5.5, f"station {n}: its last key peaks at {db:.1f} dBFS, the level of Mercury 1.9.21")
     pb.stdin.close()
     procs.stop(pb)
+
+    # A stop with a session up: at once and with no key after it, as with 1.9.21. Mercury 1.9.25's own way out
+    # first ends the session on the air (up to 40 s), which x6x00-mercury leaves out
+    ca, cb = (socket.create_connection(("127.0.0.1", p), timeout=5) for p in (18300, 18310))
+    for c, call in ((ca, CALL_A), (cb, CALL_B)):
+        c.sendall(f"MYCALL {call}\rLISTEN ON\r".encode())
+    ca.sendall(f"CONNECT {CALL_A} {CALL_B}\r".encode())
+    got = read_until(ca, lambda g: b"CONNECTED " in g, 60)
+    check(b"CONNECTED " in got, "a session of the two Mercurys alone, for the stop")
     for m, h, n in ((ma, ha, "A"), (mb, hb, "B")):
-        procs.stop(m)
-        check(m.returncode == 0 and wait_for(lambda: "the modem gone" in text(h["log"]), 5),
-              f"station {n}: x6x00-mercury stopped on SIGTERM, the GUI saw it go")
+        t0 = time.time()
+        procs.stop(m, 20.0)
+        secs = time.time() - t0
+        check(m.returncode == 0 and secs < 3 and wait_for(lambda: "the modem gone" in text(h["log"]), 5),
+              f"station {n}: x6x00-mercury stopped on SIGTERM with a session up, in {secs:.1f} s (code "
+              f"{m.returncode}), the GUI saw it go")
+        keys = text(h["log"]).count("[stub] keyed")
+        time.sleep(1)
+        check(text(h["log"]).count("[stub] keyed") == keys, f"station {n}: no key after the stop")
+    ca.close()
+    cb.close()
 
 
 def supervisor(root):

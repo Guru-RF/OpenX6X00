@@ -132,7 +132,8 @@ class Modem(Root):
         self.assertEqual(dict(ini["main"]), {"ui_enabled": "false", "waterfall_enabled": "false",
                                              "arq_tcp_base_port": "8300", "broadcast_tcp_port": "8100",
                                              "callsign": "ON6URE"})
-        self.assertEqual(dict(ini["audio"]), {"tx_gain_db": "0.0", "tx_delay_ms": "10"})
+        # -4 dB: Mercury 1.9.25 alone is 4 dB louder than 1.9.21 to 1.9.24, the radio's level stays theirs
+        self.assertEqual(dict(ini["audio"]), {"tx_gain_db": "-4.0", "tx_delay_ms": "10"})
         self.assertEqual(ini["channel"]["busy_detect"], "false")
         self.assertEqual(ini["tnc"]["keepalive_s"], "60")
         self.assertEqual(ini["store"]["enabled"], "false")
@@ -646,14 +647,20 @@ class MercuryOutcomes(Logs):
     """With Mercury: Pat's varahf lines, x6x00-mercury's and Mercury's own (the PC test's logs, tools/winlink)"""
 
     def test_pc_p2p_delivered(self):
+        """Mercury 1.9.25's log (its lines begin with the date since 1.9.22), up to x6x00-mercury on the socket, then
+        the rest; Pat's up to its call, then the rest"""
         log = fixture("pc-n0aaa-n0bbb-mercury.mercury.log").splitlines(keepends=True)
-        k = self.poll(mercury="".join(log[:27]), kind="mercury")
+        self.assertIn("[engine] Mercury 1.9.25 (git 33efac4e)", log[1])
+        on = next(i for i, l in enumerate(log) if l.startswith("x6x00-mercury: connected to ")) + 1
+        k = self.poll(mercury="".join(log[:on]), kind="mercury")
         self.assertEqual(k["modem"], "ready")                         # x6x00-mercury on the socket
         pat = fixture("pc-n0aaa-n0bbb-mercury.pat.log").splitlines(keepends=True)
-        k = self.poll(pat="".join(pat[:2]), mercury="".join(log[27:]), kind="mercury")
+        self.assertIn("VARA modem (Mercury 1.9.25) initialized", "".join(pat))    # our VERSION line, as Pat took it
+        call = next(i for i, l in enumerate(pat) if "Connecting to N0BBB (varahf)" in l) + 1
+        k = self.poll(pat="".join(pat[:call]), mercury="".join(log[on:]), kind="mercury")
         self.assertEqual((k["last_result"], k["last_gateway"], k["last_text"]), ("dialing", "N0BBB", "Calling N0BBB"))
         self.assertEqual(k["modem"], "waiting")                       # x6x00-mercury: stopping
-        k = self.poll(pat="".join(pat[2:]), events=fixture("pc-n0aaa-n0bbb-mercury.events.log").splitlines(),
+        k = self.poll(pat="".join(pat[call:]), events=fixture("pc-n0aaa-n0bbb-mercury.events.log").splitlines(),
                       kind="mercury")
         self.assertEqual(k["last_result"], "delivered")
         self.assertEqual(k["last_text"], "Done with N0BBB: 1 sent, 0 received")
@@ -684,7 +691,8 @@ class MercuryOutcomes(Logs):
     def test_decoders_behind(self):
         self.poll(mercury="x6x00-mercury: connected to /run/ardop.sock", kind="mercury")
         open(self.wl.PAT_OWN_LOG, "a").close()
-        ring = "20:01:02.345 [+9.000s] [WRN] [modem-rx] decoder ring full (mode=23): dropped 160 samples so far"
+        ring = ("2026-11-22 20:01:02.345 [+9.000s] [WRN] [modem-rx] decoder ring full (mode=23): dropped 160 samples "
+                "so far")
         self.assertEqual(self.poll(mercury=ring, kind="mercury")["modem"], "behind")
         self.assertEqual(len(self.notes()), 1)
         self.assertIn("OpenX6X00: Mercury could not keep up with the receiver", self.notes()[0])
@@ -711,7 +719,48 @@ class MercuryOutcomes(Logs):
                       ardop=ESTABLISHED.format("KO0OOO", 2000), kind="mercury")    # not ardopcf's, ignored
         self.assertEqual(k["last_result"], "failed")
         self.assertEqual((k["last_text"], k["last_bw"]), ("No answer from KO0OOO on 7.101.500", ""))
-        self.assertIn("Mercury 1.9.20 or later: a VARA gateway from Pat's list does not answer it", k["last_next"])
+        self.assertIn("needs Mercury 1.9.25: 1.9.24 and older do not connect to it, and a VARA gateway from Pat's "
+                      "list does not answer it", k["last_next"])
+
+    OLDER = ("2026-11-22 20:10:{} [+70.000s] [WRN] [arq] ACCEPT for ON6URE from Mercury 1.9.24 or older (protocol "
+             "minor 1): the versions do not connect, ignored")
+
+    def test_answer_from_an_older_mercury(self):
+        """Mercury 1.9.20 to 1.9.24 still answers a 1.9.25 call; 1.9.25 ignores the answer and says so in its log
+        (datalink_arq/arq.c), and Pat's call times out: not "no answer", the other station's version"""
+        k = self.poll(pat="2026/11/22 20:10:00 QSY varahf: 7101.5\n"
+                          "2026/11/22 20:10:03 Connecting to KO0OOO (varahf)...", kind="mercury")
+        self.assertEqual(k["last_result"], "dialing")
+        k = self.poll(mercury=self.OLDER.format("12.500"), kind="mercury")
+        self.assertEqual((k["last_result"], k["last_text"]), ("dialing", "Calling KO0OOO on 7.101.500"))
+        k = self.poll(mercury=self.OLDER.format("40.100"),             # its answer to the next CALL
+                      pat="2026/11/22 20:11:40 Unable to establish connection to remote: connect timeout",
+                      kind="mercury")
+        self.assertEqual(k["last_result"], "failed")
+        self.assertEqual(k["last_text"], "KO0OOO answered on 7.101.500 with Mercury 1.9.24 or older, which does not "
+                                         "connect to this radio's")
+        self.assertIn("1.9.25 connects only to 1.9.25: the other station has to update its Mercury", k["last_next"])
+        self.assertIn("KO0OOO answered on 7.101.500 with Mercury 1.9.24 or older", self.notes()[-1])
+        # the next call, to a station nobody hears: no answer, as before
+        k = self.poll(pat="2026/11/22 20:20:03 Connecting to KO0OOO (varahf)...\n"
+                          "2026/11/22 20:21:40 Unable to establish connection to remote: connect timeout",
+                      kind="mercury")
+        self.assertEqual(k["last_text"], "No answer from KO0OOO")
+
+    def test_answer_from_an_older_mercury_in_one_poll(self):
+        """Pat's timeout read before Mercury's line, in the same poll"""
+        k = self.poll(pat="2026/11/22 20:10:03 Connecting to KO0OOO (varahf)...\n"
+                          "2026/11/22 20:11:40 Unable to establish connection to remote: connect timeout",
+                      mercury=self.OLDER.format("12.500"), kind="mercury")
+        self.assertIn("with Mercury 1.9.24 or older", k["last_text"])
+
+    def test_an_older_mercury_calling_us_is_not_our_call(self):
+        """Its CALL for us, which 1.9.25 does not answer, while we call another station: that call is not judged by it"""
+        k = self.poll(pat="2026/11/22 20:10:03 Connecting to KO0OOO (varahf)...\n"
+                          "2026/11/22 20:11:40 Unable to establish connection to remote: connect timeout",
+                      mercury="2026-11-22 20:10:12.500 [+70.000s] [WRN] [arq] CALL for ON6URE from Mercury 1.9.24 or "
+                              "older (protocol minor 1): the versions do not connect, not answered", kind="mercury")
+        self.assertEqual(k["last_text"], "No answer from KO0OOO")
 
     def test_link_dropped(self):
         k = self.poll(pat="2026/10/29 20:10:03 Connecting to N0BBB (varahf)...\n"
