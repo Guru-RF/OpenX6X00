@@ -20,8 +20,12 @@ all: test
 build/wifi.o: $(WIFI) $(wildcard $(SRC)/*.h)
 	mkdir -p build && $(CXX) $(CXXFLAGS) -c -o $@ $(WIFI)
 
-wifi_device_test: wifi_device_test.cpp build/wifi.o $(LVGL_LIB)
-	$(CXX) $(CXXFLAGS) -Wall -Wextra -o $@ wifi_device_test.cpp build/wifi.o $(LVGL_LIB) \
+# ../speech/silent.c: wifi.cpp says the address aloud (the speech), which is silent here
+build/silent.o: ../speech/silent.c
+	mkdir -p build && $(CC) -I $(SRC) -c -o $@ ../speech/silent.c
+
+wifi_device_test: wifi_device_test.cpp build/wifi.o build/silent.o $(LVGL_LIB)
+	$(CXX) $(CXXFLAGS) -Wall -Wextra -o $@ wifi_device_test.cpp build/wifi.o build/silent.o $(LVGL_LIB) \
 	    -Wl,--gc-sections $(shell pkg-config --libs libnm) -lm -pthread
 
 test: wifi_device_test
