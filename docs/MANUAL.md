@@ -1462,7 +1462,7 @@ Where: Settings > Display > WATERFALL.
 | 3D depth, tilt, floor | shown with 3D: the traces (8-64, every third line), the view from the front (0) to from above (10), how much above the noise floor is cut away |
 | 3D range | shown with 3D: the dB above the noise floor at a trace's full height (20-60, 40 by default); less makes weak signals taller |
 | 3D peaks | shown with 3D: the newest trace's peaks held a moment |
-| 3D glide | shown with 3D: the traces move back smoothly, 30, 20 (default) or 15 pictures a second, fewer for less CPU; Off, a step at each new line: the least CPU |
+| 3D glide | shown with 3D: the traces move back smoothly, 30, 20 (default) or 15 pictures a second, fewer for less CPU; Off, a step at each new line: the least CPU. With 10 or more new lines a second (the default waterfall speed) the lines are smooth as they are and no pictures are drawn between them |
 
 With 3D on, the waterfall area shows the spectrum in perspective, as on
 some other makers' radios: the newest trace at the bottom, every third line
@@ -7862,12 +7862,11 @@ Connecting to a gateway:
   gateways under service codes, and Pat asks for the ones in its Service
   codes (Action > Configure). Sysops register an ARDOP gateway under PUBLIC,
   one that runs XARA under XARA and one that runs Mercury under MERCURY. The
-  radio sets PUBLIC and the code of the VARA HF modem in use each time it
-  starts Pat: XARA with XARA chosen, MERCURY with Mercury, and with ARDOP
-  chosen the one a VARA HF connection would switch to (the last of the two
-  you chose, XARA when neither). Not both, since Pat's list does not say
-  which code a gateway is under and Mercury and XARA do not talk to each
-  other. Codes of your own typed there (EMCOMM and the like) stay, behind
+  radio sets all three, PUBLIC, XARA and MERCURY, each time it starts Pat,
+  whichever modem is chosen. Pat's list does not say which code a gateway
+  is under, and Mercury and XARA do not talk to each other: a gateway that
+  never answers one may be the other's, so try the other modem (APP > Mail,
+  Modem). Codes of your own typed there (EMCOMM and the like) stay, behind
   the radio's. Up to v0.3.13 the list had the PUBLIC gateways only. Pat
   keeps a list of its own for each set of codes: the first time after the
   update it downloads the new one when the radio has internet, and shows
