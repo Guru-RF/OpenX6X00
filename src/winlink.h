@@ -17,6 +17,8 @@
 #include "board.h"
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,6 +54,20 @@ void winlink_init(void);
 /* A Winlink connection holds the radio: the modem connected, and keying, or Pat's tune or the modem's last key less
  * than a minute ago (a connection under way, as the keys go by it). Any thread: TUNE for an external tuner asks */
 bool winlink_busy(void);
+
+/* APP > Mail's Connect (#322), the LVGL thread. The first press: the radio on a gateway's dial frequency hz, in USB-D
+ * as for Pat's QSY, nothing transmitted, so the antenna tuner can be run there before the call. False, and why (n
+ * bytes), when the radio may not go there: on the air, an app or LOCK holds the frequency, not one it can tune */
+bool winlink_preset(int32_t hz, char *why, size_t n);
+
+/* That first press was for hz and the radio is still there: the next press calls */
+bool winlink_preset_at(int32_t hz);
+
+/* No call after all, or (after_call) the connection the second press began is over: back to where the radio was
+ * before the first press, unless the dial was turned since. On the air (the modem's last frame), once that is over.
+ * With no call from the app, not when Pat tuned there since the first press: a connection from the web mailbox has
+ * the radio */
+void winlink_preset_back(bool after_call);
 
 #ifdef __cplusplus
 }

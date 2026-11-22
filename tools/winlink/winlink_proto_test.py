@@ -249,6 +249,49 @@ def session(host, gone):
         fail("the GUI did not see the modem go")
 
 
+def preset_steps(tmp):
+    """winlink_host with WL_PRESET: winlink_preset(), winlink_preset_at() and winlink_preset_back() as APP > Mail
+    calls them, from 14.105 MHz in CW; a line a step (stubs.c, preset_steps)"""
+    env = dict(os.environ, WL_PRESET="1", WL_SOCK=os.path.join(tmp, "p.sock"), WL_RIG_PORT="14539",
+               WL_APP=os.path.join(tmp, "p.app"))
+    p = subprocess.run([os.path.join(HERE, "winlink_host")], env=env, cwd=HERE, stdout=subprocess.PIPE,
+                       stderr=subprocess.DEVNULL, text=True, timeout=60)
+    step = {}
+    for line in p.stdout.splitlines():
+        name, _, rest = line.partition(" ")
+        kv, _, why = rest.partition(" why=")
+        step[name] = dict(f.split("=", 1) for f in kv.split())
+        step[name]["why"] = why
+    check(p.returncode == 0 and len(step) == 17, f"every step ran ({len(step)} lines)")
+
+    def at(name, ok, freq, there, **more):
+        s = step.get(name, {})
+        want = {"ok": ok, "freq": str(freq), "at": there, **{k: str(v) for k, v in more.items()}}
+        return {k: s.get(k) for k in want} == want
+
+    check(at("first", "1", 7101500, "1", mode="USB-D", keyed=0, busy=0),
+          f"the first press: on the gateway's 7.101.5 MHz in USB-D, nothing keyed, no connection for TUNE to wait "
+          f"for ({step.get('first')})")
+    check(at("other", "1", 10145000, "1") and at("other-first", "1", 10145000, "0"),
+          "another gateway: tuned there, the first one's press does not count for it")
+    check(at("back", "1", 14105000, "0"), "no call after all: back on 14.105 MHz, where the radio was at first")
+    check(at("turned", "1", 7050000, "0") and at("turned-back", "1", 7050000, "0"),
+          "the dial turned after the first press: the next press tunes again, and leaving keeps the dial")
+    check(at("app", "0", 7050000, "0", why="FT8 is open, close it"), "an app open: not tuned, and why")
+    check(at("far", "0", 7050000, "0", why="not a frequency the radio can tune"), "99 MHz: not tuned, and why")
+    check(at("air", "1", 7101500, "1", keyed=1) and at("air-over", "1", 14105000, "0", keyed=0),
+          "the way back asked during the modem's last frame: made once the radio is off the air")
+    check(at("again", "1", 7101500, "1") and at("pat-qsy", "1", 7101500, "1", why="RPRT 0")
+          and at("pat-back", "1", 7101500, "1", why="RPRT 0") and at("over", "1", 14105000, "0"),
+          "the second press: Pat's QSY finds the radio there, its tune back leaves it there, then back on "
+          "14.105 MHz")
+    check(at("retry", "1", 14105000, "0"),
+          "the same gateway again right after: Pat's tune of the last connection does not keep the way back")
+    check(at("web", "1", 7101500, "0", why="RPRT 0"),
+          "a connection from the web mailbox on that frequency after the first press: the radio is left to it")
+    check(at("air-first", "0", 14105000, "0", why="the radio is on the air"), "on the air: no first press")
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="winlink-test-") as tmp:
         host = Host(tmp)
@@ -590,6 +633,9 @@ def main():
             m.close()
         finally:
             host.stop()
+
+        print("APP > Mail's Connect: the first press tunes and sends nothing, the second calls (#322)")
+        preset_steps(tmp)
     print("PROTO OK")
 
 

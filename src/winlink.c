@@ -1097,6 +1097,106 @@ static int rig_tune(double hz) {
     return ret;
 }
 
+/* ---- APP > Mail's Connect: on the gateway's frequency before the call (#322) -------- */
+
+/* The first press of Connect puts the radio on the gateway's dial frequency and transmits nothing, so the antenna
+ * tuner can be run there; the second one calls. Pat then finds the radio there already, and its tune back after the
+ * session leaves it there: winlink_preset_back() brings it to where it was before the first press, as Pat's tune back
+ * does for a connection from the web mailbox. Neither is a tune of Pat's: no connection is under way for it
+ * (winlink_busy), so TUNE goes. All on the LVGL thread */
+static int32_t     preset_hz;       /* where winlink_preset() put the radio; 0 none */
+static int32_t     preset_from_hz;  /* where the radio was before */
+static uint64_t    preset_ms;       /* when it was put there */
+static atomic_bool preset_waits;    /* a way back asked on the air: made once it is over (preset_back_thread) */
+
+bool winlink_preset(int32_t hz, char *why, size_t n) {
+    int32_t now = cparam_i_get(cfg_fg_freq), mode;
+
+    if (tune_refused(hz, why, n))
+        return false;
+    /* A second gateway tried from the first one's frequency: the way back is still to where the radio was. The dial
+     * turned since: from there */
+    if (!preset_hz || now != preset_hz)
+        preset_from_hz = now;
+    backlight_tick();
+    if (hz != now)
+        main_screen_set_freq((uint64_t)hz);
+    if (cparam_i_get(cfg_fg_freq) != hz) {
+        snprintf(why, n, "the radio did not tune there");
+        return false;
+    }
+    mode = cparam_i_get(cfg_cur_mode);      /* as Pat's QSY (tune_cb): what the tuner is run in is what is sent in */
+    if (mode != radio_mode_usb && mode != radio_mode_usb_dig && !main_screen_mode_locked())
+        cparam_i_set(cfg_cur_mode, radio_mode_usb_dig);
+    preset_hz = hz;
+    preset_ms = now_ms();
+    LV_LOG_USER("winlink: on %d Hz for a gateway, from %d Hz, nothing sent", (int)hz, (int)preset_from_hz);
+    return true;
+}
+
+bool winlink_preset_at(int32_t hz) {
+    return hz && preset_hz == hz && cparam_i_get(cfg_fg_freq) == hz;
+}
+
+/* The way back, now that the radio is off the air (or was not heard of for PENDING_MS: then it stays) */
+static void preset_back_cb(void *arg) {
+    int32_t hz = *(int32_t *)arg, back = preset_from_hz;
+    char    why[64];
+
+    atomic_store(&preset_waits, false);
+    /* the dial turned meanwhile, or a new first press: the radio is where the operator wants it */
+    if (preset_hz != hz || cparam_i_get(cfg_fg_freq) != hz)
+        return;
+    preset_hz = 0;
+    if (tune_refused(back, why, sizeof(why))) {
+        LV_LOG_WARN("winlink: not back to %d Hz after the gateway's %d Hz, %s", (int)back, (int)hz, why);
+        return;
+    }
+    main_screen_set_freq((uint64_t)back);
+}
+
+static void *preset_back_thread(void *arg) {
+    int32_t hz = (int32_t)(intptr_t)arg;
+
+    for (int ms = 0; (on_air() || atomic_load(&keying)) && ms < PENDING_MS; ms += 100)
+        usleep(100000);
+    if (on_air() || atomic_load(&keying) || !scheduler_put(preset_back_cb, &hz, sizeof(hz)))
+        atomic_store(&preset_waits, false);
+    return NULL;
+}
+
+void winlink_preset_back(bool after_call) {
+    int32_t hz = preset_hz;
+
+    if (!hz || atomic_load(&preset_waits))
+        return;
+    if (cparam_i_get(cfg_fg_freq) != hz || preset_from_hz == hz) {
+        preset_hz = 0;      /* the dial was turned since, or the radio was there from the start: it stays */
+        return;
+    }
+    /* No call from the app, but Pat tuned there after the first press: a connection from the web mailbox, on the
+     * frequency the radio was put on for it. The radio is that connection's, and Pat's tune back leaves it there */
+    if (!after_call && atomic_load(&ref_hz) == hz && atomic_load(&ref_ms) >= preset_ms &&
+        now_ms() - atomic_load(&ref_ms) < REF_MS) {
+        preset_hz = 0;
+        return;
+    }
+    if (on_air() || atomic_load(&keying)) {
+        /* the modem's last frame after the session (ardopcf's ID): once it is out, as Pat's own tune back waits */
+        pthread_t      th;
+        pthread_attr_t attr;
+
+        atomic_store(&preset_waits, true);
+        pthread_attr_init(&attr);
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        if (pthread_create(&th, &attr, preset_back_thread, (void *)(intptr_t)hz) != 0)
+            atomic_store(&preset_waits, false);
+        pthread_attr_destroy(&attr);
+        return;
+    }
+    preset_back_cb(&hz);
+}
+
 /* The answer to one line into reply, "" for none. False: the client says goodbye */
 static bool rig_answer(const char *line, char *reply, size_t size) {
     double arg = 0;

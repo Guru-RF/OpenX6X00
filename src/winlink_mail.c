@@ -11,7 +11,8 @@
  *  connection is Pat's, through the modem and src/winlink.c, with every check before a key that a connection from
  *  the web mailbox has; Pat's questions during it (a busy channel, the password, a new account) are answered
  *  here, on the buttons. x6100-winlink turns Winlink on and off, keeps the password and changes the modem, as the web
- *  page does.
+ *  page does. Connect's first press puts the radio on the gateway's frequency and sends nothing (winlink_preset(),
+ *  src/winlink.c), for the antenna tuner; the second calls.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -33,10 +34,12 @@
 #include "styles.h"
 #include "textarea_window.h"
 #include "theme.h"
+#include "winlink.h"
 
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <math.h>
 #include <pthread.h>
 #include <signal.h>
 #include <spawn.h>
@@ -128,6 +131,14 @@ static time_t note_until;
 static time_t confirm_until;         /* Connect or Delete pressed once */
 static int    confirm_what;          /* 1 Connect, 2 Delete */
 static char   confirm_url[220];      /* the gateway Connect was pressed for */
+
+/* Connect's first press for a gateway (#322): the radio is put on its frequency and nothing is sent, so the antenna
+ * tuner can be run there; the second press calls. The gateway the first press was for; the radio's side is
+ * winlink_preset() (src/winlink.c). Kept across the window: sess_running counts the helpers of connections begun here
+ * that have not ended, also once the window is closed, and the last one's end takes the radio back */
+static char   tuned_url[220];
+static bool   tuned_shown;           /* what the Connect button says now: the second press */
+static int    sess_running;
 
 /* Modem pressed (#322, #323): the one asked for, followed in the status until it is ready or did not come up */
 static bool   modem_moving;
@@ -479,6 +490,27 @@ static bool pat_busy(void) {
 
 static int list_n(void) {
     return view == V_GATEWAYS ? cJSON_GetArraySize(gateways) : cJSON_GetArraySize(list);
+}
+
+/* A gateway's dial frequency in Hz, 0 when Pat's list has none for it */
+static int32_t gw_hz(const cJSON *g) {
+    double khz = g ? jnum(g, "dial") : 0;
+
+    return khz > 0 && khz < 2000000.0 ? (int32_t)llround(khz * 1000.0) : 0;
+}
+
+/* Connect's first press was for this gateway and the radio is still on its frequency: the next press calls it */
+static bool gw_tuned(const cJSON *g) {
+    return g && tuned_url[0] && !strcmp(tuned_url, jstr(g, "url")) && winlink_preset_at(gw_hz(g));
+}
+
+/* No call after the first press (the list left, the app closed): the radio back where it was, unless a connection
+ * begun here still runs, whose end does that */
+static void tuned_drop(void) {
+    tuned_url[0] = 0;
+    if (!sess_running) {
+        winlink_preset_back(false);
+    }
 }
 
 static const char *modem_name(void) {
@@ -1118,8 +1150,18 @@ static void show(void) {
                                                          : "MFK: next field - MFK press: type - Send when done");
     } else if (view == V_READ) {
         lv_label_set_text(frame.status, "Up / Down or MFK: scroll - R: reply - Esc: back");
+    } else if (view == V_GATEWAYS && gw_tuned(cJSON_GetArrayItem(gateways, sel))) {
+        const cJSON *g = cJSON_GetArrayItem(gateways, sel);
+        char         call[24];
+
+        plain(call, sizeof(call), jstr(g, "call"));
+        lv_label_set_text_fmt(frame.status,
+                              "#%06x On %.1f kHz for %s, nothing sent: tune the antenna now if needed - Connect calls, "
+                              "the radio transmits#",
+                              theme_hex(TC_warn), jnum(g, "dial"), call);
     } else if (view == V_GATEWAYS) {
-        lv_label_set_text(frame.status, "+ called lately - Connect twice: the radio transmits");
+        lv_label_set_text(frame.status,
+                          "+ called lately - Set freq: the radio goes there, nothing sent - then Connect calls");
     } else if (view == V_SESSION && prompt_on) {
         /* the question's page has no Back, and its Abort is an answer to Pat */
         lv_label_set_text(frame.status, "Pat waits for the answer: a button here, or the web mailbox");
@@ -1193,6 +1235,14 @@ static const char *band_label(void) {
     return s;
 }
 
+/* The gateway list's Connect: what the next press does for the gateway chosen */
+static const char *go_label(void) {
+    const cJSON *g = view == V_GATEWAYS ? cJSON_GetArrayItem(gateways, sel) : NULL;
+
+    tuned_shown = gw_tuned(g);
+    return tuned_shown || (g && !gw_hz(g)) ? "Connect" : "Set\nfreq";
+}
+
 static const char *conn_label(void) {
     return sess_on || pat_busy() ? "Connection" : "Connect";
 }
@@ -1229,7 +1279,7 @@ static buttons_page_t page_compose = {{&btn_cp, &btn_next, &btn_type, &btn_send,
 
 static button_data_t  btn_gp      = {.type = BTN_TEXT, .label = "(CONNECT 1:1)"};
 static button_data_t  btn_band    = {.type = BTN_TEXT_FN, .label_fn = band_label, .press = band_cb};
-static button_data_t  btn_go      = {.type = BTN_TEXT, .label = "Connect", .press = connect_cb};
+static button_data_t  btn_go      = {.type = BTN_TEXT_FN, .label_fn = go_label, .press = connect_cb};
 static button_data_t  btn_sess    = {.type = BTN_TEXT, .label = "Connection", .press = session_view_cb};
 static button_data_t  btn_back2   = {.type = BTN_TEXT, .label = "Back", .press = back_cb};
 static buttons_page_t page_gateways = {{&btn_gp, &btn_band, &btn_go, &btn_sess, &btn_back2}};
@@ -1289,6 +1339,7 @@ static void load_page(void) {
                 buttons_load_page(&page_gateways);
             }
             buttons_refresh(&btn_band);
+            buttons_refresh(&btn_go);
             buttons_disabled(&btn_sess, !sess_on && !pat_busy());
             break;
         case V_SESSION:
@@ -1305,6 +1356,9 @@ static void set_view(view_t v) {
         sel       = saved_sel;
         top       = saved_top;
         sel_is_gw = false;
+    }
+    if (view == V_GATEWAYS && v != V_GATEWAYS) {
+        tuned_drop();      /* the list left with no call (a call begun counts in sess_running) */
     }
     view          = v;
     view_seq++;
@@ -1818,6 +1872,7 @@ static void gateways_done(int rc, cJSON *out) {
     cJSON_Delete(gateways);
     gateways = cJSON_IsArray(out) ? cJSON_Duplicate(out, true) : cJSON_CreateArray();
     sel = top = 0;
+    load_page();            /* Connect's label is for the gateway chosen */
     show();
 }
 
@@ -1826,6 +1881,7 @@ static void load_gateways(void) {
     gateways = cJSON_CreateArray();
     sel = top = 0;
     confirm_until = 0;
+    tuned_drop();           /* another band's list: the gateway the radio was put on is not in it */
     if (!job_start_tag(gateways_done, band_i, NULL, HELPER, "gateways", bands[band_i][0] ? bands[band_i] : NULL,
                        NULL)) {
         gateways_wanted = true;     /* when the job running now is done */
@@ -2146,6 +2202,14 @@ static void session_line_cb(void *arg) {
 static void session_end_cb(void *arg) {
     sess_msg_t *m = arg;
 
+    /* Also for a window closed meanwhile: Pat found the radio on the gateway's frequency (Connect's first press) and
+     * tuned "back" to it a second after the session, before the helper ended; now to where it was before that press */
+    if (sess_running > 0) {
+        sess_running--;
+    }
+    if (!sess_running) {
+        winlink_preset_back(true);
+    }
     if (m->gen != gen) {
         return;
     }
@@ -2175,6 +2239,7 @@ static void session_end_cb(void *arg) {
 static void connect_cb(button_data_t *b) {
     const cJSON   *g = cJSON_GetArrayItem(gateways, sel);
     char          *argv[] = {HELPER, "session", NULL, NULL};
+    char           call[24];
     int            out_fd, in_fd;
     pid_t          pid;
     pthread_t      t;
@@ -2188,20 +2253,36 @@ static void connect_cb(button_data_t *b) {
     if (!g) {
         return;
     }
-    if (sess_on || pat_busy()) {
+    if (sess_on || sess_running || pat_busy()) {
         say("A connection is under way");
         return;
     }
-    /* the second press for the gateway of the first only: another chosen meanwhile asks again */
-    if (confirm_what != 1 || time(NULL) >= confirm_until || strcmp(confirm_url, jstr(g, "url"))) {
-        char call[24];
+    plain(call, sizeof(call), jstr(g, "call"));
+    if (gw_hz(g)) {
+        /* The first press (#322): the radio on the gateway's frequency, nothing sent, for as long as the antenna
+         * tuner takes. The second press, for the same gateway with the radio still there, calls; another gateway
+         * chosen or the dial turned meanwhile, and the press is a first one again */
+        if (!gw_tuned(g)) {
+            char why[96];
 
-        plain(call, sizeof(call), jstr(g, "call"));
+            if (!winlink_preset(gw_hz(g), why, sizeof(why))) {
+                tuned_url[0] = 0;
+                say("#%06x Not on %.1f kHz:# %s", theme_hex(TC_err), jnum(g, "dial"), why);
+            } else {
+                snprintf(tuned_url, sizeof(tuned_url), "%s", jstr(g, "url"));
+                note[0] = 0;        /* the status line says what the next press does */
+            }
+            load_page();
+            show();
+            return;
+        }
+    } else if (confirm_what != 1 || time(NULL) >= confirm_until || strcmp(confirm_url, jstr(g, "url"))) {
+        /* a gateway with no frequency in Pat's list: nothing to tune to, the second press within 5 s calls where the
+         * radio is */
         confirm_what  = 1;
         confirm_until = time(NULL) + CONFIRM_S;
         snprintf(confirm_url, sizeof(confirm_url), "%s", jstr(g, "url"));
-        say("#%06x Connect to %s on %.1f kHz: press again, the radio transmits#", theme_hex(TC_warn), call,
-            jnum(g, "dial"));
+        say("#%06x Connect to %s: press again, the radio transmits where it is#", theme_hex(TC_warn), call);
         return;
     }
     confirm_until = 0;
@@ -2235,6 +2316,8 @@ static void connect_cb(button_data_t *b) {
     sess_pid = pid;
     sess_in  = in_fd;
     sess_on  = true;
+    sess_running++;
+    tuned_url[0] = 0;       /* the call is made: the radio goes back when it ends (session_end_cb) */
     sess_connected = sess_dialing = false;
     sess_log_n     = 0;
     prog_total     = 0;
@@ -2284,6 +2367,10 @@ static void move_sel(int d) {
     if (confirm_until && confirm_what == 1) {   /* Connect's first press was for the gateway left */
         confirm_until = 0;
         note[0]       = 0;
+    }
+    if (view == V_GATEWAYS) {
+        keep_sel_shown();
+        buttons_refresh(&btn_go);               /* Set freq or Connect, for the gateway chosen now */
     }
     show();
 }
@@ -2415,12 +2502,10 @@ static void key_cb(lv_event_t *e) {
                     move_sel(1);
                     break;
                 case LV_KEY_HOME:
-                    sel = 0;
-                    show();
+                    move_sel(-sel);
                     break;
                 case LV_KEY_END:
-                    sel = list_n() - 1;
-                    show();
+                    move_sel(list_n() - 1 - sel);
                     break;
                 case LV_KEY_ENTER:
                 case '\r':
@@ -2531,6 +2616,10 @@ static void timer_cb(lv_timer_t *t) {
         confirm_until = 0;
         show();
     }
+    if (view == V_GATEWAYS && !osk_open_now && tuned_shown != gw_tuned(cJSON_GetArrayItem(gateways, sel))) {
+        buttons_refresh(&btn_go);    /* the dial turned after the first press: the next one is a first one again */
+        show();
+    }
 }
 
 static void construct_cb(lv_obj_t *parent) {
@@ -2581,6 +2670,7 @@ static void destruct_cb(void) {
         timer = NULL;
     }
     lv_group_remove_obj(dialog.obj);
+    tuned_drop();           /* closed after Connect's first press, with no call: the radio back where it was */
     if (sess_in >= 0) {
         close(sess_in);     /* the helper sees its stdin end and goes on to the end of the connection */
         sess_in = -1;

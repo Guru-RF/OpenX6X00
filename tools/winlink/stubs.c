@@ -21,6 +21,8 @@
  *    WL_SWR_LATE  a file: a trip counted at the next look at the trips (radio_swr_trips), outside any key, and the
  *                 file goes: as swr_trip_cb counts one the LVGL thread runs after the key ended, or another
  *                 transmission's (a PTT, FT8)
+ *    WL_PRESET    set: no modem waited for; APP > Mail's Connect (#322) step by step, a line on stdout each
+ *                 (preset_steps), then the end
  *  The receiver has a little noise under what it hears. The player keeps time as the low-latency stream does
  *  (100 ms queued), keys the radio for the whole of it and unkeys once the last sample is out.
  *
@@ -44,6 +46,7 @@
 #include <liquid/liquid.h>
 
 #include <math.h>
+#include <netinet/in.h>
 #include <pthread.h>
 #include <pulse/error.h>
 #include <pulse/simple.h>
@@ -397,12 +400,130 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     return !stopped;
 }
 
+/* WL_PRESET: APP > Mail's Connect as the app presses it (#322), a line on stdout for each step, then the end. The
+ * first press tunes and keys nothing, the second finds the radio there, and the way back is to where the radio was */
+static void preset_line(const char *step, bool ok, const char *why, int32_t asked) {
+    printf("%s ok=%d freq=%d mode=%s at=%d keyed=%d busy=%d why=%s\n", step, ok, (int)freq.v,
+           channels_mode_name(mode.v), winlink_preset_at(asked), atomic_load(&keyed) ? 1 : 0, winlink_busy() ? 1 : 0,
+           why);
+}
+
+/* Pat's \set_freq through the rigctld, its answer in reply */
+static const char *pat_tunes(int32_t hz, char *reply, size_t size) {
+    struct sockaddr_in a = {.sin_family = AF_INET, .sin_port = htons(stub_rig_port()),
+                            .sin_addr.s_addr = htonl(INADDR_LOOPBACK)};
+    char               line[32];
+    ssize_t            n  = -1;
+    int                fd = -1;
+
+    for (int i = 0; i < 50; i++) {      /* the rigctld listens a moment after winlink_init() */
+        fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+        if (fd >= 0 && connect(fd, (struct sockaddr *)&a, sizeof(a)) == 0)
+            break;
+        if (fd >= 0)
+            close(fd);
+        fd = -1;
+        usleep(100000);
+    }
+    reply[0] = 0;
+    if (fd < 0)
+        return reply;
+    snprintf(line, sizeof(line), "F %d\n", (int)hz);
+    if (send(fd, line, strlen(line), MSG_NOSIGNAL) > 0)
+        n = recv(fd, reply, size - 1, 0);
+    close(fd);
+    reply[n > 0 ? n : 0] = 0;
+    reply[strcspn(reply, "\r\n")] = 0;
+    return reply;
+}
+
+static int preset_steps(void) {
+    const char *app = getenv("WL_APP");
+    char        why[96] = "";
+    bool        ok;
+    FILE       *f;
+
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    freq.v = 14105000;
+    mode.v = radio_mode_cw;
+    ok     = winlink_preset(7101500, why, sizeof(why));
+    preset_line("first", ok, why, 7101500);
+    ok = winlink_preset(10145000, why, sizeof(why));        /* another gateway chosen: the way back stays */
+    preset_line("other", ok, why, 10145000);
+    preset_line("other-first", ok, why, 7101500);
+    winlink_preset_back(false);
+    preset_line("back", true, "", 10145000);
+
+    ok     = winlink_preset(7101500, why, sizeof(why));
+    freq.v = 7050000;                                       /* the dial turned after the first press */
+    preset_line("turned", ok, why, 7101500);
+    winlink_preset_back(false);
+    preset_line("turned-back", true, "", 7101500);
+
+    if (app && (f = fopen(app, "w"))) {                     /* a digital app holds the radio */
+        fputs("FT8", f);
+        fclose(f);
+        why[0] = 0;
+        ok     = winlink_preset(7101500, why, sizeof(why));
+        preset_line("app", ok, why, 7101500);
+        unlink(app);
+    }
+    why[0] = 0;
+    ok     = winlink_preset(99000000, why, sizeof(why));
+    preset_line("far", ok, why, 99000000);
+
+    /* the connection over while the modem's last frame is on the air: back once it is out */
+    freq.v = 14105000;
+    why[0] = 0;
+    ok     = winlink_preset(7101500, why, sizeof(why));
+    atomic_store(&keyed, true);
+    winlink_preset_back(true);
+    preset_line("air", ok, why, 7101500);
+    atomic_store(&keyed, false);
+    for (int i = 0; i < 30 && freq.v != 14105000; i++)
+        usleep(100000);
+    preset_line("air-over", true, "", 7101500);
+
+    /* the second press: Pat's QSY finds the radio there, its tune back after the session leaves it there, and the
+     * way back is the app's */
+    ok = winlink_preset(7101500, why, sizeof(why));
+    preset_line("again", ok, why, 7101500);
+    preset_line("pat-qsy", !strcmp(pat_tunes(7101500, why, sizeof(why)), "RPRT 0"), why, 7101500);
+    preset_line("pat-back", !strcmp(pat_tunes(7101500, why, sizeof(why)), "RPRT 0"), why, 7101500);
+    winlink_preset_back(true);
+    preset_line("over", true, "", 7101500);
+
+    /* the first press, then a connection from the web mailbox on that frequency: the list left in the app does not
+     * take the radio from it. Before that, a tune of Pat's from before the press (the last connection's) counts
+     * for nothing: the way back is made */
+    usleep(20000);
+    ok = winlink_preset(7101500, why, sizeof(why));
+    winlink_preset_back(false);
+    preset_line("retry", ok, why, 7101500);
+    ok = winlink_preset(7101500, why, sizeof(why));
+    usleep(20000);
+    pat_tunes(7101500, why, sizeof(why));
+    winlink_preset_back(false);
+    preset_line("web", ok, why, 7101500);
+    freq.v = 14105000;
+
+    /* on the air at the first press: not tuned */
+    atomic_store(&keyed, true);
+    why[0] = 0;
+    ok     = winlink_preset(7101500, why, sizeof(why));
+    preset_line("air-first", ok, why, 7101500);
+    atomic_store(&keyed, false);
+    return 0;
+}
+
 int main(void) {
     setvbuf(stderr, NULL, _IOLBF, 0);
     if (getenv("WL_MODE"))      /* the dial's mode as it starts, radio_mode_t; USB-D otherwise */
         mode.v = atoi(getenv("WL_MODE"));
     air_init();
     winlink_init();
+    if (getenv("WL_PRESET"))
+        return preset_steps();
     for (;;)
         pause();
 }
