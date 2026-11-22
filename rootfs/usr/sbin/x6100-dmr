@@ -41,13 +41,20 @@
 #   /mnt/dmr/names.json   the names radioid.net gave for the DMR IDs heard, each with when it was asked: a name is
 #                         asked again after 30 days (a new callsign or name), an ID radioid.net did not know after
 #                         a day (registered since)
+#   /mnt/dmr/heard.tsv    the listening log: a line for each call heard of half a second or more, kept over the
+#                         app's closing and the radio's restart, for the web page's Listening log and its ADIF
+#                         (listening reports, SWL) and CSV. Tab-separated: the start (Unix time), the DMR ID, the
+#                         name as radioid.net had it then (empty: not known yet, the page looks it up in names.json),
+#                         the talkgroup (a private call: our own DMR ID), the seconds, the network, group|private.
+#                         Over 2 MB it becomes heard.tsv.1 (the one before it goes) and a new one starts
 # The callsign is the radio's (Settings > General, params.db).
 #
 # The log, for a report: /mnt/app_logs/dmr.txt (logins, their ends and why, the calls heard; never the password).
 # The web page's "On the air": /tmp/x6100-dmr.json while it runs.
 #
 # After the CX8ANM edition's x6100-dmr (condoruy/OpenX6X00-CX8ANM c6e7be19, 2cffbc0c): the login and the description,
-# the voice frames passed on to the GUI, the calls' start and end, the names, the web page's last heard.
+# the voice frames passed on to the GUI, the calls' start and end, the names, the web page's last heard; the
+# listening log after its 7841ea61.
 #
 # For tests and the bench only: X6100_DMR_DIR (the settings' folder), X6100_DMR_LOG, X6100_DMR_STATUS, X6100_PARAMS_DB,
 # X6100_DMR_RADIOID (the name lookup's URL with {} for the ID; empty: none), X6100_DMR_PING, X6100_DMR_DEAD,
@@ -81,6 +88,9 @@ DIR = os.environ.get("X6100_DMR_DIR") or "/mnt/dmr"
 CONF = os.path.join(DIR, "dmr.conf")
 PASSWORD = os.path.join(DIR, "password")
 NAMES = os.path.join(DIR, "names.json")
+HEARD_LOG = os.path.join(DIR, "heard.tsv")
+HEARD_LOG_MAX = 2 * 1024 * 1024     # bytes: then it is heard.tsv.1 and a new one starts (some 40 000 calls each)
+HEARD_LOG_MIN = 0.5                 # s: a shorter call (a key touched, one frame of a late entry) is not logged
 LOG = os.environ.get("X6100_DMR_LOG") or "/mnt/app_logs/dmr.txt"
 LOG_MAX = 256 * 1024
 STATUS = os.environ.get("X6100_DMR_STATUS") or "/tmp/x6100-dmr.json"
@@ -510,6 +520,21 @@ class Status:
             pass
 
 
+def heard_log(start, src, name, dst, secs, private, network, path=None):
+    """A call heard, added to the listening log (the header: /mnt/dmr/heard.tsv). The log is the user's own record
+    and no secret: readable as dmr.conf is, in a folder made for root alone when it is not there yet"""
+    path = path or HEARD_LOG
+    try:
+        os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+        if os.path.exists(path) and os.path.getsize(path) > HEARD_LOG_MAX:
+            os.replace(path, path + ".1")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write("%d\t%d\t%s\t%d\t%d\t%s\t%s\n" % (int(start), src, clean(name, 40), dst, int(round(secs)),
+                                                      clean(network, 60), "private" if private else "group"))
+    except OSError:
+        pass
+
+
 # ---------- the calls ----------
 
 class Calls:
@@ -575,6 +600,8 @@ class Calls:
         log(f"heard {c['src']}{' ' + name if name else ''} on {'private' if c['private'] else 'TG'} {c['dst']} "
             f"TS{c['slot']}, {secs:.0f} s")
         self.status.heard(c["src"], name, c["dst"], c["wall"], secs)
+        if secs >= HEARD_LOG_MIN:
+            heard_log(c["wall"], c["src"], name, c["dst"], secs, c["private"], self.s.name)
         self.status.set(talker=None)
 
     def tick(self):

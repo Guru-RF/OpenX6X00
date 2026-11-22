@@ -7,7 +7,15 @@
 # - dmr_test.py: rootfs/usr/sbin/x6100-dmr, the helper, against a fake master on 127.0.0.1 (fake_master.py) that
 #   answers as the MMDVM hotspot protocol does: the login, the options, the keepalive, the logout, the voice frames
 #   it passes on and the ones it drops, the refusals, the secrets kept out of everything it writes, and that it
-#   sends nothing but those packets (no voice, no data). Any other address fails the test.
+#   sends nothing but those packets (no voice, no data). Any other address fails the test. The listening log it
+#   keeps (heard.tsv): a line a call, the short ones left out, the full log set aside.
+# - dmr_web_test.py: the web DMR page's Listening log over such a log: the list, the search, the ADIF of listening
+#   reports and the CSV. BOTTLE: a folder with bottle.py, by default the radio's own from a buildroot tree built next
+#   to this repository, as in tools/flights; without it this one is skipped.
+TOP    := ../..
+BOTTLE ?= $(patsubst %/,%,$(dir $(firstword $(wildcard \
+              $(TOP)/../AetherX6200Buildroot/build/build/python-bottle-*/bottle.py \
+              $(TOP)/../AetherX6100Buildroot/build/build/python-bottle-*/bottle.py))))
 SRC    := ../../src
 MBE    := ../../third-party/mbelib
 CFLAGS := -std=gnu11 -Wall -Wextra -Werror -O1 -g -I $(SRC)
@@ -35,6 +43,7 @@ test: dmr_ambe_test dmr_proto_test dmr_proto_dump
 	./dmr_ambe_test
 	./dmr_proto_test
 	python3 -I -B dmr_test.py
+	BOTTLE=$(if $(BOTTLE),$(abspath $(BOTTLE))) python3 -I -B dmr_web_test.py
 
 clean:
 	rm -f dmr_ambe_test dmr_proto_test dmr_proto_dump *.o

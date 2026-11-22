@@ -48,6 +48,35 @@
   <div class="dp-body"><p id="onair" class="meta">The app is not listening.</p><ul id="heard"></ul></div>
 </div>
 
+<div class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-list"/></svg></span><div><h3>Listening log</h3><p>Every station the app heard for half a second or more, kept on the radio (/mnt/dmr/heard.tsv). These are listening reports (SWL), not QSOs: nothing was on the air, and nobody was worked. A callsign opens its page on QRZ.com.</p></div></div>
+  <div class="dp-body">
+    <div class="actions" style="margin-top:0">
+      <input id="log-q" type="search" placeholder="Callsign or name" maxlength="40" autocomplete="off" autocapitalize="none" spellcheck="false" style="width:12em" aria-label="Callsign or name">
+      <input id="log-tg" type="text" inputmode="numeric" placeholder="TG" maxlength="8" autocomplete="off" style="width:6em" aria-label="Talkgroup">
+      <label>From <input id="log-from" type="date"></label>
+      <label>To <input id="log-to" type="date"></label>
+      <button type="button" id="log-search">Search</button>
+      <span class="status" id="log-status"></span>
+    </div>
+  </div>
+  <div class="dp-body tbl">
+    <div class="table-wrap">
+      <table id="log">
+        <thead><tr><th>Date and time</th><th>Station</th><th>Name</th><th>TG</th><th>Seconds</th><th>Network</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="dp-body">
+    <div class="actions" style="margin-top:0">
+      <button type="button" id="log-adif">Download ADIF (SWL)</button>
+      <button type="button" id="log-csv">Download CSV</button>
+    </div>
+    <p class="meta">The downloads take the search above, all of it, not only the rows shown. The ADIF marks every record as a listening report (SWL Y, mode DIGITALVOICE with submode DMR, propagation INTERNET, no band): a logging program keeps them apart from your QSOs. A station whose DMR ID has no callsign at radioid.net is in the CSV only. Date and time here are the radio's local time; the files have UTC.</p>
+  </div>
+</div>
+
 <script src="/static/js/edit_flow.js?v=3"></script>
 <script>
 var showStatus = function(id, text, error=false) {
@@ -61,16 +90,58 @@ var hotspot = function() {
   $("#hotspot").text(id ? id + s : "-");
 }
 
+/* "ON4ABC Jan" as a span: the callsign a link to its page on QRZ.com, the rest text. What is no callsign (a DMR ID,
+   a name alone) stays text */
+var station = function(who) {
+  who = String(who == null ? "" : who);
+  const call = who.split(" ")[0], span = $("<span>");
+  if (/^[A-Z0-9]{3,12}$/i.test(call) && /[A-Z]/i.test(call) && /[0-9]/.test(call)) {
+    span.append($("<a>").attr({href: "https://www.qrz.com/db/" + encodeURIComponent(call.toUpperCase()),
+                               target: "_blank", rel: "noopener noreferrer"}).text(call));
+    span.append(document.createTextNode(who.slice(call.length)));
+  } else {
+    span.text(who);
+  }
+  return span;
+}
+
 var showOnAir = function(a) {
   const heard = $("#heard").empty();
   if (!a) { $("#onair").text("The app is not listening."); return; }
   let text = a.network + " " + a.master + ", hotspot " + a.hotspot + (a.tg ? ", TG " + a.tg : "") + ": " + a.state;
   if (a.why) text += " (" + a.why + ")";
-  if (a.talker) text += ". Talking now: " + (a.talker.name || a.talker.id) + " on " + a.talker.tg;
   $("#onair").text(text);
+  if (a.talker) $("#onair").append(document.createTextNode(". Talking now: "), station(a.talker.name || a.talker.id),
+                                   document.createTextNode(" on " + a.talker.tg));
   (a.heard || []).forEach(function(h) {
-    $("<li>").text((h.name || h.id) + ", TG " + h.tg + ", " + h.secs + " s, " +
-                   new Date(h.start * 1000).toLocaleTimeString()).appendTo(heard);
+    $("<li>").append(station(h.name || h.id), document.createTextNode(", TG " + h.tg + ", " + h.secs + " s, " +
+                     new Date(h.start * 1000).toLocaleTimeString())).appendTo(heard);
+  });
+}
+
+/* The search as it was last shown: the downloads are of what the table shows the newest of */
+var logShown = "";
+
+var logQuery = function() {
+  return $.param({q: $("#log-q").val().trim(), tg: $("#log-tg").val().trim(), from: $("#log-from").val(),
+                  to: $("#log-to").val()});
+}
+
+var loadLog = function() {
+  const q = logQuery();
+  $.ajax({url: "/api/dmr/log?" + q, dataType: "json", timeout: 20000,
+    success: function(r) {
+      const tb = $("#log tbody").empty();
+      r.rows.forEach(function(h) {
+        $("<tr>").append($("<td>").text(h.local), $("<td>").append(station(h.call || h.id)), $("<td>").text(h.name),
+                         $("<td>").text(h.private ? "private" : h.tg), $("<td>").text(h.secs),
+                         $("<td>").text(h.network)).appendTo(tb);
+      });
+      logShown = q;
+      showStatus("#log-status", r.more ? "The newest " + r.rows.length + " shown" :
+                                r.rows.length ? "Heard: " + r.rows.length : "Nothing heard yet");
+    },
+    error: function(xhr, why) { showStatus("#log-status", x6100FailText(xhr, why, 20000), true); }
   });
 }
 
@@ -108,6 +179,11 @@ var post = function(url, data, done, ms) {
 }
 
 $.get('/api/dmr', {}, render);
+loadLog();
+$("#log-search").on("click", loadLog);
+$("#log-q, #log-tg").on("keydown", function(e) { if (e.key === "Enter") { e.preventDefault(); loadLog(); } });
+$("#log-adif").on("click", function() { window.location = "/api/dmr/log.adi?" + logShown; });
+$("#log-csv").on("click", function() { window.location = "/api/dmr/log.csv?" + logShown; });
 $("#dmr_id, #ssid").on("input", hotspot);
 setInterval(function() {
   if (!document.hidden) $.get('/api/dmr', {}, function(d) { showOnAir(d.on_air); });

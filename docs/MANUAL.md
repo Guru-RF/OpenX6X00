@@ -6902,6 +6902,38 @@ and its software, "OpenX6X00" and the version.
 
 The settings are in `/mnt/dmr/dmr.conf`, in the Backup's Apps' lists.
 
+**The listening log**, on the same page: every call the app heard for half
+a second or more, the newest first, with its date and time (the radio's
+local time), the station's callsign and name as radioid.net had them, the
+talkgroup (*private* for a call to your own DMR ID), the seconds and the
+network. These are listening reports (SWL), not QSOs: nothing went on the
+air and nobody was worked.
+
+- **Search** narrows it: part of a callsign or a name (or a DMR ID), a
+  talkgroup's number, a first and a last day. The page shows the newest 500
+  of what the search finds.
+- A callsign, here and under On the air, is a link to its page on
+  [QRZ.com](https://www.qrz.com/), in a new tab. The link is made in your
+  browser: the radio itself asks QRZ.com nothing.
+- **Download ADIF (SWL)** and **Download CSV** give all the search finds, in
+  UTC. Each ADIF record is a listening report: `SWL` Y, `MODE` DIGITALVOICE
+  with `SUBMODE` DMR, `PROP_MODE` INTERNET, the station's callsign and name,
+  the times it started and ended, your own callsign as `STATION_CALLSIGN`,
+  and the talkgroup, the network, the seconds and the DMR ID in `COMMENT`;
+  no band, no frequency and no report, since nothing was on the air. A
+  logging program that knows `SWL` keeps them apart from your QSOs; check
+  what yours does before you import them, and do not send them to a QSL
+  service as contacts. A station whose DMR ID has no callsign at radioid.net
+  is in the CSV only.
+- The log is `/mnt/dmr/heard.tsv` on the DATA partition (Files page), a
+  line a call, tab-separated: the start (Unix time), the DMR ID, the name,
+  the talkgroup, the seconds, the network, `group` or `private`. It stays
+  over a restart and an update. Over 2 MB (some 40 000 calls) it becomes
+  `heard.tsv.1` and a new one starts; the page reads both. It is not in the
+  Backup; delete the two files on the Files page to start again.
+- After the CX8ANM edition of OpenX6X00 (condoruy), whose listening log this
+  is.
+
 **On the radio:**
 
 - Turn the MFK to a talkgroup and press it: the radio logs in and listens to

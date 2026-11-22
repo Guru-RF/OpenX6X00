@@ -5882,5 +5882,163 @@ def test_dmr():
     return {"ok": ok, "msg": line[3:] if ok else line[6:] if line.startswith("error ") else line}
 
 
+# The DMR listening log: every call the app heard of half a second or more, which x6100-dmr adds to DMR_DIR/heard.tsv
+# (and heard.tsv.1, the file before it): the start, the DMR ID, the name radioid.net had, the talkgroup, the seconds,
+# the network, group|private. The page lists the newest, searched by callsign or name, talkgroup and day; the same
+# search downloads as ADIF and as CSV. The ADIF's records are listening reports, not QSOs: SWL Y, MODE DIGITALVOICE
+# with SUBMODE DMR, PROP_MODE INTERNET, no band and no frequency (nothing was on the air), in the form of the radio's
+# other logs (adif_header, lengths in bytes). After the CX8ANM edition's listening log (condoruy/OpenX6X00-CX8ANM
+# 7841ea61).
+
+DMR_LOG_SHOWN = 500             # rows the page shows; the downloads have them all
+DMR_DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
+DMR_CALL = re.compile(r"(?=[A-Z0-9/]*[A-Z])(?=[A-Z0-9/]*[0-9])[A-Z0-9/]{3,15}")
+
+
+def dmr_names():
+    """names.json's name for each DMR ID heard ({ID: [name, when asked]}, or the name alone from before)"""
+    try:
+        with open(dmr_path("names.json"), encoding="utf-8") as f:
+            db = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for k, v in db.items() if isinstance(db, dict) else ():
+        name = v[0] if isinstance(v, list) and v else v
+        if isinstance(name, str) and name:
+            out[k] = name
+    return out
+
+
+def dmr_log(q="", tg="", day_from="", day_to="", limit=None):
+    """The calls heard, the newest first. q: part of a callsign or a name, or a DMR ID; tg: a talkgroup's number;
+    day_from, day_to: YYYY-MM-DD, the radio's local days. A line that is not a call's is left out"""
+    lines = []
+    for name in ("heard.tsv.1", "heard.tsv"):
+        try:
+            with open(dmr_path(name), encoding="utf-8", errors="replace") as f:
+                lines += f.read().splitlines()
+        except OSError:
+            pass
+    names = None
+    q = q.strip().upper()
+    tg = tg.strip()
+    out = []
+    for line in reversed(lines):
+        p = line.split("\t")
+        if len(p) < 5 or not p[1].isdigit():
+            continue
+        try:
+            start, dst, secs = int(p[0]), int(p[3]), int(p[4])
+        except ValueError:
+            continue
+        who = p[2]
+        if not who:             # heard before radioid.net answered: the name it has by now
+            if names is None:
+                names = dmr_names()
+            who = names.get(p[1], "")
+        call, _, name = who.partition(" ")
+        if not DMR_CALL.fullmatch(call.upper()):    # radioid.net has no callsign for the ID: the name alone
+            call, name = "", who
+        local = time.localtime(start)
+        day = time.strftime("%Y-%m-%d", local)
+        if tg and str(dst) != tg:
+            continue
+        if (day_from and day < day_from) or (day_to and day > day_to):
+            continue
+        if q and q not in who.upper() and q != p[1]:
+            continue
+        out.append({"start": start, "local": time.strftime("%Y-%m-%d %H:%M:%S", local), "id": int(p[1]),
+                    "call": call.upper(), "name": name.strip(), "tg": dst, "secs": secs,
+                    "network": p[5] if len(p) > 5 else "", "private": len(p) > 6 and p[6] == "private"})
+        if limit and len(out) >= limit:
+            break
+    return out
+
+
+def dmr_log_search():
+    """The search of a request: q, tg, from, to. ValueError says which one is not what it should be"""
+    g = bottle.request.query
+    q, tg = g.getunicode("q", "") or "", g.getunicode("tg", "") or ""
+    days = [g.getunicode(k, "") or "" for k in ("from", "to")]
+    if len(q) > 40:
+        raise ValueError("Search: up to 40 characters")
+    if tg.strip() and not re.fullmatch(r"\d{1,8}", tg.strip()):
+        raise ValueError("TG: a talkgroup's number")
+    if any(d and not DMR_DAY.fullmatch(d) for d in days):
+        raise ValueError("From, To: a day as 2026-11-21")
+    return {"q": q, "tg": tg, "day_from": days[0], "day_to": days[1]}
+
+
+@app.get('/api/dmr/log')
+def get_dmr_log():
+    try:
+        rows = dmr_log(limit=DMR_LOG_SHOWN + 1, **dmr_log_search())
+    except ValueError as e:
+        return api_error(400, str(e))
+    return {"rows": rows[:DMR_LOG_SHOWN], "more": len(rows) > DMR_LOG_SHOWN}
+
+
+def dmr_adif_record(r, station):
+    """A call heard as an ADIF listening report"""
+    def field(name, value):
+        v = str(value).encode()
+        return b"<%s:%d>%s " % (name.encode(), len(v), v) if v else b""
+
+    on, off = time.gmtime(r["start"]), time.gmtime(r["start"] + r["secs"])
+    where = "private call" if r["private"] else "TG %d" % r["tg"]
+    comment = "Heard on DMR over the internet: %s%s, %d s, DMR ID %d" % (
+        where, ", " + r["network"] if r["network"] else "", r["secs"], r["id"])
+    return (field("CALL", r["call"]) + field("QSO_DATE", time.strftime("%Y%m%d", on))
+            + field("TIME_ON", time.strftime("%H%M%S", on)) + field("QSO_DATE_OFF", time.strftime("%Y%m%d", off))
+            + field("TIME_OFF", time.strftime("%H%M%S", off)) + field("MODE", "DIGITALVOICE")
+            + field("SUBMODE", "DMR") + field("SWL", "Y") + field("PROP_MODE", "INTERNET")
+            + field("NAME", r["name"]) + field("COMMENT", comment) + field("STATION_CALLSIGN", station)
+            + b"<eor>\n")
+
+
+def dmr_log_file(ext):
+    return f'attachment; filename="x6100-dmr-heard-{time.strftime("%Y%m%d-%H%M")}.{ext}"'
+
+
+@app.get('/api/dmr/log.adi')
+def get_dmr_log_adif():
+    """The search as ADIF, the oldest first. A call of an ID without a callsign is no report: left out"""
+    try:
+        rows = dmr_log(**dmr_log_search())
+    except ValueError as e:
+        return api_error(400, str(e))
+    station = read_callsign().strip().upper()
+    body = adif_header("OpenX6X00 DMR listening log: stations heard over the internet (SWL reports, not QSOs)")
+    body += b"".join(dmr_adif_record(r, station) for r in reversed(rows) if r["call"])
+    bottle.response.content_type = "text/plain; charset=utf-8"
+    bottle.response.set_header("Content-Disposition", dmr_log_file("adi"))
+    return body
+
+
+def dmr_csv_text(text):
+    """A name from elsewhere in a CSV cell: a spreadsheet takes a cell that starts with = + - or @ for a formula"""
+    return "'" + text if text[:1] in ("=", "+", "-", "@") else text
+
+
+@app.get('/api/dmr/log.csv')
+def get_dmr_log_csv():
+    """The search as CSV, the newest first, the calls without a callsign too. Times in UTC, as the ADIF's"""
+    try:
+        rows = dmr_log(**dmr_log_search())
+    except ValueError as e:
+        return api_error(400, str(e))
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["UTC", "CALL", "NAME", "DMR_ID", "TALKGROUP", "PRIVATE", "SECONDS", "NETWORK"])
+    for r in rows:
+        w.writerow([time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(r["start"])), r["call"],
+                    dmr_csv_text(r["name"]), r["id"], r["tg"], "Y" if r["private"] else "", r["secs"],
+                    dmr_csv_text(r["network"])])
+    bottle.response.content_type = "text/csv; charset=utf-8"
+    bottle.response.set_header("Content-Disposition", dmr_log_file("csv"))
+    return out.getvalue()
+
+
 # The Bands, Digital modes, Time and Files pages, static files: config_pages.py adds their routes to app
 from . import config_pages   # noqa: E402,F401  (last: it imports app and api_error from here)

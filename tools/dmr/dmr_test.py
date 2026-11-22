@@ -318,6 +318,60 @@ class DmrHelper(unittest.TestCase):
         self.assertLess(abs(time.time() - when), 60)
         s.close()
 
+    # ---------- the listening log ----------
+
+    def heard_log(self, name="heard.tsv"):
+        with open(os.path.join(self.data, name), encoding="utf-8") as f:
+            return [line.split("\t") for line in f.read().splitlines()]
+
+    def test_heard_log(self):
+        """Each call of half a second or more is a line of heard.tsv: its start, the ID, the name known then, the
+        talkgroup, the seconds, the network, group or private; a shorter one is not; the log stays after the app
+        closes and the next session adds to it"""
+        with open(os.path.join(self.data, "names.json"), "w") as f:
+            json.dump({"9990002": ["ON4ABC\tJan\n", int(time.time())]}, f)     # a tab and a line end in a name
+        s = self.online()
+        t0 = time.time()
+        self.master.call(9990001, 91, 0x1111, 12)               # 0.66 s, no name known
+        s.wait_line("end 9990001")
+        self.master.call(9990003, 91, 0x2222, 3)                # 0.12 s: heard, not logged
+        s.wait_line("end 9990003")
+        self.master.call(9990002, int(DMR_ID), 0x3333, 12, slot=1, private=True)
+        s.wait_line("end 9990002")
+        s.close()
+        rows = self.heard_log()
+        self.assertEqual([r[1:4] + r[5:] for r in rows],
+                         [["9990001", "", "91", "FreeDMR", "group"],
+                          ["9990002", "ON4ABC Jan", DMR_ID, "FreeDMR", "private"]])
+        for r in rows:
+            self.assertEqual(len(r), 7)
+            self.assertLess(abs(int(r[0]) - t0), 30)            # the start, Unix time
+            self.assertEqual(r[4], "1")                         # 0.66 s, rounded
+        with open(self.log) as f:
+            self.assertEqual(f.read().count("heard 999000"), 3)     # the app's log has the short one too
+        s = self.online("2062")
+        self.master.call(9990001, 2062, 0x4444, 12)
+        s.wait_line("end 9990001")
+        s.close()
+        self.assertEqual([r[3] for r in self.heard_log()], ["91", DMR_ID, "2062"])
+
+    def test_heard_log_full(self):
+        """Over 2 MB the log becomes heard.tsv.1, the one before it gone, and a new one starts"""
+        path = os.path.join(self.data, "heard.tsv")
+        line = "1700000000\t9990009\tOLD1 Old\t91\t5\tFreeDMR\tgroup\n"
+        with open(path, "w") as f:
+            f.write(line * (2 * 1024 * 1024 // len(line) + 1))
+        with open(path + ".1", "w") as f:
+            f.write("the one before\n")
+        s = self.online()
+        self.master.call(9990001, 91, 0x1111, 12)
+        s.wait_line("end 9990001")
+        s.close()
+        self.assertEqual([r[1] for r in self.heard_log()], ["9990001"])
+        old = self.heard_log("heard.tsv.1")
+        self.assertGreater(len(old), 40000)
+        self.assertEqual(old[0][1], "9990009")
+
     def test_names_asked_again(self):
         """Old names are shown and asked again (30 days; a day for an ID radioid.net did not know); a fresh one is
         not; an empty answer keeps the name known"""
