@@ -75,11 +75,18 @@ it, the first time with a download of about 150 MB, then it only gives the path;
   -5.5 dBFS as the GUI's player gets it: Mercury 1.9.21's level, which the
   supervisor's `tx_gain_db = -4` keeps (2026-11-22: -6.0 dBFS a data mode, -6.5 the
   MFSK; with `tx_gain_db = 0`, 1.9.25's own level, -2.0 and -2.5, and the check
-  fails). Then a session of the two Mercurys alone (`CONNECT` on A's host port) and
-  SIGTERM to each bridge with it up: stopped within 3 s with code 0 and no key after
-  (0.1 s; without the bridge's `mercury_stop` before `mercury_request_shutdown()`,
-  1.9.25 waits for a DISCONNECT that the ended audio cannot carry: 4.6 s here). About
-  a minute and a half (2026-11-22, 1.9.25: Pat's session 68 s, eight keys a station,
+  fails). Then the stop. A session of the two Mercurys alone (`CONNECT` on A's host
+  port) and SIGTERM to A's bridge: it has Mercury end the session on the air first,
+  so B's Mercury says `DISCONNECTED` (22 s later here: the DISCONNECT waits for its
+  turn), the goodbye is keyed through the GUI and played to its end, A leaves with
+  code 0 within the bridge's 42 s and the stop, and keys no more; B, with no session
+  left, stops at once (0.0 s) with no goodbye. Both bridges start again for a second
+  session: a second SIGTERM during A's goodbye stops it at once (0.7 s after the
+  first), and B's goodbye, with nobody there to answer, still ends (14.5 s). The
+  bound itself (a goodbye that never gets out: given up at 42 s, SIGALRM behind it)
+  is not reached here; the supervisor's side of it is in `winlink_test.py`
+  (`ModemStop`, with a stand-in that never ends). About
+  three minutes (2026-11-22, 1.9.25: Pat's session 68 s, eight keys a station,
   the longest 3.8 s; 2026-10-29, 1.9.21: 58 s, six keys). Both stations are the same
   build: that 1.9.25 refuses 1.9.24 and older is upstream's word and its code
   (`datalink_arq/arq.c`), not tested here.

@@ -92,10 +92,13 @@ to v0.3.13) is in group 2.
   itself (upstream #453, #549): our stand-ins for them are gone.
 - `mercury_request_shutdown()` first ends a session on the air
   (`mercury_engine_say_goodbye`, up to 40 s). Our program stops the audio
-  exchange before it, as `host/mercury_host.h` asks, so that DISCONNECT
-  could not go out: it sets `mercury_stop` first and stops at once, as
-  before. To send it, `mercury_say_goodbye()` would have to run while the
-  exchange still does, and `x6100-winlink` wait longer than its 10 s.
+  exchange before Mercury, as `host/mercury_host.h` asks, so that DISCONNECT
+  could not go out from there. With a session up (`arq_goodbye_progress()`)
+  it therefore calls `mercury_say_goodbye()` itself, on a thread, while the
+  exchange still runs, for 42 s at most or until a second SIGTERM; then the
+  exchange ends, `mercury_stop` is set and Mercury stops with no goodbye of
+  its own. `x6100-winlink` waits 55 s for it. Both calls and `mercury_stop`
+  are not in `host/mercury_host.h`: declared in `x6x00/x6x00_mercury.c`.
 - The TNC: `CWID ON` is accepted (no CW ID is sent), one host at a time on
   the ports (a second connection is refused while Pat holds them; nothing
   of ours connects to them, `x6100-winlink` looks in `/proc/net/tcp`),
