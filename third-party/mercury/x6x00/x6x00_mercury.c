@@ -14,7 +14,8 @@
  *
  *  <path> is the GUI's socket, /run/ardop.sock if not given. The rest is Mercury's command line, with -W
  *  (no spectrum: nothing shows it here) always added. The log is Mercury's, on stderr. SIGTERM or SIGINT
- *  stop it.
+ *  stop it: at once with no session up; with one, after Mercury has ended it on the air (its DISCONNECT, 42 s
+ *  at most), or at once at a second SIGTERM or SIGINT.
  *
  *  One thread owns the socket and Mercury's audio, so a key's messages go out in order: P 1, its T, P 0.
  *  Unkeyed, each R is one exchange with Mercury. Keyed, the GUI sends no R once the radio is on air, so a
@@ -56,6 +57,8 @@
 #define T_MAX       1200        /* samples in a message at most */
 #define SEND_MS     500         /* a message the GUI does not take this long: the connection is given up */
 #define ARGS_MAX    64
+#define GOODBYE_S   42          /* a session ended on the air at a stop: Mercury's cap for it is 40 s (ENGINE_GOODBYE_CAP_MS) */
+#define TAIL_MS     300         /* after its last key, for the GUI to play what it holds before the modem goes */
 
 typedef struct {
     uint8_t  type;
@@ -69,6 +72,13 @@ typedef struct {
 /* Set when Mercury stops by itself, a port it cannot open for one (common/mercury_engine.h: its own main()
  * polls it; it is not in host/mercury_host.h) */
 extern _Atomic bool mercury_stop;
+/* The end of a session on the air before Mercury stops (1.9.25; gui_interface/fyne-ui/engine/mercury_bridge.h,
+ * common/mercury_engine.c), and whether there is one to end (datalink_arq/arq.h: 0 none, also while only calling
+ * or answering a call; 1 up; 2 its DISCONNECT sent). Neither is in host/mercury_host.h */
+void mercury_say_goodbye(void);
+int  arq_goodbye_progress(void);
+
+static atomic_bool        bye_done;             /* the goodbye returned */
 
 static struct sockaddr_un gui     = {.sun_family = AF_UNIX};
 static int                fd      = -1;         /* the GUI's socket: the audio thread's */
@@ -253,6 +263,15 @@ static void *audio_thread(void *arg) {
 
 /* ---- Main --------------------------------------------------------------------------- */
 
+/* Mercury's goodbye: returns once the session's DISCONNECT is off the air or the session ended, at its own cap
+ * (40 s), or within 50 ms of mercury_stop */
+static void *goodbye(void *arg) {
+    (void)arg;
+    mercury_say_goodbye();
+    atomic_store(&bye_done, true);
+    return NULL;
+}
+
 int main(int argc, char **argv) {
     const char            *path = "/run/ardop.sock";
     char                  *margv[ARGS_MAX + 3];
@@ -305,14 +324,45 @@ int main(int argc, char **argv) {
         ;
     fprintf(stderr, "x6x00-mercury: stopping\n");
 
-    /* The exchange ends before Mercury does (host/mercury_host.h). A stop that hangs ends at SIGALRM, as
-     * Mercury's own main() has it.
-     * From 1.9.25 mercury_request_shutdown() first ends a session that is up on the air (one DISCONNECT, a wait of
-     * up to 40 s for it to get out: common/mercury_engine.c, mercury_engine_say_goodbye). Not here: the exchange
-     * that would carry that key has ended, so the DISCONNECT went nowhere while the stop waited for it (4.5 s on
-     * the PC, tools/winlink; into the alarm when the peer's slot is long in coming), and whoever stops the modem
-     * (x6100-winlink: Winlink turned off, another modem chosen) gives it 10 s and expects no key after. It
-     * returns at once when Mercury is stopping already, so the stop is as it was: at once, nothing more sent */
+    /* A session that is up is ended on the air first (Mercury 1.9.25's goodbye: one DISCONNECT, in the peer's slot
+     * or out of turn), while the audio thread still carries its key: the other station is let go at once, not by
+     * its watchdog 240 s later. On a thread of its own, so this one sees a second SIGTERM or SIGINT, which ends
+     * it at once (the key cut where it is), and the time: GOODBYE_S is Mercury's own cap and some to spare.
+     * SIGALRM, whose default ends the process, is behind both, and whatever ends the process closes the socket,
+     * at which the GUI unkeys */
+    if (!mercury_stop && arq_goodbye_progress() != 0) {
+        pthread_t       bye;
+        struct timespec tick = {.tv_sec = 0, .tv_nsec = 50000000L};
+        uint64_t        t0   = now_ms();
+        const char     *how  = "over";
+
+        fprintf(stderr, "x6x00-mercury: a session is up, ending it on the air first (%d s at most)\n", GOODBYE_S);
+        alarm(GOODBYE_S + 5);
+        if (pthread_create(&bye, NULL, goodbye, NULL) == 0) {
+            while (!atomic_load(&bye_done)) {
+                if (sigtimedwait(&stop, NULL, &tick) >= 0) {
+                    how = "cut short by a second stop";
+                    break;
+                }
+                if (now_ms() - t0 >= GOODBYE_S * 1000ULL) {
+                    how = "given up";
+                    break;
+                }
+            }
+            if (!atomic_load(&bye_done))
+                mercury_stop = true;        /* its wait ends within 50 ms */
+            pthread_join(bye, NULL);
+            /* Mercury unkeyed by its clock; the GUI still plays what it was sent ahead (LEAD, and its own 100 ms),
+             * and cuts that when the modem goes */
+            if (!mercury_stop)
+                usleep(TAIL_MS * 1000);
+        }
+        fprintf(stderr, "x6x00-mercury: the goodbye is %s, %.1f s\n", how, (now_ms() - t0) / 1000.0);
+    }
+
+    /* The exchange ends before Mercury does (host/mercury_host.h): the audio thread's P 0 unkeys what is still
+     * keyed. A stop that hangs ends at SIGALRM, as Mercury's own main() has it. mercury_request_shutdown() would
+     * begin a goodbye of its own (1.9.25), which nothing carries any more: Mercury is told it stops already */
     atomic_store(&quit, true);
     poke();
     pthread_join(th, NULL);
