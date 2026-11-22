@@ -351,6 +351,9 @@ static const struct {
 #endif
 };
 
+/* The keys[] table's "PTT": the radio's own microphone, which the "key" command leases (ptt_down) */
+#define PTT_CODE    BTN_TRIGGER_HAPPY4
+
 static uint64_t now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -2138,7 +2141,7 @@ static void ptt_down(client_t *c, const char *hold_text) {
     char     no[96];
     int32_t  f;
 
-    while (k < c->nheld && c->held[k] != BTN_TRIGGER_HAPPY4) k++;
+    while (k < c->nheld && c->held[k] != PTT_CODE) k++;
     if (!hold) {
         client_text(c, "err this session may not transmit from a page older than the radio: reload the page");
         return;
@@ -2168,8 +2171,8 @@ static void ptt_down(client_t *c, const char *hold_text) {
         return;
     }
     c->ptt_start_ms = c->ptt_ms;
-    c->held[c->nheld++] = BTN_TRIGGER_HAPPY4;
-    key_emit(BTN_TRIGGER_HAPPY4, true);
+    c->held[c->nheld++] = PTT_CODE;
+    key_emit(PTT_CODE, true);
 }
 
 /* A held PTT is a lease (R4): renewed every second by the page, or let go here; three minutes at most. Its hold
@@ -2177,10 +2180,10 @@ static void ptt_down(client_t *c, const char *hold_text) {
 static void ptt_lease(client_t *c, uint64_t now) {
     int k = 0;
 
-    while (k < c->nheld && c->held[k] != BTN_TRIGGER_HAPPY4) k++;
+    while (k < c->nheld && c->held[k] != PTT_CODE) k++;
     if (k < c->nheld && (now - c->ptt_ms > PTT_LEASE_MS || now - c->ptt_start_ms > PTT_LIMIT_MS)) {
         c->held[k] = c->held[--c->nheld];
-        key_emit(BTN_TRIGGER_HAPPY4, false);
+        key_emit(PTT_CODE, false);
         client_text(c, now - c->ptt_start_ms > PTT_LIMIT_MS ? "err ptt released: three minutes on the air"
                                                             : "err ptt released: no renewal from the page");
     }
@@ -2529,7 +2532,7 @@ static void handle_text(client_t *c, char *text) {
             client_textf(c, "err unknown key %s", a[1]);
             return;
         }
-        if (code == BTN_TRIGGER_HAPPY4 && down) {  /* PTT: the radio's own microphone, a lease */
+        if (code == PTT_CODE && down) {  /* PTT: the radio's own microphone, a lease */
             ptt_down(c, n >= 4 ? a[3] : NULL);
             return;
         }
