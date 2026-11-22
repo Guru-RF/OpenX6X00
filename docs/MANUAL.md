@@ -6600,6 +6600,25 @@ Its switches are on pages 2 and 3 of the app and are kept:
   to the same limit, and the next one waits until the squelch has closed.
 - **Pause** (page 3, 1 to 30 s, 3 s unless you change it): the time between
   the end of one transmission and the next relayed message.
+- **Tone** (page 3, Off unless you change it): a CTCSS tone under what the
+  link transmits in FM, for a repeater or a receiver whose squelch opens on
+  a tone only (#141). A press goes to the next tone up, a hold to the next
+  one down; Off sits between the highest and the lowest. The 50 usual tones
+  are there, 67.0 to 254.1 Hz. The tone is on from the moment the radio keys
+  to the moment it unkeys, under the gaps and the CW ID too. One setting for
+  both voice apps: SVXConnect's Tone button is the same one.
+  - **FM only**: in LSB, USB and AM no tone goes out.
+  - **Only what the link transmits**: your own voice from the hand mic
+    never carries the tone. Neither baseband has a tone of its own, and the
+    hand mic's voice goes straight into it, past the part that adds the
+    tone.
+  - **Level**: each tone has its own, aimed at 350 to 380 Hz of deviation.
+    That was measured on an X6200 for 91.5 and 123.0 Hz; the other tones
+    follow from those two, and nothing was measured on an X6100. The level
+    holds with Play gain and Line-in (Settings > Audio) at their defaults:
+    both move the tone as they move the voice. The voice messages' level
+    (the CQ level) does not move it. A test set, or a receiver with a tone
+    squelch, tells whether your radio's tone is right.
 
 It keeps every TX rule of the radio:
 
@@ -6762,9 +6781,9 @@ countries ask for a special permit or a club or repeater licence for this,
 allow it on some bands or frequencies only, or not at all. Check before you
 turn it on. Both directions are off until you turn them on.
 
-- **SVX>RF** and **RF>SVX** (page 2), **CW ID** (page 2), **TX limit** and
-  **Pause** (page 3) are Zello's, with the same rules and the same
-  defaults: see [Zello: Simplex repeater](#zello-simplex-repeater). That
+- **SVX>RF** and **RF>SVX** (page 2), **CW ID** (page 2), **TX limit**,
+  **Pause** and **Tone** (page 3) are Zello's, with the same rules and the
+  same defaults (Tone is one setting for both): see [Zello: Simplex repeater](#zello-simplex-repeater). That
   includes **amateur bands only**: the link keys only inside the
   [amateur bands](#amateur-bands-only) or a transverter's range, whatever TX
   outside ham bands and the TX ranges say ("Link: amateur bands only"; the

@@ -500,6 +500,10 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_svx_id_min{"svx_id_min", 60, 5, 120,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // The CTCSS tone under what the Simplex repeaters (Zello, SVXConnect) transmit in FM, in tenths of a Hz (#141);
+    // 0 off. One for both: it belongs to the frequency, not to the network
+    Parameter<int32_t> p_link_ctcss{"link_ctcss", 0, 0, 2541,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // The DMR app (dialog_dmr.c): the talkgroup last listened to, which Connect asks for again; 0 none yet
     Parameter<int32_t> p_dmr_tg{"dmr_tg", 0, 0, 16'777'215,
         StorageType::GLOBAL, pending_writes_, &global_params_};

@@ -18,6 +18,7 @@
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
+#include "ctcss.h"
 #include "dialog_zello.h"
 
 #include "board.h"
@@ -54,6 +55,8 @@ static void to_zello_cb(button_data_t *b);
 static void id_cb(button_data_t *b);
 static void limit_cb(button_data_t *b);
 static void pause_cb(button_data_t *b);
+static void tone_cb(button_data_t *b);
+static void tone_hold_cb(button_data_t *b);
 static const char *conn_label(void);
 static const char *talk_label(void);
 static const char *via_label(void);
@@ -62,6 +65,7 @@ static const char *to_zello_label(void);
 static const char *id_label(void);
 static const char *limit_label(void);
 static const char *pause_label(void);
+static const char *tone_label(void);
 
 static button_data_t btn_conn     = {.type = BTN_TEXT_FN, .label_fn = conn_label, .press = conn_cb};
 static button_data_t btn_talk     = {.type = BTN_TEXT_FN, .label_fn = talk_label, .press = talk_cb};
@@ -72,6 +76,7 @@ static button_data_t btn_to_zello = {.type = BTN_TEXT_FN, .label_fn = to_zello_l
 static button_data_t btn_id       = {.type = BTN_TEXT_FN, .label_fn = id_label, .press = id_cb};
 static button_data_t btn_limit    = {.type = BTN_TEXT_FN, .label_fn = limit_label, .press = limit_cb};
 static button_data_t btn_pause    = {.type = BTN_TEXT_FN, .label_fn = pause_label, .press = pause_cb};
+static button_data_t btn_tone = {.type = BTN_TEXT_FN, .label_fn = tone_label, .press = tone_cb, .hold = tone_hold_cb};
 
 static buttons_page_t page_1, page_2, page_3;
 
@@ -84,7 +89,7 @@ static button_data_t btn_page3 = {.type = BTN_TEXT, .label = "(ZELLO 3:3)", .pre
 
 static buttons_page_t page_1 = {{&btn_page1, &btn_conn, &btn_talk, &btn_reload}};
 static buttons_page_t page_2 = {{&btn_page2, &btn_via, &btn_to_rf, &btn_to_zello, &btn_id}};
-static buttons_page_t page_3 = {{&btn_page3, &btn_limit, &btn_pause}};
+static buttons_page_t page_3 = {{&btn_page3, &btn_limit, &btn_pause, &btn_tone}};
 
 static dialog_t dialog = {
     .run          = false,
@@ -169,6 +174,16 @@ static const char *pause_label(void) {
     static char buf[32];
 
     snprintf(buf, sizeof(buf), "Pause:\n%d s", (int)param_i_get(cfg_zello_pause));
+    return buf;
+}
+
+/* The CTCSS tone under the link's FM transmissions (ctcss.h), one for both voice apps */
+static const char *tone_label(void) {
+    static char buf[32];
+    int         t = ctcss_valid(param_i_get(cfg_link_ctcss));
+
+    if (t == CTCSS_OFF) return "Tone:\nOff";
+    snprintf(buf, sizeof(buf), "Tone:\n%d.%d Hz", t / 10, t % 10);
     return buf;
 }
 
@@ -278,6 +293,17 @@ static void pause_cb(button_data_t *b) {
     static const int steps[] = {1, 2, 3, 5, 10, 20, 30};
 
     step_param(cfg_zello_pause, steps, sizeof(steps) / sizeof(steps[0]));
+    buttons_refresh(b);
+}
+
+/* The tone: a press the next one up, held the next one down, Off between the highest and the lowest */
+static void tone_cb(button_data_t *b) {
+    param_i_set(cfg_link_ctcss, ctcss_step(ctcss_valid(param_i_get(cfg_link_ctcss)), 1));
+    buttons_refresh(b);
+}
+
+static void tone_hold_cb(button_data_t *b) {
+    param_i_set(cfg_link_ctcss, ctcss_step(ctcss_valid(param_i_get(cfg_link_ctcss)), -1));
     buttons_refresh(b);
 }
 

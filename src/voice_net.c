@@ -63,6 +63,7 @@
 #include "scheduler.h"
 #include "theme.h"
 #include "tx_player.h"
+#include "ctcss.h"
 #include "util.h"
 #include "voice_link.h"
 #include "voice_ptt.h"
@@ -509,6 +510,18 @@ static bool relaying(const vlink_cfg_t *c) {
     return c->to_rf && !rules.to_rf_stopped && can_key(c);
 }
 
+/* The link's audio to the transmitter, the CTCSS tone under it (none: as it is) */
+static void tx_play(ctcss_t *tone, int16_t *buf, size_t n) {
+    ctcss_mix(tone, buf, n);
+    audio_play(buf, n);
+}
+
+/* 20 ms of silence to the transmitter: the tone alone, when there is one */
+static void tx_play_silence(ctcss_t *tone, int16_t *zeros, size_t n) {
+    memset(zeros, 0, n * sizeof(zeros[0]));
+    tx_play(tone, zeros, n);
+}
+
 /* The link's transmission: keyed as a voice message is sent (radio_set_modem, the audio from the GUI), held by
  * tx_player's claim so that no app's slot keys meanwhile; the power at most the apps' cap */
 static void *tx_fn(void *arg) {
@@ -521,8 +534,13 @@ static void *tx_fn(void *arg) {
     int16_t          *id = NULL;
     bool              claimed = false, pwr_set = false;
     unsigned          swr0, stops0;
+    ctcss_t           tone;
 
-    memset(zeros, 0, sizeof(zeros));
+    /* The CTCSS tone (#141), in FM only: under all of the transmission, the lead, the gaps and the ID too, so a
+     * receiver's tone squelch stays open to its end */
+    bool fm = cparam_i_get(cfg_cur_mode) == radio_mode_nfm;
+
+    ctcss_init(&tone, fm ? ctcss_valid(param_i_get(cfg_link_ctcss)) : CTCSS_OFF, AUDIO_PLAY_RATE);
     if (!rs_ok || !(claimed = tx_player_claim())) goto out;
     if (radio_get_state() != RADIO_RX || radio_get_ptt() || radio_get_modem()) goto out;
     if (!in_ham_band()) goto out;       /* looked at again under the claim: nothing keyed */
@@ -541,13 +559,15 @@ static void *tx_fn(void *arg) {
         goto out;
     }
     result = VLINK_TX_DONE;
-    for (int t = 0; t < LEAD_MS / 20 && radio_get_modem(); t++) audio_play(zeros, sizeof(zeros) / sizeof(zeros[0]));
+    for (int t = 0; t < LEAD_MS / 20 && radio_get_modem(); t++) {
+        tx_play_silence(&tone, zeros, sizeof(zeros) / sizeof(zeros[0]));
+    }
 
     while (!id_only && atomic_load(&tx_stop) == 0 && radio_get_modem() && !radio_get_ptt()) {
         size_t n = ring_take(in16, TX_FRAME);
 
         if (n == 0) {
-            audio_play(zeros, sizeof(zeros) / sizeof(zeros[0]));    /* a gap in the network's audio */
+            tx_play_silence(&tone, zeros, sizeof(zeros) / sizeof(zeros[0]));    /* a gap in the network's audio */
             continue;
         }
         for (size_t i = 0; i < n; i++) inf[i] = in16[i];
@@ -555,7 +575,7 @@ static void *tx_fn(void *arg) {
         for (int i = 0; i < m; i++) out16[i] = (int16_t)LV_CLAMP(-32767.0f, outf[i], 32767.0f);
         int gain = param_i_get(cfg_voice_msg_gain);     /* the voice messages' TX level */
         if (gain) audio_gain_db(out16, (size_t)m, (float)gain, out16);
-        audio_play(out16, (size_t)m);
+        tx_play(&tone, out16, (size_t)m);
     }
 
     if (atomic_load(&tx_stop) >= 2) audio_play_flush();       /* the rest of the message not sent */
@@ -569,11 +589,11 @@ static void *tx_fn(void *arg) {
 
             if (gain) audio_gain_db(id, n, (float)gain, id);
 
-            audio_play(zeros, sizeof(zeros) / sizeof(zeros[0]));
+            tx_play_silence(&tone, zeros, sizeof(zeros) / sizeof(zeros[0]));
             for (size_t i = 0; i < n && atomic_load(&tx_stop) != 3 && radio_get_modem() && !radio_get_ptt();) {
                 size_t k = n - i > 2048 ? 2048 : n - i;
 
-                audio_play(id + i, k);
+                tx_play(&tone, id + i, k);
                 i += k;
             }
         }
