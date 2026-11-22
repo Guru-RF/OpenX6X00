@@ -1222,9 +1222,10 @@ static void d3_draw(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_re
 }
 
 /* Landscape rows dst[y * WIDTH + x] from the portrait columns src[(WIDTH - 1 - x) * h + y]: 4 x 4 blocks, so the
- * 4 KB-apart pixels of a landscape column are not written one at a time; the blocks D3_TILE x D3_TILE at a time,
+ * pixels of a landscape column, a row apart, are not written one at a time; the blocks D3_TILE x D3_TILE at a time,
  * so a tile's columns and rows stay in the TLB and the cache (a row of blocks across the whole width touched a page
- * of the columns for each block: on the A20 with the radio running, 23 ms a picture against 15) */
+ * of the columns for each block: on a Cortex-A7 with a radio's work beside it, 23 ms a picture against 15, measured
+ * on a landscape panel 1024 wide) */
 #define D3_TILE 64
 static void d3_transpose(uint32_t *dst, const uint32_t *src, int32_t h) {
     int32_t y = 0;
@@ -1273,8 +1274,10 @@ static void d3_transpose(uint32_t *dst, const uint32_t *src, int32_t h) {
     }
 }
 
-/* One picture. A landscape one is drawn as the portrait one into columns of its own and turned over into buf: its
- * pixels in a column, 4 KB apart in rows, were most of the time */
+/* One picture. A landscape one (no planes: the PC build, a panel on fbdev, a single DRM plane) is drawn as the
+ * portrait one into columns of its own and turned over into buf: its pixels in a column, 3200 bytes apart in rows,
+ * were most of the time on the radio. With the planes the picture is the plane's own columns and is not turned.
+ * tools/d3_colmajor checks the turn against the rows */
 __attribute__((noinline))   /* measurable on its own */
 static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_refs) {
     static uint32_t *columns;

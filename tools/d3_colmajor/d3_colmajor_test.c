@@ -1,10 +1,22 @@
-/* 3D waterfall: the landscape picture drawn as columns and turned over (d3_render) vs drawn in rows (before),
- * pixel for pixel. The code under test is extracted from src/waterfall_view.c by d3_colmajor_test.sh (from
- * "#define D3_STEP" to the labels); the DSP rows, the settings and the theme around it are stubs here.
+/*
+ *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *   d3_colmajor_test OUT   renders the scenarios and writes a checksum line per picture to OUT
- * The script builds it from the old code (-DOLD, which draws a landscape picture in rows: git show of the
- * commit before) and from the new, and compares the two OUT files; both also dump a bench time. */
+ *  OpenX6X00 - host test of the 3D waterfall's landscape picture (src/waterfall_view.c): drawn as columns and turned
+ *  over (d3_render(), what a waterfall without planes shows: the PC build, a panel on fbdev, a single DRM plane)
+ *  against drawn in rows (d3_draw(), as it was and as it still is without memory for the columns), pixel for pixel.
+ *  The code under test is taken out of src/waterfall_view.c by the Makefile (from "#define D3_STEP" to the labels);
+ *  the DSP rows, the settings and the theme around it are stand-ins here.
+ *
+ *    d3_colmajor_test OUT rows|turn [bench]
+ *  renders the cases either way and writes a checksum line per picture to OUT; the Makefile runs both and compares
+ *  the two files (each in a run of its own: the renderer keeps its background, its levels and its peaks from one
+ *  picture to the next). With bench, the time of a picture after them. The cases: five heights, colour and 1bit,
+ *  the three 3D colours, and for each a sequence of 8 pictures: whole, the same scene again (only what the last one
+ *  drew is put back), new rows, a reference line moved, the target buffer changed (2D drew in it); and a portrait
+ *  target (what the planes get), which never takes the turn.
+ *
+ *  From cjlawson02's fork (cjlawson02/OpenX6X00, wf3d/colmajor f3ce5f5a), there a script against the commit before.
+ */
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -99,10 +111,11 @@ static void make_rows(int h, int density) {
     newest = h;
 }
 
-static int dump_all;
 int main(int argc, char **argv) {
     FILE *out = fopen(argc > 1 ? argv[1] : "/dev/null", "w");
-    int bench = argc > 2;
+    int rows_only = argc > 2 && !strcmp(argv[2], "rows");
+    int bench = argc > 3;
+    void (*render)(uint32_t *, bool, const int32_t *, int) = rows_only ? d3_draw : d3_render;
     rows = calloc(MAX_HEIGHT + 1, sizeof(*rows));
     for (int i = 0; i < 256; i++) wf_palette[i] = 0xff000000u | (i * 0x010203u);
     int hs[] = {MAX_HEIGHT * 62 / 100, MAX_HEIGHT / 2, MAX_HEIGHT - 1, MAX_HEIGHT / 2 + 1, MAX_HEIGHT / 5};
@@ -128,7 +141,7 @@ int main(int argc, char **argv) {
             fake_ms += 33;
             memset(dst, 0x5a, sizeof(uint32_t) * WIDTH * height);   /* what was in the buffer before is not kept */
             if (step == 7) memset(dst, 0, 4);
-            d3_render(dst, false, ref_x, 3);
+            render(dst, false, ref_x, 3);
             fprintf(out, "h%d mono%d col%d step%d %016llx\n", height, mono, colors, step,
                     (unsigned long long) fnv(dst, sizeof(uint32_t) * WIDTH * height));
             pics++;
@@ -146,12 +159,13 @@ int main(int argc, char **argv) {
         double best = 1e9, all[30];
         for (int i = 0; i < 30; i++) {
             struct timespec a, b; clock_gettime(CLOCK_MONOTONIC, &a);
-            fake_ms += 33; d3_render(dst, false, ref_x, 3);
+            fake_ms += 33; render(dst, false, ref_x, 3);
             clock_gettime(CLOCK_MONOTONIC, &b);
             all[i] = (b.tv_sec - a.tv_sec) * 1e3 + (b.tv_nsec - a.tv_nsec) / 1e6; if (all[i] < best) best = all[i];
         }
         for (int i = 0; i < 30; i++) for (int j = i + 1; j < 30; j++) if (all[j] < all[i]) { double t = all[i]; all[i] = all[j]; all[j] = t; }
-        printf("d3_render landscape %dx%d: min %.2f ms  median %.2f ms\n", WIDTH, height, all[0], all[15]);
+        printf("%s: a landscape picture of %d x %d: min %.2f ms, median %.2f ms\n", rows_only ? "rows" : "turn", WIDTH, height,
+               all[0], all[15]);
     }
     fclose(out);
     fprintf(stderr, "%d landscape pictures\n", pics);
