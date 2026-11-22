@@ -596,8 +596,12 @@ after an answer), its lane over the waterfall and its conversations with their
 way back, FT8's tiles, the calls over its waterfall, its list by slot with the
 CQs standing out and its buttons by task, and the browser's Apps pages, which
 open their app on the radio:
-FT8, JS8 with its chat and WeFax, their waterfalls, maps, flags and countries; Chris Lawson (cjlawson02) the spectrum's dB without powf and log10f
-and the paddle keyer's start after the settings.
+FT8, JS8 with its chat and WeFax, their waterfalls, maps, flags and countries; Chris Lawson (cjlawson02) the spectrum's dB without powf and log10f,
+the paddle keyer's start after the settings, the 3D waterfall drawn on a
+thread of its own and its picture without planes drawn in columns and turned
+over in tiles, the WiFi device followed when it goes and comes, with the
+switch flipped twice ending as it stands, and the remote screen's picture
+completed off the GUI thread.
 
 Patches, captures, logs and tests from the issues: BrunoKlu the capture and the
 driver patch of #29; KR8MER the diagnosis and the patch of #50; marcoverheiden the panel tests of #239
