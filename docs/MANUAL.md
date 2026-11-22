@@ -2230,7 +2230,11 @@ the X6200 a screen recording does not raise it (see
 | ETHERNET | a USB Ethernet adapter: DHCP or a static address (see [Ethernet](#ethernet)) |
 
 WiFi/BT power switches the WiFi and Bluetooth chip (one chip for both): with
-it off, Bluetooth is off too. Bluetooth has its own tab.
+it off, Bluetooth is off too. Bluetooth has its own tab. The switch flipped
+twice in a moment ends as it stands: off stays Off, on comes back by itself.
+If the chip drops off under the radio (its USB link reset), the status says
+Starting until it is back, then the radio joins again; up to v0.3.13 it kept
+saying Connected.
 
 Joining a network:
 

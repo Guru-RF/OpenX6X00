@@ -82,6 +82,7 @@ static void fill_access_point_info(GBytes *active_ssid, NMAccessPoint *ap, wifi_
 static void set_status(wifi_status_t val);
 
 static void device_added_sig_cb(NMClient *client, GObject *device, gpointer user_data);
+static void device_removed_sig_cb(NMClient *client, GObject *device, gpointer user_data);
 static void device_state_changed_sig_cb(NMDevice *device, guint new_state, guint old_state, guint reason,
                                         gpointer user_data);
 static void active_con_state_changed_sig_cb(NMActiveConnection *active_connection, guint state, guint reason,
@@ -118,7 +119,9 @@ static void wifi_log(const char *ssid) {
 static void no_network_cb(lv_timer_t *t) {
     static int empty;
 
-    if (status != WIFI_DISCONNECTED || !device || eth_up) {
+    /* Disconnected, or the device there but not available (Starting with a device: the chip stopped under it):
+     * that showed as Disconnected before the device's going states were followed, and was restarted here */
+    if ((status != WIFI_DISCONNECTED && status != WIFI_STARTING) || !device || eth_up) {
         empty = 0;
         return;
     }
@@ -156,14 +159,36 @@ static NMDevice * find_wifi_device(void) {
     return NULL;
 }
 
+/* The WiFi device taken, with a reference of our own. It was a pointer borrowed from NetworkManager's client, which
+ * drops the device when the interface goes: the chip powered off, or its USB link reset under it. The pointer kept
+ * was then to a freed device, read by the scan timer, the "no network" check and the WiFi window */
+static void device_take(NMDevice *d) {
+    device = NM_DEVICE(g_object_ref(d));
+    setup_wifi_device();
+}
+
+/* Its handlers off and our reference dropped: what it says while it goes (the chip losing its power) is no longer
+ * ours, and the same device taken again gets no second set of handlers */
+static void device_drop(void) {
+    NMActiveConnection *active_con = nm_device_get_active_connection(device);
+
+    if (active_con) {
+        g_signal_handlers_disconnect_by_func(active_con, (gpointer)active_con_state_changed_sig_cb, NULL);
+    }
+    g_signal_handlers_disconnect_by_func(device, (gpointer)device_state_changed_sig_cb, NULL);
+    g_object_unref(device);
+    device = NULL;
+}
+
 void wifi_power_setup() {
     set_status(WIFI_DISCONNECTED);
     loop = g_main_loop_new(NULL, FALSE);
     setup_nm_client();
     if (client != NULL) {
-        device = find_wifi_device();
-        if (device) {
-            setup_wifi_device();
+        NMDevice *d = find_wifi_device();
+
+        if (d) {
+            device_take(d);
         }
     }
     loop_timer = lv_timer_create(loop_iterations_cb, 30, NULL);
@@ -183,6 +208,16 @@ void wifi_power_on() {
     LV_LOG_USER("Power on wifi/bt");
     params_bool_set(&params.wifi_enabled, true);
     radio_wifi_power(false);
+    /* The device NetworkManager still has, if any: after a quick off and on the chip may never have left the bus, and
+     * no device-added comes then (the status stayed Starting). One that is on its way out is dropped when it goes
+     * (device_removed_sig_cb()), and the chip's new one taken when it comes */
+    if (!device && client) {
+        NMDevice *d = find_wifi_device();
+
+        if (d) {
+            device_take(d);
+        }
+    }
     if (!device) {
         set_status(WIFI_STARTING);
     }
@@ -193,7 +228,7 @@ void wifi_power_off() {
     LV_LOG_USER("Power off wifi/bt");
     set_status(WIFI_OFF);
     if (device) {
-        device = NULL;
+        device_drop();
     }
     params_bool_set(&params.wifi_enabled, false);
     radio_wifi_power(true);
@@ -262,7 +297,7 @@ wifi_ap_arr_t wifi_get_available_access_points() {
         std::map<std::string, std::array<uint, 2>> ssid_strength_map{};
         std::vector<wifi_ap_info_t>                ap_info_vec;
 
-        for (i = 0; i < aps->len; i++) {
+        for (i = 0; aps && i < aps->len; i++) {
             wifi_ap_info_t ap_info = {};
             NMAccessPoint *ap = NM_ACCESS_POINT(g_ptr_array_index(aps, i));
             fill_access_point_info(active_ssid, ap, &ap_info);
@@ -677,6 +712,7 @@ static void setup_nm_client() {
         return;
     }
     g_signal_connect(client, "device-added", G_CALLBACK(device_added_sig_cb), NULL);
+    g_signal_connect(client, "device-removed", G_CALLBACK(device_removed_sig_cb), NULL);
     fix_wifi_profiles();
 }
 
@@ -694,14 +730,40 @@ static void setup_wifi_device() {
     }
 }
 
+/* A WiFi device came: the chip powered on, or back after its USB link was reset. Not while WiFi is off: a device
+ * that comes after a quick on and off (the chip was already on its way up) showed as Disconnected with the switch
+ * off; power on takes it. wlan0 goes over a device of another name (issue #3) */
 static void device_added_sig_cb(NMClient *client, GObject *dev, gpointer user_data) {
-    NMDevice           *nm_dev;
-    NMActiveConnection *active_con;
-    nm_dev = NM_DEVICE(dev);
-    if (NM_IS_DEVICE_WIFI(nm_dev) && (!device || strcmp(nm_device_get_iface(nm_dev), WLAN_IFACE) == 0)) {
-        device = nm_dev;
-        setup_wifi_device();
+    NMDevice *nm_dev = NM_DEVICE(dev);
+
+    if (!NM_IS_DEVICE_WIFI(nm_dev) || !params.wifi_enabled.x) {
+        return;
     }
+    if (device) {
+        if (nm_dev == device || strcmp(nm_device_get_iface(nm_dev), WLAN_IFACE) != 0) {
+            return;
+        }
+        device_drop();
+    }
+    LV_LOG_USER("WiFi device %s came", nm_device_get_iface(nm_dev));
+    device_take(nm_dev);
+}
+
+/* Ours gone: the chip powered off under us, or its USB link reset by the driver. Until one comes again the status
+ * is as before the chip is up (Off when WiFi is off), and a scan in progress has ended */
+static void device_removed_sig_cb(NMClient *client, GObject *dev, gpointer user_data) {
+    if (!device || (gpointer)dev != (gpointer)device) {
+        return;
+    }
+    LV_LOG_WARN("WiFi device %s gone", nm_device_get_iface(device));
+    device_drop();
+    if (scan_timer) {
+        lv_timer_del(scan_timer);
+        scan_timer = NULL;
+    }
+    scanning = false;
+    set_status(params.wifi_enabled.x ? WIFI_STARTING : WIFI_OFF);
+    lv_msg_send(MSG_WIFI_STATE_CHANGED, NULL);
 }
 
 static void fill_access_point_info(GBytes *active_ssid, NMAccessPoint *ap, wifi_ap_info_t *ap_info) {
@@ -956,6 +1018,10 @@ static void device_state_changed_sig_cb(NMDevice *device, guint new_state, guint
         break;
     case NM_DEVICE_STATE_DISCONNECTED:
         set_status(WIFI_DISCONNECTED);
+        break;
+    case NM_DEVICE_STATE_UNMANAGED:     /* the interface going, before device-removed: not Connected meanwhile */
+    case NM_DEVICE_STATE_UNAVAILABLE:
+        set_status(WIFI_STARTING);
         break;
     }
 }
