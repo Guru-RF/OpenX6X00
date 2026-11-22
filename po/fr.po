@@ -15754,6 +15754,10 @@ msgid "Walkie screen, the F-keys down the left, F1 at the top"
 msgstr ""
 
 #: src/walkie.c
+msgid "Hold APP to leave walkie mode"
+msgstr ""
+
+#: src/walkie.c
 msgid "Walkie off"
 msgstr ""
 

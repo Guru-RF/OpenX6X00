@@ -1802,9 +1802,13 @@ General > CONTROLS > Walkie Talkie). The screen turns to portrait at once, no
 restart.
 
 > **How to leave Walkie Talkie mode**
-> 1. Press **APP**: the walkie buttons appear on the left edge, the first one reads "(WLK 1:4)".
-> 2. **Hold** that first button "(WLK 1:4)" (or press it three times): it goes to "(WLK 4:4)".
-> 3. **Hold** the button **"Exit hold"** for a second. The radio goes back to the normal landscape screen.
+> **Hold APP** for a second. The radio goes back to the normal landscape screen. The radio says so each time
+> it enters walkie mode ("Hold APP to leave walkie mode"), also when it starts in it: the mode is kept over a
+> restart. From v0.3.14; issue #334.
+>
+> Up to v0.3.13, and still there: press **APP** (the walkie buttons appear on the left edge, the first one
+> reads "(WLK 1:4)"), **hold** that first button (or press it three times) until it reads "(WLK 4:4)", then
+> **hold** the button **"Exit hold"** for a second.
 
 - PTT: the PTT key on the side of the radio. It transmits with the built-in
   microphone (Settings > Walkie > Microphone); the border turns red and the
@@ -1834,7 +1838,7 @@ restart.
   - They are kept in /mnt/walkie_channels.json, the same format as
     channels.json with the channel number in "ch". A name can be written
     there; the radio shows it.
-- Exit: APP, then WLK 4, hold "Exit hold" (steps in the box above). The screen
+- Exit: hold APP, or APP, then WLK 4, hold "Exit hold" (the box above). The screen
   goes back to landscape, no restart.
 - Not in walkie mode: the apps, Settings and the hand mic keys. Leave walkie
   mode to use them.

@@ -418,6 +418,8 @@ static void keypad_cb(lv_event_t *e) {
         case KEYPAD_APP:
             if (k->state == KEYPAD_RELEASE)
                 buttons_load_page(&wlk_1);
+            else if (k->state == KEYPAD_LONG)
+                exit_cb(NULL);              /* held: out of walkie mode, as "Exit hold" on the last page (#334) */
             break;
 
         /* The page keys as on the main screen; held they may start an app, unseen here */
@@ -721,6 +723,9 @@ static void enter(void) {
     buttons_load_page(&wlk_1);
     lv_timer_resume(timer);
     lv_scr_load(scr);
+    /* Said each time, at a start in walkie mode too: the way out was three button pages away, and a restart
+     * comes back here (#334) */
+    msg_schedule_text_fmt("Hold APP to leave walkie mode");
 }
 
 static void leave(void) {
