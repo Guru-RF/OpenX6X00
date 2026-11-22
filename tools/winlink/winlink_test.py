@@ -18,6 +18,7 @@ import io
 import json
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -182,6 +183,147 @@ class Modem(Root):
         self.wl.set_enabled(True)
         self.assertEqual(read(self.wl.CONF), "enabled=1\nmycall=ON6URE\nlocator=\nbandwidth=500\nmodem=mercury\n"
                                              "mercury_bandwidth=500\nxara_bandwidth=2300\nvara_licence=0\n")
+
+
+# A stand-in for a modem at its stop: argv[1] seconds after the first SIGTERM it leaves with code 0 (a goodbye that
+# long), at once at a second one with code 3; "never" as argv[1]: only the second, or SIGKILL, ends it
+STAND_IN = """
+import signal, sys, time
+got = []
+signal.signal(signal.SIGTERM, lambda *_: got.append(time.time()))
+print("up", flush=True)
+while True:
+    time.sleep(0.02)
+    if len(got) > 1:
+        sys.exit(3)
+    if got and sys.argv[1] != "never" and time.time() - got[0] >= float(sys.argv[1]):
+        sys.exit(0)
+"""
+
+
+class ModemStop(Root):
+    """The stop of a modem: at once as before, or after Mercury's goodbye on the air, said in the status, always
+    ended"""
+
+    def stand_in(self, takes):
+        p = subprocess.Popen([sys.executable, "-I", "-c", STAND_IN, str(takes)], stdout=subprocess.PIPE)
+        self.addCleanup(p.stdout.close)
+        self.addCleanup(lambda: p.poll() is None and p.kill())
+        self.assertEqual(p.stdout.readline(), b"up\n")              # its handler is set
+        return p
+
+    def test_the_waits_fit_mercury_and_the_bridge(self):
+        """Mercury's own cap for its goodbye is 40 s (ENGINE_GOODBYE_CAP_MS), the bridge's GOODBYE_S 42 and its
+        alarm for the rest of the stop 10: the supervisor kills only after all of that"""
+        src = read(os.path.join(HERE, "..", "..", "third-party", "mercury", "x6x00", "x6x00_mercury.c"))
+        engine = read(os.path.join(HERE, "..", "..", "third-party", "mercury", "common", "mercury_engine.c"))
+        self.assertIn("#define ENGINE_GOODBYE_CAP_MS 40000", engine)
+        self.assertRegex(src, rf"#define GOODBYE_S\s+{self.wl.MERCURY_GOODBYE}\b")
+        self.assertIn("alarm(10);", src)
+        self.assertGreater(self.wl.MERCURY_GOODBYE, 40)
+        self.assertGreater(self.wl.MERCURY_TERM_WAIT, self.wl.MERCURY_GOODBYE + 10)
+        self.assertGreater(self.wl.STOP_WAIT, sum(self.wl.PAT_INT_WAIT) + self.wl.MERCURY_TERM_WAIT)
+        self.assertGreater(self.wl.SWITCH_WAIT, self.wl.MERCURY_TERM_WAIT)
+        self.assertEqual(self.wl.Program("Mercury (x6x00-mercury)", self.wl.MERCURY_LOG,
+                                         self.wl.MERCURY_TERM_WAIT).term_wait, self.wl.MERCURY_TERM_WAIT)
+        self.assertEqual(self.wl.Program("ARDOP (ardopcf)", self.wl.ARDOP_LOG).term_wait, self.wl.MODEM_TERM_WAIT)
+
+    def test_at_once_says_nothing(self):
+        p, said = self.stand_in(0), []
+        t0 = time.time()
+        self.wl.stop_modem(p, 55, busy=lambda: said.append(1), hurry=lambda: False)
+        self.assertEqual((p.returncode, said), (0, []))
+        self.assertLess(time.time() - t0, 1)
+
+    def test_a_goodbye_is_waited_for_and_said_once(self):
+        self.wl.TERM_SAY = 0.2
+        p, said = self.stand_in(1.0), []
+        t0 = time.time()
+        self.wl.stop_modem(p, 55, busy=lambda: said.append(time.time() - t0), hurry=lambda: False)
+        self.assertEqual((p.returncode, len(said)), (0, 1))             # its own end, not killed
+        self.assertTrue(0.2 <= said[0] < 0.6, said)
+        self.assertTrue(1.0 <= time.time() - t0 < 2.0)
+
+    def test_a_goodbye_that_never_ends_is_killed_at_the_wait(self):
+        self.wl.TERM_SAY = 0.2
+        p = self.stand_in("never")
+        t0 = time.time()
+        self.wl.stop_modem(p, 1.0, busy=lambda: None, hurry=lambda: False)
+        self.assertEqual(p.returncode, -signal.SIGKILL)
+        self.assertTrue(1.0 <= time.time() - t0 < 2.0)
+
+    def test_a_second_sigterm_is_passed_on_once(self):
+        self.wl.TERM_SAY = 0.2
+        p = self.stand_in("never")
+        t0 = time.time()
+        self.wl.stop_modem(p, 30, hurry=lambda: time.time() - t0 > 0.6)
+        self.assertEqual(p.returncode, 3)                                # its way out at the second one
+        self.assertTrue(0.6 <= time.time() - t0 < 1.5)
+
+    def test_the_status_meanwhile_and_the_supervisors_own_sigterm(self):
+        """Mercury ending its session while Winlink is turned off: the status says so, the modem still running; a
+        SIGTERM to the supervisor meanwhile (x6100-winlink stop) ends it at once"""
+        self.wl.TERM_SAY = 0.2
+        mercury = self.wl.Program("Mercury (x6x00-mercury)", self.wl.MERCURY_LOG, 30)
+        mercury.proc = self.stand_in(0.8)
+        self.wl.say("off", "Stopping Pat and Mercury...", pat="stopped", mercury="running")
+        seen = []
+        watch = threading.Thread(target=lambda: [seen.append(read(self.wl.STATUS)) or time.sleep(0.05)
+                                                 for _ in range(12)])
+        watch.start()
+        self.wl.stop_program(mercury, "mercury", "off", "stopped")
+        watch.join()
+        self.assertEqual(mercury.proc.returncode, 0)
+        st = next(s for s in seen if "ending its session" in s)
+        self.assertIn("state=off\ntext=Mercury is ending its session on the air before it stops (up to 42 s)...\n"
+                      "pat=stopped\nardop=off\nmercury=running\nxara=off\n", st)
+        # for another modem: the chosen one not started yet, Pat running
+        mercury.proc = self.stand_in(0.5)
+        self.wl.stop_program(mercury, "mercury", "starting", "running")
+        self.assertIn("state=starting\ntext=Mercury is ending its session on the air before it stops (up to 42 s)..."
+                      "\npat=running\nardop=off\nmercury=running\nxara=off\n", read(self.wl.STATUS))
+        st = dict(l.split("=", 1) for l in read(self.wl.STATUS).splitlines())
+        self.assertFalse(self.wl.modem_settled(st, "ardop"))             # Pat's own switch waits: a change under way
+        self.assertFalse(self.wl.modem_ready(st, "ardop"))
+        # the supervisor's SIGTERM during it
+        mercury.proc = self.stand_in("never")
+        t0 = time.time()
+        timer = threading.Timer(0.6, lambda: self.wl._stop.append(1))
+        timer.start()
+        self.wl.stop_program(mercury, "mercury", "off", "stopped")
+        timer.join()
+        self.assertEqual(mercury.proc.returncode, 3)
+        self.assertLess(time.time() - t0, 1.5)
+        # one that came before the stop began (the shutdown itself) does not cut the goodbye
+        mercury.proc = self.stand_in(0.6)
+        t0 = time.time()
+        self.wl.stop_program(mercury, "mercury", "off", "stopped")
+        self.assertEqual(mercury.proc.returncode, 0)
+        self.assertGreaterEqual(time.time() - t0, 0.6)
+
+    def test_off_again_hurries_a_supervisor_that_still_stops(self):
+        """x6100-winlink off with the setting off already and a supervisor still there: SIGTERM to it, which it
+        passes on to Mercury; the first off sends none"""
+        p = self.stand_in(0)                                             # the "supervisor": leaves at a SIGTERM
+        self.wl.supervisor_pid = lambda: p.pid
+        self.wl.poke = lambda: True
+        self.wl.wait_gone = lambda s: False
+        self.conf(enabled=1, mycall="ON6URE")
+        self.assertEqual(self.wl.cmd_off(), 0)
+        time.sleep(0.3)
+        self.assertIsNone(p.poll())
+        self.assertFalse(self.wl.enabled())
+        self.assertEqual(self.wl.cmd_off(), 0)
+        self.assertEqual(p.wait(5), 0)
+
+    def test_a_modem_that_is_gone_or_never_ran(self):
+        mercury = self.wl.Program("Mercury (x6x00-mercury)", self.wl.MERCURY_LOG, 30)
+        self.wl.stop_program(mercury, "mercury", "off", "stopped")      # never started
+        mercury.proc = self.stand_in(0)
+        mercury.proc.terminate()
+        mercury.proc.wait(5)
+        self.wl.stop_program(mercury, "mercury", "off", "stopped")
+        self.assertFalse(os.path.exists(self.wl.STATUS))                # nothing said
 
 
 class Xara(Root):
