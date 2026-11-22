@@ -888,9 +888,9 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
 
     const row = $("<li>").addClass("t" + decode.t).append($("<span class='x'>").text(decode.x));
 
-    if (decode.w) {
-          rows.css("text-decoration", "line-through");
-    }
+    /* as the radio's list: worked on this band and mode struck through, worked elsewhere only dimmed */
+    if (decode.w === 2) row.css({"text-decoration": "line-through", "opacity": 0.6});
+    else if (decode.w === 1) row.css("opacity", 0.8);
 
     if (decode.t >= 2 && decode.t <= 4) {
       const snrText = (decode.snr > 0 ? "+" : "") + decode.snr + " " + decode.f;
