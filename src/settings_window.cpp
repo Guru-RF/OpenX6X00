@@ -3256,7 +3256,7 @@ static void grid_create() {
     grid_delete();
     card_n = 0;
     page = lv_obj_create(dialog.obj);
-    lv_obj_set_size(page, 796 - RAIL_W - 14, DIALOG_H - 8);
+    lv_obj_set_size(page, DIALOG_W - RAIL_W - 14, DIALOG_H - 8);
     lv_obj_set_flex_flow(page, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_text_color(page, TC(text), 0);
     lv_obj_set_style_bg_opa(page, LV_OPA_TRANSP, LV_PART_MAIN);

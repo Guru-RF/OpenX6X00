@@ -375,7 +375,7 @@ static void window_open_cb(lv_obj_t *parent) {
     /* Same size and frame as the WEFAX big view; dialog_init's own background is turned
        off or its outline would show under the frame */
     win.obj = dialog_init(parent);
-    lv_obj_set_size(win.obj, 795, 350);
+    lv_obj_set_size(win.obj, TEXT_PANEL_W, 350);
     lv_obj_center(win.obj);
     lv_obj_set_style_bg_img_src(win.obj, NULL, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(win.obj, LV_OPA_TRANSP, LV_PART_MAIN);
@@ -384,7 +384,7 @@ static void window_open_cb(lv_obj_t *parent) {
     lv_obj_t *frame = lv_obj_create(win.obj);
 
     lv_obj_remove_style_all(frame);
-    lv_obj_set_size(frame, 795, 350);
+    lv_obj_set_size(frame, TEXT_PANEL_W, 350);
     lv_obj_center(frame);
     lv_obj_set_style_bg_color(frame, TC(frame), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(frame, LV_OPA_COVER, LV_PART_MAIN);

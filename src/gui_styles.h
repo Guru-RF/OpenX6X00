@@ -33,8 +33,17 @@ extern int top_bar_h, freq_strip_h, clock_w, meter_row_h;
 #define TOP_BAR_MARGIN      2           /* around and between the boxes of the top bar */
 #define CLOCK_W             clock_w
 #define TOP_BAR_BOX_H       (TOP_BAR_HEIGHT - 2 * TOP_BAR_MARGIN)
-#define TOP_BAR_METER_X     (TOP_BAR_MARGIN + 360 + 3)     /* right of the 360 px info box */
-#define TOP_BAR_METER_W     (BOARD_DISP_W - TOP_BAR_METER_X - 3 - CLOCK_W - TOP_BAR_MARGIN)
+/* Classic top bar: info | gap | meter | gap | clock. Meter width is fixed to the
+ * 800-wide design — smeter needle radius is proportional to box width, so growing
+ * the slot with BOARD_DISP_W only clips the dial. Extra width stays as gap. */
+#define TOP_BAR_INFO_W          360
+#define TOP_BAR_INNER_GAP       3
+#define TOP_BAR_CLOCK_STD_W     168     /* styles_init() default; VISION sets clock_w smaller */
+#define TOP_BAR_METER_X         (TOP_BAR_MARGIN + TOP_BAR_INFO_W + TOP_BAR_INNER_GAP)
+#define TOP_BAR_METER_DESIGN_W  (800 - TOP_BAR_METER_X - TOP_BAR_INNER_GAP - TOP_BAR_CLOCK_STD_W - TOP_BAR_MARGIN)
+#define TOP_BAR_METER_SLOT      (BOARD_DISP_W - TOP_BAR_METER_X - TOP_BAR_INNER_GAP - CLOCK_W - TOP_BAR_MARGIN)
+#define TOP_BAR_METER_W         ((TOP_BAR_METER_SLOT) < (TOP_BAR_METER_DESIGN_W) \
+                                 ? (TOP_BAR_METER_SLOT) : (TOP_BAR_METER_DESIGN_W))
 
 #define FREQ_STRIP_Y        TOP_BAR_HEIGHT
 #define FREQ_STRIP_H        freq_strip_h
@@ -46,6 +55,13 @@ extern int top_bar_h, freq_strip_h, clock_w, meter_row_h;
 #define BUTTONS_H_MAX       62
 extern int buttons_h;
 #define BUTTONS_H           buttons_h
+
+/* Full-width chrome from BOARD_DISP_W. At 800 these match the former literals
+ * (F-bar cell 160, dialog 796, text panel 795). */
+#define F_BAR_BTNS          5
+#define F_BAR_BTN_W         (BOARD_DISP_W / F_BAR_BTNS)
+#define DIALOG_W            (BOARD_DISP_W - 4)
+#define TEXT_PANEL_W             (BOARD_DISP_W - 5)
 
 /* App windows fill the space between the frequency strip and the buttons */
 #define DIALOG_Y            (TOP_BAR_STD_H + FREQ_STRIP_STD_H + TOP_BAR_MARGIN)   /* VISION adds up the same */

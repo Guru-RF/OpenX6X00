@@ -37,7 +37,7 @@
 #define NAME_X      20
 #define NAME_W      220
 #define VALUE_X     (NAME_X + NAME_W + 10)
-#define VALUE_W     (796 - VALUE_X - 10)
+#define VALUE_W     (DIALOG_W - VALUE_X - 10)
 
 #define FT8_WORD_AGE_S  600     /* FT8's word older than this is none */
 #define STATION_RIGHT_S 0.02f   /* a time station saying the clock is this close: not moved */

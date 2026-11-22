@@ -142,7 +142,7 @@ static void message_styles(void) {
 
     /* RTTY, NavTex and the SWL panel: 24 px text */
     lv_style_set_text_font(&panel_style, &sony_24);
-    place(&panel_style, CENTRED(795), 230, 795, BOARD_DISP_H - BUTTONS_H - TOP_BAR_MARGIN - 230);
+    place(&panel_style, CENTRED(TEXT_PANEL_W), 230, TEXT_PANEL_W, BOARD_DISP_H - BUTTONS_H - TOP_BAR_MARGIN - 230);
     lv_style_set_pad_ver(&panel_style, 10);
     lv_style_set_pad_hor(&panel_style, 10);
     lv_style_set_radius(&panel_style, 0);
@@ -162,7 +162,7 @@ static void message_styles(void) {
 /* App windows, the frequency strip, the rows and dropdowns of Settings */
 static void window_styles(void) {
     lv_style_set_text_font(&dialog_style, &sony_36);
-    place(&dialog_style, CENTRED(796), DIALOG_Y, 796, DIALOG_H);
+    place(&dialog_style, CENTRED(DIALOG_W), DIALOG_Y, DIALOG_W, DIALOG_H);
     lv_style_set_pad_ver(&dialog_style, 0);
     lv_style_set_pad_hor(&dialog_style, 0);
 
@@ -390,10 +390,10 @@ static void popup_colours(bool strong, lv_color_t text) {
     lv_style_set_text_color(&dialog_dropdown_sel_style, TC(sel_text));
 }
 
-/* The theme's pictures at the size of each surface (buttons 160 px wide, inset by the gap) */
+/* The theme's pictures at the size of each surface (F-bar buttons, inset by the gap) */
 static void surface_images(void) {
     int        inset = 1 + theme_shape.btn_gap;
-    lv_coord_t bw = 160 - 2 * inset, bh = BUTTONS_H - 2 * inset;
+    lv_coord_t bw = F_BAR_BTN_W - 2 * inset, bh = BUTTONS_H - 2 * inset;
 
     lv_style_set_bg_opa(&btn_style, LV_OPA_COVER);
     lv_style_remove_prop(&btn_active_style, LV_STYLE_BG_OPA);
@@ -410,7 +410,7 @@ static void surface_images(void) {
     surface_img(&tx_info_style, TI_bar, TOP_BAR_METER_W, TOP_BAR_BOX_H);
     surface_img(&clock_style, TI_bar, CLOCK_W, TOP_BAR_BOX_H);
     surface_img(&freq_strip_style, TI_strip, BOARD_DISP_W - 2 * TOP_BAR_MARGIN, FREQ_STRIP_H);
-    surface_img(&dialog_style, TI_dialog, 796, DIALOG_H);
+    surface_img(&dialog_style, TI_dialog, DIALOG_W, DIALOG_H);
 
     /* encoder marks: the theme's LED picture, else a bar (deck: a 3 px line along the top) */
     if (theme_shape.mark[1] > 0) {

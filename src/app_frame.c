@@ -27,7 +27,7 @@ void app_frame_create(app_frame_t *f, lv_obj_t *dialog_obj) {
     f->head_right = make_label(dialog_obj, &sony_22, APP_FRAME_HEAD);
     lv_obj_set_width(f->head_right, 280);
     lv_obj_set_style_text_align(f->head_right, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_pos(f->head_right, 796 - 18 - 280, 10);
+    lv_obj_set_pos(f->head_right, DIALOG_W - 18 - 280, 10);
 
     f->bar = lv_bar_create(dialog_obj);
     lv_obj_set_size(f->bar, APP_FRAME_W, 4);

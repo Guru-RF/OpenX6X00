@@ -82,7 +82,7 @@
 #endif
 
 #define X           16
-#define W           (796 - 2 * X)
+#define W           (DIALOG_W - 2 * X)
 #define BOX_Y       44
 #define BOX_H       (DIALOG_H - BOX_Y - 34)
 #define SIDE_W      270

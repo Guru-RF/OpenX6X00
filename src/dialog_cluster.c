@@ -915,13 +915,13 @@ static void construct_cb(lv_obj_t *parent) {
     head_right = make_label(dialog.obj, VF(22), head_color);
     lv_obj_set_width(head_right, 260);
     lv_obj_set_style_text_align(head_right, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_pos(head_right, 796 - 18 - 260, 12);
+    lv_obj_set_pos(head_right, DIALOG_W - 18 - 260, 12);
     if (theme_shape.vision) {   /* bigger type: the band and VFO are big in the strip already */
         lv_obj_add_flag(head_mid, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_width(head_left, 400);
         lv_label_set_long_mode(head_left, LV_LABEL_LONG_DOT);
         lv_obj_set_width(head_right, 360);
-        lv_obj_set_x(head_right, 796 - 18 - 360);
+        lv_obj_set_x(head_right, DIALOG_W - 18 - 360);
     }
 
     table = lv_table_create(dialog.obj);
@@ -954,7 +954,7 @@ static void construct_cb(lv_obj_t *parent) {
     status_right = make_label(dialog.obj, VF(22), lv_color_hex(COLOR_DIM));
     lv_obj_set_width(status_right, 320);
     lv_obj_set_style_text_align(status_right, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_pos(status_right, 796 - 18 - 320, DIALOG_H - STATUS_H - 4);
+    lv_obj_set_pos(status_right, DIALOG_W - 18 - 320, DIALOG_H - STATUS_H - 4);
 
     /* The MFK drives the list: the dialog itself takes the keys. */
     lv_group_add_obj(keyboard_group, dialog.obj);

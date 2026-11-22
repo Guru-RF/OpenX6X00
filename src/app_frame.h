@@ -10,6 +10,7 @@
 #pragma once
 
 #include "lvgl/lvgl.h"
+#include "gui_styles.h"
 #include "theme.h"
 
 #include <stdint.h>
@@ -19,7 +20,7 @@ extern "C" {
 #endif
 
 #define APP_FRAME_X         13
-#define APP_FRAME_W         771
+#define APP_FRAME_W         (DIALOG_W - 2 * APP_FRAME_X - 1)
 #define APP_FRAME_BODY_Y    (10 + 34 + 10)
 #define APP_FRAME_STATUS_H  30
 #define APP_FRAME_BODY_H    (DIALOG_H - APP_FRAME_BODY_Y - APP_FRAME_STATUS_H - 8)
