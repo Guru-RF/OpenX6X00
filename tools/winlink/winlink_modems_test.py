@@ -10,7 +10,9 @@
 2. Mercury through x6x00-mercury, protocol version 2, and Pat v1.0.1's varahf transport, as on the radio: two
    stations, each a winlink_host and a bridge, what one transmits the other hears (with a little noise). Pat B
    listens; Pat A sends B a message peer to peer. Pat starts the modem (Mercury answers VERSION), connects,
-   sends, disconnects, and the message is in B's inbox.
+   sends, disconnects, and the message is in B's inbox. The keys' level is Mercury 1.9.21's (x6100-winlink's
+   tx_gain_db = -4 under 1.9.25, which alone is 4 dB louder), and a bridge stopped with a session up stops at
+   once and keys no more.
 3. XARA (our patched build, its --audio x6x00 on the GUI's socket, protocol version 2 at 12000 Hz) and Pat's varahf,
    the same way, twice: with the settings x6100-winlink writes for the free speed (no `registered`), B's XARA says
    LINK UNREGISTERED and no level goes past VARA's free 4; with `registered` on A (the Winlink page's VARA licence
