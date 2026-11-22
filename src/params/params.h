@@ -52,6 +52,7 @@ typedef enum {
     ACTION_CW_ZAP,      /* the CW ZAP button's: onto the signal the CW Tuner hears (#196) */
     ACTION_SWL_PANEL,   /* appended after CW_ZAP: the SWL panel, again the next station, as the X6100 mic's GENE (#155) */
     ACTION_SWL_SAVE,    /* the station the SWL panel shows saved as a channel, as the X6100 mic's NW (#155) */
+    ACTION_WF_FULL,     /* appended after SWL_SAVE: the waterfall over the whole main screen, or back (#302) */
 
     ACTION_APP_RTTY = 100,
     ACTION_APP_FT8,

@@ -425,7 +425,7 @@ press time counted as held: a tap of F1 did its long action (#233).
 
 | Kind | Actions |
 |---|---|
-| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, CW decoder on/off, CW ZAP (in CW and CW-R, the dial onto the signal the CW Tuner hears, as the CW 1:2 ZAP button; up to v0.3.9 neither was a key action, #196), SWL panel (as the X6100 hand mic's GENE: the broadcast stations on the air within 2 kHz, again the next one), SWL: save channel (as its NW: the station shown saved as a channel; up to v0.3.11 neither was a key action, so an X6200 could not open the panel, #155), ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
+| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, WF full screen on/off (the waterfall over the whole screen, and back: see [Waterfall](#waterfall)), CW decoder on/off, CW ZAP (in CW and CW-R, the dial onto the signal the CW Tuner hears, as the CW 1:2 ZAP button; up to v0.3.9 neither was a key action, #196), SWL panel (as the X6100 hand mic's GENE: the broadcast stations on the air within 2 kHz, again the next one), SWL: save channel (as its NW: the station shown saved as a channel; up to v0.3.11 neither was a key action, so an X6200 could not open the panel, #155), ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex, RADE |
 | Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Propagation, Channels, Scanner, Internet radio, RX recorder, SWR Scan, GPS / Clock, QTH grid, Settings |
 
@@ -1605,6 +1605,34 @@ Colours, on the web configurator's Display page:
 | Fill colour | As trace, or your own (the trace is then drawn over it) |
 | Filter colour, Filter shade, Shaded part | as on the radio (above); up to v0.3.9 not on the web page, Shaded part from v0.3.12 |
 
+Full screen (#302). The waterfall over the whole screen, 2D or 3D, with its
+band plan strip, the scale's lines, the cluster spots and the cluster column;
+the top bars, the frequency strip, the S-meter, the spectrum and the buttons
+are out of sight. Off by default, and not kept over a restart.
+
+- On and off: give a key "WF full screen on/off" in Settings > Keys (the long
+  press of GEN, APP, KEY, MSG, DFN, DFL or FST, or a hand mic F key). The same
+  key goes back. A touch held on the waterfall for 0.4 s does the same, both
+  ways (in the PC build the mouse; nothing else on the main screen uses that
+  touch).
+- A tag in the bottom left corner keeps the frequency and the mode in sight.
+- The main knob tunes, PTT keys the radio, and the band, mode, PRE, AGC, ATU,
+  A/B, FST and LOCK keys do what they always do; their notes show over the
+  waterfall. VOL and the MFK say their control and value on the message line,
+  as with the buttons hidden.
+- F1-F5 bring the normal screen back, and that press does nothing more: a
+  button not seen is never pressed. A tap of GEN, APP, KEY, MSG, DFN, DFL or
+  VM brings it back too, with the key's buttons.
+- An app, Settings, the frequency box or any other window opens on the
+  normal screen: full screen ends first. With an app or RTTY open the key
+  says "Full screen: not over an app". Not in walkie mode, which has its own
+  [mini waterfall](#walkie-talkie-mode).
+- On the air the tag turns red and reads TX before the frequency, a red frame
+  goes around the screen, and the TX panel (power, SWR, ALC) shows as on the
+  normal screen.
+- The waterfall starts empty at the new height each way, as it does when the
+  spectrum's height changes.
+
 ### Band plan
 
 The strip at the top of the waterfall (Settings > Display > MAIN SCREEN >
@@ -1746,6 +1774,11 @@ bars. It follows the theme.
   spectrum (fill, peaks, colours, filter and VFO line), with the band edges
   in MHz and the span under it. The zoom is the main screen's. It runs also
   when the main spectrum is turned off.
+- Mini waterfall (Settings > Walkie > Mini waterfall, off by default, #302):
+  a small waterfall in the bandscope's frame in place of the trace, the
+  newest line at the top, in the waterfall's colours, with a line where the
+  VFO is. The band edges and the span under it stay, and the zoom is still
+  the main screen's. Switched live, the screen up or not.
 
 Where: Settings > Walkie > WALKIE TALKIE > Walkie Talkie (or Settings >
 General > CONTROLS > Walkie Talkie). The screen turns to portrait at once, no
@@ -2583,7 +2616,7 @@ POWER, below Factory reset, has three lines:
 
 | Card | Options |
 |---|---|
-| WALKIE TALKIE | Walkie Talkie, Main knob steps channels, Microphone |
+| WALKIE TALKIE | Walkie Talkie, Main knob steps channels, Microphone, Mini waterfall |
 
 - Walkie Talkie: turns the portrait screen on. Settings closes and the walkie
   screen comes up (see [Walkie Talkie mode](#walkie-talkie-mode)).
@@ -2591,6 +2624,8 @@ POWER, below Factory reset, has three lines:
   instead of tuning. The same as the MEM/VFO button on WLK 1.
 - Microphone: the input used while the walkie screen is up (Built-in, Hand,
   Auto; default Built-in). The Audio tab's input is not changed.
+- Mini waterfall: a small waterfall where the walkie screen has its
+  bandscope (off by default: the bandscope, as before).
 
 ## Transmitting
 

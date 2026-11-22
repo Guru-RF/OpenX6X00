@@ -126,6 +126,25 @@ static uint16_t     spectrum_height;        /* Settings > Display > Spectrum hei
 static uint16_t     freq_height = 36;       /* the frequency scale under the spectrum, 0 in deck themes */
 static lv_coord_t   wf_y;                   /* waterfall top */
 
+/* The waterfall over the whole screen (#302): a key given "WF full screen on/off" in Settings > Keys, or a touch held
+ * on the waterfall (a pointer: the PC build's mouse), and the same again goes back. The waterfall and what lies on it
+ * (the band plan, the scale's lines, the spots, the cluster column: wf_block_n children of the screen in a row, from
+ * build()) come in front of all the rest, from the top of the screen to the bottom; the rest stays as it is
+ * underneath and goes on unseen, so nothing of it has to be put back. Over it a tag with the frequency and the mode,
+ * red with TX before them and a red frame around the screen while the radio transmits (the TX panel comes over it by
+ * itself). The knob, PTT and the keys work as before, VOL and the MFK say their value on the message line; F1-F5 and
+ * a tap of a key of the buttons (GEN APP KEY MSG DFN DFL, VM) go back to the normal screen, as does any app, window
+ * or Settings opening. Not kept over a restart, never over an app or in walkie mode */
+static bool         wf_full;
+static uint32_t     wf_block_n;
+static lv_obj_t   **wf_block;               /* while full: those children, in their order */
+static uint32_t     wf_block_at;            /* and the place the first one had among the screen's children */
+static lv_obj_t    *wf_tag_box, *wf_tag;
+static bool         on_air;                 /* rx_tx_cb(): the radio transmits */
+
+static void wf_full_set(bool on);
+static void wf_tag_update(void);
+
 /* What an open app keeps the keys from changing. The frequency lock is a subject: the scale
  * greys out with it. It is on while either holds it: the user's lock (LOCK, SPCH, Scroll Lock, the Panel's LOCK,
  * a key given Frequency lock in Settings > Keys), shown by LOCK in the frequency strip, or an open app's hold, which
@@ -531,6 +550,7 @@ static const char *app_name(press_action_t a) {
 /* Whatever app is open goes: its window, RTTY (the radio back as it was before it), the
  * digital audio path, the panel */
 static void close_apps(void) {
+    wf_full_set(false);     /* an app coming, the buttons asked for, a new theme: the normal screen */
     dialog_destruct();
     freq_strip_set_app(NULL);
     if (rtty_get_state() != RTTY_OFF) {
@@ -661,6 +681,8 @@ void main_screen_start_app(press_action_t app_action) {
     freq_strip_set_app(app_name(app_action));
 }
 
+static void wf_full_toggle(bool say);
+
 /* What a long press (or a hand mic F key) was given in Settings */
 void main_screen_action(press_action_t action) {
     switch (action) {
@@ -681,6 +703,7 @@ void main_screen_action(press_action_t action) {
         case ACTION_ATU_TOGGLE:     say_state("ATU", toggle_atu() ? "On" : "Off"); break;
         case ACTION_WF_MODE:        say_state("Waterfall", toggle_param(cfg_wf_mode) ? "Fixed" : "Centered"); break;
         case ACTION_WF_3D:          say_state("Waterfall 3D", toggle_param(cfg_wf_3d) ? "On" : "Off"); break;
+        case ACTION_WF_FULL:        wf_full_toggle(true); break;
         case ACTION_CW_DECODER:     say_state("CW decoder", toggle_param(cfg_cw_decoder) ? "On" : "Off"); break;
         case ACTION_CW_ZAP:         controls_cw_zap(NULL); break;   /* in CW and CW-R, as the button */
         /* The X6100 mic's GENE and NW on any key: the X6200's mic has neither (#155) */
@@ -920,6 +943,10 @@ static void hide_arm(void) {
 bool main_screen_buttons_wake(void) {
     bool was = buttons_hidden();
 
+    if (wf_full) {
+        return false;       /* under the full-screen waterfall: they come back when it goes (wf_full_set()) */
+    }
+
     buttons_hide(false);
     hide_arm();
     return was;
@@ -942,9 +969,23 @@ static void front_key_cb(lv_event_t *e) {
     event_keypad_t *ev   = lv_event_get_param(e);
     bool            tap  = ev->state == KEYPAD_RELEASE;
     bool            hold = ev->state == KEYPAD_LONG;
-    bool            woke = main_screen_buttons_wake();
+    bool            woke;
     bool            step;
 
+    /* The full-screen waterfall (#302): F1-F5 bring the normal screen back on the press, which does nothing more,
+     * as with the buttons hidden; a key of the buttons on its tap, as its long press may be the one that goes back
+     * (over a page of its own group that page stays, as with the buttons hidden). The other keys do their work
+     * under it */
+    if (wf_full && ev->state == KEYPAD_PRESS && ev->key >= KEYPAD_F1 && ev->key <= KEYPAD_F5) {
+        wf_full_set(false);
+        woke_key = ev->key;
+    } else if (wf_full && tap && (key_group(ev->key) || ev->key == KEYPAD_MSG)) {
+        if (key_group(ev->key) && buttons_group_shown(key_group(ev->key))) {
+            woke_group = ev->key;
+        }
+        wf_full_set(false);
+    }
+    woke = main_screen_buttons_wake();
     if (woke && ev->state == KEYPAD_PRESS && ev->key >= KEYPAD_F1 && ev->key <= KEYPAD_F5) {
         woke_key = ev->key;
     }
@@ -1292,6 +1333,8 @@ static void rx_tx_cb(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
 
     backlight_tx(code == EVENT_RADIO_TX);
+    on_air = code == EVENT_RADIO_TX;
+    wf_tag_update();
     lv_event_send(meter, code, NULL);
     lv_event_send(tx_info, code, NULL);
     lv_event_send(spectrum, code, NULL);
@@ -1537,6 +1580,9 @@ static void spectrum_key_cb(lv_event_t *e) {
             break;
     }
     if (cw_field_key(key) || rtty_send_key(key)) {
+        if (cw_field_visible()) {
+            wf_full_set(false);     /* the line being typed is under the full-screen waterfall */
+        }
         return;
     }
     switch (key) {
@@ -1972,19 +2018,133 @@ static lv_coord_t spectrum_layout(void) {
     return y + spectrum_height;
 }
 
-/* Spectrum on/off or its height (Settings, the remote): what is under it moves, live */
+/* Spectrum on/off or its height (Settings, the remote), the full-screen waterfall on or off: what is under the
+ * spectrum moves, live. Full screen: the waterfall from the top of the screen, the spectrum as when it is off (no
+ * trace drawn, nor put on the primary plane, where the waterfall now is) */
 static void on_spectrum_layout_change(Subject *subj, void *user_data) {
-    lv_coord_t y = spectrum_layout();
+    lv_coord_t y = 0;
 
-    freq_scale_set_y(theme_shape.deck ? y - spectrum_height : y);   /* deck: the edges in the spectrum */
-    y += freq_height;
+    if (wf_full) {
+        lv_obj_set_style_opa(spectrum, LV_OPA_TRANSP, 0);
+    } else {
+        y = spectrum_layout();
+        freq_scale_set_y(theme_shape.deck ? y - spectrum_height : y);   /* deck: the edges in the spectrum */
+        y += freq_height;
+    }
     if (y == wf_y) {
         return;     /* the height of a spectrum that is off */
     }
     wf_y = y;
     waterfall_set_height(BOARD_DISP_H - y);
     on_cluster_spots_wf_change(NULL, NULL);     /* waterfall, its lines, band plan, spots, cluster column */
-    panel_keep_below(wf_y - 8);
+    if (!wf_full) {
+        panel_keep_below(wf_y - 8);
+    }
+}
+
+/* The tag over the full-screen waterfall: the frequency and the mode; on the air TX before them on the TX colours,
+ * and a frame of the TX colour around the screen, as the walkie screen's */
+static void wf_tag_update(void) {
+    uint16_t mhz, khz, hz;
+
+    if (!wf_full) {
+        return;
+    }
+    split_freq(shown_freq(), &mhz, &khz, &hz);
+    lv_label_set_text_fmt(wf_tag, "%s%i.%03i.%03i %s", on_air ? "TX " : "", mhz, khz, hz, info_params_mode_label_get());
+    lv_obj_set_style_bg_color(wf_tag, on_air ? TC(tx_bg) : TC(chip), 0);
+    lv_obj_set_style_border_color(wf_tag, on_air ? TC(tx) : TC(bar_border), 0);
+    lv_obj_set_style_border_width(wf_tag_box, on_air ? 4 : 0, 0);
+}
+
+static void on_wf_tag_change(Subject *subj, void *user_data) {
+    wf_tag_update();
+}
+
+/* Made hidden, over all the rest (build()) */
+static void wf_tag_init(void) {
+    wf_tag_box = lv_obj_create(obj);
+    lv_obj_remove_style_all(wf_tag_box);
+    lv_obj_set_size(wf_tag_box, BOARD_DISP_W, BOARD_DISP_H);
+    lv_obj_clear_flag(wf_tag_box, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);     /* a touch: the waterfall's */
+    lv_obj_add_flag(wf_tag_box, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_border_color(wf_tag_box, TC(tx), 0);
+
+    /* In the bottom left corner, on the oldest rows, over the 3D waterfall's labels */
+    wf_tag = lv_label_create(wf_tag_box);
+    lv_obj_set_style_text_font(wf_tag, &sony_26, 0);
+    lv_obj_set_style_text_color(wf_tag, TC(text), 0);
+    lv_obj_set_style_bg_opa(wf_tag, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(wf_tag, LV_MAX(theme_shape.border, 1), 0);
+    lv_obj_set_style_radius(wf_tag, LV_MIN(theme_shape.radius, 6), 0);
+    lv_obj_set_style_pad_hor(wf_tag, 10, 0);
+    lv_obj_set_style_pad_ver(wf_tag, 3, 0);
+    lv_label_set_text(wf_tag, "");
+    lv_obj_align(wf_tag, LV_ALIGN_BOTTOM_LEFT, 8, -28);
+}
+
+/* The full-screen waterfall on or off (see wf_full) */
+static void wf_full_set(bool on) {
+    if (on == wf_full || !waterfall) {
+        return;
+    }
+    if (on) {
+        wf_block = malloc(wf_block_n * sizeof(*wf_block));
+        if (!wf_block) {
+            return;
+        }
+        wf_block_at = lv_obj_get_index(waterfall);
+        for (uint32_t i = 0; i < wf_block_n; i++) {
+            wf_block[i] = lv_obj_get_child(obj, wf_block_at + i);
+        }
+        for (uint32_t i = 0; i < wf_block_n; i++) {
+            lv_obj_move_foreground(wf_block[i]);
+        }
+        lv_obj_move_foreground(wf_tag_box);
+        lv_obj_clear_flag(wf_tag_box, LV_OBJ_FLAG_HIDDEN);
+        buttons_hide(true);     /* as Hide buttons has them: the 3D waterfall to the bottom, the knobs' values said */
+        knobs_cover(true);
+        wf_full = true;
+    } else {
+        wf_full = false;
+        /* Back where they were, the first one first: nothing under them was made or deleted meanwhile (the widgets
+         * of build()), what came over them since (a note, the SWL panel) stays over them */
+        for (uint32_t i = 0; i < wf_block_n; i++) {
+            lv_obj_move_to_index(wf_block[i], wf_block_at + i);
+        }
+        free(wf_block);
+        wf_block = NULL;
+        lv_obj_add_flag(wf_tag_box, LV_OBJ_FLAG_HIDDEN);
+        knobs_cover(false);
+        main_screen_buttons_wake();     /* shown, and Hide buttons counted from now */
+    }
+    on_spectrum_layout_change(NULL, NULL);
+    wf_tag_update();
+}
+
+void main_screen_wf_full_end(void) {
+    wf_full_set(false);
+}
+
+/* The key given it (say: a word when it cannot), or a touch held on the waterfall. Going back is always allowed */
+static void wf_full_toggle(bool say) {
+    if (!wf_full && (dialog_is_run() || rtty_get_state() != RTTY_OFF || walkie_on())) {
+        if (say && !walkie_on()) {
+            msg_update_text_fmt("Full screen: not over an app");
+        }
+        return;
+    }
+    wf_full_set(!wf_full);
+}
+
+/* A touch (the PC build's mouse) held on the waterfall, where no other touch does anything. The knobs' long presses
+ * go to the spectrum (spectrum_long_pressed_cb()) */
+static void wf_long_pressed_cb(lv_event_t *e) {
+    lv_indev_t *indev = lv_indev_get_act();
+
+    if (indev && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+        wf_full_toggle(false);
+    }
 }
 
 static void channels_poll_cb(lv_timer_t *t) {
@@ -2048,7 +2208,9 @@ static void build(void) {
 
     y += freq_height;
     wf_y = y;
+    wf_block_n = lv_obj_get_child_cnt(obj);     /* the waterfall and what lies on it: the children from here on */
     waterfall = waterfall_init(obj);
+    lv_obj_add_event_cb(waterfall, wf_long_pressed_cb, LV_EVENT_LONG_PRESSED, NULL);
     waterfall_min_max_reset();
     lv_obj_set_y(waterfall, y);
     waterfall_set_height(BOARD_DISP_H - y);
@@ -2056,6 +2218,7 @@ static void build(void) {
     freq_scale_lines_init(obj, y, BOARD_DISP_H - y);
     spot_marks_init(obj, y, spot_tag_y);   /* laid out by on_cluster_spots_wf_change() */
     cluster_column_init(obj, wf_y);
+    wf_block_n = lv_obj_get_child_cnt(obj) - wf_block_n;
     subject_subscribe_delayed_and_notify((Subject*)cfg_cluster_spots_wf, on_cluster_spots_wf_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_band_plan, on_band_plan_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_band_region, on_band_region_change, NULL);
@@ -2097,6 +2260,11 @@ static void build(void) {
     }
 
     cw_tune_init(obj);
+    wf_tag_init();
+    subject_subscribe_delayed((Subject*)cfg_fg_freq, on_wf_tag_change, NULL);
+    subject_subscribe_delayed((Subject*)cfg_bg_freq, on_wf_tag_change, NULL);
+    subject_subscribe_delayed((Subject*)cfg_band_split, on_wf_tag_change, NULL);
+    subject_subscribe_delayed((Subject*)cfg_cur_mode, on_wf_tag_change, NULL);
 
     /* The order counts: these run in it when several change at once */
     subject_subscribe_delayed((Subject*)freq_lock, on_freq_change, NULL);

@@ -242,6 +242,9 @@ class SettingsManager {
     // Walkie Talkie: the microphone while its screen is up (radio_mic_sel_t); p_mic stays as saved
     Parameter<int32_t> p_walkie_mic{"walkie_mic", radio_mic_builtin, 0, 2,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Walkie Talkie: a small waterfall in place of its bandscope (walkie.c, #302)
+    Parameter<int32_t> p_walkie_wf{"walkie_wf", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // S-meter drawn as a needle on a dial instead of the bars
     // Waterfall colours: 0 the theme's, then classic, gauss, grey, fire, ice, rainbow (theme.c)
     Parameter<int32_t> p_wf_palette{"wf_palette", 0, 0, 6,

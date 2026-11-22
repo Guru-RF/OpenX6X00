@@ -48,6 +48,7 @@ ParamInt         *cfg_walkie              = nullptr;
 ParamInt         *cfg_walkie_mem          = nullptr;
 ParamInt         *cfg_walkie_ch           = nullptr;
 ParamInt         *cfg_walkie_mic          = nullptr;
+ParamInt         *cfg_walkie_wf           = nullptr;
 ParamInt         *cfg_band_plan           = nullptr;
 ParamInt         *cfg_wr12                = nullptr;
 ParamInt         *cfg_speaker_off         = nullptr;
@@ -288,6 +289,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_walkie_mem       = &cfg_sm.p_walkie_mem;
     cfg_walkie_ch        = &cfg_sm.p_walkie_ch;
     cfg_walkie_mic       = &cfg_sm.p_walkie_mic;
+    cfg_walkie_wf        = &cfg_sm.p_walkie_wf;
     cfg_band_plan        = &cfg_sm.p_band_plan;
     cfg_wr12             = &cfg_sm.p_wr12;
     cfg_speaker_off      = &cfg_sm.p_speaker_off;

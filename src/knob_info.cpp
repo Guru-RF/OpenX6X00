@@ -234,6 +234,7 @@ static bool      enabled;
 static bool      wanted = true;     /* knobs_display(): no window or decoder text over them */
 static bool      tucked;            /* hidden with the buttons (Hide buttons, button_bar.cpp) */
 static bool      stay;              /* Keep knob lines: shown while the buttons are hidden (#128) */
+static bool      covered;           /* the full-screen waterfall is over them (knobs_cover(), #302) */
 
 static void show_lines();
 
@@ -263,6 +264,7 @@ void knobs_init(lv_obj_t *parent) {
     lv_obj_set_y(vol_line.obj(), y - h * 2);
     lv_obj_set_y(mfk_line.obj(), y - h);
     tucked = false;     /* made shown, as the buttons are (buttons_init()) */
+    covered = false;    /* a theme change ends the full-screen waterfall first (main_screen_set_theme()) */
     cfg_sm.p_knob_info.subscribe_delayed_and_notify(knob_info_cb, nullptr);
 
     static bool subscribed;     /* once: knobs_init() runs again at each theme change */
@@ -275,7 +277,7 @@ void knobs_init(lv_obj_t *parent) {
 
 static void show_lines() {
     for (lv_obj_t *l : {vol_line.obj(), mfk_line.obj()}) {
-        if (wanted && enabled && (!tucked || stay)) {
+        if (wanted && enabled && !covered && (!tucked || stay)) {
             lv_obj_clear_flag(l, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(l, LV_OBJ_FLAG_HIDDEN);
@@ -290,6 +292,13 @@ void knobs_display(bool on) {
 
 void knobs_hide(bool hide) {
     tucked = hide;
+    if (vol_line.obj()) {
+        show_lines();
+    }
+}
+
+void knobs_cover(bool cover) {
+    covered = cover;
     if (vol_line.obj()) {
         show_lines();
     }

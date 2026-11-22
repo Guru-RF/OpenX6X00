@@ -41,6 +41,9 @@
  *    carrier in TX on the line in USB, CW and CW-R, with +1.5 kHz and with the reporter's -3 kHz; placed from where
  *    the base was tuned the TX rows were the IF shift off the line (#191). At Speed 1 a line holds frames of TX or
  *    of receive there too
+ *  - the walkie screen's mini waterfall (waterfall_mini_draw(), #302), 360 x 100 pixels of the same rows: a station
+ *    on the dial is a line down its middle and nowhere else; a call with no new row draws nothing; a new row comes
+ *    in at the top and the rest moves down a line; another centre draws it all again, the station where it now is
  *  See the Makefile.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -364,6 +367,23 @@ static int32_t carrier_at(void) {
 /* The newest row's level away from its carrier, near the low edge: its noise */
 static uint8_t noise_level(void) {
     return rows[__atomic_load_n(&newest, __ATOMIC_ACQUIRE)].values[DATA_AT + 8];
+}
+
+/* The mini waterfall's line y (MW pixels): where its strongest pixel is and its level, and the level at the left
+ * edge. The test's palette has a level in its red */
+enum { MW = 360, MH = 100 };
+
+static lv_color_t mini_px[MW * MH];
+
+static int mini_peak(int y, int *peak, int *edge) {
+    int at = 0;
+
+    for (int x = 1; x < MW; x++) {
+        if (mini_px[y * MW + x].ch.red > mini_px[y * MW + at].ch.red) at = x;
+    }
+    *peak = mini_px[y * MW + at].ch.red;
+    *edge = mini_px[y * MW].ch.red;
+    return at;
 }
 
 /* The VFO moved by hz, as the parameters tell it */
@@ -742,6 +762,33 @@ int main(void) {
     check(rows[newest].center_freq == (uint32_t)fg_freq - 700,
           "TX, the IF shift on: the row centred the key tone below the dial it sent");
     if_shift_to(0);
+
+    printf("The walkie screen's mini waterfall: %d x %d of the same rows, over the same 100 kHz\n", MW, MH);
+    int at, peak, edge, wrong = 0;
+
+    theme_shape.mono = false;
+    lo_offsets(0, 0);
+    for (int i = 0; i < MH + 5; i++) x6100_frame(false, 0, fg_freq);
+    check(waterfall_mini_draw(mini_px, MW, MH, fg_freq, SPAN_HZ), "the first call draws it");
+    for (int y = 0; y < MH; y++) {
+        at = mini_peak(y, &peak, &edge);
+        wrong += LV_ABS(at - MW / 2) > 1 || peak < 40 || edge != 10;
+    }
+    at = mini_peak(MH - 1, &peak, &edge);
+    check(!wrong, "a station on the dial: a line down the middle of every row (the last: x %d, level %d, %d beside)",
+          at, peak, edge);
+    check(!waterfall_mini_draw(mini_px, MW, MH, fg_freq, SPAN_HZ), "no new row: nothing drawn");
+    row();
+    check(waterfall_mini_draw(mini_px, MW, MH, fg_freq, SPAN_HZ), "a new row: drawn");
+    mini_peak(0, &peak, &edge);
+    at = mini_peak(1, &wrong, &n);
+    check(peak == level && edge == level && at == MW / 2 && n == 10,
+          "it is the top line (level %d, the row's %d), the one before under it (its station at x %d)", peak, level,
+          at);
+    check(waterfall_mini_draw(mini_px, MW, MH, fg_freq + 10000, SPAN_HZ), "a view 10 kHz up: drawn again");
+    at = mini_peak(MH - 1, &peak, &edge);
+    check(LV_ABS(at - (MW / 2 - MW / 10)) <= 1 && peak >= 40, "the station a tenth of the width to the left (x %d)",
+          at);
 
     printf("%d of %d cases ok\n", good, cases);
     return good == cases ? 0 : 1;

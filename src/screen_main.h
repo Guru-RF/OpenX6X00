@@ -50,6 +50,9 @@ void main_screen_media_vol(int dir);
 /* A key, or a window opened or closed: the buttons back if Settings > Display > Hide buttons hid them, and hidden
  * again after its time without a key. True when they were hidden */
 bool main_screen_buttons_wake(void);
+/* A window is about to open: the full-screen waterfall (a key given "WF full screen on/off", #302) back to the
+ * normal screen, the window on it as ever */
+void main_screen_wf_full_end(void);
 
 /* Apps and the actions a long press or a hand mic F key can be given */
 void main_screen_start_app(press_action_t app);

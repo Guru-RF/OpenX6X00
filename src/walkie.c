@@ -21,6 +21,7 @@
 #include "info.h"
 #include "meter.h"
 #include "spectrum.h"
+#include "waterfall.h"
 #include "tx_info.h"
 #include "clock.h"
 #include "channels.h"
@@ -62,6 +63,10 @@ static lv_obj_t *main_obj;              /* the same while the walkie screen is u
 static lv_timer_t *timer;
 static lv_obj_t *scr, *clock_label, *bat_label, *chan_label, *freq_label, *mode_label;
 static lv_obj_t *scope, *scope_lo, *scope_span, *scope_hi;
+/* Settings > Walkie > Mini waterfall (#302): the waterfall's newest rows in the bandscope's frame in place of its
+ * trace, over the same span (the edges and the span under it stay), a line where the VFO is */
+static lv_obj_t     *scope_wf, *scope_vfo;
+static lv_img_dsc_t *scope_frame;
 static lv_obj_t *meter_box, *tx_label, *rxtx, *rxtx_label;
 static lv_obj_t *vol_bar, *vol_val, *sql_bar, *sql_val, *pwr_bar, *pwr_val;
 static lv_style_t scr_style, strip_style, meter_box_style;     /* boxes of the theme */
@@ -470,10 +475,12 @@ static void update_cb(lv_timer_t *t) {
     }
     set_text(mode_label, buf);
 
-    /* The bandscope: the main screen's spectrum data and drawing (spectrum.c), 10 frames/s */
+    /* The bandscope: the main screen's spectrum data and drawing (spectrum.c), 10 frames/s; or the mini waterfall,
+     * the rows that came since */
     float   vfo_at;
     int32_t span = spectrum_span(&vfo_at);
     int32_t lo = cparam_i_get(cfg_fg_freq) - (int32_t)(span * vfo_at);
+    bool    wf = param_i_get(cfg_walkie_wf) && scope_frame;
 
     snprintf(buf, sizeof(buf), "%.3f", lo / 1e6);
     set_text(scope_lo, buf);
@@ -481,7 +488,22 @@ static void update_cb(lv_timer_t *t) {
     set_text(scope_hi, buf);
     snprintf(buf, sizeof(buf), "%g kHz", span / 1000.0);
     set_text(scope_span, buf);
-    lv_obj_invalidate(scope);
+    if (wf == lv_obj_has_flag(scope_wf, LV_OBJ_FLAG_HIDDEN)) {      /* switched in Settings, on the web page */
+        if (wf) {
+            lv_obj_clear_flag(scope_wf, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(scope_wf, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    if (wf) {
+        if (waterfall_mini_draw((lv_color_t *)scope_frame->data, scope_frame->header.w, scope_frame->header.h,
+                                lo + span / 2, span)) {
+            lv_obj_invalidate(scope_wf);
+        }
+        lv_obj_set_x(scope_vfo, (lv_coord_t)(scope_frame->header.w * vfo_at));
+    } else {
+        lv_obj_invalidate(scope);
+    }
 
     lv_bar_set_value(vol_bar, param_i_get(cfg_volume), LV_ANIM_OFF);
     snprintf(buf, sizeof(buf), "%i", (int)param_i_get(cfg_volume));
@@ -519,6 +541,13 @@ static void update_cb(lv_timer_t *t) {
 
 bool walkie_on(void) {
     return main_obj != NULL;
+}
+
+/* The bandscope's trace and markers, not under the mini waterfall */
+static void scope_draw_cb(lv_event_t *e) {
+    if (lv_obj_has_flag(scope_wf, LV_OBJ_FLAG_HIDDEN)) {
+        spectrum_draw_cb(e);
+    }
 }
 
 static void build(void) {
@@ -584,7 +613,24 @@ static void build(void) {
     lv_obj_set_style_border_color(scope, TC(bar_border), 0);
     lv_obj_set_style_radius(scope, theme_shape.radius, 0);
     lv_obj_set_style_clip_corner(scope, true, 0);
-    lv_obj_add_event_cb(scope, spectrum_draw_cb, LV_EVENT_DRAW_MAIN_END, NULL);
+    lv_obj_add_event_cb(scope, scope_draw_cb, LV_EVENT_DRAW_MAIN_END, NULL);
+    /* The mini waterfall inside the frame, hidden till update_cb() finds its setting on; without its buffer (no
+     * memory) the bandscope stays */
+    lv_coord_t bw = lv_obj_get_style_border_width(scope, 0);
+
+    scope_frame = lv_img_buf_alloc(CW - 2 * bw, SCOPE_H - 2 * bw, LV_IMG_CF_TRUE_COLOR);
+    scope_wf = lv_img_create(scope);
+    if (scope_frame) {
+        memset((void *)scope_frame->data, 0, scope_frame->data_size);
+        lv_img_set_src(scope_wf, scope_frame);
+    }
+    lv_obj_set_pos(scope_wf, 0, 0);
+    lv_obj_add_flag(scope_wf, LV_OBJ_FLAG_HIDDEN);
+    scope_vfo = lv_obj_create(scope_wf);
+    lv_obj_remove_style_all(scope_vfo);
+    lv_obj_set_size(scope_vfo, 1, SCOPE_H - 2 * bw);
+    lv_obj_set_style_bg_color(scope_vfo, TC(vfo_line), 0);
+    lv_obj_set_style_bg_opa(scope_vfo, LV_OPA_COVER, 0);
     scope_lo = label(scr, &sony_22, TC(text_soft));
     lv_obj_set_pos(scope_lo, X0 + 2, SCALE_Y);
     scope_span = label(scr, &sony_22, TC(text_soft));
@@ -675,6 +721,10 @@ void walkie_drop(void) {
         lv_timer_del(timer);
         lv_obj_del(scr);
         scr = NULL;
+        if (scope_frame) {
+            lv_img_buf_free(scope_frame);
+            scope_frame = NULL;
+        }
     }
 }
 

@@ -123,6 +123,15 @@ static uint32_t         keep_anchor;
 static int32_t          keep_bin;
 static uint32_t         keep_width;         /* 0: nothing kept */
 
+/* The walkie screen's mini waterfall (waterfall_mini_draw()): what its buffer holds, the view and the newest row it
+ * was drawn to. buf NULL: all of it again (new colours, the rows emptied by waterfall_set_height()) */
+static struct {
+    lv_color_t *buf;
+    lv_coord_t  w, h;
+    uint32_t    center, span;
+    uint32_t    num;
+} mini;
+
 static void refresh_waterfall(void *arg);
 static void do_scroll_timer(lv_timer_t *t);
 static void update_middle_line(void);
@@ -133,6 +142,7 @@ static void on_palette_change(Subject *subj, void *user_data) {
     extern const uint32_t wf_palette_legacy[256], wf_palette_gauss[256];   /* styles.c */
 
     wfp_full = true;            /* colours change: the image / plane must be remade */
+    mini.buf = NULL;            /* and the walkie screen's mini waterfall */
     if (theme_shape.mono) {     /* 1bit: its ink density, not the presets */
         wf_palette = theme_waterfall();
     } else {
@@ -1438,6 +1448,57 @@ static void image_redraw(int new_row) {
     lv_obj_invalidate(img);
 }
 
+/* ---- The walkie screen's mini waterfall ---- */
+
+/* A row at w pixels: each the strongest of the screen pixels it stands for, so a narrow signal stays a line */
+static void mini_line(lv_color_t *out, lv_coord_t w, const wf_row_t *row, uint32_t center, uint32_t span) {
+    uint8_t px[WIDTH];
+
+    row_pixels(row, center, span, 0, WIDTH, px);
+    for (lv_coord_t x = 0; x < w; x++) {
+        size_t  a = (size_t) x * WIDTH / w, b = (size_t) (x + 1) * WIDTH / w;
+        uint8_t v = px[a];
+
+        for (a++; a < b; a++) {
+            if (px[a] > v) v = px[a];
+        }
+        out[x] = (lv_color_t) (wf_pixel(v, x, row) | 0xff000000);    /* opaque: the GUI over the planes */
+    }
+}
+
+bool waterfall_mini_draw(lv_color_t *buf, lv_coord_t w, lv_coord_t h, uint32_t center, uint32_t span) {
+    static const wf_row_t none;     /* older than the rows kept: empty */
+    uint16_t              top;
+    uint32_t              num;
+    int32_t               n;
+
+    if (!ready || !buf || w <= 0 || w > WIDTH || h <= 0 || !span) {
+        return false;
+    }
+    /* The rows of one moment, as image_redraw() takes them */
+    top = __atomic_load_n(&newest, __ATOMIC_ACQUIRE);
+    num = row_from(top, 0)->num;
+    n = h;
+    if (mini.buf == buf && mini.w == w && mini.h == h && mini.center == center && mini.span == span &&
+        num - mini.num < (uint32_t) h) {
+        n = num - mini.num;
+        if (n == 0) {
+            return false;
+        }
+        memmove(buf + (size_t) n * w, buf, (size_t) (h - n) * w * sizeof(lv_color_t));
+    }
+    for (int32_t y = 0; y < n; y++) {
+        mini_line(buf + (size_t) y * w, w, y < height ? row_from(top, y) : &none, center, span);
+    }
+    mini.buf = buf;
+    mini.w = w;
+    mini.h = h;
+    mini.center = center;
+    mini.span = span;
+    mini.num = num;
+    return true;
+}
+
 static void refresh_waterfall(void *arg) {
     if (!ready || ++refresh_count < refresh_period) {
         return;
@@ -1930,6 +1991,7 @@ void waterfall_set_height(lv_coord_t h) {
         }
         wfp_head = 0;
         wfp_full = true;
+        mini.buf = NULL;
         d3_drawn_buf = NULL;
         if (!direct) {
             lv_img_buf_free(frame);

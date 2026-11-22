@@ -832,6 +832,7 @@ static const key_action_t front_actions[] = {
     {" Step down ", ACTION_STEP_DOWN},     /* FST's long press until it is changed */
     {" WF mode ", ACTION_WF_MODE},
     {" WF 3D on/off ", ACTION_WF_3D},
+    {" WF full screen on/off ", ACTION_WF_FULL},
     {" CW decoder on/off ", ACTION_CW_DECODER},
     {" CW ZAP ", ACTION_CW_ZAP},
     {" SWL panel ", ACTION_SWL_PANEL},
@@ -887,6 +888,7 @@ static const key_action_t mic_actions[] = {
     {" NB toggle ", ACTION_NB_TOGGLE},
     {" WF mode ", ACTION_WF_MODE},
     {" WF 3D on/off ", ACTION_WF_3D},
+    {" WF full screen on/off ", ACTION_WF_FULL},
     {" CW decoder on/off ", ACTION_CW_DECODER},
     {" CW ZAP ", ACTION_CW_ZAP},
     {" SWL panel ", ACTION_SWL_PANEL},
@@ -3628,7 +3630,7 @@ static void make_general_page() {
     card_end(row);
 }
 
-/* The Walkie Talkie screen: on (Settings closes, the portrait screen comes up), its knob, its mic */
+/* The Walkie Talkie screen: on (Settings closes, the portrait screen comes up), its knob, its mic, its scope */
 static void make_walkie_page() {
     grid_create();
 
@@ -3636,6 +3638,8 @@ static void make_walkie_page() {
     row = make_param_switch(row, "Walkie Talkie", cfg_sm.p_walkie);
     row = make_param_switch(row, "Main knob steps channels", cfg_sm.p_walkie_mem);
     row = make_mic(row, "Microphone", cfg_sm.p_walkie_mic);
+    /* A small waterfall where the bandscope is (#302): walkie.c looks at it ten times a second */
+    row = make_param_switch(row, "Mini waterfall", cfg_sm.p_walkie_wf);
     card_end(row);
 }
 

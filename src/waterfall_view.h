@@ -28,6 +28,11 @@ void waterfall_update_max(float db);
 /* Its limits (dB) for the rows, the reference level applied */
 void waterfall_get_levels(bool tx, float *min, float *max);
 
+/* The Walkie Talkie screen's mini waterfall (walkie.c, #302): the newest h rows, the newest at the top, as w x h
+ * pixels in buf, over span Hz centred on center, in the waterfall's colours. Each call brings buf up to date: the new
+ * rows scrolled in, or all of it when the view, the colours or the buffer changed. True when buf changed */
+bool waterfall_mini_draw(lv_color_t *buf, lv_coord_t w, lv_coord_t h, uint32_t center, uint32_t span);
+
 /* Fixed mode (cfg_wf_mode): the displayed span stays put and the VFO moves across it.
  * Returns how far (Hz) the centre of the received data is from the display centre;
  * always 0 in Centered mode. Moves the view on when the VFO line leaves its room on the

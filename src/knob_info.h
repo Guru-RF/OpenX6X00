@@ -30,6 +30,9 @@ void knobs_display(bool on);
 /* Hidden with the buttons (Settings > Display > Hide buttons), whatever knobs_display() says; back as it says.
  * With Keep knob lines on they stay, as knobs_display() says (#128) */
 void knobs_hide(bool hide);
+/* Under the full-screen waterfall (screen_main.c, #302): hidden whatever the two above and Keep knob lines say, so
+ * VOL and the MFK say their value on the message line; back as they say */
+void knobs_cover(bool cover);
 bool knobs_visible();
 
 /* For an app that draws the knobs itself (Field Ops): what VOL (vol true) or MFK controls, its value,
