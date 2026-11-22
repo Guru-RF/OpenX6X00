@@ -56,7 +56,9 @@
 # would stop the new modem and start the old one again, for a connection nobody waits for any more.
 # Pat's config.json holds the password, so it lives on the root filesystem (/var/lib/winlink/pat), where the
 # web pages cannot read it. It is merged, not written whole: our keys are set (the password when the page has
-# one), every other one is kept, since Pat's own Settings page edits the file too. The mailbox is on the DATA
+# one), every other one is kept, since Pat's own Settings page edits the file too. Its service_codes, which Pat
+# asks Winlink's gateway list with, are PUBLIC and the code of the VARA HF modem in use (XARA or MERCURY; with ARDOP
+# the one a VARA HF connection would switch to), then the user's own (#324). The mailbox is on the DATA
 # partition (/mnt/winlink/pat) and survives a new card image; Pat's state and the logs are in RAM (/run/winlink).
 #
 # Lines of ours go into Pat's own log ("OpenX6X00: ..."), which the mailbox's log pane shows: no password set, and
@@ -135,6 +137,13 @@ MODEM_PROGRAMS = {"ardop": ARDOPCF, "mercury": MERCURY, "xara": XARA}
 TRANSPORTS = {"ardop": "ardop", "mercury": "varahf", "xara": "varahf"}   # Pat's transport for each modem
 TRANSPORT_NAMES = {"ardop": "ARDOP", "varahf": "VARA HF"}   # as Pat's Connect dialog names them
 VARA_MODEMS = ("mercury", "xara")      # the ones Pat reaches as VARA HF
+# Winlink's service codes (Pat's service_codes), which its gateway list is asked with: sysops register an ARDOP
+# gateway under PUBLIC, one for XARA under XARA and one for Mercury under MERCURY (#324). Pat's list names no code
+# for a gateway and is cut down by transport only, so the code of the VARA HF modem a connection would go through
+# is the one asked: Mercury and XARA do not talk to each other, and the other's gateways would only show as ones
+# that never answer
+SERVICE_CODE = "PUBLIC"
+MODEM_SERVICE_CODES = {"mercury": "MERCURY", "xara": "XARA"}
 TNC_PORTS = {"ardop": ARDOP_PORT, "mercury": MERCURY_PORT, "xara": MERCURY_PORT}   # where Pat reaches each
 SWITCH_ENV = "OPENX6X00_MODEM_SWITCH"  # in Pat's environment: this file, its modem switch (tools/pat, 0008)
 SWITCH_SETTLE = 20                     # s for a change the Winlink page made just before to be done
@@ -334,7 +343,20 @@ def wanted():
     return {"mycall": mycall, "locator": norm_locator(conf.get("locator", "")) or norm_locator(qth),
             "bandwidth": bw, "modem": conf.get("modem") if conf.get("modem") in MODEMS else "ardop",
             "mercury_bandwidth": mbw, "xara_bandwidth": xbw, "vara_licence": conf.get("vara_licence") == "1",
-            "xara_path_ms": path}
+            "xara_path_ms": path, "varahf_modem": varahf_modem(conf)}
+
+
+def service_codes(had, vara):
+    """Pat's service_codes for vara, the VARA HF modem a connection goes through (the one chosen, or with ARDOP the
+    one Pat's own switch would take): PUBLIC, that modem's code, then every other code the file had (the user's own,
+    typed on Pat's Settings page), each once. The other modem's code goes: it is ours, set when that one was chosen"""
+    ours = [SERVICE_CODE, MODEM_SERVICE_CODES[vara if vara in MODEM_SERVICE_CODES else "xara"]]
+    drop = {SERVICE_CODE, *MODEM_SERVICE_CODES.values()}
+    codes = list(ours)
+    for c in had if isinstance(had, list) else []:
+        if isinstance(c, str) and c.strip() and c.strip().upper() not in drop and c.strip() not in codes:
+            codes.append(c.strip())
+    return codes
 
 
 def write_config(want, password):
@@ -370,6 +392,9 @@ def write_config(want, password):
 
         cfg.update({"mycall": want["mycall"], "locator": want["locator"],
                     "http_addr": f":{HTTP_PORT}", "listen": [], "version_reporting_disabled": True})
+        # The gateways of the modem in use in Pat's list too, not only the PUBLIC ones (#324): in a config.json from
+        # before as well, at Pat's next start
+        cfg["service_codes"] = service_codes(cfg.get("service_codes"), want.get("varahf_modem"))
         # The Winlink page's password; with none there, the one typed on Pat's own Settings page is kept. It was
         # emptied at each start of Pat, which then asked for it in the mailbox when the gateway's challenge came and
         # gave up after a minute: "Exchange failed: context deadline exceeded" (#80)

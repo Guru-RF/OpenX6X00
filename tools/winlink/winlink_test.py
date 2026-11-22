@@ -286,6 +286,62 @@ class Xara(Root):
         self.assertIn("==== XARA's settings: /run/winlink/xara.conf\n", out.getvalue())
 
 
+class ServiceCodes(Root):
+    """Pat's service_codes (#324): PUBLIC and the code of the VARA HF modem a connection goes through, in a new
+    config.json and in one from before, the user's own codes kept"""
+
+    def codes(self):
+        self.wl.write_config(self.wl.wanted(), "")
+        return self.pat_config()["service_codes"]
+
+    def test_new_config_per_modem(self):
+        self.conf(enabled=1, mycall="ON6URE", modem="xara")
+        self.assertEqual(self.codes(), ["PUBLIC", "XARA"])
+        self.conf(enabled=1, mycall="ON6URE", modem="mercury")
+        self.assertEqual(self.codes(), ["PUBLIC", "MERCURY"])        # XARA's, ours, gone with the modem
+
+    def test_ardop_takes_the_vara_modem_pats_switch_would(self):
+        """With ARDOP, the code of the modem a VARA HF connection switches to: Pat goes on through that switch and
+        does not read its config again, and its list shows the VARA HF gateways before it"""
+        self.conf(enabled=1, mycall="ON6URE")
+        self.assertEqual(self.codes(), ["PUBLIC", "XARA"])           # neither chosen yet: XARA
+        self.conf(enabled=1, mycall="ON6URE", modem="ardop", varahf_modem="mercury")
+        self.assertEqual(self.codes(), ["PUBLIC", "MERCURY"])
+        for modem, last in (("ardop", "xara"), ("xara", "xara"), ("ardop", "mercury"), ("mercury", "mercury")):
+            self.conf(enabled=1, mycall="ON6URE", modem=modem, varahf_modem=last)
+            self.assertEqual(self.wl.wanted()["varahf_modem"], last, (modem, last))
+
+    def test_config_from_before_brought_up(self):
+        """An existing config.json with PUBLIC alone, as every one up to v0.3.13: the modem's code added, the rest of
+        the file as it was"""
+        os.makedirs(os.path.dirname(self.wl.PAT_CONFIG))
+        with open(self.wl.PAT_CONFIG, "w") as f:
+            json.dump(dict(self.wl.PAT_DEFAULTS, motd=["mine"]), f)
+        self.conf(enabled=1, mycall="ON6URE", modem="xara")
+        self.assertEqual(self.codes(), ["PUBLIC", "XARA"])
+        self.assertEqual(self.pat_config()["motd"], ["mine"])
+        self.assertFalse(self.wl.write_config(self.wl.wanted(), ""))   # and no change the next time
+
+    def test_own_codes_kept(self):
+        """Codes typed on Pat's Settings page stay, in their order, behind ours; PUBLIC comes back when it was taken
+        out, and no code twice"""
+        self.conf(enabled=1, mycall="ON6URE", modem="xara")
+        self.codes()
+        for had, modem, now in ((["EMCOMM", "PUBLIC", "MARS"], "xara", ["PUBLIC", "XARA", "EMCOMM", "MARS"]),
+                                (["EMCOMM"], "mercury", ["PUBLIC", "MERCURY", "EMCOMM"]),
+                                (["PUBLIC", "XARA", "MERCURY", "EMCOMM", "EMCOMM"], "ardop",
+                                 ["PUBLIC", "XARA", "EMCOMM"]),
+                                ("PUBLIC", "xara", ["PUBLIC", "XARA"]),          # not a list: ours
+                                ([], "mercury", ["PUBLIC", "MERCURY"]),
+                                (["public", " emcomm ", 7, ""], "xara", ["PUBLIC", "XARA", "emcomm"])):
+            cfg = self.pat_config()
+            cfg["service_codes"] = had
+            with open(self.wl.PAT_CONFIG, "w") as f:
+                json.dump(cfg, f)
+            self.conf(enabled=1, mycall="ON6URE", modem=modem)
+            self.assertEqual(self.codes(), now, (had, modem))
+
+
 class Password(Root):
     def status(self):
         with open(self.wl.STATUS) as f:
