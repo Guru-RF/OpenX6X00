@@ -147,12 +147,21 @@ grep -q "select BR2_PACKAGE_AVAHI_DAEMON" $GUI_CONFIG_IN || sed -i "s/^\tselect 
 grep -q "avahi" $GUI_MK || sed -i "/^${GUI_VAR}_DEPENDENCIES/s/$/ avahi/" $GUI_MK
 grep -q "libdrm" $GUI_MK || sed -i "/^${GUI_VAR}_DEPENDENCIES/s/$/ libdrm/" $GUI_MK
 
-echo "== No RHVoice: PulseAudio selected by the GUI itself"
+echo "== Speech: RHVoice with its four free English voices, not a dependency of the GUI"
+# The GUI does not link RHVoice: src/speech_engine.c opens libRHVoice.so.5 when speech is first asked for, so the GUI
+# package depends on PulseAudio only and the same binary runs on a card image from before speech. The package itself
+# stays in the image for Settings > Voice (off by default): the library and its core (LGPL-2.1-or-later), English,
+# and the voices SLT, Alan, BDL and CLB, which doc/en/License.md of RHVoice lists without a restriction. Evgeniy and
+# Lyubov are CC BY-NC-ND 4.0 (no use in a product without their owner's permission): never selected here
 sed -i "/^${GUI_VAR}_DEPENDENCIES/s/\brhvoice\b/pulseaudio/" $GUI_MK
 sed -i "s/select BR2_PACKAGE_RHVOICE$/select BR2_PACKAGE_PULSEAUDIO/" $GUI_CONFIG_IN
 sed -i "/^BR2_PACKAGE_RHVOICE/d" $DEFCONFIG
+for o in RHVOICE RHVOICE_ENGLISH RHVOICE_SLT RHVOICE_ALAN RHVOICE_BDL RHVOICE_CLB; do
+    echo "BR2_PACKAGE_${o}=y" >> $DEFCONFIG
+done
 grep "^${GUI_VAR}_DEPENDENCIES" $GUI_MK
-! grep -in "rhvoice" $GUI_MK $GUI_CONFIG_IN $DEFCONFIG
+! grep -in "rhvoice" $GUI_MK $GUI_CONFIG_IN
+! grep -n "RHVOICE_ENGENIY_EN\|RHVOICE_LYUBOV" $DEFCONFIG
 
 echo "== System cleanup: no PCI firmware, PulseAudio at 44.1 kHz, one Bluetooth setup"
 for o in BROADCOM_TIGON3 BNX2X CXGB4_T4 CXGB4_T5 INTEL_E100 INTEL_ICE MICROCHIP_VSC85XX_PHY QLOGIC_4X RTL_8169; do
@@ -468,13 +477,25 @@ for d in $BR/build/build/$GUI_PKG-*/; do touch "$d/.openx6x00"; done
 # its own: python3 (the ssl module) and openssl (the command) are reconfigured when missing
 ls $BR/build/target/usr/lib/python3.11/lib-dynload/_ssl*.so > /dev/null 2>&1 || make python3-reconfigure
 [ -x $BR/build/target/usr/bin/openssl ] || make libopenssl-reconfigure
+# and RHVoice is installed again when the tree has not the four voices of the speech (a tree built before it)
+for v in slt alan bdl clb; do
+    [ -d $BR/build/target/usr/share/RHVoice/voices/$v ] || { make rhvoice-reinstall; break; }
+done
 # What a tree built stock before installed in target/ stays there (buildroot never removes what a
 # package put there) and would go into the image: the PCI firmware whose options were dropped above
-# (16 MB; RTL_815X, kept, is the rtl815x files of rtl_nic, the rest came with RTL_8169), RHVoice
-# (dropped above, 13 MB), the stock GUI's binary and data (/usr/sbin/x6200_gui, /usr/share/x6200)
+# (16 MB; RTL_815X, kept, is the rtl815x files of rtl_nic, the rest came with RTL_8169), of RHVoice
+# what the speech does not use (its audio library, GPL and not loaded: speech_engine.c plays the samples itself; its
+# test program; the two voices under non-commercial terms and any voice an earlier build put there), the stock GUI's
+# binary and data (/usr/sbin/x6200_gui, /usr/share/x6200)
 rm -rf $BR/build/target/lib/firmware/{bnx2x,cxgb4,e100,intel,microchip,qed,tigon}
 find $BR/build/target/lib/firmware/rtl_nic -type f ! -name 'rtl815*' -delete 2>/dev/null
-rm -rf $BR/build/target/usr/share/RHVoice $BR/build/target/usr/lib/libRHVoice* $BR/build/target/usr/bin/RHVoice*
+rm -rf $BR/build/target/usr/lib/libRHVoice_audio* $BR/build/target/usr/bin/RHVoice*
+for v in $BR/build/target/usr/share/RHVoice/voices/*/; do
+    case $(basename "$v") in slt|alan|bdl|clb) ;; *) rm -rf "$v" ;; esac
+done
+# each voice comes at 16 and at 24 kHz: speech_engine.c plays 24 kHz, and RHVoice speaks the same with those files
+# alone (tools/speech, with a data folder without them), which halves the voices: 19 MB of 35
+rm -rf $BR/build/target/usr/share/RHVoice/voices/*/16000
 rm -rf $BR/build/target/usr/sbin/x6200_gui $BR/build/target/usr/share/x6200
 # and the RS theme the GUI installed up to v0.3.5 (cut from an Icom RS-BA1 screenshot: not shipped any more)
 rm -rf $BR/build/target/usr/share/x6100/themes
