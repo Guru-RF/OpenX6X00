@@ -269,6 +269,7 @@ static uint64_t         pack_time;      /* last packet from the base */
 static bool             base_seen;      /* a packet came in this run */
 static atomic_uint_fast64_t data_time;  /* pack_time for the other threads (radio_no_data), 0 before the first packet */
 static bool             gone_said;      /* "No data from the base" said, until a packet comes (base_gone) */
+static bool             gap_said;       /* a gap of NO_DATA_MS in the base log, until a packet comes */
 static bool             tx_by_gui;      /* the GUI keyed the TX under way (PTT, an app, the CW key): radio thread */
 static uint8_t          pack_vbat, pack_vext;   /* its voltages, 0.1 V */
 static volatile int8_t  bat_pct = -1;   /* the battery %, -1 on external power or not measured yet */
@@ -2814,9 +2815,10 @@ static bool radio_tick() {
         /* Its gap kept until a line is free: right after a "base silent" line it was dropped (one a second) */
         static uint32_t again_ms;
 
-        if (gone_said) {
+        if (gone_said || gap_said) {
             again_ms = now_time - pack_time;
         }
+        gap_said = false;
         if (again_ms && base_guard_log_free()) {
             base_guard_log("data from the base again after %u ms", (unsigned)again_ms);
             again_ms = 0;
@@ -3202,6 +3204,13 @@ static bool radio_tick() {
             if (s == RADIO_POWEROFF) {
                 WITH_RADIO_LOCK(hw_poweroff());
                 state_move(RADIO_POWEROFF, RADIO_OFF);
+            }
+            /* A gap from NO_DATA_MS on, when TX is refused, not only from BASE_GONE_MS: a body on a cable (the G90's)
+             * out for a few seconds left no line. Its end is the "again" line. Not before the first packet: a start's
+             * first packet can take 16 s (#47), and base_gone says that one */
+            if (base_seen && !gap_said && now_time - pack_time > NO_DATA_MS && base_guard_log_free()) {
+                base_guard_log("no data from the base for %u ms", (unsigned)(now_time - pack_time));
+                gap_said = true;
             }
             if (base_gone()) {
                 silent_logged = now_time;   /* its line instead of a "base silent" one */
