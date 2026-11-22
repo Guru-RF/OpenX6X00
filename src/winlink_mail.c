@@ -885,6 +885,11 @@ static void build_compose(const char *to, const char *subject) {
     show_fields();
 }
 
+/* The Connection page: what goes on, what it means, Pat's last log lines. Each wraps: the outcome of a connection
+ * with what to do next ("No answer from ...: check the power, the antenna ...") was one line cut with "..." at the
+ * right edge, where the Winlink page shows it whole (#321) */
+static const int session_y[3] = {8, 40, 70};
+
 static void build_session(void) {
     lv_obj_t *l;
 
@@ -894,12 +899,33 @@ static void build_session(void) {
         l = label(body, i == 0 ? &sony_24 : &sony_20, i == 0 ? theme_hex(TC_text) : COLOR_DIM);
         lv_label_set_recolor(l, true);
         lv_obj_set_width(l, APP_FRAME_W - 24);
-        lv_label_set_long_mode(l, i == 2 ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_DOT);
-        lv_obj_set_pos(l, 12, i == 0 ? 8 : i == 1 ? 40 : 70);
+        lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+        lv_obj_set_pos(l, 12, session_y[i]);
     }
 }
 
+/* Each line under the one above, where that one takes more than its one line; the log's last lines give way */
+static void session_layout(void) {
+    int y = 0;
+
+    for (int i = 0; i < 3; i++) {
+        lv_obj_t *l = lv_obj_get_child(body, i);
+
+        y = LV_MAX(y, session_y[i]);
+        lv_obj_set_y(l, y);
+        lv_obj_update_layout(l);
+        y += lv_obj_get_height(l) + (i == 0 ? 4 : 6);
+    }
+}
+
+static void show_session_lines(void);
+
 static void show_session(void) {
+    show_session_lines();
+    session_layout();
+}
+
+static void show_session_lines(void) {
     lv_obj_t *l0 = lv_obj_get_child(body, 0), *l1 = lv_obj_get_child(body, 1), *l2 = lv_obj_get_child(body, 2);
     char      buf[LOG_LINES * 170 + 400];
 
@@ -1039,7 +1065,7 @@ static void show(void) {
         lv_label_set_text_fmt(frame.status, "#%06x No Winlink password set:# Password (page 2) sets it",
                               theme_hex(TC_warn));
     } else if (view == V_LIST && status && pat_up() && jstr(status, "last_text")[0]) {
-        char t[160];
+        char t[240];     /* whole: the line scrolls */
 
         plain(t, sizeof(t), jstr(status, "last_text"));
         lv_label_set_text_fmt(frame.status, "Last connection: %s", t);
