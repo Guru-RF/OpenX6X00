@@ -68,7 +68,9 @@ extern char **environ;
 #define POLL_S        15                 /* s between looks at Pat's state in the lists */
 #define POLL_FAST_S   2                  /* while Winlink starts or stops */
 #define CONFIRM_S     5                  /* s a second press has, for Connect and Delete */
-#define MODEM_WAIT_S  60                 /* s for the modem chosen to be ready: Pat restarts, the other one stops */
+/* s for the modem chosen to be ready: Pat restarts (15 s at most), the other one stops (Mercury with a session still
+ * up ends it on the air first, x6100-winlink's MERCURY_TERM_WAIT: 55 s at most), the chosen one starts */
+#define MODEM_WAIT_S  100
 #define TO_MAX        200
 #define SUBJECT_MAX   128                /* Pat refuses longer */
 #define BODY_MAX      8000               /* characters typed on the radio: Winlink over HF is slow */

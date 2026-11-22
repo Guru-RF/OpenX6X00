@@ -70,6 +70,9 @@
 # Pat ends a connection in progress on SIGINT and stops on the next one; SIGTERM would kill it at once,
 # perhaps in the middle of a transmission. So Pat gets SIGINT, a wait, SIGINT, a wait, then SIGKILL.
 # SIGTERM to the supervisor (S98winlink stop, at shutdown) stops both programs and keeps the setting.
+# Mercury stopped with a session still up (Pat gone without ending it, or its end not over on the air) first ends it
+# on the air, which the status says meanwhile; a second SIGTERM to the supervisor (x6100-winlink stop again, or off
+# again) stops it at once.
 #
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -130,7 +133,14 @@ RETRY_FIRST = 5                        # s before a program that stopped is star
 RETRY_MAX = 60
 STABLE = 120                           # s of running after which a stop counts as the first again
 PAT_INT_WAIT = (10, 5)                 # s after the first and the second SIGINT
-MODEM_TERM_WAIT = 10                   # s after SIGTERM: ardopcf stops at once, Mercury gives itself 10 s
+MODEM_TERM_WAIT = 10                   # s after SIGTERM: ardopcf and XARA stop at once
+# x6x00-mercury with a session up first has Mercury end it on the air (1.9.25: one DISCONNECT, which may wait for the
+# other station's slot; Mercury's cap is 40 s, the bridge's 42), then stops (its alarm: 10 s); with none it stops at
+# once. A second SIGTERM cuts that short: the supervisor passes on one it gets meanwhile (x6100-winlink stop again)
+MERCURY_GOODBYE = 42
+MERCURY_TERM_WAIT = MERCURY_GOODBYE + 13
+TERM_SAY = 1                           # s a modem takes to stop before the status says what it is doing
+STOP_WAIT = sum(PAT_INT_WAIT) + MERCURY_TERM_WAIT + 5   # s for a supervisor to stop Pat and the modem at the most
 BANDWIDTHS = (200, 500, 1000, 2000)   # Hz, ARDOP's ARQ bandwidths (all as MAX)
 MODEMS = ("ardop", "mercury", "xara")  # the modem= choice, ardop the default
 MERCURY_BANDWIDTHS = (500, 2300, 2750)  # Hz, VARA's BW500, BW2300 and BW2750, which Mercury takes; 2300 the default
@@ -148,7 +158,9 @@ MODEM_SERVICE_CODES = {"xara": "XARA", "mercury": "MERCURY"}
 TNC_PORTS = {"ardop": ARDOP_PORT, "mercury": MERCURY_PORT, "xara": MERCURY_PORT}   # where Pat reaches each
 SWITCH_ENV = "OPENX6X00_MODEM_SWITCH"  # in Pat's environment: this file, its modem switch (tools/pat, 0008)
 SWITCH_SETTLE = 20                     # s for a change the Winlink page made just before to be done
-SWITCH_WAIT = 45                       # s for the modem switched to to be ready: the other stops (Mercury up to 10 s)
+# s for the modem switched to to be ready: the other stops first, Mercury with a session still up (one of Pat's
+# that just ended, its teardown not over on the air) only after its goodbye (MERCURY_TERM_WAIT)
+SWITCH_WAIT = MERCURY_TERM_WAIT + 20
 SWITCH_LOOK = 0.5                      # s between looks at the status meanwhile
 # Our line in Pat's log when a switch did not come about: Pat did not dial (cmd_switch)
 SWITCH_FAILED_RE = re.compile(r"OpenX6X00: no connection through (ARDOP|VARA HF): (.*)$")
@@ -462,8 +474,9 @@ def last_line(path):
 class Program:
     """Pat or a modem: its process, and when it may be started again after it stopped by itself"""
 
-    def __init__(self, label, log):
+    def __init__(self, label, log, term_wait=MODEM_TERM_WAIT):
         self.label, self.log = label, log
+        self.term_wait = term_wait                 # s it may take to stop after SIGTERM
         self.proc = None
         self.started = 0.0
         self.fails = 0
@@ -526,16 +539,45 @@ def stop_pat(p):
     p.wait()
 
 
-def stop_modem(p):
-    """ardopcf, x6x00-mercury or xara: SIGTERM, then SIGKILL if it still runs"""
+def stop_modem(p, wait=MODEM_TERM_WAIT, busy=None, hurry=None):
+    """ardopcf, x6x00-mercury or xara: SIGTERM, then SIGKILL if it still runs after wait. One that takes more than
+    TERM_SAY (x6x00-mercury ending a session on the air): busy() is called once, for the status to say so, and
+    a second SIGTERM goes to it as soon as hurry() says so, at which x6x00-mercury stops at once. Either way it
+    ends here: the GUI unkeys the radio when the modem leaves its socket"""
     if p is None or p.poll() is not None:
         return
     p.terminate()
+    end = time.time() + wait
     try:
-        p.wait(MODEM_TERM_WAIT)
+        p.wait(min(TERM_SAY, wait))
+        return
     except subprocess.TimeoutExpired:
-        p.kill()
-        p.wait()
+        pass
+    if busy:
+        busy()
+    hurried = False
+    while time.time() < end:
+        if hurry and not hurried and hurry():
+            hurried = True
+            p.terminate()
+        try:
+            p.wait(0.2)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+    p.kill()
+    p.wait()
+
+
+def stop_program(p, kind, state, pat, **st):
+    """A modem's Program stopped, as long as it may take (term_wait). While Mercury ends a session on the air the
+    status says so: state and st are the status' state and its keys as they stand, with that modem still running.
+    A SIGTERM to the supervisor meanwhile (x6100-winlink stop, the radio shutting down) ends it at once"""
+    seen = len(_stop)
+    stop_modem(p.proc, p.term_wait,
+               busy=lambda: say(state, f"{MODEM_NAMES[kind]} is ending its session on the air before it stops (up to "
+                                       f"{MERCURY_GOODBYE} s)...", pat=pat, **{**st, kind: "running"}),
+               hurry=lambda: len(_stop) > seen)
 
 
 def start_ardop(ardop, want):
@@ -1339,7 +1381,7 @@ def run():
     lock.flush()
     pat = Program("Pat", PAT_LOG)
     modems = {"ardop": Program("ARDOP (ardopcf)", ARDOP_LOG),
-              "mercury": Program("Mercury (x6x00-mercury)", MERCURY_LOG),
+              "mercury": Program("Mercury (x6x00-mercury)", MERCURY_LOG, MERCURY_TERM_WAIT),
               "xara": Program("XARA (xara)", XARA_LOG)}
     starts = {"ardop": start_ardop, "mercury": start_mercury, "xara": start_xara}
     watch = Watch()
@@ -1375,9 +1417,11 @@ def run():
                 pat.next = pat.fails = 0           # new settings: tried at once, perhaps they were the trouble
             # One modem at a time: the GUI's socket takes one. Another one chosen: the one that runs stops, after Pat
             # (just restarted: the choice is in its settings), and the chosen one starts at once
-            for p in modems.values():
+            for k, p in modems.items():
                 if p is not modem and p.alive():
-                    stop_modem(p.proc)
+                    # the chosen one "off" until it starts, as the status before this stop had it: a change is
+                    # under way (modem_settled)
+                    stop_program(p, k, "starting", "running" if pat.alive() else "starting")
                     p.proc = None
                     p.next = p.fails = 0
             # XARA's own settings changed (the callsign, the bandwidth, the licence tick): started again with them
@@ -1407,8 +1451,8 @@ def run():
             say("off", f"Stopping Pat and {MODEM_NAMES[kind]}...", pat="stopped" if not pat.alive() else "running",
                 **modem_states(modems, kind))
         stop_pat(pat.proc)                         # first: it ends its connection to the modem
-        for p in modems.values():
-            stop_modem(p.proc)
+        for k, p in modems.items():
+            stop_program(p, k, "off", "stopped")
         say("off", "Off")
         lock.truncate(0)                           # no pid left behind that another process may get later
         lock.close()                               # released: the next supervisor may start
@@ -1484,8 +1528,17 @@ def cmd_on():
 
 def cmd_off():
     """The setting off: the supervisor stops Pat (a connection in progress ends first) and the modem"""
+    was = enabled()
     set_enabled(False)
     poke()
+    if not was:
+        # Off again while the supervisor still stops (Mercury ending a session on the air): now, without the rest
+        pid = supervisor_pid()
+        try:
+            if pid:
+                os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
     if wait_gone(25):
         say("off", "Off")                          # also when none ran: no stale state is left
     return 0                                       # else still stopping: its status says so, then Off
@@ -1632,7 +1685,7 @@ def cmd_stop():
             os.kill(pid, signal.SIGTERM)
         except OSError:
             return 0
-        wait_gone(30)
+        wait_gone(STOP_WAIT)
     return 0
 
 

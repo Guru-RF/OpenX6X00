@@ -8304,6 +8304,21 @@ The bandwidth field may stay empty: Mercury then takes the Winlink page's.
   4 dB louder than 1.9.24 and before, and the radio turns that back (`tx_gain_db
   = -4` in the settings it writes for Mercury), so the drive and the ALC are
   as with the firmware before.
+- Stopping it with a session still up: Mercury first ends the session on the
+  air, so the other station is let go at once and does not wait for its own
+  timeout (4 minutes). That is one more transmission of about 4 s, which may
+  wait for the other station's turn: about 20 s on the PC, 42 s at the very
+  most, after which Mercury is stopped whatever happened, and the radio is
+  unkeyed when it goes. It happens when Winlink is turned off, another modem
+  is chosen or the radio shuts down while a session is up; normally Pat has
+  ended the session before (Abort, or the end of the mail exchange) and
+  Mercury stops at once. Meanwhile Status says "Mercury is ending its session
+  on the air before it stops (up to 42 s)...", on the Winlink page and in APP
+  > Mail, and a switch to another modem takes that much longer. To have the
+  transmitter quiet at once instead: anything that stops a Winlink key on the
+  radio still stops the one that is on (a digital app opened, the dial
+  turned, split or XIT changed), and over SSH `x6100-winlink stop`, or `x6100-winlink off`, given
+  a second time stops Mercury without the rest of its goodbye.
 
 When it does not work:
 

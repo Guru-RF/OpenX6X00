@@ -202,12 +202,12 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
   closed and Windows-only: out.
   - **v1.9.25 vendored** (#328, 2026-11-22; v1.9.21 from v0.3.7 to v0.3.13): it does not connect to 1.9.24 or
     older in either direction, so the radio follows the gateways. Mercury's own level kept as before
-    (tx_gain_db = -4: 1.9.25 alone is 4 dB louder), the stop still at once with a session up, an answer from
+    (tx_gain_db = -4: 1.9.25 alone is 4 dB louder), a stop with a session up ends it on the air first (Mercury's
+    DISCONNECT through the bridge, 42 s at most, the status saying so; at once with none), an answer from
     1.9.24 or older told as that, the Filter row's spans (375-2625 Hz at 2300, 125-2875 Hz at 2750). Tested on
     the PC only (make modems, two 1.9.25 stations): **not on a radio and not on the air yet**; open there: the
     processor load (more modes, two MFSK call listeners), the drive and ALC at the kept level, a session with a
-    gateway on 1.9.25, and whether to let 1.9.25 end a session on the air when the modem is stopped (its own
-    DISCONNECT at exit, up to 40 s more of keys: left out for now).
+    gateway on 1.9.25, and the goodbye at a stop as the radio keys it.
   - **Built, experimental, chosen on the Winlink page** (v0.3.7): Mercury vendored as its daemon build
     (third-party/mercury, two local patches: the TNC and broadcast ports on 127.0.0.1, VERSION answered with a
     VERSION line that names Mercury and its version), linked into x6x00-mercury, which takes the audio and the PTT through the
