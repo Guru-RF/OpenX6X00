@@ -19,6 +19,7 @@
  * remote viewer (remote_server.c) is looking at the screen or it is recorded (screen_rec.c). */
 
 #include "screen_light.h"
+#include "board.h"
 #include "cfg/cfg_api.h"
 #include "panel_stripes.h"
 #include "screen_idle.h"
@@ -50,10 +51,10 @@ static uint64_t       knob_woke_ms;         /* a knob ended the screensaver then
 static bool           knob_woke;
 static bool           at_level;             /* the light put at its level by light_again(), not dimmed since */
 
-/* The driver counts the other way: 10 - level */
+/* The driver's scale (board.h): on the X6100 and the X6200 it counts the other way, 10 - level */
 static void write_level(int16_t level) {
     char text[8];
-    int  n = snprintf(text, sizeof(text), "%i\n", 10 - level);
+    int  n = snprintf(text, sizeof(text), "%i\n", BOARD_BACKLIGHT_INVERTED ? 10 - level : level);
 
     if (level_fd > 0 && write(level_fd, text, n) < 0) {
         LV_LOG_WARN("Backlight level not set");
