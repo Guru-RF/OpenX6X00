@@ -63,6 +63,11 @@ const uint32_t * drm_wf_pixels(void);
 /* A landscape 800x480 ARGB copy of the GUI (snapshot, recorder) completed
  * with the waterfall under its transparent parts; nothing without planes */
 void drm_compose_landscape(uint32_t *px);
+/* The same in two steps, for a picture completed on another thread (the remote screen's encoder): the primary
+ * plane's picture, 480x800 XRGB, copied into under on the GUI thread (false without planes: nothing to complete),
+ * then px completed from that copy on any thread */
+bool drm_under_copy(uint32_t *under);
+void drm_compose_landscape_from(uint32_t *px, const uint32_t *under);
 
 #endif  /*USE_DRM*/
 

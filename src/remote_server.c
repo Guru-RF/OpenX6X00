@@ -311,10 +311,14 @@ static atomic_bool state_resend;    /* a "set" dropped on the LVGL thread: the s
 static int         wake_fd[2] = {-1, -1};
 static int         dev_keypad = -1, dev_power = -1, dev_main = -1, dev_vol = -1, dev_mfk = -1;
 
-/* The screen: shadow (LVGL thread), frame (handed over), enc and prev (encoder thread) */
+/* The screen: shadow (LVGL thread), frame (handed over), enc and prev (encoder thread). With the DRM planes the
+ * waterfall plane's picture goes with frame and enc (frame_under, enc_under, has_under: this frame has one): the
+ * encoder thread puts it under the GUI's see-through parts. The LVGL thread did that at every frame */
 static pthread_mutex_t fmut = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  fcond = PTHREAD_COND_INITIALIZER;
 static uint8_t        *shadow, *frame, *enc, *prev;
+static uint32_t       *frame_under, *enc_under;
+static bool            frame_has_under, enc_has_under;
 static int32_t         sw, sh;          /* the shadow's size: the display's */
 static int32_t         fw, fh, ew, eh, pw, ph;
 static bool            frame_ready, dirty;
@@ -3031,9 +3035,18 @@ static void tick_cb(lv_timer_t *t) {
         }
         if (frame) {
             memcpy(frame, shadow, bytes);
+            frame_has_under = false;
 #if USE_DRM
-            if (sw == BOARD_DISP_W && sh == BOARD_DISP_H)
-                drm_compose_landscape((uint32_t *)frame);   /* + the waterfall plane */
+            if (sw == BOARD_DISP_W && sh == BOARD_DISP_H) {
+                /* + the waterfall plane: its picture copied here, put under the GUI by the encoder thread. Without
+                 * memory for the copy, here as before */
+                if (!frame_under)
+                    frame_under = malloc(bytes);
+                if (frame_under)
+                    frame_has_under = drm_under_copy(frame_under);
+                else
+                    drm_compose_landscape((uint32_t *)frame);
+            }
 #endif
             frame_ready = true;
             dirty       = false;
@@ -3081,16 +3094,21 @@ static void *encoder_thread(void *arg) {
         while (!frame_ready)
             pthread_cond_wait(&fcond, &fmut);
         /* the buffers change places, each with its size: LVGL fills the old enc next */
-        uint8_t *tmp = enc;
-        int32_t  tw = ew, th = eh;
-        enc = frame, ew = fw, eh = fh;
-        frame = tmp, fw = tw, fh = th;
+        uint8_t  *tmp = enc;
+        uint32_t *tmp_under = enc_under;
+        int32_t   tw = ew, th = eh;
+        enc = frame, ew = fw, eh = fh, enc_under = frame_under, enc_has_under = frame_has_under;
+        frame = tmp, fw = tw, fh = th, frame_under = tmp_under;
         int32_t w = ew, h = eh;
         frame_ready = false;
         pthread_mutex_unlock(&fmut);
 
         if (!atomic_load(&nclients))
             continue;
+#if USE_DRM
+        if (enc_has_under)          /* (only a frame of the display's landscape size has one) */
+            drm_compose_landscape_from((uint32_t *)enc, enc_under);
+#endif
         uint64_t now   = now_ms();
         size_t   bytes = (size_t)w * h * 4;
         bool     same  = prev && pw == w && ph == h && memcmp(prev, enc, bytes) == 0;

@@ -689,22 +689,26 @@ bool drm_dump(const char *path) {
     return fclose(f) == 0 && ok;
 }
 
+/* t (ARGB) over b (XRGB) */
+static inline uint32_t blend_under(uint32_t t, uint32_t b) {
+    uint32_t a = t >> 24;
+
+    if (a == 255) {
+        return t;
+    }
+    if (a == 0) {
+        return b | 0xff000000;
+    }
+    uint32_t r = (((t >> 16) & 0xff) * a + ((b >> 16) & 0xff) * (255 - a) + 127) / 255;
+    uint32_t g = (((t >> 8) & 0xff) * a + ((b >> 8) & 0xff) * (255 - a) + 127) / 255;
+    uint32_t bl = ((t & 0xff) * a + (b & 0xff) * (255 - a) + 127) / 255;
+
+    return 0xff000000 | (r << 16) | (g << 8) | bl;
+}
+
 void drm_blend_under(uint32_t *dst, const uint32_t *top, const uint32_t *bottom, int32_t n) {
     for (int32_t i = 0; i < n; i++) {
-        uint32_t t = top[i], b = bottom[i];
-        uint32_t a = t >> 24;
-
-        if (a == 255) {
-            dst[i] = t;
-        } else if (a == 0) {
-            dst[i] = b | 0xff000000;
-        } else {
-            uint32_t r = (((t >> 16) & 0xff) * a + ((b >> 16) & 0xff) * (255 - a) + 127) / 255;
-            uint32_t g = (((t >> 8) & 0xff) * a + ((b >> 8) & 0xff) * (255 - a) + 127) / 255;
-            uint32_t bl = ((t & 0xff) * a + (b & 0xff) * (255 - a) + 127) / 255;
-
-            dst[i] = 0xff000000 | (r << 16) | (g << 8) | bl;
-        }
+        dst[i] = blend_under(top[i], bottom[i]);
     }
 }
 
@@ -712,23 +716,40 @@ const uint32_t * drm_wf_pixels(void) {
     return planes ? wf_shadow : NULL;
 }
 
+bool drm_under_copy(uint32_t *under) {
+    if (!planes) {
+        return false;
+    }
+    memcpy(under, wf_shadow, (size_t) PANEL_W * PANEL_H * 4);
+    return true;
+}
+
+/* Only where the GUI is see-through is the plane's picture read: its pixels along a landscape row are a panel row
+ * apart, and most of the GUI is not see-through */
+void drm_compose_landscape_from(uint32_t *px, const uint32_t *under) {
+    for (int32_t y = 0; y < LAND_H; y++) {
+        uint32_t *row = px + y * LAND_W;
+
+        for (int32_t x = 0; x < LAND_W; x++) {
+            uint32_t t = row[x];
+
+            if ((t >> 24) == 255) {
+                continue;
+            }
+#if BOARD_FB_ROTATE_90
+            row[x] = blend_under(t, under[(LAND_W - 1 - x) * PANEL_W + y]);
+#else
+            row[x] = blend_under(t, under[y * PANEL_W + x]);
+#endif
+        }
+    }
+}
+
 void drm_compose_landscape(uint32_t *px) {
     if (!planes) {
         return;
     }
-    for (int32_t y = 0; y < LAND_H; y++) {
-        uint32_t *row = px + y * LAND_W;
-        uint32_t under[LAND_W];
-
-#if BOARD_FB_ROTATE_90
-        for (int32_t x = 0; x < LAND_W; x++) {
-            under[x] = wf_shadow[(LAND_W - 1 - x) * PANEL_W + y];
-        }
-#else
-        memcpy(under, wf_shadow + y * PANEL_W, (size_t) LAND_W * 4);
-#endif
-        drm_blend_under(row, row, under, LAND_W);
-    }
+    drm_compose_landscape_from(px, wf_shadow);
 }
 
 #endif
