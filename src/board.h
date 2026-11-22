@@ -20,6 +20,12 @@
 #define BOARD_FB_ROTATE_90  1
 #endif
 
+/* The backlight's sysfs value for the GUI's level 0..10: the X6100's and the X6200's driver counts the other way
+ * (0 is full), so they write 10 - level. A board whose driver counts up (0 is off) sets this to 0 */
+#ifndef BOARD_BACKLIGHT_INVERTED
+#define BOARD_BACKLIGHT_INVERTED 1
+#endif
+
 /* The AF volume's range, the base's own: the X6200 takes 0..100 (gdyuldin's X6200 GUI, 0d504863), the X6100 0..55 */
 #ifdef BOARD_X6200
 #define BOARD_VOL_MAX       100
