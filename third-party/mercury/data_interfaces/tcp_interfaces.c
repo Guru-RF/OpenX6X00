@@ -58,6 +58,7 @@
 #include "radio_io.h"
 #include "modem.h"
 #include "message_store.h"
+#include "mercury_version.h"
 
 static pthread_t tid[7];
 static bool tid_started[7];
@@ -989,8 +990,11 @@ static void execute_control_command(char *buffer)
          * line too, and a shorter "VERSION 4.9.0" made it log "Failed to read
          * VARA version: Index was outside the bounds of the array" (VarAC
          * 13.2.7 under Wine). */
+        /* OpenX6X00: the VERSION line names Mercury and its version, not a
+         * VARA HF one: Pat, the only host here (the ports are on 127.0.0.1),
+         * takes what follows "VERSION " as the modem's version and logs it. */
         static const char reply[] = "VARA version 4.9.0 registered\r"
-                                    "VERSION VARA HF v4.9.0\r";
+                                    "VERSION Mercury " MERCURY_VERSION "\r";
         tcp_write(CTL_TCP_PORT, (uint8_t *)reply, sizeof(reply) - 1);
         return;
     }
