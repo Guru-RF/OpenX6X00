@@ -583,8 +583,9 @@ Internet radio, Zello, Flights, HF Air Band and CB apps, GhostNet in JS8,
 the spectrum's fill by level, the callsign on the boot logo, more German, Italian, French and Spanish from
 their v1.1.7 lists, the multiboot card's warning before a new card image,
 the weather from the locator or a place typed, DMR heard over the internet
-with mbelib, DMR's listening log with its ADIF of listening reports and DMR's
-map of the stations heard; OlivLoze NOTA, XOTA, the map of a reference's surroundings, the phone's
+with mbelib, DMR's listening log with its ADIF of listening reports, DMR's
+map of the stations heard and Flights' marks on the aircraft near and low
+while the radio is on the air band; OlivLoze NOTA, XOTA, the map of a reference's surroundings, the phone's
 position and clock from the Panel, the WeFax commands of the browser remote,
 WeFax's Auto Plan and its plan named from the charts received (Northwood's
 night charts on 2618.5 kHz too), Bulletin (the newest copy of fair quality), All

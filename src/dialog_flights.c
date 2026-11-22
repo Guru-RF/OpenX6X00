@@ -8,12 +8,19 @@
  *  the screen lit. The position: the radio's GPS, the phone's, else the QTH locator (station_position), sent rounded
  *  to 0.1 degree by the helper.
  *
- *  From condoruy's CX8ANM edition of OpenX6X00 (its Flights app, Vuelos).
+ *  The air band: while the radio is tuned in 118-137 MHz (the X6200's airband to receive), the aircraft most likely
+ *  to be heard on a tower's or an approach's frequency near the radio, those within NEAR_KM and under LOW_M or on the
+ *  ground, are ringed on the plot and named by their registration, the name a controller often calls them by, and
+ *  the chosen one's lines say why. Nothing is tuned and nothing is listened to here: the receiver is the radio's.
+ *
+ *  From condoruy's CX8ANM edition of OpenX6X00 (its Flights app, Vuelos; the aircraft marked on the air band after
+ *  its 6b640aaf).
  */
 #include "dialog_flights.h"
 
 #include "buttons.h"
 #include "cJSON.h"
+#include "cfg/cfg_api.h"
 #include "events.h"
 #include "keyboard.h"
 #include "params/params.h"
@@ -46,6 +53,10 @@
 #define LIST_X    (PLOT + 12)
 #define LIST_W    (APP_FRAME_W - LIST_X - 8)
 #define LABELS_N  15        /* more aircraft than that: only the chosen one named on the plot */
+#define AIR_LO_HZ 118000000 /* the VHF air band */
+#define AIR_HI_HZ 137000000
+#define NEAR_KM   30.0      /* on the air band: an aircraft this near and under LOW_M, or on the ground, is marked */
+#define LOW_M     3000.0
 
 static const int ranges_km[] = {25, 50, 100, 200, 400};
 #define RANGES_N (int)(sizeof(ranges_km) / sizeof(ranges_km[0]))
@@ -64,6 +75,7 @@ static char        error[120];
 static char        sel_hex[12];     /* the chosen aircraft, kept across updates */
 static int         sel, top;
 static const char *pos_src = "";
+static bool        air_band;        /* the radio is tuned in the air band, as show() last saw it */
 
 static void construct_cb(lv_obj_t *parent);
 static void destruct_cb(void);
@@ -144,6 +156,39 @@ static void fmt_alt(char *b, size_t n, cJSON *a) {
         snprintf(b, n, "-");
 }
 
+/* ---- the air band ---- */
+
+static bool on_air_band(void) {
+    int32_t f = cparam_i_get(cfg_fg_freq);
+
+    return f >= AIR_LO_HZ && f <= AIR_HI_HZ;
+}
+
+/* While the radio is on the air band: near the radio and low, or on the ground near it, so likely on a frequency of
+ * the airfield here (its tower, its approach) rather than on an area control's far above */
+static bool near_low(cJSON *a) {
+    double d, m;
+
+    if (!air_band || !a || !num(a, "dist_km", &d) || d > NEAR_KM) return false;
+    return cJSON_IsTrue(item(a, "ground")) || (num(a, "alt_m", &m) && m < LOW_M);
+}
+
+/* The registration when there is one, for an aircraft marked: what it is often called by on the frequency */
+static const char *air_name(cJSON *a) {
+    const char *reg = str(a, "reg");
+
+    return reg[0] ? reg : ident(a);
+}
+
+static const char *near_low_text(cJSON *a) {
+    double vs;
+
+    if (cJSON_IsTrue(item(a, "ground"))) return _("near, on the ground");
+    if (num(a, "vs", &vs) && vs <= -120) return _("near and low, descending");
+    if (num(a, "vs", &vs) && vs >= 120) return _("near and low, climbing");
+    return _("near and low");
+}
+
 /* ---- the plot: north up, the radio in the middle, rings at a third, two thirds and the range ---- */
 
 static void plot_draw_cb(lv_event_t *e) {
@@ -193,7 +238,7 @@ static void plot_draw_cb(lv_event_t *e) {
     lv_draw_rect(ctx, &dot, &a);
 
     /* Each aircraft a dot, a stroke the way it flies and its name while there are not too many; the chosen one larger
-     * (1bit: all ink) */
+     * (1bit: all ink). On the air band the near and low ones in a ring, always named, by their registration */
     cJSON *ac;
     int    i = 0, n = aircraft_n();
 
@@ -202,13 +247,14 @@ static void plot_draw_cb(lv_event_t *e) {
     cJSON_ArrayForEach(ac, aircraft()) {
         double d, b, trk;
         bool   is_sel = i == sel, emerg = cJSON_IsTrue(item(ac, "emerg")), ground = cJSON_IsTrue(item(ac, "ground"));
+        bool   marked = near_low(ac);
 
         i++;
         if (!num(ac, "dist_km", &d) || !num(ac, "brg", &b) || d > km) continue;
 
         lv_coord_t x   = c.x + (lv_coord_t)lround(r * d / km * sin(b * M_PI / 180));
         lv_coord_t y   = c.y - (lv_coord_t)lround(r * d / km * cos(b * M_PI / 180));
-        lv_color_t col = emerg ? TC(err) : is_sel ? TC(text_head) : ground ? TC(text_dim) : TC(ok);
+        lv_color_t col = emerg ? TC(err) : is_sel ? TC(text_head) : marked ? TC(accent) : ground ? TC(text_dim) : TC(ok);
 
         if (num(ac, "trk", &trk) && !ground) {
             line.color = col;
@@ -222,10 +268,17 @@ static void plot_draw_cb(lv_event_t *e) {
         dot.bg_color = col;
         a = (lv_area_t){x - s, y - s, x + s, y + s};
         lv_draw_rect(ctx, &dot, &a);
-        if (is_sel || n <= LABELS_N) {
+        if (marked) {
+            lv_point_t pc = {x, y};
+
+            arc.color = col;
+            arc.width = 2;
+            lv_draw_arc(ctx, &arc, &pc, s + 5, 0, 360);
+        }
+        if (is_sel || marked || n <= LABELS_N) {
             lbl.color = col;
-            a = (lv_area_t){x + 6, y - 8, x + 96, y + 8};
-            lv_draw_label(ctx, &lbl, &a, ident(ac), NULL);
+            a = (lv_area_t){x + (marked ? s + 8 : 6), y - 8, x + (marked ? s + 98 : 96), y + 8};
+            lv_draw_label(ctx, &lbl, &a, marked ? air_name(ac) : ident(ac), NULL);
         }
     }
 }
@@ -248,7 +301,8 @@ static void show_rows(void) {
 
         lv_obj_set_style_bg_opa(rows[r], on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
         for (int k = 0; k < 5; k++) {
-            lv_obj_set_style_text_color(cells[r][k], on ? TC(sel_text) : cJSON_IsTrue(item(a, "emerg")) ? TC(err) : TC(text), 0);
+            lv_obj_set_style_text_color(cells[r][k], on ? TC(sel_text) : cJSON_IsTrue(item(a, "emerg")) ? TC(err)
+                                                         : near_low(a) ? TC(accent) : TC(text), 0);
         }
         if (!a) {
             for (int k = 0; k < 5; k++) lv_label_set_text(cells[r][k], "");
@@ -308,12 +362,13 @@ static void show_detail(void) {
         add(l2, sizeof(l2), _("squawk %s"), str(a, "squawk"));
     }
     if (cJSON_IsTrue(item(a, "emerg"))) add(l2, sizeof(l2), "   #%06x %s#", theme_hex(TC_err), _("EMERGENCY"));
+    if (near_low(a)) add(l2, sizeof(l2), "   #%06x %s#", theme_hex(TC_accent), near_low_text(a));
     lv_label_set_text_fmt(detail, "#%06x %s#   %s   %s   %s\n%s", theme_hex(TC_text_head), ident(a), str(a, "reg"),
                           str(a, "type"), str(a, "desc"), l2);
 }
 
 static void show_status(void) {
-    char head[96], right[64];
+    char head[160], right[64];
 
     if (!frame.status) return;
     /* Where the plot is centred: GPS, Phone, or the locator */
@@ -323,6 +378,8 @@ static void show_status(void) {
         snprintf(head, sizeof(head), "%s   #%06x %s#", _("FLIGHTS"), theme_hex(TC_text_dim), _(pos_src));
     else
         snprintf(head, sizeof(head), "%s", _("FLIGHTS"));
+    if (air_band)       /* the radio is on the air band: what the rings are */
+        add(head, sizeof(head), "   #%06x %s#", theme_hex(TC_accent), _("Air band: near and low ringed"));
     lv_label_set_text(frame.head_left, head);
     if (data)
         snprintf(right, sizeof(right), _("%d aircraft   %d km"), aircraft_n(), ranges_km[range_i]);
@@ -349,6 +406,7 @@ static void show_status(void) {
 
 static void show(void) {
     if (!plot) return;
+    air_band = on_air_band();
     show_rows();
     show_detail();
     show_status();
@@ -478,10 +536,12 @@ static void start_update(void) {
     }
 }
 
-/* Each second: the next request when it is due, not while the screen is dark */
+/* Each second: the next request when it is due, not while the screen is dark; the marks on and off as the radio is
+ * tuned into and out of the air band (the knob turns under this window too) */
 static void timer_cb(lv_timer_t *t) {
     (void)t;
     if (!updating && time(NULL) >= next_at && backlight_seen()) start_update();
+    if (plot && on_air_band() != air_band) show();
 }
 
 /* ---- buttons and keys ---- */

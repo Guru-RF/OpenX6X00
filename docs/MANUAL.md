@@ -6418,6 +6418,20 @@ nothing retunes it; ESC closes.
   *EMERGENCY* when it squawks one.
 - **Range**: 25, 50, 100 (the default), 200 or 400 km; kept until the radio
   is switched off. **Update** (or a press of the MFK): ask now.
+- **On the air band**: while the radio is tuned between 118 and 137 MHz (the
+  X6200's airband to receive, after 6 m on the band keys; the app stays open
+  while you tune), the header says *Air band: near and low ringed*. The
+  aircraft within 30 km of you and under 3000 m, or on the ground there, get
+  a ring on the plot and their registration as their name, and their rows
+  are in the highlight colour: near an airfield these are the ones most
+  likely to be on its tower's or approach's frequency, rather than on an
+  area control's far above. The chosen one's second line says which it is:
+  *near, on the ground*, *near and low, descending*, *near and low,
+  climbing* or *near and low*. It is a guess from the positions: the app
+  does not know which frequency an aircraft is on, and it tunes and listens
+  to nothing itself. Listening to air traffic is not allowed everywhere:
+  your country's rules apply. After the CX8ANM edition (condoruy), which
+  marks the aircraft near an airport while its tower is listened to.
 - The header says where the plot is centred: *GPS* (the radio's GPS), *Phone*
   (the position the Panel page's GPS button sends, when it is no coarser
   than 1 km), else *Locator* and your QTH locator (Settings > General). A
