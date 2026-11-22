@@ -13,7 +13,7 @@ The RTL8723D already has the remedy: a narrow-band interference notch
 2480 MHz spur on channels 13 and 14 (rtw8723d_cfg_notch). This lets the
 board name its own spurs the same way.
 
-host_spur_khz=<kHz>[,...] (up to 4). On channels 1-12, for each spur
+host_spur_khz=<kHz>[,...] (up to 4). On channels 1-13, for each spur
 within 10 MHz of the channel's centre: the tone(s) it falls on are
 masked out of the channel estimate (bit t for tone +t, 128 - t for -t,
 both neighbours when it sits between two), and the first such spur gets
@@ -29,14 +29,22 @@ notch, or its connection dropped at 74 s; with the notch 99.4-100 %
 (set by hand in debugfs, then by this parameter on a freshly loaded
 driver, off and on in turn).
 
-Not covered: channel 13, where the chip's own notch is set instead
-(2470.6 MHz is 1.4 MHz from that channel's centre).
+On channel 13 (Europe) the driver keeps setting the chip's own 2480 MHz
+notch, and the board's spurs in that channel go on top: their CSI bits
+added, and the NBI theirs only when the chip's own notch is off (there
+is one NBI). The X6200's 2470.6 MHz sits 1.4 MHz below channel 13's
+centre. NOT tried on the air: no channel-13 access point here. Its
+register values were checked against the coded cases on the Mac (the
+functions compiled with a register file in place of the chip): channels
+1-12 come out byte for byte as before, channel 13 gives the chip's own
+values plus CSI bits 123-124 (0xd4c = 0x18000000), or NBI index 2 when
+the chip's notch is off.
 ---
 diff --git a/rtw8723d.c b/rtw8723d.c
-index 5acddd8..a2818db 100644
+index 5acddd8..623f41e 100644
 --- a/rtw8723d.c
 +++ b/rtw8723d.c
-@@ -293,12 +293,90 @@ static void rtw8723d_cfg_notch(struct rtw_dev *rtwdev, u8 channel, bool notch)
+@@ -293,17 +293,112 @@ static void rtw8723d_cfg_notch(struct rtw_dev *rtwdev, u8 channel, bool notch)
  	}
  }
  
@@ -66,11 +74,14 @@ index 5acddd8..a2818db 100644
 +}
 +
 +/* The host's spurs on this channel, if any: true when set. CSI bit t for tone +t, 128 - t for -t (the coded cases:
-+ * +25.6 tones bit 26, -12.8 tones bit 115); both tones when a spur sits near the middle between two */
-+static bool rtw8723d_host_notch(struct rtw_dev *rtwdev, u8 channel)
++ * +25.6 tones bit 26, -12.8 tones bit 115); both tones when a spur sits near the middle between two. merge: on top
++ * of what rtw8723d_cfg_notch set for the chip's own spur (channel 13): its CSI bits kept, and its NBI notch kept when
++ * it is on (one NBI only); the host's first spur gets the NBI otherwise */
++static bool rtw8723d_host_notch(struct rtw_dev *rtwdev, u8 channel, bool merge)
 +{
 +	u32 fc = 2412000 + (channel - 1) * 5000, csi[4] = {0};
 +	bool nbi = false, any = false;
++	u8 nbi_idx = 0;
 +	int i;
 +
 +	for (i = 0; i < n_host_spur && channel <= 13; i++) {
@@ -97,15 +108,25 @@ index 5acddd8..a2818db 100644
 +			any = true;
 +		}
 +		if (!nbi && rtw8723d_nbi_index(a)) {
-+			rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_MASK_RXDSP, rtw8723d_nbi_index(a));
-+			rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_EN_RXDSP, 0x1);
++			nbi_idx = rtw8723d_nbi_index(a);
 +			nbi = true;
 +		}
 +		rtw_dbg(rtwdev, RTW_DBG_PHY, "host spur %u kHz on channel %u: %+d kHz\n", host_spur_khz[i], channel, off);
 +	}
 +	if (!any && !nbi)
 +		return false;
-+	if (!nbi) {
++	if (merge) {
++		csi[0] |= rtw_read32(rtwdev, REG_OFDM1_CSI1);
++		csi[1] |= rtw_read32(rtwdev, REG_OFDM1_CSI2);
++		csi[2] |= rtw_read32(rtwdev, REG_OFDM1_CSI3);
++		csi[3] |= rtw_read32(rtwdev, REG_OFDM1_CSI4);
++		if (rtw_read32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_EN_RXDSP))
++			nbi = false;		/* the chip's own spur keeps the one NBI */
++	}
++	if (nbi) {
++		rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_MASK_RXDSP, nbi_idx);
++		rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_EN_RXDSP, 0x1);
++	} else if (!merge) {
 +		rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_MASK_RXDSP, 0x1f);
 +		rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_EN_RXDSP, 0x0);
 +	}
@@ -113,7 +134,8 @@ index 5acddd8..a2818db 100644
 +	rtw_write32(rtwdev, REG_OFDM1_CSI2, csi[1]);
 +	rtw_write32(rtwdev, REG_OFDM1_CSI3, csi[2]);
 +	rtw_write32(rtwdev, REG_OFDM1_CSI4, csi[3]);
-+	rtw_write32_mask(rtwdev, REG_OFDM1_CFOTRK, BIT_EN_CFOTRK, any ? 0x1 : 0x0);
++	if (any || !merge)
++		rtw_write32_mask(rtwdev, REG_OFDM1_CFOTRK, BIT_EN_CFOTRK, any ? 0x1 : 0x0);
 +	return true;
 +}
 +
@@ -123,8 +145,16 @@ index 5acddd8..a2818db 100644
  
  	if (channel < 13) {
 -		rtw8723d_cfg_notch(rtwdev, channel, false);
-+		if (!rtw8723d_host_notch(rtwdev, channel))
++		if (!rtw8723d_host_notch(rtwdev, channel, false))
 +			rtw8723d_cfg_notch(rtwdev, channel, false);
  		return;
  	}
  
+ 	notch = rtw8723d_check_spur_ov_thres(rtwdev, channel, SPUR_THRES);
+ 	rtw8723d_cfg_notch(rtwdev, channel, notch);
++	/* channel 13 (Europe): the host's spurs on top of the chip's own (the X6200's 2470.6 MHz sits 1.4 MHz below its
++	 * centre). Not tried on the air: no channel-13 access point at hand */
++	rtw8723d_host_notch(rtwdev, channel, true);
+ }
+ 
+ static void rtw8723d_set_channel_rf(struct rtw_dev *rtwdev, u8 channel, u8 bw)
