@@ -47,6 +47,13 @@
  *  - the walkie screen's mini waterfall (waterfall_mini_draw(), #302), 360 x 100 pixels of the same rows: a station
  *    on the dial is a line down its middle and nowhere else; a call with no new row draws nothing; a new row comes
  *    in at the top and the rest moves down a line; another centre draws it all again, the station where it now is
+ *  - 3D: the picture is drawn on a thread of its own (d3_job) and shown by the GUI thread once drawn. The image is
+ *    then, pixel for pixel, the picture drawn in place in rows as before the thread; after rows and tunes that came
+ *    while a picture was being drawn (the thread held up here, 30 ms a picture), the picture of the last of them;
+ *    3D switched off while one is being drawn: the 2D waterfall the rows as they are, and the 3D picture that was on
+ *    its way is not shown over it later; the waterfall's height changed while one is being drawn (the image is freed
+ *    and made again there): the old height's picture dropped, the new one's shown. `make asan` and `make tsan` run
+ *    these under the address and the thread sanitizer
  *  See the Makefile.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -57,6 +64,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #define W       800
 #define H       480
@@ -94,6 +102,7 @@ ComputedParamInt *cfg_fg_freq = P(30), *cfg_cur_filter_low = P(31), *cfg_cur_fil
                  *cfg_cur_mode = P(33), *cfg_mode_lo_offset = P(34), *cfg_mode_tx_lo_offset = P(35);
 
 static int     speed = 3;           /* Settings > Waterfall > Speed */
+static int32_t want_3d;             /* Settings > Display > WATERFALL, 3D */
 static int32_t shade = 4;           /* Filter shade: Full, the default (#167) */
 static int32_t where = FILTER_SHADE_PASSBAND;  /* Shaded part (#250) */
 static int32_t filter_high = 2700, cur_mode = radio_mode_lsb, cur_zoom = 1;
@@ -107,6 +116,11 @@ int32_t param_i_get(const ParamInt *p) {
     if (p == cfg_filter_shade) return shade;
     if (p == cfg_filter_shade_where) return where;
     if (p == cfg_band_if_shift) return if_shift_hz;
+    if (p == cfg_wf_3d) return want_3d;
+    if (p == cfg_wf_3d_colors) return D3_WATERFALL;    /* the test's palette; no held peaks, no glide: a picture */
+    if (p == cfg_wf_3d_depth) return 40;                /* is of the rows and the view alone, whenever it is drawn */
+    if (p == cfg_wf_3d_range) return 40;
+    if (p == cfg_wf_3d_tilt) return 3;
     return 0;
 }
 
@@ -167,16 +181,36 @@ ObserverDelayed *subject_subscribe_delayed_and_notify(Subject *subj, observer_cb
     return NULL;
 }
 
-/* The jobs for the GUI thread, run by loop() as scheduler_work() runs them */
-static scheduler_fn_t jobs[8];
-static int            njobs;
+/* The jobs for the GUI thread, run by loop() as scheduler_work() runs them; the 3D thread puts one too */
+#define MAX_JOBS 16
+static scheduler_fn_t  jobs[MAX_JOBS];
+static int             njobs;
+static pthread_mutex_t jobs_mx = PTHREAD_MUTEX_INITIALIZER;
 
 bool scheduler_put_coalesced(scheduler_fn_t fn) {
+    bool ok = true;
+
+    pthread_mutex_lock(&jobs_mx);
     for (int i = 0; i < njobs; i++) {
-        if (jobs[i] == fn) return true;
+        if (jobs[i] == fn) {
+            pthread_mutex_unlock(&jobs_mx);
+            return true;
+        }
     }
-    jobs[njobs++] = fn;
-    return true;
+    if (njobs < MAX_JOBS) jobs[njobs++] = fn;
+    else ok = false;
+    pthread_mutex_unlock(&jobs_mx);
+    return ok;
+}
+
+bool scheduler_put_noargs(scheduler_fn_t fn) {
+    bool ok;
+
+    pthread_mutex_lock(&jobs_mx);
+    ok = njobs < MAX_JOBS;
+    if (ok) jobs[njobs++] = fn;
+    pthread_mutex_unlock(&jobs_mx);
+    return ok;
 }
 
 uint64_t get_time() {
@@ -232,7 +266,15 @@ int freq_scale_refs(int32_t *x, int32_t *hz, int max) {
     return 0;
 }
 
+/* Asked once for each 3D picture, by the thread that draws it: with slow_3d set the 3D thread is held up there, so
+ * a picture is still being drawn when the GUI thread goes on */
+static pthread_t gui_thread;
+static _Atomic bool slow_3d;
+
 bool buttons_hidden() {
+    if (slow_3d && !pthread_equal(pthread_self(), gui_thread)) {
+        usleep(30000);
+    }
     return false;
 }
 
@@ -283,11 +325,14 @@ static void flush(lv_disp_drv_t *drv, const lv_area_t *a, lv_color_t *px) {
 /* The GUI loop for ms, as gui_main.c's: the jobs, then LVGL's timers (the screen's refresh among them) */
 static void loop(uint32_t ms) {
     for (uint32_t t = 0; t < ms; t += STEP) {
-        scheduler_fn_t run[8];
-        int            n = njobs;
+        scheduler_fn_t run[MAX_JOBS];
+
+        pthread_mutex_lock(&jobs_mx);
+        int n = njobs;
 
         memcpy(run, jobs, sizeof(run));
         njobs = 0;
+        pthread_mutex_unlock(&jobs_mx);
         for (int i = 0; i < n; i++) {
             run[i](NULL);
         }
@@ -505,11 +550,140 @@ static int32_t columns_waiting(void) {
     return n;
 }
 
+/* ---- 3D ---- */
+
+/* A row with carriers over a quiet band, the carriers' heights by the row: something for the traces to show */
+static uint32_t d3_rows_fed;
+
+static void d3_row(void) {
+    float db[WATERFALL_NFFT];
+
+    d3_rows_fed++;
+    for (int i = 0; i < WATERFALL_NFFT; i++) {
+        db[i] = 10 + (i * 7 + d3_rows_fed) % 5;
+        if (i % 97 < 3) db[i] = 120 + (i + d3_rows_fed * 11) % 120;
+    }
+    waterfall_data(db, WATERFALL_NFFT, false, radio_center_freq + mode_lo_offset, 100000);
+}
+
+/* The GUI loop until no 3D picture is being drawn or asked for and the scroll is at rest, the 3D thread given real
+ * time meanwhile; false: not within 5 s */
+static bool d3_settle(void) {
+    for (int i = 0; i < 5000; i++) {
+        loop(STEP);
+        pthread_mutex_lock(&jobs_mx);
+        int n = njobs;
+
+        pthread_mutex_unlock(&jobs_mx);
+        if (!d3_busy && !d3_again && !d3_later && !n && wf_center_freq == radio_center_freq - waterfall_view_shift()
+            && __atomic_load_n(&new_rows, __ATOMIC_ACQUIRE) == 0) {
+            return true;
+        }
+        usleep(1000);
+    }
+    return false;
+}
+
+/* The image is the 3D picture of the rows and the view now, as drawn in place in rows (d3_draw(), the renderer of
+ * before the thread and the turn); lit: some of it is not the background, the traces are there */
+static void d3_image_is(const char *what, bool lit) {
+    static uint32_t ref[W * H];
+    d3_pic_t        pic = {.center = wf_center_freq, .span = shown_span(), .cx = d3_vanish};
+    int32_t         ref_x[MAX_D3_REFS] = {0};
+    const uint32_t *shown_px = (const uint32_t *)frame->data;
+    int32_t         wrong = 0, first = -1, drawn = 0;
+
+    d3_draw(ref, false, &pic, ref_x, 0);
+    d3_drawn_buf = NULL;            /* the test drew a picture of its own: the next one whole */
+    for (int32_t i = 0; i < WIDTH * height; i++) {
+        if (shown_px[i] != ref[i] && wrong++ == 0) first = i;
+        drawn += ref[i] != ref[0];
+    }
+    check(wrong == 0 && (!lit || drawn > 2000), "%s: the image is the picture drawn in place (%d pixels of traces)", what,
+          drawn);
+    if (wrong) {
+        printf("        %d pixels differ, the first at x %d, line %d: 0x%08x, in place 0x%08x\n", wrong, first % WIDTH,
+               first / WIDTH, shown_px[first], ref[first]);
+    }
+}
+
+static void d3_cases(lv_obj_t *wf) {
+    printf("3D: the picture from a thread of its own\n");
+    want_3d = 1;
+    for (int i = 0; i < 60; i++) d3_row();
+    waterfall_redraw();
+    check(d3_settle(), "the pictures came");
+    check(d3_thread_on && !d3_thread_failed, "drawn by the 3D thread (%u pictures)", d3_job.seq);
+    d3_image_is("at rest", true);
+
+    printf("3D: rows and tunes while a picture is being drawn\n");
+    uint32_t before = d3_job.seq;
+    bool     was_busy = false;
+
+    slow_3d = true;
+    for (int i = 0; i < 6; i++) {
+        d3_row();
+        tune(i % 2 ? -700 : 1200);
+        loop(STEP);
+        was_busy |= d3_busy;
+    }
+    slow_3d = false;
+    check(was_busy, "a picture was being drawn while they came");
+    check(d3_settle(), "the pictures came");
+    check(d3_job.seq > before + 1, "more than one picture drawn (%u)", d3_job.seq - before);
+    d3_image_is("after them", true);
+
+    printf("3D switched off while a picture is being drawn\n");
+    for (int i = 0; i < height; i++) row();     /* rows of one level each: picture_is() tells a row by its line */
+    check(d3_settle(), "the pictures came");
+    slow_3d = true;
+    row();
+    loop(2 * STEP);
+    check(d3_busy, "a picture is being drawn");
+    want_3d = 0;
+    waterfall_redraw();
+    loop(STEP);
+    slow_3d = false;
+    check(!d3_busy, "the 2D waterfall waited for it");
+    picture_is_rows("the 2D waterfall then");
+    usleep(50000);                  /* the thread's word that the picture is drawn, if not here yet */
+    loop(4 * STEP);
+    picture_is_rows("after the 3D picture's hand-over came");
+
+    printf("3D: the waterfall's height changed while a picture is being drawn\n");
+    want_3d = 1;
+    for (int i = 0; i < 20; i++) d3_row();
+    waterfall_redraw();
+    check(d3_settle(), "the pictures came");
+    slow_3d = true;
+    d3_row();
+    loop(2 * STEP);
+    check(d3_busy, "a picture is being drawn");
+    lv_obj_set_size(wf, W, WF_H - 50);
+    lv_obj_set_pos(wf, 0, H - (WF_H - 50));
+    waterfall_set_height(WF_H - 50);
+    slow_3d = false;
+    check(!d3_busy && height == WF_H - 50 && frame->header.h == WF_H - 50, "waited for and dropped, the image %d lines",
+          frame->header.h);
+    for (int i = 0; i < 30; i++) d3_row();
+    check(d3_settle(), "the pictures came");
+    d3_image_is("at the new height", true);
+
+    want_3d = 0;                    /* as it was */
+    lv_obj_set_size(wf, W, WF_H);
+    lv_obj_set_pos(wf, 0, H - WF_H);
+    waterfall_set_height(WF_H);
+    waterfall_redraw();
+    loop(4 * STEP);
+}
+
 int main(void) {
     static lv_disp_draw_buf_t draw_buf;
     static lv_color_t         px[W * H];     /* as gui_main.c's, the whole screen: the image drawn in one piece */
     static lv_disp_drv_t      drv;
 
+    gui_thread = pthread_self();
+    sony_16 = *lv_font_default();   /* the 3D labels are set in it */
     for (int v = 0; v < 256; v++) pal[v] = 0xff000000 | (uint32_t)v << 16 | (uint32_t)(255 - v) << 8 | 0x40;
     params.waterfall_smooth_scroll.x = true;
     params.waterfall_center_line.x   = true;
@@ -849,6 +1023,8 @@ int main(void) {
     at = mini_peak(MH - 1, &peak, &edge);
     check(LV_ABS(at - (MW / 2 - MW / 10)) <= 1 && peak >= 40, "the station a tenth of the width to the left (x %d)",
           at);
+    lo_offsets(0, 0);
+    d3_cases(wf);
 
     printf("%d of %d cases ok\n", good, cases);
     return good == cases ? 0 : 1;

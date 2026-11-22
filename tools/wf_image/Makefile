@@ -30,7 +30,18 @@ wf_image_test: wf_image_test.c $(SRC)/waterfall_view.c $(SRC)/cfg/lo_offset.c $(
 test: wf_image_test
 	./wf_image_test
 
-clean:
-	rm -f wf_image_test
+# The same cases under the address and undefined-behaviour sanitizers, and under the thread sanitizer: the 3D picture
+# is drawn on a thread of its own (the image freed while it draws, a word read by two threads). LVGL and liquid-dsp
+# are the PC build's, not instrumented
+asan tsan: SAN = $(if $(filter asan,$@),address$(comma)undefined,thread)
+asan tsan: wf_image_test.c $(SRC)/waterfall_view.c $(SRC)/cfg/lo_offset.c $(LVGL_LIB)
+	$(CC) $(CFLAGS) -fsanitize=$(SAN) -o wf_image_test.$@ wf_image_test.c $(SRC)/cfg/lo_offset.c $(LVGL_LIB) \
+	    $(DEPS)/lib/libliquid.a -lm -pthread
+	./wf_image_test.$@
 
-.PHONY: all test clean
+comma := ,
+
+clean:
+	rm -f wf_image_test wf_image_test.asan wf_image_test.tsan
+
+.PHONY: all test asan tsan clean

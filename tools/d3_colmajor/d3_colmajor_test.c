@@ -115,7 +115,8 @@ int main(int argc, char **argv) {
     FILE *out = fopen(argc > 1 ? argv[1] : "/dev/null", "w");
     int rows_only = argc > 2 && !strcmp(argv[2], "rows");
     int bench = argc > 3;
-    void (*render)(uint32_t *, bool, const int32_t *, int) = rows_only ? d3_draw : d3_render;
+    void (*render)(uint32_t *, bool, d3_pic_t *, const int32_t *, int) = rows_only ? d3_draw : d3_render;
+    d3_pic_t pic = {.center = wf_center_freq, .span = shown_span()};
     rows = calloc(MAX_HEIGHT + 1, sizeof(*rows));
     for (int i = 0; i < 256; i++) wf_palette[i] = 0xff000000u | (i * 0x010203u);
     int hs[] = {MAX_HEIGHT * 62 / 100, MAX_HEIGHT / 2, MAX_HEIGHT - 1, MAX_HEIGHT / 2 + 1, MAX_HEIGHT / 5};
@@ -141,14 +142,15 @@ int main(int argc, char **argv) {
             fake_ms += 33;
             memset(dst, 0x5a, sizeof(uint32_t) * WIDTH * height);   /* what was in the buffer before is not kept */
             if (step == 7) memset(dst, 0, 4);
-            render(dst, false, ref_x, 3);
+            pic.cx = d3_vanish;
+            render(dst, false, &pic, ref_x, 3);
             fprintf(out, "h%d mono%d col%d step%d %016llx\n", height, mono, colors, step,
                     (unsigned long long) fnv(dst, sizeof(uint32_t) * WIDTH * height));
             pics++;
         }
         /* portrait target (a portrait build): the same picture, written to a portrait buffer */
         static uint32_t pb[WIDTH * MAX_HEIGHT];
-        d3_render(pb, true, ref_x, 3);
+        d3_render(pb, true, &pic, ref_x, 3);
         fprintf(out, "h%d mono%d col%d portrait %016llx\n", height, mono, colors, (unsigned long long) fnv(pb, sizeof(uint32_t) * WIDTH * height));
     }
     if (bench) {
@@ -159,13 +161,24 @@ int main(int argc, char **argv) {
         double best = 1e9, all[30];
         for (int i = 0; i < 30; i++) {
             struct timespec a, b; clock_gettime(CLOCK_MONOTONIC, &a);
-            fake_ms += 33; render(dst, false, ref_x, 3);
+            fake_ms += 33; render(dst, false, &pic, ref_x, 3);
             clock_gettime(CLOCK_MONOTONIC, &b);
             all[i] = (b.tv_sec - a.tv_sec) * 1e3 + (b.tv_nsec - a.tv_nsec) / 1e6; if (all[i] < best) best = all[i];
         }
         for (int i = 0; i < 30; i++) for (int j = i + 1; j < 30; j++) if (all[j] < all[i]) { double t = all[i]; all[i] = all[j]; all[j] = t; }
         printf("%s: a landscape picture of %d x %d: min %.2f ms, median %.2f ms\n", rows_only ? "rows" : "turn", WIDTH, height,
                all[0], all[15]);
+        if (!rows_only) {
+            /* What is left on the GUI thread of a picture drawn by the 3D thread, without planes: the turn alone */
+            for (int i = 0; i < 30; i++) {
+                struct timespec a, b; clock_gettime(CLOCK_MONOTONIC, &a);
+                d3_transpose(dst, d3_columns, height);
+                clock_gettime(CLOCK_MONOTONIC, &b);
+                all[i] = (b.tv_sec - a.tv_sec) * 1e3 + (b.tv_nsec - a.tv_nsec) / 1e6;
+            }
+            for (int i = 0; i < 30; i++) for (int j = i + 1; j < 30; j++) if (all[j] < all[i]) { double t = all[i]; all[i] = all[j]; all[j] = t; }
+            printf("      of that the turn alone: min %.2f ms, median %.2f ms\n", all[0], all[15]);
+        }
     }
     fclose(out);
     fprintf(stderr, "%d landscape pictures\n", pics);
