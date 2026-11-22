@@ -17,12 +17,13 @@ Settings. Button and option names are written as the radio shows them.
 - [Getting started](#getting-started): [first-start guide](#first-start-guide), [first steps](#first-steps), [setting up the transmitter](#setting-up-the-transmitter), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic), [keyboard](#keyboard) ([quick QSO log](#quick-qso-log))
 - [Updating the firmware](#updating-the-firmware): [the X6200's base firmware](#the-x6200s-base-firmware), [the X6100's base firmware](#the-x6100s-base-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
-- [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver), [panel stripes fix](#panel-stripes-fix)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
+- [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver), [panel stripes fix](#panel-stripes-fix)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab), [Voice](#voice-tab)
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8) ([GhostNet](#ghostnet)), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY](#rtty), [WeFax TX](#wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [GPS / Clock](#gps--clock), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb), [Flights](#flights), [Internet radio](#internet-radio), [Zello](#zello), [SVXConnect](#svxconnect), [DMR](#dmr), [Weather](#weather)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
+- [Speech](#speech)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
 - [Wavelog](#wavelog): [live link](#live-link)
@@ -1842,7 +1843,7 @@ restart.
 
 APP (page 2) > Settings. The tabs are on three button pages: General, Display,
 Audio, Wireless (page 1); Bluetooth, Keys, Cluster, TX Cal (page 2); Info,
-Walkie (page 3). The page button, or the APP key pressed again, turns the
+Walkie, Voice (page 3). The page button, or the APP key pressed again, turns the
 page and opens its first tab. The page button held goes one page back and
 opens that page's first tab.
 
@@ -2646,6 +2647,17 @@ POWER, below Factory reset, has three lines:
   Auto; default Built-in). The Audio tab's input is not changed.
 - Mini waterfall: a small waterfall where the walkie screen has its
   bandscope (off by default: the bandscope, as before).
+
+### Voice tab
+
+| Card | Options |
+|---|---|
+| VOICE | Voice mode, Voice, Rate, Pitch, Volume |
+| VOICE BEHAVIOUR | New speech interrupts, Read decoded text, Interrupt delay, Tuning delay, Name repeats |
+
+The settings of the spoken feedback: see [Speech](#speech). On a card image
+from before speech the first row reads "Speech: Needs a newer card image";
+the settings are kept, nothing is spoken.
 
 ## Transmitting
 
@@ -7313,6 +7325,78 @@ For a program on the PC, use the USB cable (the radio's USB sound card and
 CAT; the CAT settings are in the [reference](#bluetooth-cat-connection)) or
 the [TCI server](#tci-server): CAT and audio both ways over the network, on
 WiFi or better on [Ethernet](#ethernet).
+
+## Speech
+
+The radio can say what it does, for blind and low-vision operators: every
+key, knob, F-key page, window, list, setting and message. It is off by
+default, and off it costs nothing: nothing is loaded and nothing runs. The
+work is Jimr9's (OpenX6X00 Speech Access).
+
+Turning it on without seeing the screen: hold the DFN key. Each hold goes one
+step, and says which: "Speech when the screen is off", "Speech always",
+"Speech off. Hold D F N for speech again". The same choice is Settings >
+Voice > Voice mode. (Holding DFN is the long-press action of that key on a
+radio that never set another one: Settings > Keys > FRONT KEYS, LONG PRESS,
+action Speech mode.)
+
+- Screen off only: silent while the screen is lit, spoken once it is dark,
+  for the operator who saves the battery with the screen off.
+- Always: spoken whatever the screen does. In this mode a short press of the
+  power key reads the screen aloud instead of switching it off and on: the
+  frequency, mode, VFO, band, time and battery on the main screen, the open
+  window and its F-keys elsewhere. A key or a knob that wakes a dark screen
+  then also does its work at once; without speech the first press only wakes
+  the screen.
+
+What is spoken:
+
+- The frequency after the main knob comes to rest, as megahertz and
+  kilohertz ("14.074"), and the band on a band key.
+- A key: what it switched and to what. An F-key page: its name and its
+  buttons. An F-key press: the button, and its new value.
+- VOL and the MFK: the control's name once, then its values alone while the
+  knob turns, the name again every few values (Name repeats).
+- A window: its title, then the control the knob lands on with its kind and
+  value, a list's row with its place ("3 of 12"), and what a control is for
+  where the name does not tell.
+- Messages on the screen. One that comes up during a transmission is said
+  once the radio is back on receive.
+- Decoded text (CW, RTTY, PSK, Olivia, NavTex), a few words at a time, with
+  Read decoded text on. Callsigns and locators in FT8 and JS8 rows are
+  spelled.
+
+Never on the air: nothing is said during a transmission, a tuning cycle or
+an SWR scan, and what is being said is cut off as the radio keys. Nothing is
+said while the recorder runs or a voice message is recorded.
+
+Where it is heard: the radio's speaker or wired headphones; with Bluetooth
+headphones connected, in those. While it speaks, the receiver's audio makes
+way for it and comes back after.
+
+Settings > Voice:
+
+- Voice mode: Off (default), Screen off only, Always.
+- Voice: SLT or CLB (female), Alan or BDL (male), all English. A change says
+  the voice's name in that voice.
+- Rate, Pitch, Volume: 50 to 150 % of the voice's own.
+- New speech interrupts (default on): a newer announcement cuts the one
+  being said. Off, a new one is dropped while one is said, and a knob's
+  value is said one second after it stops.
+- Read decoded text (default on).
+- Interrupt delay (default 100 ms): how long a knob must rest before its
+  value is said. Tuning delay (default 1000 ms): the same for the main knob.
+- Name repeats (default 5): after how many values a control's name is said
+  again; 0 says the name every time.
+
+The texts are spoken in English, whatever the GUI's language: the voices are
+English ones.
+
+Speech needs a card image that has the synthesizer (RHVoice, with the four
+voices: about 25 MB). An update from the radio's screen or over SSH brings
+the settings and the Voice tab but not the voices; with an older card image
+the tab says so and the DFN key held shows "Speech is not on this card
+image". Write the newer card image to hear it.
 
 ## Themes
 

@@ -186,6 +186,7 @@ X6100-Baseband test release (its TESTING.md, with the way back to Xiegu's base).
 | **Radio** | Band plan strip for IARU Region 1, 2 or 3, Auto from the GPS, the locator or the callsign, or the US sub-bands of your licence class with the rest in grey (60 m too, and a strip for each band you add; guidance only, it never stops the key or the microphone), 60 m on the band keys, which step over a band the radio cannot tune (4 m), a TX shift per band for FM repeaters and a QO-100 IF (split kept by itself, REV on the VFO key), Birdie Cal (the radio's own carriers found, marked, notched), S-meter in bars or a needle, long-press actions on every key, editable bands, memories and channels, the broadcast bands in AM, transverters (off by default), RX recorder, screen recording and screenshots, voice messages, SWR scan, Walkie Talkie portrait mode, PRE and ATT on the VOL 2:2 page, local time on screen with UTC in the logs. |
 | **X6200** | SAM and WFM on the AM key, zoom 1 to 4 over the base's 384 kHz, the two-ring MFK, FM broadcast (87.5-108 MHz) and the airband (118-137 MHz) to receive after 6 m on the band keys, Xiegu's WR12 54 MHz-1 GHz receiver on the HOST port, driven over its USB serial port when its switch is on (from 54 MHz up the radio listens through it, 2 m and 70 cm included, and transmits nothing meanwhile; gpsd leaves it alone; not yet tried with a WR12, [manual](docs/MANUAL.md#wr12-receiver-x6200)), the PA bias from its own base's factory calibration, as Xiegu's firmware does ([manual](docs/MANUAL.md#pa-bias-x6200)), PRE and ATT on the VOL 2:2 page since it has no PRE key, the volume over the base's whole range (0 to 100), the low-battery power-off at 7.0 V, minutes before the base cuts the power by itself, also on a supply the radio reads under 12.0 V (Xiegu's 12 V charger among them), which did not hold a flat battery up ([manual](docs/MANUAL.md#low-battery)). |
 | **Screen** | DRM/KMS output with the GUI on a transparent layer over a waterfall drawn one line at a time, about half the CPU of the old path, or, by default, as a 3D band scope (the last seconds in perspective, coloured by strength; Settings > Display > 3D off for the flat waterfall); a main knob with every detent timed in its own thread and acceleration that grows with the speed; the buttons hidden after a few seconds without a key, for the waterfall down to the bottom (Settings > Display > Hide buttons, off by default); a screensaver, Matrix rain, after 5 minutes without use, the screen dark after it or not, as set ([manual](docs/MANUAL.md#screensaver)). |
+| **Speech** | For blind and low-vision operators: every key, knob, F-key page, window, list, setting and message spoken, the frequency once the knob rests, decoded text read aloud, never anything on the air. Off by default; the DFN key held turns it on (screen off only, always). Four English voices (RHVoice); needs a card image with them. Jimr9's work. See [Speech](docs/MANUAL.md#speech). |
 | **Themes** | Every colour, corner, font and waterfall palette comes from the theme. RF.Guru, Classic, Outdoor, Outdoor-Negative, VISION, Black Metal, Total Black, 1bit and Amber Trey (an amber segment LCD) come with the image; Holo and Material 3, and Codec (green phosphor boxes with corner brackets, its own monospaced font and a SIGNAL bar meter) and Ops Room (amber operations-room frames in Roboto Condensed, with a TRANSMIT band while the radio transmits), both designed by Trey (rewtraw), are in [themes/](themes) to copy to the card; your own go on the card too ([docs/THEMES.md](docs/THEMES.md)). |
 | **Wireless** | WiFi (a failed join says why on the screen), a USB Ethernet adapter with DHCP or a fixed address, USB tethering, a network name of your own; Bluetooth CAT for three clients, headphones and keyboards with pairings that survive a new image. |
 | **Browser panel** | `http://x6100.local/panel` (`x6200.local` on an X6200): the radio worked natively from a phone, a tablet or a PC, portrait or landscape: the spectrum and the waterfall live (tap or drag to tune, pinch to zoom), the frequency, band, mode, step and zoom, every switch and level, the S-meter, the DX spots (tap to tune), the FT8 app (decodes, tap to answer, CQ, auto, hold), the CW decoder's text, a log entry, RX audio and the browser's microphone for TX, a light theme for the sun. What the closed phone app does, as a web page. |
@@ -408,7 +409,7 @@ run) when upstream has commits the fork has not, and names upstream's other bran
 with newer work (pull requests on their way) as a note. The X6100's upstream is
 gdyuldin's tree, moved to OpenX6100. `buildroot/local-build.sh` patches the
 buildroot tree (local GUI and web server, `boost` and `fftw-single` for JS8,
-no RHVoice, the boot logo), builds it and makes the update bundle. U-Boot's
+RHVoice with four English voices for the speech, the boot logo), builds it and makes the update bundle. U-Boot's
 release tarball is checked against its SHA-256; when ftp.denx.de doesn't answer,
 the script makes it from U-Boot's tag on GitHub (the tar inside is the
 release's, and bzip2 gives back the release tarball). The GitHub
@@ -523,7 +524,9 @@ callsign in FreeDV's own form (`src/freedv_text.c`) is ported from freedv/freedv
 voice decoder (vendored in `third-party/mbelib`, ISC, see its [UPSTREAM.md](third-party/mbelib/UPSTREAM.md)), is
 an independent decoder written from the published P25 half-rate vocoder standard (TIA-102.BABA-1) and the
 vocoder's patents, receive only; the AMBE+2 patents have expired in Europe, a US patent (US 8,359,197) may
-apply there until May 2028. The web server is LGPL-2.1
+apply there until May 2028. RHVoice, the speech synthesizer of Settings > Voice, is not linked: the GUI opens the card
+image's library when speech is turned on (LGPL-2.1-or-later, built without MAGE; its two C headers in
+`third-party/rhvoice`, see its [UPSTREAM.md](third-party/rhvoice/UPSTREAM.md)), with the voices SLT, Alan, BDL and CLB. The web server is LGPL-2.1
 ([webserver/LICENSE](webserver/LICENSE)). Every file keeps the copyright
 notice of its authors.
 
@@ -601,7 +604,10 @@ the paddle keyer's start after the settings, the 3D waterfall drawn on a
 thread of its own and its picture without planes drawn in columns and turned
 over in tiles, the WiFi device followed when it goes and comes, with the
 switch flipped twice ending as it stands, and the remote screen's picture
-completed off the GUI thread.
+completed off the GUI thread; Jimr9 (OpenX6X00 Speech Access) the speech for blind and low-vision
+operators: every key, knob, F-key page, window, list, setting and message spoken, the frequency after the knob rests,
+a control's name once and then its values, decoded text read aloud, nothing said on the air, with RHVoice's voices
+(Settings > Voice, or the DFN key held).
 
 Patches, captures, logs and tests from the issues: BrunoKlu the capture and the
 driver patch of #29; KR8MER the diagnosis and the patch of #50; marcoverheiden the panel tests of #239
