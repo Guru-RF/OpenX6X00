@@ -30,7 +30,13 @@ after one it is that key's, 2.5 s later another transmission's and holds nothing
 and the radio file the Winlink page reads
 (`build/radio` here): Winlink's cap of 7 W, 5 W with the X6200 on its battery
 (`WL_PWR_MAX=5`, said in `cap_battery`), and 0.5 W under a transverter's TX power limit
-(`WL_PWR_XVTR=0.5`, said in `cap_transverter`, not `cap_battery`). It prints `PROTO OK`.
+(`WL_PWR_XVTR=0.5`, said in `cap_transverter`, not `cap_battery`). Last, APP > Mail's
+Connect as the app presses it (#322; `WL_PRESET`, the steps in `stubs.c`): the first
+press puts the radio on the gateway's frequency in USB-D and keys nothing, with no
+connection under way that would hold TUNE; another gateway, the dial turned, an app
+open, a frequency the radio cannot tune, the radio on the air; the way back to where
+the radio was, also once the modem's last frame is out; and the second press, where
+Pat's QSY finds the radio there and its tune back leaves it there. It prints `PROTO OK`.
 
 `make modems` runs `winlink_modems_test.py` with the real modems, in a network
 namespace of its own with loopback only (`unshare -rn`), so Pat reaches nothing
@@ -122,8 +128,11 @@ lately on another band not put on top. It prints `MAIL OK` (2026-11-16: about
 Also here, in Python alone: `winlink_test.py`, the tests of the supervisor
 (`rootfs/usr/sbin/x6100-winlink`: the settings, Pat's config, Mercury's and
 XARA's, XARA's callsign, its speed and the VARA HF licence tick, the outcome of
-each connection from the logs in `fixtures/`, and Pat's own switch of the modem,
-#296), and `winlink_web_test.py`, the web
+each connection from the logs in `fixtures/`, Pat's own switch of the modem,
+#296, Pat's service codes for the modem in use with the user's own kept, #324, and
+`x6100-winlink modem`, APP > Mail's Modem, #322 and #323: chosen as the page does,
+refused when the modem is not there, XARA without a callsign, during a switch of
+Pat's), and `winlink_web_test.py`, the web
 configurator's Winlink page and its API, which needs bottle 0.13
 (`PYTHONPATH=<a directory with bottle.py>`; 0.12 does not import on Python 3.13
 and later). Both run with `python3 -B <file>`, and `make` (`make test`) runs them

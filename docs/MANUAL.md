@@ -7770,6 +7770,20 @@ Connecting to a gateway:
   RMS list): the gateways that run ARDOP, with their callsign, frequency and
   distance. Pick one on a band that suits the time of day and your antenna,
   and Connect.
+- Which gateways the list has (from v0.3.14; issue #324): Winlink keeps the
+  gateways under service codes, and Pat asks for the ones in its Service
+  codes (Action > Configure). Sysops register an ARDOP gateway under PUBLIC,
+  one that runs XARA under XARA and one that runs Mercury under MERCURY. The
+  radio sets PUBLIC and the code of the VARA HF modem in use each time it
+  starts Pat: XARA with XARA chosen, MERCURY with Mercury, and with ARDOP
+  chosen the one a VARA HF connection would switch to (the last of the two
+  you chose, XARA when neither). Not both, since Pat's list does not say
+  which code a gateway is under and Mercury and XARA do not talk to each
+  other. Codes of your own typed there (EMCOMM and the like) stay, behind
+  the radio's. Up to v0.3.13 the list had the PUBLIC gateways only. Pat
+  keeps a list of its own for each set of codes: the first time after the
+  update it downloads the new one when the radio has internet, and shows
+  the list it comes with when it has none.
 - The transport you connect through chooses the modem (from v0.3.13; issue
   #296): ARDOP while Mercury or XARA runs makes the modem ARDOP, VARA HF while
   ARDOP runs makes it XARA, or Mercury when that was the last of the two you
@@ -7800,7 +7814,9 @@ Connecting to a gateway:
 - Pat gives the radio the gateway's dial frequency: the radio tunes there,
   switches to USB-D (unless it is in USB or USB-D already), and tunes back
   after the session. The power is the radio's setting, at most 7 W, as for
-  the radio's other digital modes.
+  the radio's other digital modes. To tune the antenna on the gateway's
+  frequency before the call, connect from [APP > Mail](#mail-on-the-radio):
+  its first press puts the radio there and transmits nothing.
 - ARDOP keys the radio the way the radio's own digital modes do, and
   identifies with your callsign in CW. Its call carries your callsign too
   and counts as an ID: no ID frame keys the radio by itself about 9 minutes
@@ -8049,19 +8065,38 @@ web mailbox.
   would put "?". If Pat asks something during a connection while you write,
   its question comes first; the message comes back after the answer, or with
   New.
-- Connect: Pat's gateway list for the modem chosen on the Winlink page (ARDOP,
-  or the VARA HF gateways for Mercury and XARA), the nearest first, the ones
-  called from the radio lately on top (`+`, on the band chosen). Band goes
-  through the bands; the MFK, the arrows or a touch choose a gateway. The
-  list comes from the card: without internet Pat takes the one it last
-  downloaded, or the one it comes with. Connect, pressed twice for the same
-  gateway (the second press transmits; another gateway chosen in between
-  asks again), calls the gateway as Pat's Connect does, with the same
-  checks before each key (see above): the radio tunes there and Pat sends the
-  Outbox and fetches the new mail. The Connection page shows Calling or
-  Connected, the progress of each message on the bar, Pat's last log lines,
-  and at the end what happened, with what to do next as the Winlink page says
-  it. Abort ends the connection; pressed again, at once.
+- Connect: Pat's gateway list for the modem chosen (Modem on page 2, or the
+  Winlink page: ARDOP, or the VARA HF gateways for Mercury and XARA), the
+  nearest first, the ones called from the radio lately on top (`+`, on the
+  band chosen). Band goes through the bands; the MFK, the arrows or a touch
+  choose a gateway. The list comes from the card: without internet Pat takes
+  the one it last downloaded, or the one it comes with.
+- Two presses call a gateway, and only the second transmits (from v0.3.14;
+  issue #322). The first, Set freq (or an MFK press, or Enter), puts the
+  radio on the gateway's dial frequency, in USB-D unless it is in USB or
+  USB-D already, and sends nothing: the status line says "On 7100.0 kHz for
+  DM6TS, nothing sent: tune the antenna now if needed", and there is no time
+  limit, so run the antenna tuner for that frequency if it needs one. The
+  button now reads Connect: the second press calls the gateway as Pat's
+  Connect does, with the same checks before each key (see above), and Pat
+  sends the Outbox and fetches the new mail. Another gateway chosen, or the
+  dial turned, and the next press is a first one again. When the radio
+  cannot go there the line says why ("Not on 7100.0 kHz: FT8 is open, close
+  it"; the radio on the air; LOCK). Back, another band or closing the app
+  without calling takes the radio back to where it was before the first
+  press, and so does the end of the connection, as Pat's own tune back does
+  for a connection from the web mailbox; a dial you turned yourself in
+  between stays where you put it. After Set freq you can also connect from
+  the web mailbox: the radio is then left on the gateway's frequency, where
+  Pat found it. The mode stays USB-D, as after any
+  Winlink connection. A gateway with no frequency in Pat's list is called
+  where the radio is: Connect, twice within 5 seconds. Up to v0.3.13 the
+  radio changed frequency only as it began to transmit.
+- The Connection page shows Calling or Connected, the progress of each
+  message on the bar, Pat's last log lines, and at the end what happened,
+  with what to do next as the Winlink page says it, on as many lines as it
+  takes (up to v0.3.13 it was one line, cut at the right edge; issue #321).
+  Abort ends the connection; pressed again, at once.
 - Pat's questions during a connection come up on the buttons, as in the web
   mailbox: a busy channel (Continue anyway or Abort; Pat waits for it to
   clear meanwhile, and the Connection page's Abort ends that wait too), the
@@ -8073,18 +8108,33 @@ web mailbox.
   small or Later). A question answered in the web mailbox goes away on the
   radio.
 - Page 2: Winlink On or Off (as the Winlink page's Enabled; Pat and the
-  modem start with the radio from then on), the Winlink password (kept on
-  the radio and never shown, as the Winlink page keeps it; Pat starts again
-  with it) and Refresh. The callsign is the radio's (Settings > General)
-  unless the Winlink page sets another; the modem and the bandwidths are set
-  on the Winlink page.
+  modem start with the radio from then on), Modem, the Winlink password
+  (kept on the radio and never shown, as the Winlink page keeps it; Pat
+  starts again with it) and Refresh. Close is on page 1. The callsign is the
+  radio's (Settings > General) unless the Winlink page sets another; the
+  bandwidths and the VARA HF licence tick are set on the Winlink page.
+- Modem (from v0.3.14; issues #322, #323) goes through the modems on the
+  radio: ARDOP, Mercury, XARA. A press chooses the next one, as the Winlink
+  page's Modem and Save: Pat stops, the modem that runs stops, the new one
+  starts and Pat starts again, which takes a while. The status line
+  follows it ("Modem: switching to XARA... Restarting Pat with the new
+  settings...") and ends with "Modem: XARA is ready", or with why it is not
+  ("Modem: XARA did not start: ...", or "XARA needs your callsign: ..."
+  when XARA cannot take the one set). The gateway list is then that
+  modem's, and the Winlink page shows the same choice. With Winlink off the
+  choice is kept for when it is turned on. Not during a connection: Pat
+  restarts for it.
 - Closing the app leaves a connection running, as one from the web mailbox;
   APP > Mail shows it again ("A connection is under way") and Abort ends it.
+  The radio still goes back to where it was when that connection ends.
 - The app holds neither the radio's audio nor its frequency, so it is not
   one of the digital apps that keep Winlink from keying.
 
 Over SSH, `x6100-winlink-mail` is what the app runs: `status`, `list in`,
 `read in <ID>` and `gateways 40m` print what the app shows, as JSON.
+`x6100-winlink modem` says the modem chosen and the ones on the radio, and
+`x6100-winlink modem xara` (or `ardop`, `mercury`) chooses one as the app's
+Modem does.
 
 ### Mercury (experimental)
 
