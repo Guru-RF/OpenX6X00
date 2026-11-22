@@ -2425,7 +2425,7 @@ static void bt_update_view() {
         }
         lv_obj_align(r->note, LV_ALIGN_LEFT_MID, d->connected ? 580 : 430, 0);
 
-        /* Spoken: the pills are pictures to the reader. "Jabra Elite, headphones, connected, 1 of 3" */
+        /* Spoken: the pills are pictures to the reader. "My headphones, headphones, connected, 1 of 3" */
         char said[200];
 
         snprintf(said, sizeof(said), "%s, %s%s, %i of %i", d->name,
@@ -3774,6 +3774,10 @@ static void make_voice_page() {
 
     uint8_t row = card_begin("VOICE");
 
+    /* A card image from before speech (a radio updated in place): the settings are there and kept, nothing speaks */
+    if (!voice_available()) {
+        row = info_row(row, "Speech", "Needs a newer card image");
+    }
     wl_row_label(row, "Voice mode");
     row_choice(row, 1, 3, SMALL_3, "Off\nScreen off only\nAlways", cfg_sm.p_voice_mode.get(), voice_mode_cb,
                &cfg_sm.p_voice_mode);

@@ -32,7 +32,7 @@ build/%.o: $(SRC)/%.c $(wildcard $(SRC)/*.h)
 	mkdir -p $(dir $@) && $(CC) $(GUI) -c -o $@ $<
 
 text_popup_test: text_popup_test.c $(OBJS) $(DRV_LIB) $(LVGL_LIB)
-	$(CC) $(CFLAGS) -o $@ text_popup_test.c $(OBJS) $(DRV_LIB) $(LVGL_LIB) -Wl,--gc-sections -lxkbcommon -lm -pthread
+	$(CC) $(CFLAGS) -o $@ text_popup_test.c ../speech/silent.c $(OBJS) $(DRV_LIB) $(LVGL_LIB) -Wl,--gc-sections -lxkbcommon -lm -pthread
 
 test: text_popup_test
 	./text_popup_test

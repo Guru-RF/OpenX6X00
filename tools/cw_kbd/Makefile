@@ -30,7 +30,7 @@ build/%.o: $(SRC)/%.c $(wildcard $(SRC)/*.h)
 	mkdir -p $(dir $@) && $(CC) $(GUI) -c -o $@ $<
 
 cw_kbd_test: cw_kbd_test.c $(OBJS) $(LVGL_LIB)
-	$(CC) $(CFLAGS) -o $@ cw_kbd_test.c $(OBJS) $(LVGL_LIB) -Wl,--gc-sections -lm -pthread
+	$(CC) $(CFLAGS) -o $@ cw_kbd_test.c ../speech/silent.c $(OBJS) $(LVGL_LIB) -Wl,--gc-sections -lm -pthread
 
 test: cw_kbd_test
 	./cw_kbd_test

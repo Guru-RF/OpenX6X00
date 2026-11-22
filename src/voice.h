@@ -1,10 +1,14 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  OpenX6X00 - spoken feedback (accessibility), RHVoice
+ *  OpenX6X00 - spoken feedback (accessibility)
  *
- *  Brought over from the X6100 Accessibility fork (github.com/Jimr9/X6100-Accessibility-Testing),
- *  whose engine came from R1CBU's x6100_gui (Copyright (c) 2022-2023 Belousov Oleg aka R1CBU).
+ *  From Jimr9's OpenX6X00 Speech Access (github.com/Jimr9/OpenX6X00-Speech-Access) and his X6100 Accessibility fork
+ *  (github.com/Jimr9/X6100-Accessibility-Testing), whose engine came from R1CBU's x6100_gui (Copyright (c) 2022-2023
+ *  Belousov Oleg aka R1CBU).
+ *
+ *  Off by default (Settings > Voice > Voice mode, or the DFN key held). Off, and on a card image without the
+ *  synthesizer, every call below returns at once and says nothing.
  */
 
 #pragma once
@@ -17,7 +21,7 @@
 extern "C" {
 #endif
 
-#define VOICES_NUM 6
+#define VOICES_NUM 4
 
 typedef enum {
     VOICE_OFF = 0,
@@ -33,7 +37,7 @@ typedef struct {
 
 extern voice_item_t voice_item[VOICES_NUM];
 
-/* The next announcement is spoken whatever the mode (the voice settings themselves) */
+/* What is said in the next second and a half is spoken whatever the mode (the voice settings themselves) */
 void voice_sure();
 /* Off, LCD, Always, Off... said and saved */
 void voice_change_mode();
@@ -55,21 +59,22 @@ void voice_say_float2(const char *prompt, float x);
 void voice_say_text(const char *prompt, const char *x);
 void voice_say_lang();
 
-/* Until the announcement has been heard: before the mic is opened */
-void voice_wait_done();
-
 /* Every attempt to speak counts: a caller can tell whether what it ran said anything */
 uint32_t voice_say_count();
 void voice_count_bump();
 /* The app speech helper: focus changes, pop-ups and silent F-key presses spoken (voice_focus.c) */
 void voice_auto_set(bool on);
 bool voice_auto_active();
-/* Cuts any announcement off, cleanly: before a digital transmission */
+/* Cuts any announcement off and takes back one still waiting: before a transmission, a recording. Any thread;
+ * returns once the audio has stopped, 250 ms at most, at once when nothing plays */
 void voice_stop();
 
 /* Speech not Off in Settings > Voice: then a key or a knob turn that wakes the screen also acts, as a blind
  * operator cannot see that the screen had gone dark (screen_light.c, front_keys.c) */
 bool voice_is_on();
+
+/* The card image has the synthesizer (speech_engine.h): Settings > Voice says so when it has not */
+bool voice_available();
 
 /* An announcement is waiting for its delay or playing */
 bool voice_busy();

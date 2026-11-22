@@ -5,3 +5,4 @@
 bool tx_info_refresh(uint8_t *seen, float *alc, float *pwr, float *swr);
 void tx_info_set_length(float seconds);
 void tx_info_set_tune(float w, float seconds);
+void tx_info_last(float *pwr, float *swr);     /* ext_tune.c, for the spoken ending only */

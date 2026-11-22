@@ -190,7 +190,9 @@ static void atu_say_cb(lv_timer_t *t) {
 static void atu_done_cb(void *arg) {
     cfg_atu_save_network(*(uint32_t *)arg);
     param_i_set(cfg_atu_enabled, true);
-    lv_timer_set_repeat_count(lv_timer_create(atu_say_cb, 500, NULL), 1);
+    if (voice_is_on()) {
+        lv_timer_set_repeat_count(lv_timer_create(atu_say_cb, 500, NULL), 1);
+    }
 }
 
 /* The base's warnings, on the LVGL thread: bit 0 battery hot, 1 PA hot, 2 DC in too low,

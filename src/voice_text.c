@@ -111,12 +111,16 @@ static void flush(void) {
 
 static void tick_cb(lv_timer_t *t) {
     (void)t;
-    if (!pend_n) {
+    if (!pend_n && voice_is_on()) {
         return;
     }
     if (!reading_on()) {
         pend_n   = 0;
         line_end = false;
+        if (!voice_is_on()) {       /* speech switched off: the timer goes, until text is read again */
+            lv_timer_del(tick_timer);
+            tick_timer = NULL;
+        }
         return;
     }
     if (voice_busy()) {
@@ -164,7 +168,7 @@ static void add_job(void *arg) {
 }
 
 void voice_text_add(const char *text) {
-    if (text && text[0]) {
+    if (text && text[0] && voice_is_on()) {     /* off: not even queued (a decoder's thread, every character) */
         scheduler_put(add_job, (void *)text, strlen(text) + 1);
     }
 }
@@ -191,7 +195,7 @@ static void msg_job(void *arg) {
 void voice_text_message(uint32_t id, const char *text, bool complete) {
     msg_job_t m = {.id = id};
 
-    if (!complete || !text || !text[0]) {
+    if (!complete || !text || !text[0] || !voice_is_on()) {
         return;
     }
     snprintf(m.text, sizeof(m.text), "%s", text);

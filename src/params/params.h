@@ -35,7 +35,7 @@ typedef enum {
     ACTION_MUTE,
     ACTION_STEP_UP,
     ACTION_STEP_DOWN,
-    ACTION_VOICE_MODE,  /* speech mode: always, screen off only, off (voice_change_mode) */
+    ACTION_VOICE_MODE,  /* speech mode: screen off only, always, off (voice_change_mode) */
     ACTION_BAT_INFO,    /* unused (spoken battery info removed) */
     ACTION_NR_TOGGLE,
     ACTION_NB_TOGGLE,

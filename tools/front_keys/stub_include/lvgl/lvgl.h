@@ -24,7 +24,7 @@ void        lv_timer_set_period(lv_timer_t *t, uint32_t period);
 void        lv_timer_set_repeat_count(lv_timer_t *t, int32_t count);
 void        lv_timer_reset(lv_timer_t *t);
 
-enum { LV_KEY_UP = 17, LV_KEY_DOWN = 18, LV_KEY_BACKSPACE = 8 };
+enum { LV_KEY_UP = 17, LV_KEY_DOWN = 18, LV_KEY_BACKSPACE = 8, LV_KEY_ESC = 27 };
 enum { LV_INDEV_STATE_RELEASED = 0, LV_INDEV_STATE_PRESSED };
 enum { LV_INDEV_TYPE_NONE = 0, LV_INDEV_TYPE_POINTER, LV_INDEV_TYPE_KEYPAD };
 

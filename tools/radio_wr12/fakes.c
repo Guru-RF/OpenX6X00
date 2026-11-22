@@ -1003,3 +1003,17 @@ void freq_strip_set_wr12(bool in_use) {
 wifi_status_t wifi_get_status() {
     return (wifi_status_t)0;
 }
+
+/* radio.c says the tuner's result half a second after it (speech on only): never made here, speech is off
+ * (tools/speech/silent.c) */
+lv_timer_t *lv_timer_create(lv_timer_cb_t cb, uint32_t period, void *user_data) {
+    (void)cb;
+    (void)period;
+    (void)user_data;
+    return NULL;
+}
+
+void lv_timer_set_repeat_count(lv_timer_t *t, int32_t n) {
+    (void)t;
+    (void)n;
+}

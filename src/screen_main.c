@@ -1194,11 +1194,15 @@ static void front_key_cb(lv_event_t *e) {
             ab_key(tap, hold);
             break;
 
-        case KEYPAD_POWER:  /* a press: the screen off/on; with speech on, the screen read aloud instead */
+        case KEYPAD_POWER:  /* a press: the screen off/on; with speech always on, the screen read aloud instead */
             if (tap) {
-                /* speech switched off (DFN held): this one readout still spoken */
-                voice_sure();
-                say_screen();
+                /* Speech always: the screen read aloud, a blind operator has no use for the screen off/on. Off, and
+                 * speech only while the screen is dark: the screen off/on as ever */
+                if (voice_is_on() && param_i_get(cfg_voice_mode) == VOICE_ALWAYS) {
+                    say_screen();
+                } else {
+                    backlight_switch();
+                }
             } else if (hold) {
                 msg_update_text_fmt("Power off");
                 cluster_client_stop();      /* the cluster link closed, not left to time out at the node */

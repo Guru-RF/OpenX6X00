@@ -9,7 +9,7 @@
 SRC    := ../../src
 DATA   := $(CURDIR)/build/data
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -pthread -I stub_include -DHOST_BUILD=1 -DBOARD_DATA='"$(DATA)"'
-COPIED := digi_textlog.c digi_textlog.h board.h
+COPIED := digi_textlog.c digi_textlog.h board.h voice_text.h
 SHIMS  := $(wildcard stub_include/*/*.h)
 
 all: test
@@ -18,7 +18,7 @@ build/.copied: $(addprefix $(SRC)/,$(COPIED))
 	mkdir -p build && cp $^ build/ && touch $@
 
 textlog_test: textlog_test.c build/.copied $(SHIMS)
-	$(CC) $(CFLAGS) -I build -o $@ textlog_test.c build/digi_textlog.c -lm -Wl,--wrap=time -Wl,--wrap=fsync
+	$(CC) $(CFLAGS) -I build -o $@ textlog_test.c build/digi_textlog.c ../speech/silent.c -lm -Wl,--wrap=time -Wl,--wrap=fsync
 
 test: textlog_test
 	rm -rf $(DATA) && mkdir -p $(DATA)

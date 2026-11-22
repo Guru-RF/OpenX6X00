@@ -14,7 +14,7 @@ build/front_keys.c: $(SRC)/front_keys.c
 
 front_keys_test: front_keys_test.c build/front_keys.c $(SRC)/front_keys.h $(SRC)/gui_events.h \
                  $(wildcard stub_include/*.h stub_include/*/*.h)
-	$(CC) $(CFLAGS) -o $@ front_keys_test.c build/front_keys.c
+	$(CC) $(CFLAGS) -o $@ front_keys_test.c build/front_keys.c ../speech/silent.c
 
 test: front_keys_test
 	./front_keys_test

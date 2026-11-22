@@ -523,10 +523,9 @@ int main(void) {
     dialog_field_wavelog_start();
     first_start_init();     /* a new card or a settings reset: the guide, once the screen is up */
     /* Spoken feedback (voice.cpp): no window of this GUI announces itself, so the helper that reads focus
-     * changes, messages and F-key presses is on everywhere (off while transmitting) */
+     * changes, messages and F-key presses is on everywhere (it says nothing with speech Off, and nothing on the air) */
     voice_auto_set(true);
-    /* which boot menu key starts this build is in Settings > Voice > START-UP, not said at every start */
-    voice_say_text_fmt("Open X 6 X hundred, with speech, ready");
+    voice_say_text_fmt("Open X 6 X hundred, ready");    /* with speech on: the radio is up */
     gui_loop();
     return 0;
 }

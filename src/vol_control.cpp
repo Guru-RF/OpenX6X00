@@ -61,6 +61,10 @@ void vol_change_ctrl(int16_t dir) {
 }
 
 void vol_say_state() {
+    if (!voice_is_on()) {
+        return;
+    }
+
     std::string msg(64, '\0');
 
     controls_encoder_update(vol_ctrl, 0, msg);

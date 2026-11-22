@@ -11,9 +11,9 @@
 SRC    := ../../src
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -pthread -I stub_include
 COPIED := tune_tx.c tune_tx.h tx_player.c tx_player.h tx_level.c tx_level.h swr_guard.c swr_guard.h audio.h radio_types.h \
-          ext_tune.c ext_tune.h board.h
+          ext_tune.c ext_tune.h board.h voice.h
 SHIMS  := $(wildcard stub_include/*.h stub_include/*/*.h)
-SRCS   := tune_test.c build/tune_tx.c build/tx_player.c build/tx_level.c build/swr_guard.c build/ext_tune.c
+SRCS   := tune_test.c build/tune_tx.c build/tx_player.c build/tx_level.c build/swr_guard.c build/ext_tune.c ../speech/silent.c
 
 all: test
 

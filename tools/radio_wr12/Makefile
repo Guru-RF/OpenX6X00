@@ -33,7 +33,7 @@ build/radio.o: radio_thread.c $(SRC)/radio.c $(wildcard $(SRC)/*.h $(SRC)/hw/*.h
 
 radio_wr12_test: radio_wr12_test.c fakes.c fakes.h build/radio.o $(SRC)/hw/stub/hw_stub.c $(SRC)/base_guard.c \
                  $(SRC)/pa_bias.c $(SRC)/cfg/ham_bands.c $(SRC)/cfg/tx_ranges.c $(SRC)/bat_watch.c
-	$(CC) $(CFLAGS) -o $@ radio_wr12_test.c fakes.c build/radio.o $(SRC)/hw/stub/hw_stub.c $(SRC)/base_guard.c \
+	$(CC) $(CFLAGS) -o $@ radio_wr12_test.c fakes.c ../speech/silent.c build/radio.o $(SRC)/hw/stub/hw_stub.c $(SRC)/base_guard.c \
 	    $(SRC)/pa_bias.c $(SRC)/cfg/ham_bands.c $(SRC)/cfg/tx_ranges.c $(SRC)/bat_watch.c -lm $(WRAPS)
 
 test: radio_wr12_test

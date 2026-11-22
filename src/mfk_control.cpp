@@ -31,6 +31,10 @@ static void show_ctrl(void) {
 }
 
 void mfk_say_state() {
+    if (!voice_is_on()) {
+        return;
+    }
+
     std::string msg(64, '\0');
 
     controls_encoder_update(mfk_ctrl, 0, msg);

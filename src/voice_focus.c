@@ -6,8 +6,8 @@
  *  No window of this GUI announces its controls itself, so this listens to the keyboard group, the
  *  knob's and the keys' focus: whatever gets the focus is described and spoken, with the name of
  *  its row when it sits in a grid (Settings and the like), and its value is spoken again as it is
- *  changed (a switch flipped, a slider or a dropdown turned). From the X6100 Accessibility fork's
- *  voice_focus.c (github.com/Jimr9/X6100-Accessibility-Testing).
+ *  changed (a switch flipped, a slider or a dropdown turned). From Jimr9's OpenX6X00 Speech
+ *  Access and his X6100 Accessibility fork (github.com/Jimr9/X6100-Accessibility-Testing).
  */
 
 #include "voice_focus.h"
@@ -663,6 +663,9 @@ void voice_focus_set_text(lv_obj_t *obj, const char *text) {
         return;
     }
     i = text_find(obj);
+    if (text && text[0] && i < 0 && !voice_is_on()) {
+        return;     /* speech off: nothing kept (the lists refresh every second) */
+    }
     if (!text || !text[0]) {
         if (i >= 0) {
             texts[i].obj = NULL;
@@ -932,7 +935,7 @@ void voice_focus_hint(const char *text) {
 void voice_say_label_change(lv_obj_t *label, char *last, size_t size, const char *prefix) {
     char now[300];
 
-    if (!label || !last || !size) return;
+    if (!label || !last || !size || !voice_is_on()) return;
     voice_clean_text(lv_label_get_text(label), now, sizeof(now));
     if (!strcmp(now, last)) return;
     snprintf(last, size, "%s", now);

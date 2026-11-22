@@ -78,7 +78,11 @@ static void over_cb(void *arg) {
     char  reading[64] = "";
 
     /* Spoken: how it ended and what it read, "Tune over, 10 second limit, 5.0 watts, S W R 1.3" */
-    tx_info_last(&pw, &swr);
+    if (voice_is_on()) {
+        tx_info_last(&pw, &swr);
+    } else {
+        pw = swr = 0.0f;
+    }
     if (pw > 0.0f && swr >= 1.0f) snprintf(reading, sizeof(reading), ", %.1f watts, S W R %.1f", pw, swr);
 
     switch (o->end) {

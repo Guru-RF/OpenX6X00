@@ -372,6 +372,11 @@ void tx_info_set_length(float s) {
     seen.len = s;
 }
 
+void tx_info_last(float *pwr, float *swr) {
+    *pwr = 0.0f;    /* asked with speech on only (tools/speech/silent.c: off) */
+    *swr = 0.0f;
+}
+
 void tx_info_set_tune(float w, float s) {
     seen.tune_w = w;
     seen.tune_s = s;
