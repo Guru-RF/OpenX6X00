@@ -1,14 +1,14 @@
 # Mercury (vendored)
 
 Mercury, the HF modem (TNC) of Rhizomatica's HERMES project (Rafael Diniz and
-others), as v1.9.21. Pat talks to it on its VARA-style host ports with its
+others), as v1.9.25. Pat talks to it on its VARA-style host ports with its
 `varahf` transport, for Winlink. Only Mercury 1.9.20 and later connect to it
 on the air.
 
 Source: https://github.com/Rhizomatica/mercury
-Tag: `v1.9.21`, commit `edca701ba2e432aecd7d4e217ec8fa717ed23aa3` (2026-10-24)
-Tarball: https://github.com/Rhizomatica/mercury/archive/refs/tags/v1.9.21.tar.gz,
-SHA-256 `785a84463581ba89420ff1a18b3f4ea88f92f2176fc13d16b899c1dbfdb883cd`
+Tag: `v1.9.25`, commit `33efac4e3089f64f493fde1232b8e96305d15185` (2026-11-21)
+Tarball: https://github.com/Rhizomatica/mercury/archive/refs/tags/v1.9.25.tar.gz,
+SHA-256 `a21196c9bc2b0f5bed303bd4e09f530a2bf1b59337fed7b816634f54f9219b6e`
 License: GPL-3.0-or-later (see `LICENSE`), except the parts below
 
 ## What is kept

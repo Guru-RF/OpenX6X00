@@ -73,6 +73,29 @@ int mercury_host_chat_send(const char *plane, const char *text)
     return MERCURY_HOST_BAD;
 }
 
+/* ---- the TNC, as its client ---- */
+
+int mercury_host_tnc_command(const char *line)
+{
+    int rc = tnc_host_command(line);
+    return rc == 0 ? MERCURY_HOST_OK : rc == -2 ? MERCURY_HOST_BUSY : MERCURY_HOST_BAD;
+}
+
+void mercury_host_tnc_release(void)
+{
+    tnc_host_release();
+}
+
+int mercury_host_tnc_held(void)
+{
+    return tnc_host_holds() ? 1 : 0;
+}
+
+size_t mercury_host_arq_read(uint8_t *buf, size_t len)
+{
+    return tnc_host_arq_read(buf, len);
+}
+
 /* ---- listen mode ---- */
 
 int mercury_host_mode_count(void)
@@ -118,6 +141,16 @@ int mercury_host_set_listen_mode(int index)
         return MERCURY_HOST_BAD;
     int rc = modem_set_listen_mode(freedv_modes[index]);
     return rc == 0 ? MERCURY_HOST_OK : rc == MODEM_LISTEN_MODE_BUSY ? MERCURY_HOST_BUSY : MERCURY_HOST_BAD;
+}
+
+/* ---- station messages (the beacon) ---- */
+
+int mercury_host_beacon_send(const uint8_t *frame, size_t len, int mode_index)
+{
+    if (mode_index < 0 || mode_index >= mercury_cli_mode_count())
+        return MERCURY_HOST_BAD;
+    int rc = modem_beacon_send(frame, len, freedv_modes[mode_index]);
+    return rc == 0 ? MERCURY_HOST_OK : rc == MODEM_BEACON_FULL ? MERCURY_HOST_FULL : MERCURY_HOST_BAD;
 }
 
 /* ---- the broadcast carousel ---- */

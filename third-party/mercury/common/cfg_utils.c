@@ -52,6 +52,8 @@ void cfg_set_defaults(mercury_config *cfg)
     cfg->ptt.hamlib_conf[0] = '\0';
     cfg->input_device[0]    = '\0';
     cfg->output_device[0]   = '\0';
+    cfg->input_device_name[0]  = '\0';
+    cfg->output_device_name[0] = '\0';
     cfg->capture_channel    = LEFT;
     cfg->sound_system       = -1;  /* auto: resolved by audioio_pick_default_subsystem() */
     cfg->arq_tcp_base_port  = DEFAULT_ARQ_PORT;       /* 8300   */
@@ -59,20 +61,28 @@ void cfg_set_defaults(mercury_config *cfg)
     cfg->callsign[0]        = '\0';                   /* unset: no default callsign */
     cfg->verbose            = false;
     cfg->trace              = false;
+    cfg->log_utc            = false;
+    cfg->log_max_mb         = CFG_LOG_MAX_MB_DEFAULT;
     cfg->freedv_verbosity   = 0;
     cfg->disconnect_drain_timeout_s = ARQ_DISCONNECT_DRAIN_TIMEOUT_S_DEFAULT;
     cfg->tnc_keepalive_s = 60;
     cfg->tnc_buffer_report_ms = 1000;
+    cfg->tnc_absorb_idle_disconnect_s = 0;
     cfg->tx_gain_db            = 0.0f;
     cfg->tx_delay_ms           = 10;
+    cfg->pulse_keepalive       = false;
     cfg->retry_stagger_ms            = ARQ_RETRY_STAGGER_MS_DEFAULT;
+    cfg->silence_fallback_s          = ARQ_SILENCE_FALLBACK_S_DEFAULT;
+    cfg->call_max_s                  = ARQ_CALL_MAX_S_DEFAULT;
     cfg->removed_keys                = 0;
     cfg->mfsk_tx_only                = false;
+    cfg->max_keydown_s               = 0;
     cfg->busy_detect                 = false;
     cfg->busy_threshold_db           = 10;
     cfg->busy_hysteresis_db          = 3;
     cfg->busy_on_debounce_ms         = 300;
     cfg->busy_hang_ms                = 1500;
+    cfg->busy_reseed_on_hop          = false;
     cfg->store_enabled               = true;
     cfg->store_path[0]               = '\0';
     cfg->store_max_messages          = MSG_STORE_DEFAULT_MAX_LINES;
@@ -364,6 +374,14 @@ bool cfg_read(mercury_config *cfg, const char *ini_path)
         cfg->output_device[sizeof(cfg->output_device) - 1] = '\0';
     }
 
+    s = iniparser_getstring(ini, CFG_KEY_INPUT_DEVICE_NAME, NULL);
+    if (s)
+        snprintf(cfg->input_device_name, sizeof(cfg->input_device_name), "%s", s);
+
+    s = iniparser_getstring(ini, CFG_KEY_OUTPUT_DEVICE_NAME, NULL);
+    if (s)
+        snprintf(cfg->output_device_name, sizeof(cfg->output_device_name), "%s", s);
+
     s = iniparser_getstring(ini, CFG_KEY_CAPTURE_CHANNEL, NULL);
     if (s)
         cfg->capture_channel = parse_capture_channel(s);
@@ -392,6 +410,13 @@ bool cfg_read(mercury_config *cfg, const char *ini_path)
     if (cfg->trace)
         cfg->verbose = true;   /* trace implies verbose */
 
+    b = iniparser_getboolean(ini, CFG_KEY_LOG_UTC, cfg->log_utc ? 1 : 0);
+    cfg->log_utc = (bool) b;
+
+    i = iniparser_getint(ini, CFG_KEY_LOG_MAX_MB, cfg->log_max_mb);
+    if (i >= 0 && i <= CFG_LOG_MAX_MB_MAX)
+        cfg->log_max_mb = i;
+
     i = iniparser_getint(ini, CFG_KEY_FREEDV_VERBOSITY, cfg->freedv_verbosity);
     if (i >= 0 && i <= 3)
         cfg->freedv_verbosity = i;
@@ -408,11 +433,26 @@ bool cfg_read(mercury_config *cfg, const char *ini_path)
     if (i >= 100 && i <= 10000)
         cfg->tnc_buffer_report_ms = i;
 
+    i = iniparser_getint(ini, CFG_KEY_TNC_ABSORB_IDLE_DISCONNECT_S, cfg->tnc_absorb_idle_disconnect_s);
+    if (i == 0 || (i >= TNC_ABSORB_IDLE_DISCONNECT_S_MIN && i <= TNC_ABSORB_IDLE_DISCONNECT_S_MAX))
+        cfg->tnc_absorb_idle_disconnect_s = i;
+
     i = iniparser_getint(ini, CFG_KEY_ARQ_RETRY_STAGGER_MS, cfg->retry_stagger_ms);
     if (i >= 0 && i <= ARQ_RETRY_STAGGER_MS_MAX) cfg->retry_stagger_ms = i;
 
+    i = iniparser_getint(ini, CFG_KEY_ARQ_SILENCE_FALLBACK_S, cfg->silence_fallback_s);
+    if (i >= ARQ_SILENCE_FALLBACK_S_MIN && i <= ARQ_SILENCE_FALLBACK_S_MAX)
+        cfg->silence_fallback_s = i;
+
+    i = iniparser_getint(ini, CFG_KEY_ARQ_CALL_MAX_S, cfg->call_max_s);
+    if (i >= 0 && i <= ARQ_CALL_MAX_S_MAX)
+        cfg->call_max_s = i;
+
     cfg->mfsk_tx_only = (bool) iniparser_getboolean(ini, CFG_KEY_ARQ_MFSK_TX_ONLY,
                                                     cfg->mfsk_tx_only ? 1 : 0);
+
+    i = iniparser_getint(ini, CFG_KEY_ARQ_MAX_KEYDOWN_S, cfg->max_keydown_s);
+    if (i == 0 || (i >= 5 && i <= 30)) cfg->max_keydown_s = i;
 
     cfg->busy_detect = (bool) iniparser_getboolean(ini, CFG_KEY_BUSY_DETECT,
                                                    cfg->busy_detect ? 1 : 0);
@@ -429,6 +469,9 @@ bool cfg_read(mercury_config *cfg, const char *ini_path)
     i = iniparser_getint(ini, CFG_KEY_BUSY_HANG_MS, cfg->busy_hang_ms);
     if (i >= 0 && i <= 10000)   cfg->busy_hang_ms = i;
 
+    cfg->busy_reseed_on_hop = (bool) iniparser_getboolean(ini, CFG_KEY_BUSY_RESEED_ON_HOP,
+                                                          cfg->busy_reseed_on_hop ? 1 : 0);
+
     double d = iniparser_getdouble(ini, CFG_KEY_TX_GAIN_DB, (double)cfg->tx_gain_db);
     if (!isfinite(d)) d = 0.0;  /* malformed/non-finite INI value -> default */
     if (d < -20.0) d = -20.0;
@@ -437,6 +480,8 @@ bool cfg_read(mercury_config *cfg, const char *ini_path)
 
     i = iniparser_getint(ini, CFG_KEY_TX_DELAY_MS, cfg->tx_delay_ms);
     if (i >= 0 && i <= 2000) cfg->tx_delay_ms = i;
+    cfg->pulse_keepalive = (bool) iniparser_getboolean(ini, CFG_KEY_PULSE_KEEPALIVE,
+                                                       cfg->pulse_keepalive ? 1 : 0);
 
     cfg->store_enabled = (bool) iniparser_getboolean(ini, CFG_KEY_STORE_ENABLED,
                                                      cfg->store_enabled ? 1 : 0);
@@ -533,6 +578,16 @@ bool cfg_write(const mercury_config *cfg, const char *ini_path)
     cfg_escape_str(escaped, sizeof(escaped), cfg->output_device);
     fprintf(f, "output_device = \"%s\"\n", escaped);
 
+    /* Written only when known: a config without them reads as before. */
+    if (cfg->input_device_name[0]) {
+        cfg_escape_str(escaped, sizeof(escaped), cfg->input_device_name);
+        fprintf(f, "input_device_name = \"%s\"\n", escaped);
+    }
+    if (cfg->output_device_name[0]) {
+        cfg_escape_str(escaped, sizeof(escaped), cfg->output_device_name);
+        fprintf(f, "output_device_name = \"%s\"\n", escaped);
+    }
+
     fprintf(f, "capture_channel = %s\n",  capture_channel_name(cfg->capture_channel));
     fprintf(f, "sound_system = %s\n",     cfg_sound_system_name(cfg->sound_system));
     fprintf(f, "arq_tcp_base_port = %d\n", cfg->arq_tcp_base_port);
@@ -541,6 +596,8 @@ bool cfg_write(const mercury_config *cfg, const char *ini_path)
     fprintf(f, "callsign = \"%s\"\n", escaped);
     fprintf(f, "verbose = %s\n",           cfg->verbose ? "true" : "false");
     fprintf(f, "trace = %s\n",             cfg->trace ? "true" : "false");
+    fprintf(f, "log_utc = %s\n",           cfg->log_utc ? "true" : "false");
+    fprintf(f, "log_max_mb = %d\n",        cfg->log_max_mb);
     fprintf(f, "freedv_verbosity = %d\n",  cfg->freedv_verbosity);
     fprintf(f, "\n[ptt]\n");
     fprintf(f, "method = %s\n", cfg_ptt_method_name(cfg->ptt.method));
@@ -560,7 +617,10 @@ bool cfg_write(const mercury_config *cfg, const char *ini_path)
     fprintf(f, "\n[arq]\n");
     fprintf(f, "disconnect_drain_timeout_s = %d\n", cfg->disconnect_drain_timeout_s);
     fprintf(f, "retry_stagger_ms = %d\n", cfg->retry_stagger_ms);
+    fprintf(f, "silence_fallback_s = %d\n", cfg->silence_fallback_s);
+    fprintf(f, "call_max_s = %d\n", cfg->call_max_s);
     fprintf(f, "mfsk_tx_only = %s\n", cfg->mfsk_tx_only ? "true" : "false");
+    fprintf(f, "max_keydown_s = %d\n", cfg->max_keydown_s);
 
     fprintf(f, "\n[channel]\n");
     fprintf(f, "busy_detect = %s\n", cfg->busy_detect ? "true" : "false");
@@ -568,14 +628,17 @@ bool cfg_write(const mercury_config *cfg, const char *ini_path)
     fprintf(f, "busy_hysteresis_db = %d\n", cfg->busy_hysteresis_db);
     fprintf(f, "busy_on_debounce_ms = %d\n", cfg->busy_on_debounce_ms);
     fprintf(f, "busy_hang_ms = %d\n", cfg->busy_hang_ms);
+    fprintf(f, "busy_reseed_on_hop = %s\n", cfg->busy_reseed_on_hop ? "true" : "false");
 
     fprintf(f, "\n[audio]\n");
     fprintf(f, "tx_gain_db = %.2f\n", cfg->tx_gain_db);
     fprintf(f, "tx_delay_ms = %d\n", cfg->tx_delay_ms);
+    fprintf(f, "pulse_keepalive = %s\n", cfg->pulse_keepalive ? "true" : "false");
 
     fprintf(f, "\n[tnc]\n");
     fprintf(f, "keepalive_s = %d\n", cfg->tnc_keepalive_s);
     fprintf(f, "buffer_report_ms = %d\n", cfg->tnc_buffer_report_ms);
+    fprintf(f, "absorb_idle_disconnect_s = %d\n", cfg->tnc_absorb_idle_disconnect_s);
 
     fprintf(f, "\n[store]\n");
     fprintf(f, "enabled = %s\n", cfg->store_enabled ? "true" : "false");

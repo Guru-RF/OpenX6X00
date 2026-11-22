@@ -71,6 +71,12 @@ extern "C" {
 // Ported from the Rhizomatica codec2 fork (enum renumbered: the fork
 // uses 22, which collides with FREEDV_MODE_DATAC15 here)
 #define FREEDV_MODE_QAM16C2 25
+// Mercury 2.0: BW2750's wide top rungs and BW500's narrow rungs
+#define FREEDV_MODE_DATAC17W 26
+#define FREEDV_MODE_QAM16C2W 27
+#define FREEDV_MODE_DATAN1 28
+#define FREEDV_MODE_QAM16N1 29
+#define FREEDV_MODE_QAM16N2 30
 
 // Sample rates used
 #define FREEDV_FS_8000 8000
@@ -167,6 +173,21 @@ extern "C" {
 #endif
 #if !defined(FREEDV_MODE_QAM16C2_EN)
 #define FREEDV_MODE_QAM16C2_EN FREEDV_MODE_EN_DEFAULT
+#endif
+#if !defined(FREEDV_MODE_DATAC17W_EN)
+#define FREEDV_MODE_DATAC17W_EN FREEDV_MODE_EN_DEFAULT
+#endif
+#if !defined(FREEDV_MODE_QAM16C2W_EN)
+#define FREEDV_MODE_QAM16C2W_EN FREEDV_MODE_EN_DEFAULT
+#endif
+#if !defined(FREEDV_MODE_DATAN1_EN)
+#define FREEDV_MODE_DATAN1_EN FREEDV_MODE_EN_DEFAULT
+#endif
+#if !defined(FREEDV_MODE_QAM16N1_EN)
+#define FREEDV_MODE_QAM16N1_EN FREEDV_MODE_EN_DEFAULT
+#endif
+#if !defined(FREEDV_MODE_QAM16N2_EN)
+#define FREEDV_MODE_QAM16N2_EN FREEDV_MODE_EN_DEFAULT
 #endif
 
 #define FDV_MODE_ACTIVE(mode_name, var) \
@@ -269,6 +290,37 @@ unsigned short freedv_gen_crc16(unsigned char *bytes, int nbytes);
  * timing/frequency search (default enabled).  Both paths select the same
  * argmax; exposed so the two can be compared and so a station can fall back. */
 void freedv_set_acq_fft_enable(struct freedv *freedv, bool val);
+/* Acquisition tuning knobs for bench sweeps (utils/acq_tuning_sweep.c):
+ * the preamble-correlation acceptance threshold and the unique-word error
+ * budget.  Per-mode defaults are in ofdm_mode.c; changing them at runtime
+ * changes acquisition behaviour only, not the on-air frame format.  The
+ * getters report the LIVE values, so a tool can print what it actually
+ * measured with instead of restating ofdm_mode.c. */
+void freedv_set_timing_mx_thresh(struct freedv *freedv, float val);
+void freedv_set_bad_uw_errors(struct freedv *freedv, int val);
+float freedv_get_timing_mx_thresh(struct freedv *freedv);
+int freedv_get_bad_uw_errors(struct freedv *freedv);
+/* Acquisition telemetry, for the offset study (utils/offset_acq_sweep.c):
+ * the metric the acceptance threshold sees, the coarse frequency estimate
+ * (grid hypothesis plus its refinement) and the tracked estimate.  Read-only
+ * -- no behaviour changes. */
+float freedv_get_timing_mx(struct freedv *freedv);
+float freedv_get_coarse_foff_est(struct freedv *freedv);
+float freedv_get_foff_est(struct freedv *freedv);
+/* The span of the coarse frequency search (stock +-50 Hz): how far from the
+ * nominal carrier the acquisition can capture a mistuned carrier.  Wider
+ * costs one correlation pass per 5 Hz of span, so this is bench-facing for
+ * the offset study. */
+void freedv_set_freq_search_range(struct freedv *freedv, float fmin, float fmax);
+/* The coarse grid's step (Hz) and the fine stage's half-width (Hz). */
+void freedv_set_freq_search_step(struct freedv *freedv, float hz);
+void freedv_set_freq_search_fine(struct freedv *freedv, float hz);
+/* TX peak config for the OFDM Hilbert clipper, as one call (the four
+ * parameters only make sense together).  Changes the transmitted
+ * waveform's PAPR only; the receiver is untouched.  Bench-facing, for
+ * utils/qam16_papr_sweep.c. */
+void freedv_set_tx_clip_config(struct freedv *freedv, bool clip_en,
+                               float gain1, float gain2, float amp_scale);
 void freedv_pack(unsigned char *bytes, unsigned char *bits, int nbits);
 void freedv_unpack(unsigned char *bits, unsigned char *bytes, int nbits);
 unsigned short freedv_crc16_unpacked(unsigned char *bits, int nbits);

@@ -101,6 +101,38 @@ void ofdm_set_off_est_hz(struct OFDM *, float);
  * the two can be compared directly, and so a station can fall back if the
  * fast path is ever suspected.  See est_timing_and_freq_fft() in ofdm.c. */
 void ofdm_set_acq_fft_enable(struct OFDM *, bool);
+/* Acquisition tuning: the preamble-correlation acceptance threshold and the
+ * unique-word error budget.  Per-mode defaults live in ofdm_mode.c; these
+ * exist so bench tools can sweep them (see utils/acq_tuning_sweep.c). */
+void ofdm_set_timing_mx_thresh(struct OFDM *, float);
+void ofdm_set_bad_uw_errors(struct OFDM *, int);
+float ofdm_get_timing_mx_thresh(struct OFDM *);
+int ofdm_get_bad_uw_errors(struct OFDM *);
+/* Acquisition telemetry for the offset study: the acceptance metric, the
+ * coarse frequency estimate (grid hypothesis + refinement) and the tracked
+ * estimate.  Read-only. */
+float ofdm_get_timing_mx(struct OFDM *);
+float ofdm_get_coarse_foff_est_hz(struct OFDM *);
+float ofdm_get_foff_est_hz(struct OFDM *);
+/* The span of the coarse frequency search (stock +-50 Hz).  Sets how far
+ * from the nominal carrier the acquisition can capture; wider costs one
+ * correlation pass per 5 Hz of span.  Bench-facing. */
+void ofdm_set_freq_search_range(struct OFDM *, float fmin, float fmax);
+/* The coarse grid's step (Hz) and the fine stage's half-width (Hz, 0 =
+ * derive from the step).  A wider span for less CPU, if the fine window
+ * still covers the coarse grid's uncertainty.  Bench-facing. */
+void ofdm_set_freq_search_step(struct OFDM *, float hz);
+void ofdm_set_freq_search_fine(struct OFDM *, float hz);
+/* Bench access to the four-parameter TX peak config the Hilbert clipper
+ * consumes (ofdm_hilbert_clipper): whether the clipper runs at all, its
+ * drive (gain1, sets PAPR), the post-BPF peak-restore gain, and the input
+ * scale.  Per-mode defaults live in ofdm_mode.c; changing these changes the
+ * transmitted waveform's PAPR only -- the receiver is untouched, so a
+ * clipped TX interoperates with a stock one.  Enabling the clipper
+ * allocates the TX BPF if the mode runs one and it is missing, since the
+ * clipper requires it.  See utils/qam16_papr_sweep.c. */
+void ofdm_set_tx_clip_config(struct OFDM *, bool clip_en, float gain1,
+                             float gain2, float amp_scale);
 void ofdm_set_sync(struct OFDM *, int);
 void ofdm_set_tx_bpf(struct OFDM *, bool);
 void ofdm_set_dpsk(struct OFDM *ofdm, bool val);

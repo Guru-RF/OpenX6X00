@@ -17,8 +17,11 @@
 
 /* Runtime-configurable retry counts, initialised from compile-time defaults */
 _Atomic int arq_call_retry_slots       = ARQ_CALL_RETRY_SLOTS_DEFAULT;
+_Atomic int arq_call_fast_slots        = ARQ_CALL_FAST_SLOTS_DEFAULT;
 _Atomic int arq_accept_retry_slots     = ARQ_ACCEPT_RETRY_SLOTS_DEFAULT;
 _Atomic int arq_disconnect_retry_slots = ARQ_DISCONNECT_RETRY_SLOTS_DEFAULT;
+_Atomic int arq_silence_fallback_s    = ARQ_SILENCE_FALLBACK_S_DEFAULT;
+_Atomic int arq_call_max_s            = ARQ_CALL_MAX_S_DEFAULT;
 _Atomic int arq_retry_stagger_ms       = ARQ_RETRY_STAGGER_MS_DEFAULT;
 _Atomic int arq_disconnect_drain_timeout_s = ARQ_DISCONNECT_DRAIN_TIMEOUT_S_DEFAULT;
 _Atomic int arq_tx_mfsk_only           = 0;
@@ -62,8 +65,15 @@ const arq_mode_timing_t arq_mode_table[] = {
     {  FREEDV_MODE_DATAC4,    5.80f,     14.0f,          54   },
     {  FREEDV_MODE_DATAC3,    3.82f,     12.0f,          126  },
     {  FREEDV_MODE_DATAC1,    4.81f,     13.0f,          510  },
-    {  FREEDV_MODE_DATAC17,   7.40f,     15.0f,          1180 },
-    {  FREEDV_MODE_QAM16C2,   3.70f,     12.0f,          1213 },
+    {  FREEDV_MODE_DATAC17,   5.90f,     15.0f,          1184 },
+    {  FREEDV_MODE_QAM16C2,   3.30f,     12.0f,          1183 },
+    /* BW2750's top rungs (44 carriers) and BW500's above DATAC3 (9):
+     * the burst and the same ~0.45 s margin as their BW2300 versions. */
+    {  FREEDV_MODE_DATAC17W,  4.95f,     15.0f,          1170 },
+    {  FREEDV_MODE_QAM16C2W,  2.85f,     12.0f,          1169 },
+    {  FREEDV_MODE_DATAN1,    4.60f,     12.0f,          243  },
+    {  FREEDV_MODE_QAM16N1,   2.70f,     12.0f,          179  },
+    {  FREEDV_MODE_QAM16N2,   2.70f,     12.0f,          242  },
     /* The MFSK fringe rung: non-coherent 32-MFSK, a ~13.5 s burst of 98
      * payload bytes, below DATAC15 (50 % FER at -11.2 dB AWGN against
      * DATAC15's -10.3, docs/MFSK-PORT.md).  Its row also sets the
@@ -73,6 +83,9 @@ const arq_mode_timing_t arq_mode_table[] = {
     /* The BW500 floor: the same frame on 32 tones 15.6 Hz apart, twice the
      * symbol length, 26.2 s on the air (arq_floor_mode). */
     {  MERCURY_MODE_MFSK_N32, 27.00f,    32.0f,          98   },
+    /* The 2 kHz rung: the same frame on 62.5 Hz tones, half the symbol
+     * length, 6.56 s on the air. */
+    {  MERCURY_MODE_MFSK_W2,   6.95f,    12.0f,          98   },
 };
 
 const int arq_mode_table_count =
@@ -133,6 +146,30 @@ float arq_protocol_call_interval_for_mode_s(int mode)
     return arq_protocol_call_interval_s();
 }
 
+void arq_protocol_set_silence_fallback_s(int seconds)
+{
+    if (seconds < ARQ_SILENCE_FALLBACK_S_MIN || seconds > ARQ_SILENCE_FALLBACK_S_MAX)
+        seconds = ARQ_SILENCE_FALLBACK_S_DEFAULT;
+    atomic_store(&arq_silence_fallback_s, seconds);
+}
+
+void arq_protocol_set_call_max_s(int seconds)
+{
+    if (seconds < 0 || seconds > ARQ_CALL_MAX_S_MAX)
+        seconds = ARQ_CALL_MAX_S_DEFAULT;
+    atomic_store(&arq_call_max_s, seconds);
+}
+
+void arq_protocol_set_call_fast_slots(int retries)
+{
+    int fast = retries / 2;
+    if (retries <= 0 || fast < ARQ_CALL_FAST_SLOTS_DEFAULT)
+        fast = ARQ_CALL_FAST_SLOTS_DEFAULT;
+    if (fast > ARQ_CALL_FAST_SLOTS_MAX)
+        fast = ARQ_CALL_FAST_SLOTS_MAX;
+    atomic_store(&arq_call_fast_slots, fast);
+}
+
 int arq_floor_mode(int bw_hz)
 {
     return bw_hz == ARQ_BANDWIDTH_NARROW_HZ ? MERCURY_MODE_MFSK_N32 : MERCURY_MODE_MFSK;
@@ -168,6 +205,31 @@ uint64_t arq_protocol_retry_deadline_ms(float seconds, int rank)
     x ^= x >> 31;
 
     return now_ms + base_ms + (x % (uint64_t)stagger_ms);
+}
+
+static const char *call_or(const char *call, const char *fallback)
+{
+    return (call && call[0]) ? call : (fallback ? fallback : "");
+}
+
+void arq_protocol_session_calls(bool we_called, const char *remote_call,
+                                const char *local_call, const char *connect_src,
+                                const char *my_call,
+                                char *src, char *dst, size_t bufsz)
+{
+    if (!src || !dst || bufsz == 0)
+        return;
+    const char *peer = remote_call ? remote_call : "";
+    if (we_called)
+    {
+        snprintf(src, bufsz, "%s", call_or(connect_src, my_call));
+        snprintf(dst, bufsz, "%s", peer);
+    }
+    else
+    {
+        snprintf(src, bufsz, "%s", peer);
+        snprintf(dst, bufsz, "%s", call_or(local_call, my_call));
+    }
 }
 
 /* ======================================================================
@@ -431,6 +493,11 @@ bool arq_protocol_connect_version_ok(const uint8_t *buf, size_t buf_len)
 int arq_protocol_connect_minor(const uint8_t *buf)
 {
     return (frame_header_extension(buf[0]) & ARQ_CONNECT_EXT_MINOR_MASK) >> ARQ_CONNECT_EXT_MINOR_SHIFT;
+}
+
+bool arq_protocol_connect_compatible(const uint8_t *buf)
+{
+    return arq_protocol_connect_minor(buf) >= ARQ_CONNECT_MINOR_MIN;
 }
 
 static bool connect_tx_mfsk(const uint8_t *buf)

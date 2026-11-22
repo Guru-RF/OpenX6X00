@@ -29,9 +29,7 @@
 #include "message_store.h"
 #include "bcast_file.h"
 #include "bcast_carousel.h"
-#ifndef _WIN32
-#include "bcast_rx_host.h"      /* the host build's receiver; not in the Windows archive */
-#endif
+#include "bcast_rx_host.h"
 
 /* Print the startup version banner (same text the daemon prints), so the UI
  * announces its version on the terminal too.  Resolved here, in a unit the
@@ -120,7 +118,15 @@ const char *mercury_log_status(void)
 /* ------------------------------------------------------------------ */
 void mercury_request_shutdown(void)
 {
+    mercury_engine_say_goodbye();   /* a session up: ended on the air first */
     mercury_stop = true;
+}
+
+/* The goodbye alone, for a caller that times the rest of its teardown
+ * (main.go's exit watchdog) and must not count the goodbye in it. */
+void mercury_say_goodbye(void)
+{
+    mercury_engine_say_goodbye();
 }
 
 /* ------------------------------------------------------------------ */
@@ -131,9 +137,7 @@ void mercury_request_shutdown(void)
 void mercury_shutdown(void)
 {
     bcast_carousel_stop();        /* its thread writes the TX ring the engine frees */
-#ifndef _WIN32
     bcast_rx_host_set(NULL, NULL, NULL);   /* and the RX tap's runs on the engine's frames */
-#endif
     mercury_engine_shutdown();
 }
 

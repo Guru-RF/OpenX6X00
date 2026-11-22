@@ -20,6 +20,8 @@
 
 #include "freedv_api.h"
 #include "arq.h"
+#include "arq_events.h"
+#include "arq_protocol.h"
 #include "modem.h"
 #include "broadcast.h"
 #include "defines_modem.h"
@@ -32,6 +34,7 @@
 #include "mercury_engine.h"
 #include "virtual_clock.h"
 #include "message_store.h"
+#include "mercury_version.h"
 
 /* cfg_utils.h and arq.h each define their own callsign size; they must stay
  * equal or the config could hold a callsign longer than the ARQ slot it is
@@ -180,13 +183,18 @@ int mercury_engine_init(const mercury_config *cfg,
 
     snprintf(g_input_dev,  sizeof(g_input_dev),  "%s", cfg->input_device);
     snprintf(g_output_dev, sizeof(g_output_dev), "%s", cfg->output_device);
+    audioio_set_saved_device_names(cfg->input_device_name, cfg->output_device_name);
+    audioio_set_pulse_keepalive(cfg->pulse_keepalive);
 
     int rx_input_channel = cfg->capture_channel;
 
     /* ---- ARQ tuning ---- */
     arq_set_disconnect_drain_timeout_s(cfg->disconnect_drain_timeout_s);
     arq_set_retry_stagger_ms(cfg->retry_stagger_ms);
+    arq_protocol_set_silence_fallback_s(cfg->silence_fallback_s);
+    arq_protocol_set_call_max_s(cfg->call_max_s);
     arq_set_tx_mfsk_only(cfg->mfsk_tx_only);
+    arq_set_max_keydown_s(cfg->max_keydown_s);
     modem_set_tx_gain(powf(10.0f, cfg->tx_gain_db / 20.0f));
     modem_set_tx_delay_ms(cfg->tx_delay_ms);
     modem_set_busy_cfg((float)cfg->busy_threshold_db,
@@ -194,6 +202,7 @@ int mercury_engine_init(const mercury_config *cfg,
                        (uint32_t)cfg->busy_on_debounce_ms,
                        (uint32_t)cfg->busy_hang_ms);
     modem_set_busy_detect_enabled(cfg->busy_detect);
+    modem_set_busy_reseed_on_hop(cfg->busy_reseed_on_hop);
 
     /* ---- pick audio subsystem ---- */
     g_audio_system = audio_system;
@@ -219,6 +228,8 @@ int mercury_engine_init(const mercury_config *cfg,
     g_engine_owns_log = (log_rc == 0);
     if (log_rc == 0)
     {
+        hermes_log_set_utc(cfg->log_utc);
+        hermes_log_set_max_bytes((unsigned long long)cfg->log_max_mb * 1024ULL * 1024ULL);
         hermes_log_level_t min_level = cfg->trace ? HERMES_LOG_LEVEL_TRACE
                                       : verbose ? HERMES_LOG_LEVEL_DEBUG
                                                 : HERMES_LOG_LEVEL_INFO;
@@ -231,6 +242,8 @@ int mercury_engine_init(const mercury_config *cfg,
                                 log_jsonl);
         HLOGI("engine", "Logger initialised (min_level=%s)",
               cfg->trace ? "TRACE" : verbose ? "DEBUG" : "INFO");
+        /* Testers' logs are often all we get: say which build wrote them. */
+        HLOGI("engine", "Mercury %s (git %.8s)", MERCURY_VERSION, GIT_HASH);
     }
     if (log_rc >= 0)
     {
@@ -270,6 +283,7 @@ int mercury_engine_init(const mercury_config *cfg,
                                   &g_radio_capture, &g_radio_playback) != 0)
         {
             fprintf(stderr, "mercury_engine: audio I/O init failed\n");
+            HLOGE("engine", "Audio I/O init failed: the engine is exiting");
             engine_log_shutdown();
             return -1;
         }
@@ -279,6 +293,7 @@ int mercury_engine_init(const mercury_config *cfg,
     if (radio_io_init(&ptt_config) != 0)
     {
         fprintf(stderr, "mercury_engine: radio init failed\n");
+        HLOGE("engine", "Radio init failed: the engine is exiting");
         if (!audioio_rings_external(g_audio_system))
             audioio_deinit(&g_radio_capture, &g_radio_playback);
         engine_log_shutdown();
@@ -309,6 +324,7 @@ int mercury_engine_init(const mercury_config *cfg,
     modem_set_spectrum_enabled(ui_enabled && waterfall_enabled);
 
     tnc_set_intervals(cfg->tnc_keepalive_s, cfg->tnc_buffer_report_ms);
+    tnc_set_absorb_idle_disconnect_s(cfg->tnc_absorb_idle_disconnect_s);
 
     /* ---- persistent message store ---- */
     if (cfg->store_enabled)
@@ -321,6 +337,7 @@ int mercury_engine_init(const mercury_config *cfg,
     if (arq_init(g_modem.payload_bytes_per_modem_frame, g_modem.mode) != EXIT_SUCCESS)
     {
         fprintf(stderr, "mercury_engine: ARQ init failed\n");
+        HLOGE("engine", "ARQ init failed: the engine is exiting");
         mercury_stop = true;
         shutdown_modem(&g_modem);
         if (!audioio_rings_external(g_audio_system))
@@ -343,6 +360,7 @@ int mercury_engine_init(const mercury_config *cfg,
                         g_modem.payload_bytes_per_modem_frame) != EXIT_SUCCESS)
     {
         fprintf(stderr, "mercury_engine: TCP init failed\n");
+        HLOGE("engine", "TCP init failed: the engine is exiting");
         mercury_stop = true;
         interfaces_shutdown();
         shutdown_modem(&g_modem);
@@ -401,10 +419,65 @@ static const char *volatile g_shutdown_step;
 
 const char *mercury_engine_shutdown_step(void) { return g_shutdown_step; }
 
+/* How long an exit waits for its session's DISCONNECT to start: the callee
+ * keys it in its next slot or out of turn within ARQ_CAR_ABORT_WAIT_MS
+ * (10.3 s); the caller once the callee's slots are clear, which after a
+ * round can be 16 s (tests/integration, ExitSaysGoodbyeCaller: "DISCONNECT
+ * waits 15897 ms for the peer's slots").  A DATAC16 DISCONNECT is then
+ * 3.7 s on the air, and one on the air at the limit is let finish, up to
+ * ENGINE_GOODBYE_CAP_MS in all (a floor DISCONNECT is 13.5 s).  Against
+ * that, the peer of an exit that says nothing holds the session until its
+ * 240 s lost-peer watchdog. */
+#define ENGINE_GOODBYE_MS     25000
+#define ENGINE_GOODBYE_CAP_MS 40000
+
+/* Not CALLING or ACCEPTING: no session to end yet.  A peer that answers our
+ * CALL just as we exit is left with a connect nobody keeps, until its own
+ * watchdog -- rare, and nothing on the air could prevent it once we are gone. */
+void mercury_engine_say_goodbye(void)
+{
+    if (!g_initialized || mercury_stop || arq_goodbye_progress() == 0)
+        return;
+    arq_cmd_msg_t cmd;
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.type = ARQ_CMD_ABORT;
+    if (arq_submit_tcp_cmd(&cmd) != 0)
+        return;
+    HLOGI("engine", "Exiting with a session up: ending it on the air first (one DISCONNECT, up to %d s)",
+          ENGINE_GOODBYE_MS / 1000);
+    uint64_t t0 = time_now_ms();
+    bool keyed = false;                 /* our DISCONNECT seen on the air */
+    for (;;)
+    {
+        if (mercury_stop) return;                   /* a forced exit: no more waiting */
+        int p = arq_goodbye_progress();
+        bool on_air = arq_get_trx() == 1;
+        uint64_t waited = time_now_ms() - t0;
+        if (p == 2 && on_air)
+            keyed = true;
+        /* Ended (the callee, or the caller answered), or our DISCONNECT is
+         * off the air: the caller need not wait out the peer's answer. */
+        if (p == 0 || (p == 2 && keyed && !on_air))
+        {
+            HLOGI("engine", "Session ended on the air in %llu ms%s", (unsigned long long)waited,
+                  p ? " (our DISCONNECT is out; its answer not awaited)" : "");
+            return;
+        }
+        if (waited >= ENGINE_GOODBYE_CAP_MS || (waited >= ENGINE_GOODBYE_MS && !on_air))
+        {
+            HLOGW("engine", "The session's DISCONNECT did not get out in %llu ms: exiting anyway",
+                  (unsigned long long)waited);
+            return;
+        }
+        hermes_usleep(50000);
+    }
+}
+
 void mercury_engine_shutdown(void)
 {
     if (!g_initialized) return;
 
+    mercury_engine_say_goodbye();
     HLOGI("engine", "Shutting down");
 
     mercury_stop = true;

@@ -40,6 +40,7 @@
 #include "../datalink_arq/arq_protocol.h"
 #include "tcp_interfaces.h"
 #include "../datalink_broadcast/bcast_status.h"
+#include "../datalink_broadcast/kiss.h"     /* MAX_PAYLOAD */
 #include "channel_busy.h"
 #include "tx_pacing.h"
 #include "freedv_api.h"
@@ -106,7 +107,9 @@ static pthread_mutex_t modem_pool_lock = PTHREAD_MUTEX_INITIALIZER;
 /* One lock per pool slot, indexed the same way the pool array is.  The pool is
  * a generic slot array now (any backend, not just freedv), so the lock a codec
  * belongs to is found by its context pointer rather than by naming the mode. */
-#define MODEM_POOL_MAX 12
+#define MODEM_POOL_MAX 16   /* the BW2300 ladder, control, floors, the 2.0 BW500/BW2750 rungs and
+                             * MFSK2K: 16, full -- the next mode needs this raised (and a lock
+                             * initializer below), or init_mode_pool_locked fails */
 static pthread_mutex_t modem_inst_lock[MODEM_POOL_MAX] = {
     PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER,
     PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER,
@@ -114,7 +117,11 @@ static pthread_mutex_t modem_inst_lock[MODEM_POOL_MAX] = {
     PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER,
     PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER,
     PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER,
+    PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER,
+    PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER,
 };
+_Static_assert(sizeof(modem_inst_lock) / sizeof(modem_inst_lock[0]) == MODEM_POOL_MAX,
+               "one lock per pool slot");
 /* Anything not in the pool (test doubles, a mode opened ad hoc) shares this
  * one: correct, just not parallel. */
 static pthread_mutex_t modem_inst_lock_other = PTHREAD_MUTEX_INITIALIZER;
@@ -219,6 +226,8 @@ float modem_get_tx_peak_dbfs(void)
 /* Keep at most this much audio queued, so TUNE OFF and the deadline both take
  * effect within ~one chunk instead of after the whole ring drains. */
 #define MODEM_TUNE_RING_HIGH_BYTES (4800 * (int)sizeof(int32_t))   /* 600 ms */
+
+static void modem_cut_tx(void);   /* ABORT stops the keydown (key_and_play) */
 
 static _Atomic bool     g_tune_active      = false;
 static _Atomic bool     g_tune_stop        = false;
@@ -361,18 +370,27 @@ void modem_tune_stop(void)
 }
 
 /* Convert a 16-bit modulator sample to a 32-bit playback sample with gain
- * and saturation.  At gain == 1.0 this matches the historical behavior of
- * mapping int16 into the upper bits of int32 — but via a multiply by 65536,
- * not a left shift: shifting a negative int32 is undefined in C.  Saturates
+ * and saturation: int16 into the upper bits of int32, raised by TX_BASE_GAIN,
+ * via a multiply, not a left shift: shifting a negative int32 is undefined
+ * in C.  Saturates
  * against INT32 limits using a >= / <= compare because the literal
  * 2147483647.0f rounds up to 2^31 in float, so a strict > would let the
  * boundary case fall through to an undefined int cast.  *peak_fs, if
  * non-NULL, is raised to the pre-saturation magnitude |fs| so the UI meter
  * reflects the true post-gain level (it can read above full-scale, i.e. the
  * amount of clipping) rather than the clamped sample. */
+/* The modulators leave half the int16 range unused: the OFDM modes clip
+ * their peaks at 16384 (-6 dBFS) and MFSK peaks at -6.5 dBFS.  On a radio
+ * whose power setting is reached only by a full-scale signal (the sBitx
+ * through radiod) that cost a quarter of the power.  4 dB more puts the
+ * peaks at about -2 dBFS: a resampler on the way (radiod's upsampler) was
+ * seen to add 1 dB to an MFSK peak.  tx_gain_db trims around this level;
+ * TUNE does not go through it. */
+#define TX_BASE_GAIN 1.5849f   /* +4 dB */
+
 static inline int32_t tx_sample_with_gain(int16_t sample, float gain, float *peak_fs)
 {
-    float fs = (float)sample * 65536.0f * gain;
+    float fs = (float)sample * (65536.0f * TX_BASE_GAIN) * gain;
     if (peak_fs)
     {
         float mag = fabsf(fs);
@@ -509,12 +527,40 @@ static pthread_mutex_t g_busy_cfg_lock = PTHREAD_MUTEX_INITIALIZER;
 static busy_state_t g_busy_state   = { .busy = false, .noise_floor_db = 0.0f,
                                        .inited = false, .above_since_ms = 0,
                                        .below_since_ms = 0 };
+/* Set by modem_busy_channel_changed (control thread), taken by the RX worker. */
+static atomic_bool  g_busy_reseed_req = false;
+/* busy_reseed_on_hop / BUSYRESEED: off by default (docs/TNC.md, "Scanning
+ * hosts", for the trade-off). */
+static atomic_bool  g_busy_reseed_on_hop = false;
 
+void modem_busy_channel_changed(void)
+{
+    atomic_store_explicit(&g_busy_reseed_req, true, memory_order_relaxed);
+}
+
+void modem_set_busy_reseed_on_hop(bool enabled)
+{
+    atomic_store_explicit(&g_busy_reseed_on_hop, enabled, memory_order_relaxed);
+}
+
+bool modem_get_busy_reseed_on_hop(void)
+{
+    return atomic_load_explicit(&g_busy_reseed_on_hop, memory_order_relaxed);
+}
+
+/* Callable while running (BUSYDETECT).  The RX worker sees the change on its
+ * next chunk: switched off, it sends BUSY OFF if the host was told BUSY ON;
+ * switched on, it waits BUSY_HOP_HOLDOFF_MS, then takes a fresh noise floor. */
 void modem_set_busy_detect_enabled(bool enabled)
 {
     atomic_store_explicit(&g_busy_enabled, enabled, memory_order_relaxed);
     if (!enabled)
         atomic_store_explicit(&g_channel_busy, false, memory_order_relaxed);
+}
+
+bool modem_get_busy_detect_enabled(void)
+{
+    return atomic_load_explicit(&g_busy_enabled, memory_order_relaxed);
 }
 
 void modem_set_busy_cfg(float threshold_db, float hysteresis_db,
@@ -585,8 +631,14 @@ static bool is_supported_split_mode(int mode)
            mode == FREEDV_MODE_DATAC16 ||
            mode == FREEDV_MODE_DATAC17 ||
            mode == FREEDV_MODE_QAM16C2 ||
+           mode == FREEDV_MODE_DATAC17W ||
+           mode == FREEDV_MODE_QAM16C2W ||
+           mode == FREEDV_MODE_DATAN1 ||
+           mode == FREEDV_MODE_QAM16N1 ||
+           mode == FREEDV_MODE_QAM16N2 ||
            mode == MERCURY_MODE_MFSK ||
-           mode == MERCURY_MODE_MFSK_N32;
+           mode == MERCURY_MODE_MFSK_N32 ||
+           mode == MERCURY_MODE_MFSK_W2;
 }
 
 static bool is_payload_split_mode(int mode)
@@ -597,8 +649,14 @@ static bool is_payload_split_mode(int mode)
            mode == FREEDV_MODE_DATAC15 ||
            mode == FREEDV_MODE_DATAC17 ||
            mode == FREEDV_MODE_QAM16C2 ||
+           mode == FREEDV_MODE_DATAC17W ||
+           mode == FREEDV_MODE_QAM16C2W ||
+           mode == FREEDV_MODE_DATAN1 ||
+           mode == FREEDV_MODE_QAM16N1 ||
+           mode == FREEDV_MODE_QAM16N2 ||
            mode == MERCURY_MODE_MFSK ||
-           mode == MERCURY_MODE_MFSK_N32;
+           mode == MERCURY_MODE_MFSK_N32 ||
+           mode == MERCURY_MODE_MFSK_W2;
 }
 
 bool modem_listen_mode_switchable(int mode) { return is_payload_split_mode(mode); }
@@ -649,6 +707,10 @@ static int init_mode_pool_locked(int frames_per_burst, int freedv_verbosity)
         FREEDV_MODE_DATAC4,  FREEDV_MODE_DATAC3,  FREEDV_MODE_DATAC1,
         FREEDV_MODE_DATAC17, FREEDV_MODE_QAM16C2, MERCURY_MODE_MFSK,
         MERCURY_MODE_MFSK_N32,
+        /* the BW2750 and BW500 rungs (car_session_level_mode) */
+        FREEDV_MODE_DATAC17W, FREEDV_MODE_QAM16C2W, FREEDV_MODE_DATAN1,
+        FREEDV_MODE_QAM16N1, FREEDV_MODE_QAM16N2,
+        MERCURY_MODE_MFSK_W2,          /* BW2300/BW2750 rung 1 */
     };
     clear_mode_pool_locked();
     for (size_t i = 0; i < sizeof(pool_modes) / sizeof(pool_modes[0]); i++)
@@ -726,10 +788,22 @@ static uint32_t bitrate_level_from_payload_mode(int mode)
         return 17;
     case FREEDV_MODE_QAM16C2:
         return 25;
+    case FREEDV_MODE_DATAC17W:
+        return 26;
+    case FREEDV_MODE_QAM16C2W:
+        return 27;
+    case FREEDV_MODE_DATAN1:
+        return 28;
+    case FREEDV_MODE_QAM16N1:
+        return 29;
+    case FREEDV_MODE_QAM16N2:
+        return 30;
     case MERCURY_MODE_MFSK:
         return 100;
     case MERCURY_MODE_MFSK_N32:
         return 103;
+    case MERCURY_MODE_MFSK_W2:
+        return 104;
     default:
         return 15;
     }
@@ -858,6 +932,80 @@ int modem_get_listen_mode(void)
 size_t modem_get_broadcast_frame_size(void)
 {
     return atomic_load(&broadcast_frame_size);
+}
+
+/* --- Station messages (the beacon) ----------------------------------------
+ * Each goes on a mode of its own, not the listen mode, so it cannot share the
+ * broadcast ring, whose frames are all the listen mode's size.  Written by the
+ * host's or the broadcast client's thread, taken by the TX thread. */
+typedef struct {
+    int     mode;
+    size_t  len;                    /* the mode's whole frame, zero-padded */
+    uint8_t frame[MAX_PAYLOAD];
+} beacon_t;
+
+static pthread_mutex_t beacon_lock = PTHREAD_MUTEX_INITIALIZER;
+static beacon_t        beacon_q[MODEM_BEACON_QUEUE];
+static int             beacon_head = 0, beacon_n = 0;
+
+bool modem_beacon_mode_ok(int mode)
+{
+    return mode == FREEDV_MODE_DATAC16 || is_payload_split_mode(mode);
+}
+
+int modem_beacon_send(const uint8_t *frame, size_t len, int mode)
+{
+    if (!frame || len == 0 ||
+        frame_header_packet_type(frame[0]) != PACKET_TYPE_STATION ||
+        !modem_beacon_mode_ok(mode))
+        return MODEM_BEACON_BAD;
+
+    size_t frame_size = 0;
+    pthread_mutex_lock(&modem_pool_lock);
+    modem_codec_t codec = pooled_codec_for_mode_locked(mode, &frame_size);
+    pthread_mutex_unlock(&modem_pool_lock);
+    if (!codec.be || frame_size == 0 || len > frame_size || frame_size > MAX_PAYLOAD)
+        return MODEM_BEACON_BAD;
+
+    pthread_mutex_lock(&beacon_lock);
+    if (beacon_n == MODEM_BEACON_QUEUE)
+    {
+        pthread_mutex_unlock(&beacon_lock);
+        return MODEM_BEACON_FULL;
+    }
+    beacon_t *b = &beacon_q[(beacon_head + beacon_n) % MODEM_BEACON_QUEUE];
+    b->mode = mode;
+    b->len = frame_size;
+    memcpy(b->frame, frame, len);
+    memset(b->frame + len, 0, frame_size - len);
+    beacon_n++;
+    pthread_mutex_unlock(&beacon_lock);
+    HLOGI("modem", "Station message queued for %s (%zu of %zu bytes)",
+          mode_name_from_enum(mode), len, frame_size);
+    return 0;
+}
+
+/* The mode the next one goes on, -1 with none waiting. */
+static int beacon_next_mode(void)
+{
+    pthread_mutex_lock(&beacon_lock);
+    int mode = beacon_n > 0 ? beacon_q[beacon_head].mode : -1;
+    pthread_mutex_unlock(&beacon_lock);
+    return mode;
+}
+
+static bool beacon_take(beacon_t *out)
+{
+    pthread_mutex_lock(&beacon_lock);
+    bool have = beacon_n > 0;
+    if (have)
+    {
+        *out = beacon_q[beacon_head];
+        beacon_head = (beacon_head + 1) % MODEM_BEACON_QUEUE;
+        beacon_n--;
+    }
+    pthread_mutex_unlock(&beacon_lock);
+    return have;
 }
 
 void modem_set_monitor_enabled(bool enabled)
@@ -1013,9 +1161,19 @@ try_shm_connect2:
     arq_modem_set_crc_seed_fn(modem_apply_crc_seed);
     /* A session's patterns go at its floor's geometry. */
     arq_modem_set_floor_mode_fn(mfsk_pattern_set_geometry);
+    /* ABORT stops the keydown on the air. */
+    arq_modem_set_cut_tx_fn(modem_cut_tx);
     
     int modem_sample_rate = g_modem->codec.be->sample_rate(g_modem->codec.ctx);
-    HLOGI("modem", "Initialized persistent mode pool (DATAC16/DATAC15/DATAC13/DATAC4/DATAC3/DATAC1/DATAC17/QAM16C2/MFSK/MFSK500), frames per burst: %d", frames_per_burst);
+    {
+        /* Each mode by name (the Go harness looks for them), from the pool. */
+        char names[256] = "";
+        for (int i = 0; i < modem_mode_pool_n; i++)
+            snprintf(names + strlen(names), sizeof(names) - strlen(names), "%s%s",
+                     i ? "/" : "", mode_name_from_enum(modem_mode_pool[i].mode));
+        HLOGI("modem", "Initialized persistent mode pool (%d modes: %s), frames per burst: %d",
+              modem_mode_pool_n, names, frames_per_burst);
+    }
     HLOGI("modem", "Active FreeDV mode at startup: %d (%s), verbosity: %d", mode, mode_name_from_enum(mode), freedv_verbosity);
     HLOGI("modem", "Modem expects sample rate: %d Hz", modem_sample_rate);
     HLOGI("modem", "Modem payload bytes per frame: %zu", payload_bytes_per_modem_frame);
@@ -1282,6 +1440,52 @@ static void append_burst_audio(const modem_codec_t *codec, const uint8_t *bytes_
 
 /* Key the transmitter, play `total_samples` of pre-built audio, unkey.  ARQ's
  * TX_STARTED reports the modem's current mode, so set that first. */
+/* ABORT cuts what the TX worker took before it (arq_modem_cut_tx).  Each cut
+ * moves g_tx_cut_gen on; the worker notes the count as it takes each action
+ * off the queue (g_tx_taken_gen, its thread only), and what it took before a
+ * cut is cut -- on the air, or not keyed at all if the cut came while it was
+ * still being built (#592 review: a keydown taken, not yet keyed, played its
+ * whole 27 s).  The ABORT's own DISCONNECT is queued after the cut, so it is
+ * taken at the new count and plays out whole. */
+static _Atomic unsigned g_tx_cut_gen = 0;
+static unsigned         g_tx_taken_gen = 0;
+/* Only the TX worker's transmissions are cut: another caller of key_and_play
+ * (run_tests_tx, -t) never takes an action, and its count would be stale. */
+static pthread_t        g_tx_worker;
+static _Atomic bool     g_tx_worker_known = false;
+
+static void modem_cut_tx(void)
+{
+    atomic_fetch_add(&g_tx_cut_gen, 1);
+}
+
+/* The TX worker, as it takes an action (or none) off the queue. */
+static void tx_note_taken(void)
+{
+    if (!atomic_load(&g_tx_worker_known))
+    {
+        g_tx_worker = pthread_self();
+        atomic_store(&g_tx_worker_known, true);
+    }
+    g_tx_taken_gen = atomic_load(&g_tx_cut_gen);
+}
+
+static bool tx_cut_asked(void)
+{
+    return atomic_load(&g_tx_worker_known) && pthread_equal(pthread_self(), g_tx_worker) &&
+           atomic_load(&g_tx_cut_gen) != g_tx_taken_gen;
+}
+
+/* The cut, if one was asked for: the audio not yet played is dropped, so the
+ * radio carries the playback device's own buffer at most before PTT drops. */
+static bool tx_cut_now(void)
+{
+    if (!tx_cut_asked())
+        return false;
+    clear_buffer(playback_buffer);
+    return true;
+}
+
 static void key_and_play(generic_modem_t *g_modem, int32_t *tx_buffer, size_t total_samples,
                          float peak_fs)
 {
@@ -1306,6 +1510,13 @@ static void key_and_play(generic_modem_t *g_modem, int32_t *tx_buffer, size_t to
 
     /* === STEP 2: Key transmitter and send pre-generated audio === */
 
+    if (tx_cut_asked())
+    {
+        /* Cut before it keyed: the carousel still waits for its end. */
+        HLOGI("modem-tx", "keydown dropped before keying (ABORT)");
+        arq_modem_ptt_off();
+        return;
+    }
     ptt_on();
     arq_modem_ptt_on(g_modem->mode, g_modem->payload_bytes_per_modem_frame + 2);
 
@@ -1331,6 +1542,11 @@ static void key_and_play(generic_modem_t *g_modem, int32_t *tx_buffer, size_t to
                (size_buffer(playback_buffer) > 0 ||
                 time_now_ms() < t0_ms + burst_ms + tail_ms))
         {
+            if (tx_cut_now())
+            {
+                HLOGI("modem-tx", "keydown cut short (ABORT)");
+                break;
+            }
             uint64_t now = time_now_ms();
             if (now >= next_spec_ms)
             {
@@ -1376,6 +1592,13 @@ static void key_and_play(generic_modem_t *g_modem, int32_t *tx_buffer, size_t to
          * on a HERMES SHM station the radio daemon holds it there. */
         while (waited_us < playback_duration_us && !mercury_stop)
         {
+            if (tx_cut_now())
+            {
+                HLOGI("modem-tx", "keydown cut short (ABORT) %llu of %llu ms in",
+                      (unsigned long long)(waited_us / 1000ULL),
+                      (unsigned long long)(playback_duration_us / 1000ULL));
+                break;
+            }
             size_t pos = (size_t)((waited_us * FREEDV_FS_8000) / 1000000ULL);
             publish_tx_spectrum_at(tx_buffer, total_samples, pos, FREEDV_FS_8000);
 
@@ -2108,7 +2331,7 @@ static void process_received_frame(const uint8_t *data,
     case PACKET_TYPE_ARQ_CALL:    /* 1.9.x: logged if it is for us, not answered */
     case PACKET_TYPE_ARQ_CALL2:
         if (arq_policy_ready)
-            arq_handle_incoming_connect_frame((uint8_t *)data, payload_nbytes, snr_est, mode);
+            arq_handle_incoming_connect_frame((uint8_t *)data, payload_nbytes, snr_est, mode, age_ms);
         break;
     case PACKET_TYPE_ARQ_CQ:
         if (arq_policy_ready)
@@ -2132,6 +2355,12 @@ static void process_received_frame(const uint8_t *data,
         broadcast_rx_frame((const uint8_t *)data, payload_nbytes, mode, snr_est);
         break;
     }
+    case PACKET_TYPE_STATION:
+        /* Whatever the decoder and its size: a beacon describes itself, and
+         * the ones on DATAC16 and MFSK are heard by the control decoder and
+         * the call listeners, at any listen mode. */
+        broadcast_rx_frame((const uint8_t *)data, payload_nbytes, mode, snr_est);
+        break;
     default:
         HLOGW("modem-rx", "Unknown frame type received");
         break;
@@ -2202,6 +2431,10 @@ typedef struct {
     bool                monitor;
     _Atomic bool        running;
     _Atomic bool        flush_req;    /* dispatcher asks: drop what you hold  */
+    /* ...and the codec's sync with it: the frame it has part demodulated
+     * (flush_req alone leaves that in the codec, and the rest of the frame
+     * still completes it).  Set together with flush_req. */
+    _Atomic bool        unsync_req;
     /* Metrics this plane observed since the dispatcher last drained them.
      * Merged with max() exactly as the single-threaded path did -- an unsynced
      * decoder reports a low estimate, so max() naturally reports whichever
@@ -2257,6 +2490,68 @@ static void rx_worker_take_metrics(rx_worker_t *w, rx_metrics_accum_t *out)
     pthread_mutex_unlock(&w->mlock);
 }
 
+/* Frames a CALL decoder has locked onto but not decoded yet: the control plane
+ * (DATAC16) and the two MFSK call listeners, one slot each.  since_ms is when
+ * the lock started, 0 when there is none.  Diagnostic only: the host's
+ * LISTEN OFF handler reads it, so a scanner hop that cuts a CALL off shows in
+ * the log (modem_rx_frame_in_flight).  A lock can also be noise.
+ * A LISTEN OFF with no session after it flushes all three (arq.c counts each
+ * spell of listening that ends, and the RX loop flushes when the count
+ * moves): the frame is lost on the LISTEN OFF itself, whatever the host does
+ * next. */
+enum { RX_INFLIGHT_CTRL, RX_INFLIGHT_LISTEN, RX_INFLIGHT_LISTEN_ALT, RX_INFLIGHT_SLOTS };
+static _Atomic uint64_t g_rx_inflight_since_ms[RX_INFLIGHT_SLOTS];
+static _Atomic int      g_rx_inflight_mode[RX_INFLIGHT_SLOTS];
+
+static void rx_inflight_note(int slot, int mode, const rx_metrics_accum_t *m, uint64_t now)
+{
+    if (m->sync && !m->frame_decoded)
+    {
+        if (atomic_load(&g_rx_inflight_since_ms[slot]) == 0)
+        {
+            atomic_store(&g_rx_inflight_mode[slot], mode);
+            atomic_store(&g_rx_inflight_since_ms[slot], now);
+        }
+    }
+    else
+        atomic_store(&g_rx_inflight_since_ms[slot], 0);
+}
+
+/* A slot locked onto a frame that can hold a scanning host: any but the
+ * 500 Hz MFSK, whichever slot it sits in (the listen floor at BW500, the
+ * second listener above it).  Its carrier sense held a false lock for a whole
+ * 27 s frame twice in 9 minutes on the real 40 m band (7050 kHz), where the
+ * control plane and the 1 kHz MFSK held none; a CALL on it gets its PENDING
+ * when it decodes. */
+static bool rx_inflight_call(int slot)
+{
+    return atomic_load(&g_rx_inflight_since_ms[slot]) != 0 &&
+           atomic_load(&g_rx_inflight_mode[slot]) != MERCURY_MODE_MFSK_N32;
+}
+
+bool modem_rx_frame_in_flight(const char **mode_name, uint64_t *for_ms)
+{
+    uint64_t now = monotonic_ms();
+    uint64_t oldest = 0;
+    int mode = -1;
+    for (int i = 0; i < RX_INFLIGHT_SLOTS; i++)
+    {
+        uint64_t since = atomic_load(&g_rx_inflight_since_ms[i]);
+        if (since && (oldest == 0 || since < oldest))
+        {
+            oldest = since;
+            mode = atomic_load(&g_rx_inflight_mode[i]);
+        }
+    }
+    if (oldest == 0)
+        return false;
+    if (mode_name)
+        *mode_name = mode_name_from_enum(mode);
+    if (for_ms)
+        *for_ms = now > oldest ? now - oldest : 0;
+    return true;
+}
+
 /* Bind a worker's own codec instance (see rx_worker_t.own_codec). */
 static int rx_decoder_bind_own(rx_decoder_state_t *state, modem_codec_t codec, int mode)
 {
@@ -2266,6 +2561,18 @@ static int rx_decoder_bind_own(rx_decoder_state_t *state, modem_codec_t codec, i
     size_t bytes_cap = (size_t)(codec.be->bits_per_frame(codec.ctx) / 8);
     if (max_samples <= 0 || bytes_cap == 0)
         return -1;
+    /* The codec left behind keeps what it holds until this worker binds it
+     * again: an MFSK listener swapping floors at a BW change would come back
+     * to the other floor's half-heard CALL.  Drop it now, whichever of the
+     * swap's flush and this bind runs first. */
+    if (modem_codec_valid(&state->codec) && state->codec.ctx != codec.ctx &&
+        state->codec.be->unsync)
+    {
+        pthread_mutex_t *rl = modem_inst_lock_for(state->codec.ctx);
+        pthread_mutex_lock(rl);
+        state->codec.be->unsync(state->codec.ctx);
+        pthread_mutex_unlock(rl);
+    }
     state->demod_count = 0;
     return rx_decoder_adopt(state, codec, mode, max_samples, bytes_cap);
 }
@@ -2280,6 +2587,14 @@ static void *rx_worker_thread(void *arg)
     {
         if (atomic_load(&w->flush_req))
         {
+            if (atomic_exchange(&w->unsync_req, false) &&
+                modem_codec_valid(&w->state.codec) && w->state.codec.be->unsync)
+            {
+                pthread_mutex_t *rl = modem_inst_lock_for(w->state.codec.ctx);
+                pthread_mutex_lock(rl);
+                w->state.codec.be->unsync(w->state.codec.ctx);
+                pthread_mutex_unlock(rl);
+            }
             clear_buffer(w->ring);
             w->state.demod_count = 0;   /* owned by this thread */
             atomic_store(&w->flush_req, false);
@@ -2319,7 +2634,11 @@ static void *rx_worker_thread(void *arg)
         if (w->takes_payload_resync &&
             atomic_exchange(&g_payload_resync_req, false))
         {
-            if (modem_codec_valid(&w->state.codec) && w->state.codec.be->unsync)
+            /* Not an MFSK payload decoder: it has no trial sync on DATAC16
+             * to drop, and its window holds whole bursts, so an UNSYNC here
+             * could lose a payload frame already in it. */
+            if (modem_codec_valid(&w->state.codec) && w->state.codec.be->unsync &&
+                !mercury_mode_is_mfsk(w->state.mode))
             {
                 pthread_mutex_t *rl = modem_inst_lock_for(w->state.codec.ctx);
                 pthread_mutex_lock(rl);
@@ -2572,6 +2891,7 @@ void *tx_thread(void *g_modem)
     generic_modem_t *modem = (generic_modem_t *)g_modem;
     uint8_t *data = NULL;
     size_t data_size = 0;
+    uint64_t beacon_wait_since = 0;   /* when a station message began waiting on a busy channel */
 
     while (!mercury_stop)
     {
@@ -2603,14 +2923,25 @@ void *tx_thread(void *g_modem)
             (pending_arq_app > 0) ||
             (pending_arq_data > 0) ||
             (pending_arq_control > 0);
+        /* A station message waits out a session or a carousel, without
+         * counting as traffic meanwhile: the session's actions are waited for
+         * as usual. */
+        int beacon_mode = beacon_next_mode();
+        bool beacon_ready = beacon_mode >= 0 && !arq_tx_queued &&
+                            !arq_session_active() && !bcast_carousel_sending();
         bool local_tx_queued =
             arq_tx_queued ||
-            (pending_broadcast > 0);
+            (pending_broadcast > 0) ||
+            beacon_ready;
         if (arq_policy_ready && arq_snapshot.trx != TX && arq_tx_queued)
         {
             int desired_mode = arq_snapshot.preferred_tx_mode;
             if (desired_mode >= 0)
                 maybe_switch_modem_mode(modem, desired_mode, arq_snapshot.trx, false);
+        }
+        else if (arq_snapshot.trx != TX && beacon_ready)
+        {
+            maybe_switch_modem_mode(modem, beacon_mode, arq_snapshot.trx, false);
         }
         else if (arq_snapshot.trx != TX &&
                  !arq_tx_queued &&
@@ -2630,6 +2961,7 @@ void *tx_thread(void *g_modem)
         int frames_per_burst = 1;
         int tx_frames_per_burst = 1;
         pthread_mutex_lock(&modem_pool_lock);
+        int tx_mode = modem->mode;
         payload_bytes_per_modem_frame = modem->payload_bytes_per_modem_frame;
         if (modem_codec_valid(&modem->codec))
             frames_per_burst = modem->codec.be->frames_per_burst(modem->codec.ctx);
@@ -2667,6 +2999,9 @@ void *tx_thread(void *g_modem)
             waited_for_action = true;
             have_action = arq_wait_dequeue_action(&action, ARQ_ACTION_WAIT_MS);
         }
+        /* After the wait, not before it: a DISCONNECT queued behind an ABORT
+         * that came during the wait is taken at the ABORT's count. */
+        tx_note_taken();
 
         if (have_action && action.type == ARQ_ACTION_TX_PATTERN)
         {
@@ -2725,8 +3060,42 @@ void *tx_thread(void *g_modem)
                 HLOGW("modem-tx", "Failed to send ARQ buffered frame");
         }
 
+        /* A station message, once the modem is on its mode.  It keys when no
+         * decoder is on a frame, or after ~10 s of waiting regardless, as a
+         * DISCONNECT does (ARQ_CHANNEL_DEFER_MAX): a decoder stuck in false
+         * sync must not hold it for good. */
+        if (!sent_from_action && beacon_ready && tx_mode == beacon_mode)
+        {
+            uint64_t now = virtual_clock_enabled() ? time_now_ms() : monotonic_ms();
+            bool heard = arq_channel_heard();
+            if (!heard || (beacon_wait_since != 0 &&
+                           now - beacon_wait_since >=
+                               (uint64_t)ARQ_CHANNEL_DEFER_MS * ARQ_CHANNEL_DEFER_MAX))
+            {
+                beacon_t b;
+                beacon_wait_since = 0;
+                if (beacon_take(&b) && b.len == payload_bytes_per_modem_frame && b.len <= data_size)
+                {
+                    memcpy(data, b.frame, b.len);
+                    HLOGI("modem-tx", "Sending station message on %s%s",
+                          mode_name_from_enum(b.mode), heard ? " (the channel stayed busy)" : "");
+                    if (send_modulated_data_with_cq_status(modem, data, 1) < 0)
+                        HLOGW("modem-tx", "Failed to send station message");
+                }
+                else
+                    HLOGW("modem-tx", "Station message dropped: it no longer fits the %s frame",
+                          mode_name_from_enum(tx_mode));
+                sent_from_action = true;
+            }
+            else if (beacon_wait_since == 0)
+                beacon_wait_since = now;
+        }
+        else
+            beacon_wait_since = 0;
+
         size_t expect_bcast = atomic_load(&broadcast_frame_size);
-        if (size_buffer(data_tx_buffer_broadcast) >= required &&
+        if (!beacon_ready &&
+            size_buffer(data_tx_buffer_broadcast) >= required &&
             expect_bcast > 0 &&
             payload_bytes_per_modem_frame == expect_bcast)
         {
@@ -2738,11 +3107,14 @@ void *tx_thread(void *g_modem)
                 HLOGW("modem-tx", "Failed to send broadcast buffered frame");
         }
 
-        if (!sent_from_action &&
-            size_buffer(data_tx_buffer_arq) < required &&
-            size_buffer(data_tx_buffer_arq_control) < required &&
-            size_buffer(data_tx_buffer_broadcast) < required &&
-            !waited_for_action)
+        /* A station message waiting (on a busy channel, or for its mode) sleeps
+         * too: the broadcast ring is held behind it, so a full ring would
+         * otherwise spin this loop until the beacon goes. */
+        if (!sent_from_action && !waited_for_action &&
+            (beacon_ready ||
+             (size_buffer(data_tx_buffer_arq) < required &&
+              size_buffer(data_tx_buffer_arq_control) < required &&
+              size_buffer(data_tx_buffer_broadcast) < required)))
         {
             usleep(100000); // sleep for 100ms if there is no data to send
         }
@@ -2849,7 +3221,7 @@ void *rx_thread(void *g_modem)
     /* One worker per plane.  rx_thread keeps ownership of reading
      * capture_buffer, the flush policy and the spectrum/busy work; the workers
      * only decode. */
-    static rx_worker_t w_ctrl, w_pay, w_listen;
+    static rx_worker_t w_ctrl, w_pay, w_listen, w_listen_alt;
     int ctrl_was_sync = 0, pay_was_sync = 0;   /* for preamble edges (arq_note_rx_preamble) */
     /* Pattern-ACK window, and whether an ACK was due on the previous chunk
      * (its rising edge resets the window; see the detector below). */
@@ -2860,9 +3232,11 @@ void *rx_thread(void *g_modem)
     memset(&w_ctrl, 0, sizeof(w_ctrl));
     memset(&w_pay,  0, sizeof(w_pay));
     memset(&w_listen, 0, sizeof(w_listen));
+    memset(&w_listen_alt, 0, sizeof(w_listen_alt));
     pthread_mutex_init(&w_ctrl.mlock, NULL);
     pthread_mutex_init(&w_pay.mlock,  NULL);
     pthread_mutex_init(&w_listen.mlock, NULL);
+    pthread_mutex_init(&w_listen_alt.mlock, NULL);
     w_pay.takes_payload_resync = true;
     /* Two seconds of 8 kHz int16 per plane: the same order as the capture
      * backlog cap, so a stalled worker is bounded by its own ring rather than
@@ -2871,7 +3245,8 @@ void *rx_thread(void *g_modem)
     w_ctrl.ring = circular_buf_init((uint8_t *)malloc(ring_bytes), ring_bytes);
     w_pay.ring  = circular_buf_init((uint8_t *)malloc(ring_bytes), ring_bytes);
     w_listen.ring = circular_buf_init((uint8_t *)malloc(ring_bytes), ring_bytes);
-    if (!w_ctrl.ring || !w_pay.ring || !w_listen.ring)
+    w_listen_alt.ring = circular_buf_init((uint8_t *)malloc(ring_bytes), ring_bytes);
+    if (!w_ctrl.ring || !w_pay.ring || !w_listen.ring || !w_listen_alt.ring)
     {
         HLOGE("modem-rx", "could not allocate decoder rings; RX disabled");
         return NULL;
@@ -2883,16 +3258,28 @@ void *rx_thread(void *g_modem)
     pthread_create(&w_ctrl.tid, NULL, rx_worker_thread, &w_ctrl);
     pthread_create(&w_pay.tid,  NULL, rx_worker_thread, &w_pay);
 
-    /* Third worker: MFSK, fed only while LISTENING with the payload plane on
-     * another mode.  A caller escalates to the MFSK floor after its fast
-     * DATAC16 CALLs (ARQ_CALL_FAST_SLOTS); without this a station that was
-     * only listening could not decode those CALLs at all -- its payload
-     * decoder sits on the listen (-m) mode and its control decoder on DATAC16.
-     * It costs one more decoder while idle, nothing during a session.  It
-     * decodes the floor of the station's own bandwidth (the 500 Hz one at
-     * BW500), which is what a caller at that bandwidth escalates to; both
-     * instances are open, one is fed. */
+    /* Third and fourth workers: MFSK, fed only while LISTENING with the
+     * payload plane on another mode.  A caller escalates to the MFSK floor
+     * after its fast DATAC16 CALLs (ARQ_CALL_FAST_SLOTS); without these a
+     * station that was only listening could not decode those CALLs at all --
+     * its payload decoder sits on the listen (-m) mode and its control decoder
+     * on DATAC16.  They cost two more decoders while listening; during a
+     * session they are not fed, but each still takes ~0.6 % of a Pi 4 core
+     * (as the one listener did alone).
+     *
+     * One decodes the floor of the station's own bandwidth (the 500 Hz one at
+     * BW500), the other the other floor: a caller escalates to the floor of
+     * ITS bandwidth, which need not be ours.  With only our own, a BW500
+     * listener never heard a BW2750 caller's MFSK CALLs, nor a BW2300 one a
+     * BW500 caller's (#442: K7EK at 2750 calling KG9NI at 500, four MFSK
+     * CALLs unheard; the session was found on a DATAC16 one).  The callee
+     * answers on the CALL's own carrier (accept_carrier), which the caller
+     * listens on, and the session then runs at the lower bandwidth.  Each
+     * worker has both instances open; its mode picks the one it feeds. */
+    rx_worker_t *listeners[2] = { &w_listen, &w_listen_alt };
+    for (int l = 0; l < 2; l++)
     {
+        rx_worker_t *w = listeners[l];
         const modem_backend_t *be = backend_for_mode(MERCURY_MODE_MFSK);
         void *ctx = be ? be->open(MERCURY_MODE_MFSK) : NULL;
         void *nctx = ctx ? be->open(MERCURY_MODE_MFSK_N32) : NULL;
@@ -2900,24 +3287,28 @@ void *rx_thread(void *g_modem)
         {
             if (be->configure)
                 be->configure(nctx, 1, 0);
-            w_listen.own_narrow.be  = be;
-            w_listen.own_narrow.ctx = nctx;
+            w->own_narrow.be  = be;
+            w->own_narrow.ctx = nctx;
         }
         if (ctx)
         {
             if (be->configure)
                 be->configure(ctx, 1, 0);
-            w_listen.own_codec.be  = be;
-            w_listen.own_codec.ctx = ctx;
-            atomic_store(&w_listen.mode, MERCURY_MODE_MFSK);
-            atomic_store(&w_listen.running, true);
-            pthread_create(&w_listen.tid, NULL, rx_worker_thread, &w_listen);
+            w->own_codec.be  = be;
+            w->own_codec.ctx = ctx;
+            atomic_store(&w->mode, l == 0 ? MERCURY_MODE_MFSK : MERCURY_MODE_MFSK_N32);
+            atomic_store(&w->running, true);
+            pthread_create(&w->tid, NULL, rx_worker_thread, w);
         }
         else
-            HLOGW("modem-rx", "could not open the MFSK call listener; "
-                  "MFSK CALLs will be heard only during a session");
+            HLOGW("modem-rx", "could not open the MFSK call listener (%s floor); "
+                  "MFSK CALLs on it will be heard only during a session",
+                  l == 0 ? "own" : "other");
     }
-    bool listen_fed = false;
+    bool listen_fed = false, listen_alt_fed = false;
+    uint32_t listen_spells_seen = 0;
+    uint32_t listen_releases_seen = 0;
+    bool listen_spells_known = false;
     /* Monitor mode: per-mode passive decoders, started on the MONITOR-ON
      * transition and stopped on OFF. */
     rx_worker_t monitor_workers[MONITOR_MODE_COUNT];
@@ -2933,6 +3324,7 @@ void *rx_thread(void *g_modem)
      * radio's audio path.  Measured on a hermes-radio-daemon sBitx: exact
      * zeros from PTT ON + 40 ms to PTT OFF + ~50 ms. */
     uint64_t busy_holdoff_until_ms = monotonic_ms() + BUSY_TX_HOLDOFF_MS;
+    bool busy_was_on = false;   /* g_busy_enabled at the last chunk */
     bool spectrum_first_log = true;
 
     /* --- RX thread rate diagnostics (prints every ~5 seconds) --- */
@@ -3007,6 +3399,7 @@ void *rx_thread(void *g_modem)
             atomic_store(&w_pay.flush_req, true);
             busy_holdoff_until_ms = monotonic_ms() + BUSY_TX_HOLDOFF_MS;
             atomic_store(&w_listen.flush_req, true);
+            atomic_store(&w_listen_alt.flush_req, true);
             for (int t = 0; t < monitor_count; t++)
                 atomic_store(&monitor_workers[t].flush_req, true);
             /* the pattern ring holds audio from before the keydown */
@@ -3046,6 +3439,7 @@ void *rx_thread(void *g_modem)
             atomic_store(&w_ctrl.flush_req, true);
             atomic_store(&w_pay.flush_req, true);
             atomic_store(&w_listen.flush_req, true);
+            atomic_store(&w_listen_alt.flush_req, true);
             for (int t = 0; t < monitor_count; t++)
                 atomic_store(&monitor_workers[t].flush_req, true);
         }
@@ -3054,6 +3448,7 @@ void *rx_thread(void *g_modem)
         atomic_store(&w_ctrl.policy_ready, arq_policy_ready);
         atomic_store(&w_pay.policy_ready,  arq_policy_ready);
         atomic_store(&w_listen.policy_ready, arq_policy_ready);
+        atomic_store(&w_listen_alt.policy_ready, arq_policy_ready);
 
         /* The MFSK call listener only runs while a CALL can arrive on MFSK and
          * nothing else would decode it.  Leaving that state drops what it
@@ -3073,6 +3468,56 @@ void *rx_thread(void *g_modem)
         if (listen_fed && !feed_listen)
             atomic_store(&w_listen.flush_req, true);
         listen_fed = feed_listen;
+        /* A spell of listening ended since the last chunk, even if the next
+         * one has already begun: a scanning host's LISTEN OFF and LISTEN ON
+         * come 1 ms apart, inside one 20 ms chunk, so the feed above never
+         * stops.  What the listeners hold was heard before the hop, most
+         * likely on another channel: decoded now, the CALL was answered on
+         * the wrong one (on air, KG9NI -> K7EK, 1.9.22: an MFSK CALL decoded
+         * 2.5 s after the hop, its ACCEPT unheard, BPQ32 held 2 min there). */
+        if (have_arq_snapshot)
+        {
+            if (listen_spells_known && arq_snapshot.listen_spells_ended != listen_spells_seen)
+            {
+                atomic_store(&w_listen.flush_req, true);
+                atomic_store(&w_listen_alt.flush_req, true);
+            }
+            /* ...and when it ended with the radio back to the host, the
+             * control and payload decoders too: the DATAC16 CALL decoder kept
+             * a frame across the hop, and a CALL that ended 1.4-1.9 s after
+             * it was answered on the wrong channel (K7EK <- KG9NI-7, 1.9.22,
+             * 2026-11-07, twice; BPQ32 held there ~2 min each time).  Not when
+             * a session follows: the control decoder carries it.
+             *
+             * Their sync goes too.  The codec keeps what it has demodulated of
+             * a frame: emptying the ring alone, a CALL 2.5 s into its 3.7 s
+             * still decoded on a bench, from the audio after the hop. */
+            if (listen_spells_known && arq_snapshot.listen_releases != listen_releases_seen)
+            {
+                rx_worker_t *drop[] = { &w_ctrl, &w_pay, &w_listen, &w_listen_alt };
+                for (size_t k = 0; k < sizeof(drop) / sizeof(drop[0]); k++)
+                {
+                    atomic_store(&drop[k]->unsync_req, true);
+                    atomic_store(&drop[k]->flush_req, true);
+                }
+            }
+            listen_spells_seen    = arq_snapshot.listen_spells_ended;
+            listen_releases_seen  = arq_snapshot.listen_releases;
+            listen_spells_known   = true;
+        }
+        /* ...and the other floor, for a caller at the other bandwidth */
+        int alt_mode = listen_mode == MERCURY_MODE_MFSK_N32 ? MERCURY_MODE_MFSK : MERCURY_MODE_MFSK_N32;
+        bool feed_listen_alt = modem_codec_valid(&w_listen_alt.own_codec) &&
+                               arq_policy_ready && arq_snapshot.listening_for_calls &&
+                               payload_mode != alt_mode;
+        if (alt_mode != atomic_load(&w_listen_alt.mode))
+        {
+            atomic_store(&w_listen_alt.mode, alt_mode);
+            atomic_store(&w_listen_alt.flush_req, true);
+        }
+        if (listen_alt_fed && !feed_listen_alt)
+            atomic_store(&w_listen_alt.flush_req, true);
+        listen_alt_fed = feed_listen_alt;
 
         /* Monitor-mode transitions: start/stop the per-mode passive decoders
          * when the host toggles MONITOR. */
@@ -3148,8 +3593,13 @@ void *rx_thread(void *g_modem)
          * dispatcher (that would let a slow payload decoder starve control,
          * which is the failure this whole split exists to avoid). */
         size_t tee_bytes = sizeof(int16_t) * (size_t)chunk_samples;
-        rx_worker_t *tee[3] = { &w_ctrl, &w_pay, &w_listen };
-        for (int t = 0; t < (feed_listen ? 3 : 2); t++)
+        rx_worker_t *tee[4] = { &w_ctrl, &w_pay, NULL, NULL };
+        int ntee = 2;
+        if (feed_listen)
+            tee[ntee++] = &w_listen;
+        if (feed_listen_alt)
+            tee[ntee++] = &w_listen_alt;
+        for (int t = 0; t < ntee; t++)
         {
             if (circular_buf_free_size(tee[t]->ring) < tee_bytes)
             {
@@ -3264,9 +3714,20 @@ void *rx_thread(void *g_modem)
         pay_was_sync  = m_pay.sync;
         {
             /* The listener is not a link-quality source: it hears noise while
-             * idle.  Drain its metrics so they do not accumulate. */
-            rx_metrics_accum_t ignored = {0};
-            rx_worker_take_metrics(&w_listen, &ignored);
+             * idle.  Drain its metrics so they do not accumulate; they only
+             * say whether a CALL is arriving (modem_rx_frame_in_flight). */
+            rx_metrics_accum_t m_listen = {0}, m_listen_alt = {0};
+            rx_worker_take_metrics(&w_listen, &m_listen);
+            rx_worker_take_metrics(&w_listen_alt, &m_listen_alt);
+            uint64_t now = monotonic_ms();
+            rx_inflight_note(RX_INFLIGHT_CTRL, atomic_load(&w_ctrl.mode), &m_ctrl, now);
+            rx_inflight_note(RX_INFLIGHT_LISTEN, atomic_load(&w_listen.mode), &m_listen, now);
+            rx_inflight_note(RX_INFLIGHT_LISTEN_ALT, atomic_load(&w_listen_alt.mode),
+                             &m_listen_alt, now);
+            if (arq_policy_ready && (rx_inflight_call(RX_INFLIGHT_CTRL) ||
+                                     rx_inflight_call(RX_INFLIGHT_LISTEN) ||
+                                     rx_inflight_call(RX_INFLIGHT_LISTEN_ALT)))
+                arq_note_call_in_flight();   /* a scanning host is held (#527) */
         }
         {
             /* The monitor decoders are also not a link-quality source: their
@@ -3290,6 +3751,44 @@ void *rx_thread(void *g_modem)
          * is computed when either the UI waterfall (-W/UI) OR the channel-busy
          * detector needs it, so a headless station can still detect occupancy. */
         bool busy_on = atomic_load_explicit(&g_busy_enabled, memory_order_relaxed);
+        /* Switched off while running (BUSYDETECT OFF): a host told BUSY ON
+         * would otherwise hold it for good -- BPQ32 refuses its connects while
+         * BUSY stands.  g_busy_state.busy is what the host was last told. */
+        if (!busy_on && busy_was_on)
+        {
+            if (g_busy_state.busy)
+            {
+                tnc_send_busy(false);
+                HLOGI("modem-rx", "channel CLEAR (busy detector switched off)");
+            }
+            atomic_store_explicit(&g_channel_busy, false, memory_order_relaxed);
+            channel_busy_init(&g_busy_state);
+        }
+        /* Switched on (BUSYDETECT ON): the spectrum average was not kept
+         * while it was off, and its first frames seed a floor far under the
+         * noise -- a false BUSY within 0.4 s on a bench.  Let it settle. */
+        if (busy_on && !busy_was_on)
+        {
+            channel_busy_init(&g_busy_state);
+            uint64_t until = monotonic_ms() + BUSY_HOP_HOLDOFF_MS;
+            if (until > busy_holdoff_until_ms)
+                busy_holdoff_until_ms = until;
+        }
+        busy_was_on = busy_on;
+        /* The host moved the radio (a scan hop): the floor learned on the
+         * last channel does not hold on this one.  Take it afresh once the
+         * radio has retuned (modem_busy_channel_changed). */
+        /* Only with busy_reseed_on_hop: the request is made only then. */
+        if (atomic_exchange_explicit(&g_busy_reseed_req, false, memory_order_relaxed))
+        {
+            channel_busy_reseed(&g_busy_state);
+            uint64_t until = monotonic_ms() + BUSY_HOP_HOLDOFF_MS;
+            if (until > busy_holdoff_until_ms)
+                busy_holdoff_until_ms = until;
+            if (busy_on)
+                HLOGD("modem-rx", "busy detector: new channel, floor re-seeds in %d ms",
+                      BUSY_HOP_HOLDOFF_MS);
+        }
         if (atomic_load_explicit(&g_spectrum_enabled, memory_order_relaxed) || busy_on)
         {
             uint64_t now_ms = monotonic_ms();
@@ -3352,8 +3851,14 @@ void *rx_thread(void *g_modem)
                  * transmissions while it is asserted -- so reporting it would
                  * stall the very link that is running.  Clear a latched BUSY
                  * on the way in, or a host is left holding one for the whole
-                 * QSO with no BUSY OFF to release it. */
-                if (busy_on && arq_get_trx() != TX && arq_is_link_connected())
+                 * QSO with no BUSY OFF to release it.
+                 *
+                 * The session lasts until the teardown is over, not just while
+                 * CONNECTED: the FSM's listen-before-talk reads BUSY as the
+                 * peer keyed, so a BUSY in DISCONNECTING holds our DISCONNECT
+                 * frame up to the deferral cap (K7EK, 2026-11-06: 11 s, by
+                 * which time BPQ had moved on and the peer never heard it). */
+                if (busy_on && arq_get_trx() != TX && arq_link_has_peer())
                 {
                     if (atomic_exchange_explicit(&g_channel_busy, false,
                                                  memory_order_relaxed))
@@ -3379,8 +3884,18 @@ void *rx_thread(void *g_modem)
                         atomic_store_explicit(&g_channel_busy, now_busy,
                                               memory_order_relaxed);
                         tnc_send_busy(now_busy);
-                        HLOGI("modem-rx", "channel %s (floor=%.1f dB)",
-                              now_busy ? "BUSY" : "CLEAR", g_busy_state.noise_floor_db);
+                        /* What made the verdict: one loud band is a tone,
+                         * many a signal; a very quiet band at an edge is a
+                         * receive filter narrower than the passband. */
+                        const busy_state_t *bs = &g_busy_state;
+                        HLOGI("modem-rx", "channel %s (floor=%.1f dB; peak %.1f dB "
+                              "at %.0f Hz, %+.1f dB over the floor; quietest %.1f dB "
+                              "at %.0f Hz; %d/%d bands over the threshold)",
+                              now_busy ? "BUSY" : "CLEAR", bs->noise_floor_db,
+                              bs->peak_db, bs->peak_hz,
+                              bs->peak_db - bs->noise_floor_db,
+                              bs->quiet_db, bs->quiet_hz,
+                              bs->bands_over, bs->bands);
                     }
                 }
             }
@@ -3415,20 +3930,28 @@ void *rx_thread(void *g_modem)
      * order is not cosmetic here: freeing a ring under a live worker is the
      * use-after-free class this project has hit before. */
     bool listen_started = atomic_load(&w_listen.running);
+    bool listen_alt_started = atomic_load(&w_listen_alt.running);
     atomic_store(&w_ctrl.running, false);
     atomic_store(&w_pay.running,  false);
     atomic_store(&w_listen.running, false);
+    atomic_store(&w_listen_alt.running, false);
     pthread_join(w_ctrl.tid, NULL);
     pthread_join(w_pay.tid,  NULL);
     if (listen_started)
         pthread_join(w_listen.tid, NULL);
+    if (listen_alt_started)
+        pthread_join(w_listen_alt.tid, NULL);
     rx_decoder_dispose(&w_ctrl.state);
     rx_decoder_dispose(&w_pay.state);
-    rx_decoder_dispose(&w_listen.state);
-    if (modem_codec_valid(&w_listen.own_codec))
-        w_listen.own_codec.be->close(w_listen.own_codec.ctx);
-    if (modem_codec_valid(&w_listen.own_narrow))
-        w_listen.own_narrow.be->close(w_listen.own_narrow.ctx);
+    for (int l = 0; l < 2; l++)
+    {
+        rx_worker_t *w = l == 0 ? &w_listen : &w_listen_alt;
+        rx_decoder_dispose(&w->state);
+        if (modem_codec_valid(&w->own_codec))
+            w->own_codec.be->close(w->own_codec.ctx);
+        if (modem_codec_valid(&w->own_narrow))
+            w->own_narrow.be->close(w->own_narrow.ctx);
+    }
     if (monitor_active)
     {
         monitor_workers_stop(monitor_workers, monitor_count);
@@ -3438,9 +3961,11 @@ void *rx_thread(void *g_modem)
     if (w_ctrl.ring) { free(w_ctrl.ring->buffer); circular_buf_free(w_ctrl.ring); }
     if (w_pay.ring)  { free(w_pay.ring->buffer);  circular_buf_free(w_pay.ring);  }
     if (w_listen.ring) { free(w_listen.ring->buffer); circular_buf_free(w_listen.ring); }
+    if (w_listen_alt.ring) { free(w_listen_alt.ring->buffer); circular_buf_free(w_listen_alt.ring); }
     pthread_mutex_destroy(&w_ctrl.mlock);
     pthread_mutex_destroy(&w_pay.mlock);
     pthread_mutex_destroy(&w_listen.mlock);
+    pthread_mutex_destroy(&w_listen_alt.mlock);
 
     free(capture_i32);
     free(capture_i16);

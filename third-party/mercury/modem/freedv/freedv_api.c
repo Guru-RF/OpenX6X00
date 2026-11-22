@@ -135,6 +135,11 @@ struct freedv *freedv_open_advanced(int mode, struct freedv_advanced *adv) {
        FDV_MODE_ACTIVE(FREEDV_MODE_DATAC16, mode) ||
        FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17, mode) ||
        FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2, mode) ||
+       FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17W, mode) ||
+       FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2W, mode) ||
+       FDV_MODE_ACTIVE(FREEDV_MODE_DATAN1, mode) ||
+       FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N1, mode) ||
+       FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N2, mode) ||
        FDV_MODE_ACTIVE(FREEDV_MODE_DATA_CUSTOM, mode)) == false)
     return NULL;
 
@@ -174,6 +179,16 @@ struct freedv *freedv_open_advanced(int mode, struct freedv_advanced *adv) {
   if (FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17, mode))
     freedv_ofdm_data_open(f, NULL);
   if (FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2, mode))
+    freedv_ofdm_data_open(f, NULL);
+  if (FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17W, mode))
+    freedv_ofdm_data_open(f, NULL);
+  if (FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2W, mode))
+    freedv_ofdm_data_open(f, NULL);
+  if (FDV_MODE_ACTIVE(FREEDV_MODE_DATAN1, mode))
+    freedv_ofdm_data_open(f, NULL);
+  if (FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N1, mode))
+    freedv_ofdm_data_open(f, NULL);
+  if (FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N2, mode))
     freedv_ofdm_data_open(f, NULL);
   if (FDV_MODE_ACTIVE(FREEDV_MODE_DATA_CUSTOM, mode))
     freedv_ofdm_data_open(f, adv);
@@ -265,6 +280,11 @@ void freedv_close(struct freedv *freedv) {
       FDV_MODE_ACTIVE(FREEDV_MODE_DATAC16, freedv->mode) ||
       FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17, freedv->mode) ||
       FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2, freedv->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17W, freedv->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2W, freedv->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_DATAN1, freedv->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N1, freedv->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N2, freedv->mode) ||
       FDV_MODE_ACTIVE(FREEDV_MODE_DATA_CUSTOM, freedv->mode)) {
     FREE(freedv->rx_syms);
     FREE(freedv->rx_amps);
@@ -302,6 +322,11 @@ static int is_ofdm_mode(struct freedv *f) {
          FDV_MODE_ACTIVE(FREEDV_MODE_DATAC16, f->mode) ||
          FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17, f->mode) ||
          FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2, f->mode) ||
+         FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17W, f->mode) ||
+         FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2W, f->mode) ||
+         FDV_MODE_ACTIVE(FREEDV_MODE_DATAN1, f->mode) ||
+         FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N1, f->mode) ||
+         FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N2, f->mode) ||
          FDV_MODE_ACTIVE(FREEDV_MODE_DATA_CUSTOM, f->mode);
 }
 
@@ -316,6 +341,11 @@ static int is_ofdm_data_mode(struct freedv *f) {
          FDV_MODE_ACTIVE(FREEDV_MODE_DATAC16, f->mode) ||
          FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17, f->mode) ||
          FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2, f->mode) ||
+         FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17W, f->mode) ||
+         FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2W, f->mode) ||
+         FDV_MODE_ACTIVE(FREEDV_MODE_DATAN1, f->mode) ||
+         FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N1, f->mode) ||
+         FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N2, f->mode) ||
          FDV_MODE_ACTIVE(FREEDV_MODE_DATA_CUSTOM, f->mode);
 }
 
@@ -512,6 +542,11 @@ void freedv_rawdatacomptx(struct freedv *f, COMP mod_out[],
       FDV_MODE_ACTIVE(FREEDV_MODE_DATAC16, f->mode) ||
       FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17, f->mode) ||
       FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2, f->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17W, f->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2W, f->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_DATAN1, f->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N1, f->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N2, f->mode) ||
       FDV_MODE_ACTIVE(FREEDV_MODE_DATA_CUSTOM, f->mode))
     freedv_comptx_ofdm(f, mod_out);
 
@@ -1117,6 +1152,11 @@ int freedv_rawdatacomprx(struct freedv *f, unsigned char *packed_payload_bits,
       FDV_MODE_ACTIVE(FREEDV_MODE_DATAC16, f->mode) ||
       FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17, f->mode) ||
       FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2, f->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_DATAC17W, f->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_QAM16C2W, f->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_DATAN1, f->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N1, f->mode) ||
+      FDV_MODE_ACTIVE(FREEDV_MODE_QAM16N2, f->mode) ||
       FDV_MODE_ACTIVE(FREEDV_MODE_DATA_CUSTOM, f->mode))
     rx_status = freedv_comp_short_rx_ofdm(f, (void *)demod_in, 0, 1.0f);
   if (FDV_MODE_ACTIVE(FREEDV_MODE_FSK_LDPC, f->mode)) {
@@ -1721,4 +1761,53 @@ float freedv_get_modem_bandwidth_hz(struct freedv *freedv) {
 
 void freedv_set_acq_fft_enable(struct freedv *f, bool val) {
   if (f != NULL && f->ofdm != NULL) ofdm_set_acq_fft_enable(f->ofdm, val);
+}
+
+void freedv_set_timing_mx_thresh(struct freedv *f, float val) {
+  if (f != NULL && f->ofdm != NULL) ofdm_set_timing_mx_thresh(f->ofdm, val);
+}
+
+void freedv_set_bad_uw_errors(struct freedv *f, int val) {
+  if (f != NULL && f->ofdm != NULL) ofdm_set_bad_uw_errors(f->ofdm, val);
+}
+
+float freedv_get_timing_mx_thresh(struct freedv *f) {
+  return (f != NULL && f->ofdm != NULL) ? ofdm_get_timing_mx_thresh(f->ofdm)
+                                        : 0.0f;
+}
+
+int freedv_get_bad_uw_errors(struct freedv *f) {
+  return (f != NULL && f->ofdm != NULL) ? ofdm_get_bad_uw_errors(f->ofdm) : 0;
+}
+
+float freedv_get_timing_mx(struct freedv *f) {
+  return (f != NULL && f->ofdm != NULL) ? ofdm_get_timing_mx(f->ofdm) : 0.0f;
+}
+
+float freedv_get_coarse_foff_est(struct freedv *f) {
+  return (f != NULL && f->ofdm != NULL) ? ofdm_get_coarse_foff_est_hz(f->ofdm)
+                                         : 0.0f;
+}
+
+float freedv_get_foff_est(struct freedv *f) {
+  return (f != NULL && f->ofdm != NULL) ? ofdm_get_foff_est_hz(f->ofdm) : 0.0f;
+}
+
+void freedv_set_freq_search_range(struct freedv *f, float fmin, float fmax) {
+  if (f != NULL && f->ofdm != NULL)
+    ofdm_set_freq_search_range(f->ofdm, fmin, fmax);
+}
+
+void freedv_set_freq_search_step(struct freedv *f, float hz) {
+  if (f != NULL && f->ofdm != NULL) ofdm_set_freq_search_step(f->ofdm, hz);
+}
+
+void freedv_set_freq_search_fine(struct freedv *f, float hz) {
+  if (f != NULL && f->ofdm != NULL) ofdm_set_freq_search_fine(f->ofdm, hz);
+}
+
+void freedv_set_tx_clip_config(struct freedv *f, bool clip_en, float gain1,
+                               float gain2, float amp_scale) {
+  if (f != NULL && f->ofdm != NULL)
+    ofdm_set_tx_clip_config(f->ofdm, clip_en, gain1, gain2, amp_scale);
 }

@@ -163,7 +163,20 @@ typedef struct
  * fading an MFSK CALL is no surer than a DATAC16 one at -9..-11 dB, and all-
  * MFSK lost connects DATAC16 made; MFSK is what connects at -13 dB).  A good
  * link connects exactly as quickly as before. */
-#define ARQ_CALL_FAST_SLOTS                2
+#define ARQ_CALL_FAST_SLOTS_DEFAULT        2
+/* ...and at most this many, whatever RETRIES says: each fast CALL puts the
+ * first MFSK CALL ~12 s later, and a path only the floor carries connects
+ * that much later (specs/connect: 112 s at 2, ~134 s at 4, 205 s at 10, where
+ * BPQ32 gave up after ~87 s, #442). */
+#define ARQ_CALL_FAST_SLOTS_MAX            4
+/* Runtime value: RETRIES N above the default raises it to N/2, capped at
+ * ARQ_CALL_FAST_SLOTS_MAX, so a long retry count buys more fast CALLs (what a
+ * scanning BBS hears while it dwells on the channel; at any bandwidth), not
+ * only more slow MFSK steps (#442). */
+extern _Atomic int arq_call_fast_slots;
+#define ARQ_CALL_FAST_SLOTS                atomic_load(&arq_call_fast_slots)
+/* Derive the fast CALL count from a RETRIES value (<= 0: the default). */
+void arq_protocol_set_call_fast_slots(int retries);
 /* After an ACCEPT on MFSK the callee listens this long for the caller's first
  * round: the caller decodes the ACCEPT ~4 s after it ends, keys one ISS guard
  * later, and a floor round is a 13.5 s frame the callee decodes ~4 s after. */
@@ -199,6 +212,35 @@ extern _Atomic float arq_callint_override_s;
 #define ARQ_RETRY_STAGGER_MS_MAX     5000
 extern _Atomic int arq_retry_stagger_ms;
 
+/* How long a session hears nothing before its control moves to the MFSK floor
+ * (the carousel's SILENT_MS), in seconds.  The receiver's own wait for the
+ * floor (S_FALLBACK_MS) is 60 % of it.  Default 150 (so 90), range 110..600.
+ * Shorter reacts faster to QRM but moved multipath links to a floor they did
+ * not need in the sim (#442); see carousel.c.
+ *
+ * The minimum keeps each timer at least one exchange long, which is what
+ * specs/rungs/FloorSilence.tla counts them in (specs/rungs/README.md): the
+ * longest gap between two keydowns of M's that S decodes, on a working link,
+ * is ~61 s (BW500 at the floor: S's 27.6 s round, M's 27.6 s MFSK control,
+ * the guards and MFSK's 4.5 s decode), so S_FALLBACK_MS >= 61 s and
+ * SILENT_MS >= 102 s; 110 leaves a margin.  Shorter, S fell back between the
+ * exchanges of a link that was answering. */
+#define ARQ_SILENCE_FALLBACK_S_DEFAULT 150
+#define ARQ_SILENCE_FALLBACK_S_MIN     110
+#define ARQ_SILENCE_FALLBACK_S_MAX     600
+extern _Atomic int arq_silence_fallback_s;
+void arq_protocol_set_silence_fallback_s(int seconds);
+
+/* The longest a station calls, in seconds, whatever RETRIES asks for: no
+ * new CALL is keyed past it.  A host's RETRIES 20 (BPQ32) is ~8 min of CALLs,
+ * and on air (K7EK, Nov 3-5) 18 calls ran all of it unanswered, while of
+ * the 21 that connected 20 did so within 300 s (the slowest 254 s; one at
+ * 321 s).  0 = no cap: RETRIES alone decides, as before. */
+#define ARQ_CALL_MAX_S_DEFAULT 300
+#define ARQ_CALL_MAX_S_MAX     3600
+extern _Atomic int arq_call_max_s;
+void arq_protocol_set_call_max_s(int seconds);
+
 /* Deterministic per-node retry rank from the exchanged callsign pair.
  * strcmp() is antisymmetric, so the two peers always disagree: one returns 0
  * (send first) and the other 1 (defer).  Returns -1 when the pair is
@@ -207,6 +249,19 @@ extern _Atomic int arq_retry_stagger_ms;
 int arq_protocol_retry_rank(const char *local_call, const char *remote_call);
 
 uint64_t arq_protocol_retry_deadline_ms(float seconds, int rank);
+
+/* The two callsigns a CONNECTED reports: src is the station that called, dst
+ * the one that was called, on both peers.
+ *   we_called    which side we are, as the FSM knows it
+ *   remote_call  the peer
+ *   local_call   callee: the callsign the caller dialed (empty: the primary)
+ *   connect_src  caller: the source of the host's CONNECT (empty: the primary)
+ *   my_call      our primary callsign
+ * src and dst hold bufsz bytes each. */
+void arq_protocol_session_calls(bool we_called, const char *remote_call,
+                                const char *local_call, const char *connect_src,
+                                const char *my_call,
+                                char *src, char *dst, size_t bufsz);
 
 #define ARQ_CALL_RETRY_SLOTS       atomic_load(&arq_call_retry_slots)
 #define ARQ_ACCEPT_RETRY_SLOTS     atomic_load(&arq_accept_retry_slots)
@@ -232,6 +287,15 @@ uint64_t arq_protocol_retry_deadline_ms(float seconds, int rank);
 #define ARQ_CHANNEL_SYNC_HOLD_MS      250
 #define ARQ_CHANNEL_DEFER_MS          500
 #define ARQ_CHANNEL_DEFER_MAX         20   /* ~10 s, then key regardless */
+/* Our own keydown is no false sync: its end is TX_COMPLETE, and a DISCONNECT
+ * keyed then goes out behind it with no reply window (a frame queued while
+ * keyed plays right after).  So steps while we are keyed have a cap of their
+ * own, the longest keydown (the carousel's 30 s) and a margin, only for a
+ * TX_COMPLETE that never comes; the end of the keydown starts the budget
+ * above afresh.  With the shared 10 s, an MFSK floor round (27 s) used it up
+ * and the DISCONNECT keyed 22 ms after it, over the peer's ACK: both lost,
+ * the teardown 46 s and two retries (NW8L-KA8RYU, IONOS MPD -5 dB, 1.9.22). */
+#define ARQ_CHANNEL_DEFER_KEYED_MAX   64   /* 32 s */
 /* A CALL held for a frame (arq_fsm.c, call_must_wait) waits this long past
  * the frame's end, so that the frame can decode first: an ACCEPT does, and a
  * CALL keyed just before it went out from a caller already connected.  The
@@ -247,20 +311,36 @@ uint64_t arq_protocol_retry_deadline_ms(float seconds, int rank);
 /* Decode thresholds (dB) of the rungs, which set the carousel's start rung
  * (carousel.c, car_start_level) and MFSK's place below DATAC15. */
 #define ARQ_SNR_HYST_DB               5.0f
+/* The 2 kHz MFSK rung (BW2300/BW2750 rung 1): 90 % at -8 dB on white noise
+ * (MFSK reads the burst's SNR3k, constant-envelope: the carrier axis), plus
+ * the ~1.5 dB the OFDM rungs keep; -5 under CCIR Moderate/Poor. */
+#define ARQ_SNR_MIN_MFSK_W2_DB       -6.5f
 #define ARQ_SNR_MIN_DATAC15_DB       -7.0f  /* its cliff (sim, bench): below
                                              * it the carousel's MFSK rung wins */
 #define ARQ_SNR_MIN_DATAC4_DB        -6.0f  /* bench (docs/MODES.md):
                                              * DATAC15/DATAC4 goodput crossover
                                              * ~-7.5 dB MPP / -8.5 dB AWGN     */
-#define ARQ_SNR_MIN_DATAC3_DB        -1.0f
-#define ARQ_SNR_MIN_DATAC1_DB         3.0f
-#define ARQ_SNR_MIN_DATAC17_DB        7.0f  /* bench (docs/MODES.md): goodput
-                                             * crossover vs DATAC1 ~ +6 dB MPP;
-                                             * 89/100 delivery at +8          */
-#define ARQ_SNR_MIN_QAM16C2_DB       13.0f  /* bench: goodput crossover vs
-                                             * DATAC17 ~ +11 dB MPP, 84/100 at
-                                             * +13.7; upstream's published
-                                             * operating point is +15        */
+/* From DATAC3 up, each rung's threshold is the S/N the modem reports where
+ * 90 % of its frames decode on white noise (utils/rung_sweep, 40 bursts a
+ * 0.5 dB point; the reading equals the burst S/N since the maps were refit)
+ * plus about 1.5 dB, the margin DATAC3 (-3.0) and DATAC1 (1.7) keep.
+ * Each lands ~2 dB over its goodput crossover with the rung below on the
+ * same sweep (DATAC1->DATAC17 3.8, DATAC17->QAM16C2 9.6; DATAC3->DATAC1
+ * 0.8 against its 3.0), so a first probe, allowed SNR_GATE_DB/2 under the
+ * threshold, comes just above the crossover.  The
+ * old DATAC17 (7) and QAM16C2 (13) values were set on readings ~2 dB high:
+ * on air the refit maps read ~11 dB where the old read 12.9, and QAM16C2
+ * was never reached (QAM16C2's moved with its map, #575).                                    90 % reads at   */
+#define ARQ_SNR_MIN_DATAC3_DB        -1.0f  /* -3.0 */
+#define ARQ_SNR_MIN_DATAC1_DB         3.0f  /*  1.7 */
+#define ARQ_SNR_MIN_DATAC17_DB        5.5f  /*  3.9 */
+#define ARQ_SNR_MIN_QAM16C2_DB       11.5f  /* 10.2 */
+/* The 2.0 bandwidth ladders' rungs (car_set_bandwidth), by the same rule. */
+#define ARQ_SNR_MIN_DATAC17W_DB       6.5f  /*  4.8 */
+#define ARQ_SNR_MIN_QAM16C2W_DB      13.5f  /* 11.9 */
+#define ARQ_SNR_MIN_DATAN1_DB         0.0f  /* -1.7 */
+#define ARQ_SNR_MIN_QAM16N1_DB        6.0f  /*  4.4 */
+#define ARQ_SNR_MIN_QAM16N2_DB        7.5f  /*  5.9 */
 
 /* Absolute cap on how long an APP_DISCONNECT may stay deferred while the FSM
  * tries to drain the last app bytes.  Once the application has asked to
@@ -406,7 +486,15 @@ int arq_protocol_build_disconnect(uint8_t *buf, size_t buf_len,
  *              below the control mode (bit 3), 4 bits zero
  *           9: the SNR the callee read the CALL at, dB + 128 (0: unknown)
  *           10-13: zero */
-#define ARQ_CONNECT_MINOR             1
+#define ARQ_CONNECT_MINOR             2
+/* The lowest minor this station connects to.  Minor 2 (1.9.25) gave each
+ * bandwidth its own ladder (BW2300 rung 1 the 2 kHz MFSK, the BW500 and
+ * BW2750 ladders, the 500 Hz deep floor) and changed the QAM16C2 and DATAC17
+ * frames.  The wire carries a rung's level, not its mode, so a pair that maps
+ * a level to different modes would lose every round there: the versions do
+ * not connect.  1.9.20-1.9.24 (minors 0 and 1) read any minor and still
+ * ACCEPT our CALL; we ignore their ACCEPT and do not answer their CALL. */
+#define ARQ_CONNECT_MINOR_MIN         2
 #define ARQ_CONNECT_EXT_BW_MASK       0x03
 #define ARQ_CONNECT_EXT_MINOR_SHIFT   2
 #define ARQ_CONNECT_EXT_MINOR_MASK    0x0C
@@ -443,6 +531,8 @@ bool arq_protocol_connect_version_ok(const uint8_t *buf, size_t buf_len);
 
 /** The 2.x minor revision of a CALL or ACCEPT (version_ok already checked). */
 int arq_protocol_connect_minor(const uint8_t *buf);
+/** Does this station connect to the sender of buf (minor >= ARQ_CONNECT_MINOR_MIN)? */
+bool arq_protocol_connect_compatible(const uint8_t *buf);
 
 /** Is a CALL or ACCEPT addressed to callsign (bytes 2-3, all 16 bits)?
  *  Requires at least ARQ_CONNECT_PAYLOAD_IDX + 2 bytes in @p buf. */

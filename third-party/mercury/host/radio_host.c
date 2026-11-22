@@ -77,6 +77,9 @@ void radio_io_shutdown(void)
         radio_host_key(false);
 }
 
+/* Keying is the host app's; nothing is left to retry here. */
+void radio_io_service(void) { }
+
 bool radio_io_get_frequency(bool allow_poll, uint64_t *frequency_hz, uint64_t *age_ms)
 {
     (void) allow_poll;
@@ -96,6 +99,11 @@ bool radio_io_get_frequency(bool allow_poll, uint64_t *frequency_hz, uint64_t *a
 void radio_io_report_frequency(uint64_t frequency_hz)
 {
     (void) frequency_hz;            /* the host owns the radio's frequency */
+}
+
+void radio_io_set_usb_fd(const char *device, int fd)
+{
+    (void) device; (void) fd;       /* the Android app's; the bridge calls it */
 }
 
 /* ---- the rest of radio_io.h: nothing for Mercury to configure ---- */

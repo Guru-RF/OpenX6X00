@@ -235,6 +235,7 @@ int mercury_cli_parse(int argc, char **argv,
             if (optarg)
             {
                 snprintf(out->cfg.input_device, sizeof(out->cfg.input_device), "%s", optarg);
+                out->cfg.input_device_name[0] = '\0';   /* the saved name is another device's */
                 cli_set_input = true;
             }
             break;
@@ -242,6 +243,7 @@ int mercury_cli_parse(int argc, char **argv,
             if (optarg)
             {
                 snprintf(out->cfg.output_device, sizeof(out->cfg.output_device), "%s", optarg);
+                out->cfg.output_device_name[0] = '\0';
                 cli_set_output = true;
             }
             break;
@@ -482,6 +484,7 @@ int mercury_cli_parse(int argc, char **argv,
                    cfg_sound_system_name(cfg_sound_system),
                    cfg_sound_system_name(out->cfg.sound_system));
             out->cfg.input_device[0] = '\0';
+            out->cfg.input_device_name[0] = '\0';
         }
         if (!cli_set_output && out->cfg.output_device[0])
         {
@@ -491,6 +494,7 @@ int mercury_cli_parse(int argc, char **argv,
                    cfg_sound_system_name(cfg_sound_system),
                    cfg_sound_system_name(out->cfg.sound_system));
             out->cfg.output_device[0] = '\0';
+            out->cfg.output_device_name[0] = '\0';
         }
     }
 
@@ -529,6 +533,7 @@ int mercury_cli_run_ptt_test(const mercury_cli_t *cli)
     if (!cli || cli->action != MERCURY_CLI_TEST_PTT)
         return -1;
 
+    hermes_log_set_utc(cli->cfg.log_utc);
     bool log_ready = (hermes_log_init(256) == 0);
     if (log_ready)
         hermes_log_set_level(cli->cfg.trace ? HERMES_LOG_LEVEL_TRACE
