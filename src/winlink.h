@@ -57,7 +57,8 @@ bool winlink_busy(void);
 
 /* APP > Mail's Connect (#322), the LVGL thread. The first press: the radio on a gateway's dial frequency hz, in USB-D
  * as for Pat's QSY, nothing transmitted, so the antenna tuner can be run there before the call. False, and why (n
- * bytes), when the radio may not go there: on the air, an app or LOCK holds the frequency, not one it can tune */
+ * bytes), when the radio may not go there: on the air, an app or LOCK holds the frequency, not one it can tune, or Pat
+ * tuned the radio in the last seconds (a connection that begins, before Pat says it is dialing) */
 bool winlink_preset(int32_t hz, char *why, size_t n);
 
 /* That first press was for hz and the radio is still there: the next press calls */

@@ -217,6 +217,8 @@ def run(root):
     rc, st, _ = helper(root, "status")
     check(rc == 0 and st["enabled"] and st["pat"] and st.get("in") == 0 and st.get("out") == 0
           and st["password"] == "none" and st["transport"] == "ardop", f"status, on and empty: {st}")
+    rc, busy, _ = helper(root, "busy")
+    check(rc == 0 and busy == {"busy": False}, f"busy, with no connection: {busy}")
 
     # send: the checks first, then a message into the outbox
     for msg, why in (({"to": "", "subject": "s", "body": "b"}, "To is empty"),

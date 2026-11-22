@@ -1481,6 +1481,72 @@ class ModemChoice(Switch):
         self.assertEqual((r.returncode, json.loads(r.stdout)), (1, {"error": "Mercury is not on this radio"}))
 
 
+class MailBusy(Root):
+    """`x6100-winlink-mail busy`, asked before APP > Mail's Connect moves the radio with its first press (#322): a
+    connection under way, whoever began it, as Pat (a stand-in for its /api/status here) and the switch lock say"""
+
+    def setUp(self):
+        super().setUp()
+        import http.server
+        test = self
+        self.pat = {"connected": False, "dialing": False}
+
+        class Pat(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = json.dumps(test.pat).encode() if self.path == "/api/status" else b"{}"
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+
+        self.srv = http.server.HTTPServer(("127.0.0.1", 0), Pat)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.addCleanup(self.srv.server_close)
+        self.addCleanup(self.srv.shutdown)
+        os.environ["X6100_WINLINK_MAIL_PORT"] = str(self.srv.server_address[1])
+        self.addCleanup(os.environ.pop, "X6100_WINLINK_MAIL_PORT", None)
+        loader = importlib.machinery.SourceFileLoader("x6100_winlink_mail", SUPERVISOR + "-mail")
+        self.mail = importlib.util.module_from_spec(importlib.util.spec_from_loader("x6100_winlink_mail", loader))
+        loader.exec_module(self.mail)
+
+    def test_idle(self):
+        self.assertEqual(self.mail.cmd_busy(), {"busy": False})
+
+    def test_a_connection_from_anywhere(self):
+        """Pat's own word: one begun in the web mailbox shows as one begun on the radio"""
+        self.pat = {"connected": False, "dialing": True}
+        self.assertEqual(self.mail.cmd_busy(), {"busy": True, "why": "Pat is calling a gateway"})
+        self.pat = {"connected": True, "dialing": False}
+        self.assertEqual(self.mail.cmd_busy(), {"busy": True, "why": "a connection is under way"})
+
+    def test_pats_modem_switch_before_it_dials(self):
+        """Our Pat waits for the other modem before its QSY and says neither connected nor dialing meanwhile:
+        `x6100-winlink switch` holds its lock then"""
+        with open(self.wl.SWITCH_LOCK, "a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            self.assertEqual(self.mail.cmd_busy(),
+                             {"busy": True, "why": "the modem is being switched for a connection"})
+        self.assertEqual(self.mail.cmd_busy(), {"busy": False})
+
+    def test_pat_not_answering(self):
+        """No answer is no "not busy": an error, and the app moves nothing"""
+        self.srv.shutdown()
+        self.srv.server_close()
+        with self.assertRaises(self.mail.Fail):
+            self.mail.cmd_busy()
+
+    def test_as_the_app_runs_it(self):
+        self.pat = {"connected": True, "dialing": False}
+        env = dict(os.environ, X6100_WINLINK_ROOT=self.root)
+        r = subprocess.run([sys.executable, "-I", SUPERVISOR + "-mail", "busy"], env=env, capture_output=True,
+                           text=True, timeout=20)
+        self.assertEqual((r.returncode, json.loads(r.stdout)), (0, {"busy": True, "why": "a connection is under way"}))
+
+
 class SwitchSupervisor(Root):
     """The supervisor's side: it goes on with Pat through Pat's own switch, and restarts it for the page's"""
 

@@ -262,7 +262,7 @@ def preset_steps(tmp):
         kv, _, why = rest.partition(" why=")
         step[name] = dict(f.split("=", 1) for f in kv.split())
         step[name]["why"] = why
-    check(p.returncode == 0 and len(step) == 17, f"every step ran ({len(step)} lines)")
+    check(p.returncode == 0 and len(step) == 19, f"every step ran ({len(step)} lines)")
 
     def at(name, ok, freq, there, **more):
         s = step.get(name, {})
@@ -285,8 +285,13 @@ def preset_steps(tmp):
           and at("pat-back", "1", 7101500, "1", why="RPRT 0") and at("over", "1", 14105000, "0"),
           "the second press: Pat's QSY finds the radio there, its tune back leaves it there, then back on "
           "14.105 MHz")
+    soon = "Pat just tuned the radio for a connection, try again in a moment"
+    check(at("pat-soon", "0", 14105000, "0", why=soon),
+          "a first press within 4 s of a tune of Pat's (a connection begins, Pat not dialing yet): the radio stays")
+    check(at("web-press", "0", 7101500, "0", why=soon),
+          "a first press for another gateway as the web mailbox's connection begins: the radio is not moved under it")
     check(at("retry", "1", 14105000, "0"),
-          "the same gateway again right after: Pat's tune of the last connection does not keep the way back")
+          "the same gateway again 4 s later: Pat's tune of the last connection does not keep the way back")
     check(at("web", "1", 7101500, "0", why="RPRT 0"),
           "a connection from the web mailbox on that frequency after the first press: the radio is left to it")
     check(at("air-first", "0", 14105000, "0", why="the radio is on the air"), "on the air: no first press")

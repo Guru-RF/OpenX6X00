@@ -137,6 +137,7 @@ static char   confirm_url[220];      /* the gateway Connect was pressed for */
  * winlink_preset() (src/winlink.c). Kept across the window: sess_running counts the helpers of connections begun here
  * that have not ended, also once the window is closed, and the last one's end takes the radio back */
 static char   tuned_url[220];
+static char   ask_url[220];          /* the gateway of a first press, while Pat is asked that no connection runs */
 static bool   tuned_shown;           /* what the Connect button says now: the second press */
 static int    sess_running;
 
@@ -2203,7 +2204,9 @@ static void session_end_cb(void *arg) {
     sess_msg_t *m = arg;
 
     /* Also for a window closed meanwhile: Pat found the radio on the gateway's frequency (Connect's first press) and
-     * tuned "back" to it a second after the session, before the helper ended; now to where it was before that press */
+     * tuned "back" to it a second after the session. That is over by now: Pat v1.0.1 defers it in Connect
+     * (app/connect.go:154, the QSX at :243-246), /api/connect answers only once Connect has returned
+     * (api/api.go:381), and the helper ends a second after that answer. Now to where it was before that press */
     if (sess_running > 0) {
         sess_running--;
     }
@@ -2236,6 +2239,39 @@ static void session_end_cb(void *arg) {
     refresh();
 }
 
+/* Connect's first press, once x6100-winlink-mail busy has answered: the radio to the gateway's frequency when no
+ * connection is under way, from here or from the web mailbox; else why not. Nothing for a gateway no longer the one
+ * chosen, or a list that was left */
+static void preset_asked(int rc, cJSON *out) {
+    const cJSON *g = view == V_GATEWAYS ? cJSON_GetArrayItem(gateways, sel) : NULL;
+    char         why[160];
+
+    if (res_seq != view_seq || !g || !ask_url[0] || strcmp(ask_url, jstr(g, "url"))) {
+        ask_url[0] = 0;
+        return;
+    }
+    ask_url[0] = 0;
+    if (failed(rc, out, "Connect")) {
+        return;
+    }
+    /* only Pat's plain "no" moves the radio: an answer without it is taken as a connection */
+    if (!cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(out, "busy")) || sess_running) {
+        plain(why, sizeof(why), jstr(out, "why"));
+        say("#%06x Not on %.1f kHz:# %s", theme_hex(TC_err), jnum(g, "dial"),
+            why[0] ? why : "a connection is under way");
+        return;
+    }
+    if (!winlink_preset(gw_hz(g), why, sizeof(why))) {
+        tuned_url[0] = 0;
+        say("#%06x Not on %.1f kHz:# %s", theme_hex(TC_err), jnum(g, "dial"), why);
+    } else {
+        snprintf(tuned_url, sizeof(tuned_url), "%s", jstr(g, "url"));
+        note[0] = 0;        /* the status line says what the next press does */
+    }
+    load_page();
+    show();
+}
+
 static void connect_cb(button_data_t *b) {
     const cJSON   *g = cJSON_GetArrayItem(gateways, sel);
     char          *argv[] = {HELPER, "session", NULL, NULL};
@@ -2263,17 +2299,15 @@ static void connect_cb(button_data_t *b) {
          * tuner takes. The second press, for the same gateway with the radio still there, calls; another gateway
          * chosen or the dial turned meanwhile, and the press is a first one again */
         if (!gw_tuned(g)) {
-            char why[96];
-
-            if (!winlink_preset(gw_hz(g), why, sizeof(why))) {
-                tuned_url[0] = 0;
-                say("#%06x Not on %.1f kHz:# %s", theme_hex(TC_err), jnum(g, "dial"), why);
-            } else {
-                snprintf(tuned_url, sizeof(tuned_url), "%s", jstr(g, "url"));
-                note[0] = 0;        /* the status line says what the next press does */
+            /* Pat is asked first: the radio is never moved under a connection, also one begun from the web mailbox
+             * while this list is open, which the status read in the other views does not show here */
+            snprintf(ask_url, sizeof(ask_url), "%s", jstr(g, "url"));
+            if (!job_start(preset_asked, NULL, HELPER, "busy", NULL, NULL)) {
+                ask_url[0] = 0;
+                say("Wait, still busy");
+                return;
             }
-            load_page();
-            show();
+            say("Asking Pat that no connection is under way...");
             return;
         }
     } else if (confirm_what != 1 || time(NULL) >= confirm_until || strcmp(confirm_url, jstr(g, "url"))) {

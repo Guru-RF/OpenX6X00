@@ -99,6 +99,7 @@
 #define MODE_WAIT_MS    500             /* a key waits this long for the LVGL thread's USB-D (key_mode) */
 #define PENDING_MS      (30 * 1000)     /* a QSY asked on the air is done at the end of it, if within this */
 #define REF_MS          (60 * 1000)     /* Pat's tune or the modem's key this recent: a connection under way */
+#define PRESET_QSY_MS   4000            /* no first press of APP > Mail's Connect this soon after a tune of Pat's */
 
 typedef struct {
     uint8_t  type;
@@ -173,6 +174,7 @@ static atomic_int    missed_hz;     /* a QSY Pat was told was done and that coul
  * from then on is kept for later (keying), so never both at once */
 static atomic_int    ref_hz;
 static atomic_ullong ref_ms;
+static atomic_ullong pat_tune_ms;   /* Pat's last \set_freq, made or kept for later; 0 none (winlink_preset) */
 
 static uint64_t now_ms(void) {
     struct timespec ts;
@@ -1080,6 +1082,7 @@ static int rig_tune(double hz) {
     }
     pthread_mutex_lock(&tune_lock);     /* kept or made with no tune of the worker's in between */
     atomic_store(&missed_hz, 0);    /* Pat's QSY before this one is not where Pat waits any more */
+    atomic_store(&pat_tune_ms, now_ms());
     if (on_air() || atomic_load(&keying)) {
         atomic_store(&pending_ms, now_ms());
         atomic_store(&pending_hz, f);
@@ -1111,9 +1114,17 @@ static atomic_bool preset_waits;    /* a way back asked on the air: made once it
 
 bool winlink_preset(int32_t hz, char *why, size_t n) {
     int32_t now = cparam_i_get(cfg_fg_freq), mode;
+    uint64_t pat = atomic_load(&pat_tune_ms);
 
     if (tune_refused(hz, why, n))
         return false;
+    /* Never under a connection, also one from the web mailbox. The app asks Pat first (x6100-winlink-mail busy), but
+     * Pat says "dialing" only once its QSY and the 3 s it waits after it are over (app/connect.go, v1.0.1): a tune
+     * of Pat's this recent is a connection that begins, or one that just ended. And a key of the modem's is one */
+    if (atomic_load(&keying) || (pat && now_ms() - pat < PRESET_QSY_MS)) {
+        snprintf(why, n, "Pat just tuned the radio for a connection, try again in a moment");
+        return false;
+    }
     /* A second gateway tried from the first one's frequency: the way back is still to where the radio was. The dial
      * turned since: from there */
     if (!preset_hz || now != preset_hz)

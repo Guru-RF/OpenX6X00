@@ -24,6 +24,8 @@
 #                                        Pat's questions (a busy channel, the password), "abort" ends the
 #                                        connection, "abort!" at once
 #   x6100-winlink-mail abort             ends Pat's connection under way, one the GUI no longer follows
+#   x6100-winlink-mail busy              whether a connection is under way, whoever began it: {"busy": ..., "why":
+#                                        ...}; the app asks before Connect's first press moves the radio (#322)
 #
 # Every other command answers one JSON object or array; a failure is {"error": "..."} and the exit status 1.
 # The text to show is Latin-1, which the GUI's fonts have (src/fonts/font_select.c: latin1_N behind every font):
@@ -37,6 +39,7 @@
 # Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
 import base64
 import datetime
+import fcntl
 import http.client
 import json
 import os
@@ -61,6 +64,7 @@ LIB = ROOT + "/var/lib/winlink"
 PASSWORD = os.path.join(LIB, "password")
 PAT_CONFIG = os.path.join(LIB, "pat", "config.json")
 STATUS = ROOT + "/run/winlink/status"
+SWITCH_LOCK = ROOT + "/run/winlink/switch.lock"   # x6100-winlink's: held while a modem switch is under way
 PAT_OWN_LOG = ROOT + "/run/winlink/pat-own.log"
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("X6100_WINLINK_MAIL_PORT", "8080"))   # another one in the tests only
@@ -629,6 +633,29 @@ def cmd_abort():
     return {"ok": True}
 
 
+def cmd_busy():
+    """Whether a connection is under way, whoever began it (the web mailbox too), asked before the app moves the radio
+    for Connect's first press (#322): {"busy": true, "why": ...} or {"busy": false}. Pat's own word, and the modem
+    switch our Pat runs before it dials (x6100-winlink switch holds its lock meanwhile): Pat says neither connected
+    nor dialing during it, nor during its QSY and the 3 s after it, which the GUI covers itself (winlink_preset).
+    Pat not answering is an error: nothing can be called then"""
+    st = pat_status()
+    if st is None:
+        raise Fail("Pat does not answer: Winlink is off or still starting")
+    if st.get("connected"):
+        return {"busy": True, "why": "a connection is under way"}
+    if st.get("dialing"):
+        return {"busy": True, "why": "Pat is calling a gateway"}
+    try:
+        with open(SWITCH_LOCK, "a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return {"busy": True, "why": "the modem is being switched for a connection"}
+    except OSError:
+        pass                       # no /run/winlink yet: no switch either
+    return {"busy": False}
+
+
 def cmd_view(box):
     check_box(box)
     boxes = {}
@@ -674,7 +701,7 @@ def cmd_status(boxes=None):
 def main(argv):
     cmds = {"status": (cmd_status, 0), "list": (cmd_list, 1), "read": (cmd_read, 2), "send": (cmd_send, 0),
             "delete": (cmd_delete, 2), "gateways": (cmd_gateways, None), "session": (cmd_session, 1),
-            "view": (cmd_view, 1), "abort": (cmd_abort, 0)}
+            "view": (cmd_view, 1), "abort": (cmd_abort, 0), "busy": (cmd_busy, 0)}
     if not argv or argv[0] not in cmds:
         sys.stderr.write("usage: x6100-winlink-mail " + "|".join(cmds) + " ...\n")
         return 2

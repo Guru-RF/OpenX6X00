@@ -496,13 +496,24 @@ static int preset_steps(void) {
     /* the first press, then a connection from the web mailbox on that frequency: the list left in the app does not
      * take the radio from it. Before that, a tune of Pat's from before the press (the last connection's) counts
      * for nothing: the way back is made */
-    usleep(20000);
+    why[0] = 0;
+    ok     = winlink_preset(10145000, why, sizeof(why));    /* Pat tuned a moment ago: no first press yet */
+    preset_line("pat-soon", ok, why, 10145000);
+    usleep(4100000);
     ok = winlink_preset(7101500, why, sizeof(why));
     winlink_preset_back(false);
     preset_line("retry", ok, why, 7101500);
     ok = winlink_preset(7101500, why, sizeof(why));
     usleep(20000);
     pat_tunes(7101500, why, sizeof(why));
+    {
+        /* the web mailbox's connection begins (Pat's QSY, before Pat says it is dialing): a first press for another
+         * gateway does not move the radio under it */
+        char no[96] = "";
+        bool moved  = winlink_preset(10145000, no, sizeof(no));
+
+        preset_line("web-press", moved, no, 10145000);
+    }
     winlink_preset_back(false);
     preset_line("web", ok, why, 7101500);
     freq.v = 14105000;
