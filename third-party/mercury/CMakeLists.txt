@@ -10,7 +10,8 @@ set(MERCURY_FREEDV
     ldpc_codes mpdecode_core interldpc golay23 linreg nlp codebooknewamp1 codebooknewamp1_energy codebooknewamp2
     codebooknewamp2_energy postfilter interp codebook codebookd codebookge codebookjmv ofdm_mode HRA_112_112
     HRA_56_56 HRAb_396_504 H_256_768_22 H_256_512_4 HRAa_1536_512 H_128_256_5 H_2064_516_sparse H_4096_8192_3d
-    H_16200_9720 H_1024_2048_4f H_212_158 phi0 gp_interleaver modem_stats)
+    H_16200_9720 H_IRA_3072_2304 H_IRA_3072_2048 H_IRA_3072_1536 H_IRA_2048_1024 H_16200_6480 H_16200_7200
+    H_16200_10800 H_16200_11880 H_16200_12600 H_1024_2048_4f H_212_158 phi0 gp_interleaver modem_stats)
 list(TRANSFORM MERCURY_FREEDV PREPEND modem/freedv/)
 
 # The Makefile's MERCURY_CORE_OBJS for the daemon, then HOST_AUDIO_OBJS, HOST_API_OBJS, BCAST_FILE_OBJS (the
@@ -49,7 +50,7 @@ add_library(mercury_daemon STATIC ${MERCURY_SOURCES})
 set_target_properties(mercury_daemon PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)
 # As upstream builds it: -O2, and its asserts kept (a release build's NDEBUG would drop them)
 target_compile_options(mercury_daemon PRIVATE -O2 -pthread -UNDEBUG)
-target_compile_definitions(mercury_daemon PRIVATE _GNU_SOURCE GIT_HASH="edca701b")
+target_compile_definitions(mercury_daemon PRIVATE _GNU_SOURCE GIT_HASH="33efac4e")
 # The include paths of upstream's sub-makes, in one list (no two of its headers share a name)
 target_include_directories(mercury_daemon BEFORE PRIVATE
     . modem/freedv modem/mfsk modem datalink_broadcast data_interfaces datalink_arq audioio common

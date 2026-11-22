@@ -7781,9 +7781,10 @@ Setting it up:
      TX, the radio is in CW, not USB-D (an app holds the mode)".
    - Filter: whether the RX filter (and the TX filter, on a base that has
      one) covers ARDOP's passband at the page's bandwidth: 1250-1750 Hz at
-     500 Hz, 500-2500 Hz at 2000 Hz. Mercury's: 450-2550 Hz at 2300 and
-     2750 Hz, 1200-1800 Hz at 500 Hz. XARA's, VARA HF's carriers: 350-2650
-     Hz at 2300 Hz, 120-2880 Hz at 2750 Hz, 1240-1760 Hz at 500 Hz.
+     500 Hz, 500-2500 Hz at 2000 Hz. Mercury's: 375-2625 Hz at 2300 Hz,
+     125-2875 Hz at 2750 Hz, 1200-1800 Hz at 500 Hz. XARA's, VARA HF's
+     carriers: 350-2650 Hz at 2300 Hz, 120-2880 Hz at 2750 Hz, 1240-1760 Hz
+     at 500 Hz.
    - Power: the radio's PWR, at most 7 W for Winlink; 5 W with the X6200 on
      its battery, or a transverter's TX power limit, which the row says (see
      [Transmitting](#transmitting)).
@@ -8231,11 +8232,12 @@ Modem does.
 ### Mercury (experimental)
 
 [Mercury](https://github.com/Rhizomatica/mercury) is a second HF modem for
-Winlink, from Rhizomatica's HERMES project: OFDM modes up to 2.1 kHz wide,
-faster than ARDOP on a good path, down to an MFSK mode for the weakest
-signals, and a VARA-style connection that Pat drives as its VARA HF transport.
-It comes with the firmware, pinned at version 1.9.21: `x6x00-mercury` is
-Mercury with the radio's GUI as its sound card and PTT, as ardopcf has.
+Winlink, from Rhizomatica's HERMES project: OFDM modes up to 2.25 kHz wide
+(2.75 kHz at its widest bandwidth), faster than ARDOP on a good path, down to
+an MFSK mode for the weakest signals, and a VARA-style connection that Pat
+drives as its VARA HF transport. It comes with the firmware, pinned at version
+1.9.25: `x6x00-mercury` is Mercury with the radio's GUI as its sound card and
+PTT, as ardopcf has.
 
 It is experimental. Two stations connected and exchanged mail through it on a
 PC, each with the radio's own Winlink code and Pat, but it has not been on the
@@ -8243,7 +8245,9 @@ air from a radio yet. It needs far more of the radio's processor than ARDOP:
 on an X6100, into a dummy load, about one of its four cores, the radio at
 39 % of its processor with Mercury listening (18 % with ARDOP) and at most
 51 % during calls, its receiver never falling behind. The X6100 has no
-temperature sensor to read. Not measured on an X6200 yet.
+temperature sensor to read. Not measured on an X6200 yet. Those figures are
+Mercury 1.9.21's; 1.9.25, which has more modes and listens for calls on two
+MFSK widths, has run on a PC only, not on a radio yet.
 
 Choosing it: on Operating > Winlink, the Station card's Modem, Mercury
 (experimental), and its bandwidth, then Save. One modem runs at a time, since
@@ -8254,9 +8258,14 @@ as ON6URE" once Pat and Mercury run, and the Connections card's Modem row
 
 Who answers:
 
-- Only Mercury 1.9.20 or later: 1.9.20 and later do not connect to 1.9.19 or
-  older, and Mercury does not talk to VARA or ARDOP at all. Ask the other
-  station which version it runs.
+- Only Mercury 1.9.25, the radio's own version. Mercury's versions connect in
+  groups, as its release notes of 1.9.25 give them: 1.9.25 to 1.9.25 only;
+  1.9.20 to 1.9.24 to one another; 1.9.19 and 1.9.18 each to itself; 1.9.17
+  and older to one another. 1.9.25 does not connect to 1.9.24 or older in
+  either direction (the notes say nothing yet of versions after 1.9.25), and
+  Mercury does not talk to VARA or ARDOP at all. Ask the other station which
+  version it runs. A firmware up to v0.3.13 has Mercury 1.9.21, which
+  connects to 1.9.20-1.9.24 and not to 1.9.25.
 - Another Mercury station, station to station (P2P). The radio calls; it does
   not answer calls (P2P listening stays off, as with ARDOP), so the other
   station listens.
@@ -8271,26 +8280,35 @@ station's callsign as the target and its dial frequency in kHz by hand, and
 Connect. The radio tunes there in USB-D and back afterwards, as with ARDOP.
 The bandwidth field may stay empty: Mercury then takes the Winlink page's.
 
-- The bandwidth: 2300 Hz (the default) lets Mercury use all its modes; 500 Hz
-  keeps it narrow (DATAC3, 562 Hz, at the most), and its most robust mode, the
-  MFSK floor, is then a 500 Hz MFSK at half the speed (about 27 s a frame);
-  2750 Hz has 2300's modes for now. The narrower of the two stations' is used.
-  The RX filter has to cover Mercury's audio: 450-2550 Hz at 2300 and 2750 Hz,
-  1200-1800 Hz at 500 Hz. The Before you connect card checks it.
+- The bandwidth: each has its own set of modes in 1.9.25. 2300 Hz (the
+  default) goes up to modes 2250 Hz wide; 500 Hz keeps it narrow (562 Hz at
+  the most), and its most robust mode, the MFSK floor, is then a 500 Hz MFSK
+  at half the speed (about 27 s a frame); 2750 Hz has two modes 2750 Hz wide
+  at the top, for a good path. The narrower of the two stations' is used.
+  The RX filter has to cover Mercury's audio: 375-2625 Hz at 2300 Hz,
+  125-2875 Hz at 2750 Hz, 1200-1800 Hz at 500 Hz (1.9.21's widest modes were
+  2100 Hz, 450-2550 Hz). The Before you connect card checks it.
 - Mercury's keys are longer than ARDOP's: a call on its MFSK floor took 27 s
   on the PC, and a round in a session is up to 30 s on the air plus its head
   and tail. The radio stops a Mercury key after 40 s ("Winlink: TX stopped
   after 40 s"), an ARDOP one after 30 s. The power is the same, at most 7 W,
   and everything above holds for Mercury too: simplex, the apps, the SWR hold,
   a QSY asked during a key.
-- Mercury sends no CW ID (Pat's CWID ON is not one of its commands): the
+- Mercury sends no CW ID (it takes Pat's CWID ON and sends none): the
   callsigns go in its own call frames.
+- The transmit level is what it was: Mercury 1.9.25 by itself sends its audio
+  4 dB louder than 1.9.24 and before, and the radio turns that back (`tx_gain_db
+  = -4` in the settings it writes for Mercury), so the drive and the ALC are
+  as with the firmware before.
 
 When it does not work:
 
 - The Connections card's last connection says what happened, as with ARDOP:
-  no answer (the other station needs Mercury 1.9.20 or later, a VARA gateway
-  from Pat's list does not answer it), a dropped link (500 Hz on a weak
+  no answer (the other station needs Mercury 1.9.25, a VARA gateway
+  from Pat's list does not answer it), "answered with Mercury 1.9.24 or
+  older, which does not connect to this radio's" (such a station still
+  answers the call, and Mercury 1.9.25 ignores the answer: it has to update,
+  nothing on the radio helps), a dropped link (500 Hz on a weak
   path), "Pat called through ARDOP, but the radio runs Mercury" (VARA HF in
   Pat's Connect dialog, or ARDOP on the page), "Mercury was not ready", a
   bandwidth Mercury does not have (500, 2300 or 2750).
@@ -10666,7 +10684,7 @@ never the copy in the build tree.
 The Winlink modems are built by the GUI's CMake and installed with it, so
 the image and the update bundle carry them: ardopcf (`third-party/ardopcf`)
 and, experimental and chosen on the Winlink page,
-`x6x00-mercury` (`third-party/mercury`: Mercury v1.9.21's daemon build and
+`x6x00-mercury` (`third-party/mercury`: Mercury v1.9.25's daemon build and
 our program around it, which takes its audio and PTT through the GUI's
 modem socket). Pat is built outside, by `tools/pat/build.sh`. In the PC
 build both modems are built only when named (`cmake --build build-host

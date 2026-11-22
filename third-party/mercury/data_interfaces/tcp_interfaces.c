@@ -24,6 +24,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdint.h>
+#include <limits.h>
 #include <stdatomic.h>
 #include <sys/types.h>
 #if !defined(_WIN32)
@@ -33,9 +34,13 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #endif
 
 #include "os_interop.h"
+#if defined(_WIN32)
+#include <mstcpip.h>   /* SIO_KEEPALIVE_VALS: after winsock2.h (os_interop.h) */
+#endif
 
 #include "tcp_interfaces.h"
 #include "arq_tnc.h"
@@ -90,8 +95,14 @@ static _Atomic bool tnc_txq_open = false;
 #endif
 static atomic_int tnc_last_buffer_sent = -1;
 static atomic_bool bcast_client_done = false;
-/* A broadcast client is attached and its worker drains the RX ring. */
+/* A broadcast client is attached and its worker drains the RX ring, whose
+ * records are a frame behind its uint16 length. */
 static atomic_bool bcast_client_present = false;
+#define BCAST_RX_REC_HDR 2
+/* The mode a client's station messages (the beacon) go on: BEACONMODE, -1
+ * for the listen mode.  DATAC16 by default: the most robust mode a compact
+ * beacon fits that every running Mercury decodes (its control decoder). */
+static _Atomic int bcast_beacon_mode = FREEDV_MODE_DATAC16;
 /* The host program's tap on every broadcast frame decoded (broadcast_set_rx_tap). */
 static void (*_Atomic bcast_rx_tap)(const uint8_t *frame, size_t len, int mode, float snr);   /* static: starts NULL (clang takes no NULL initializer here) */
 static _Atomic uint8_t bcast_reply_cmd = CMD_DATA;
@@ -154,6 +165,99 @@ void tnc_set_intervals(int keepalive_s, int buffer_report_ms)
                               memory_order_relaxed);
 }
 
+/* Winlink Express, in a P2P session, sends DISCONNECT 5 minutes after it
+ * last wrote to the data port ("P2P session inactivity timeout"), however
+ * much of that write the modem is still sending; BUFFER, PTT and SN lines do
+ * not reset its timer.  A message that takes longer than that to send ends
+ * the session and stays in the sender's Outbox, with VARA HF as with Mercury
+ * (#392; bench, Winlink Express 1.8.6.0: the DISCONNECT at 5:00 sharp, 12.6
+ * KB still queued).  Answered with OK and nothing else, Winlink carries on
+ * ("Completed send", the next message).
+ *
+ * Winlink restarts the timer with every write, so each long message brings
+ * its own DISCONNECT, and one taking over 10 minutes brings one every 300 s
+ * (bench, PR #581: absorbing only the first ended sessions at message 2 of
+ * 10, and a 100 KB message at its second).  Nor is "bytes still queued" the
+ * test: three came with BUFFER 0, everything sent and the receiver's answer
+ * not yet back.  Idle time alone tells them apart: in 112 DISCONNECTs every
+ * timer one came 300 s or more after the host's last write, every real end
+ * within 4.1 s of it (B2F ends right after a host's FF or FQ).
+ *
+ * Opt-in ([tnc] absorb_idle_disconnect_s, 0 = off): in a session, a
+ * DISCONNECT that comes when the host has written nothing to the data port
+ * for at least that long is answered OK and not acted on, as often as it
+ * comes.  So is one that comes while a piece of the host's data is held
+ * back from a full ARQ queue (held_payload, #590): the data socket is not
+ * read meanwhile, so Winlink's write returned long before we read it, and
+ * its timer runs from then while our idle time runs from our read.  A real
+ * B2F end never comes with host data held, it follows the peer's answer.
+ * Not bytes merely unread on the socket (FIONREAD): the reactor reads 128
+ * bytes a pass, so a host's last write (B2F's FQ) with its DISCONNECT right
+ * after is still partly unread when that DISCONNECT, a real end, is run
+ * (rafael2k, #581 review).
+ *
+ * One within TNC_DISCONNECT_REPEAT_MS of the previous DISCONNECT goes
+ * through, so a host (or operator) that means it is heard on the second
+ * one; Winlink's own end sends a second within seconds, its timer ones are
+ * 300 s apart.  Once one has gone through, none is absorbed for the rest of
+ * the session: a DISCONNECT during that one's drain must still end it at
+ * once.  ABORT always goes through.
+ *
+ * "In a session" is the host's view, from CONNECTED to DISCONNECTED, kept
+ * here: the ARQ's own (arq_is_link_connected) takes the session lock, which
+ * the event loop holds while it waits for this thread (#590). */
+#define TNC_DISCONNECT_REPEAT_MS 60000
+static _Atomic uint64_t tnc_absorb_idle_disconnect_ms = 0;
+/* When the host last wrote to the data port, or the session came up
+ * (monotonic_ms). */
+static _Atomic uint64_t tnc_last_data_rx_ms = 0;
+/* When the host last sent DISCONNECT in this session, 0 for none. */
+static _Atomic uint64_t tnc_last_disconnect_ms = 0;
+/* CONNECTED told the host, DISCONNECTED not yet. */
+static _Atomic bool tnc_session_up = false;
+/* A DISCONNECT of this session's has gone to the ARQ. */
+static _Atomic bool tnc_disconnect_passed = false;
+/* A piece of the host's data held back from the ARQ queue, as the reactor
+ * last saw before running a control line; false for a line from
+ * tnc_host_command. */
+static _Atomic bool tnc_host_data_held = false;
+
+/* A piece of the data client's stream the ARQ's payload bus had no room for
+ * (arq_submit_tcp_payload: EAGAIN) during a call.  It is held, and the data
+ * socket is not read again until it is queued: the kernel's receive window
+ * then fills and the host's writes wait (TCP flow control).  Dropped instead, as before, a
+ * 30 kB write lost 33 to 104 of its 128-byte pieces whenever the bus was
+ * full, the host was never told, and the session waited for them for ever
+ * (Go harness, CCIR Poor at 20-24 dB, 4 of 18 sessions).  Only the reactor
+ * thread touches it. */
+static uint8_t held_payload[TCP_BLOCK_SIZE];
+static size_t  held_payload_len = 0;
+
+/* Is a piece of the host's data held back from a full ARQ queue (the data
+ * socket unread meanwhile)?  Reactor thread only. */
+static bool host_data_held(void)
+{
+    return held_payload_len > 0;
+}
+
+void tnc_set_absorb_idle_disconnect_s(int seconds)
+{
+    if (seconds == 0 ||
+        (seconds >= TNC_ABSORB_IDLE_DISCONNECT_S_MIN && seconds <= TNC_ABSORB_IDLE_DISCONNECT_S_MAX))
+        atomic_store(&tnc_absorb_idle_disconnect_ms, (uint64_t)seconds * 1000ULL);
+}
+
+bool tnc_absorb_disconnect_due(const tnc_absorb_state_t *s)
+{
+    if (s->idle_ms == 0 || !s->session_up || s->disconnect_passed)
+        return false;
+    if (s->last_disconnect_ms && s->now_ms - s->last_disconnect_ms < TNC_DISCONNECT_REPEAT_MS)
+        return false;                     /* said again: meant */
+    if (s->host_data_held)
+        return true;                      /* the host's timer runs from its write */
+    return s->now_ms >= s->last_data_rx_ms && s->now_ms - s->last_data_rx_ms >= s->idle_ms;
+}
+
 static ssize_t send_all(int socket_fd, const uint8_t *buffer, size_t len)
 {
     size_t total_sent = 0;
@@ -204,6 +308,10 @@ static int tnc_queue_line(const char *line)
 
 static int tnc_queue_line_critical(const char *line)
 {
+    /* At shutdown the queue is closed on purpose, and the host has been told
+     * what it needs (tell_host_before_closing): not an error. */
+    if (mercury_stop && !atomic_load_explicit(&tnc_txq_open, memory_order_acquire))
+        return -1;
     for (int i = 0; i < TNC_CRITICAL_RETRIES; i++)
     {
         if (tnc_queue_line(line) == 0)
@@ -268,6 +376,10 @@ static int open_listener_socket(int port, int port_type, const char *tag)
 
     if (bind(fd, (struct sockaddr *)&local_addr, sizeof(local_addr)) < 0)
     {
+        char ip[INET_ADDRSTRLEN] = "?";
+        int e = sock_errno();   /* WSAGetLastError() on Windows */
+        inet_ntop(AF_INET, &local_addr.sin_addr, ip, sizeof(ip));
+        HLOGE(tag, "bind %s:%d failed: %s (%d)", ip, port, strerror(e), e);
         SOCK_CLOSE(fd);
         return -1;
     }
@@ -287,17 +399,64 @@ static int open_listener_socket(int port, int port_type, const char *tag)
     return fd;
 }
 
+/* BUFFER's figure: the queue plus the carousel's unconfirmed bytes, as the
+ * FSM's own reports count it.  Not arq_get_runtime_snapshot(): it takes the
+ * session lock, which the event loop holds while it waits for this thread
+ * to drain received bytes (arq_call_in_progress). */
 static int arq_buffered_bytes_snapshot(void)
 {
-    arq_runtime_snapshot_t snapshot;
-    int buffered = 0;
+    int buffered = arq_buffer_bytes_nowait();
+    return buffered < 0 ? 0 : buffered;
+}
 
-    if (arq_get_runtime_snapshot(&snapshot))
-        buffered = snapshot.tx_backlog_bytes;
+/* Whether the link is connected, as last known when the session lock is
+ * busy (arq_link_connected_now). */
+static bool link_connected_cached(void)
+{
+    static bool connected = false;
+    (void)arq_link_connected_now(&connected);
+    return connected;
+}
 
-    if (buffered < 0)
-        buffered = 0;
-    return buffered;
+/* "NAME 20", and also "NAME=20" / "NAME = 20": BPQ32 passes a port's init
+ * lines to the TNC verbatim, and a station's RETRIES=20 was answered WRONG
+ * with nothing in the log to show it.  Only a whole integer counts. */
+static bool parse_int_command(const char *buffer, const char *name, int *out)
+{
+    size_t n = strlen(name);
+    if (strncmp(buffer, name, n) != 0)
+        return false;
+    const char *p = buffer + n;
+    if (*p != ' ' && *p != '\t' && *p != '=')
+        return false;
+    while (*p == ' ' || *p == '\t')
+        p++;
+    if (*p == '=')
+        p++;
+    while (*p == ' ' || *p == '\t')
+        p++;
+    char *end = NULL;
+    long v = strtol(p, &end, 10);
+    if (end == p)
+        return false;
+    while (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n')
+        end++;
+    if (*end != '\0' || v < INT_MIN || v > INT_MAX)
+        return false;
+    *out = (int)v;
+    return true;
+}
+
+/* Commands answered WRONG so far: how tnc_host_command, which gets no
+ * reply, tells a rejected line. */
+static atomic_uint wrong_replies = 0;
+
+/* Answer WRONG, and say so in the log: the host may never show it. */
+static void reply_wrong(const char *command)
+{
+    atomic_fetch_add(&wrong_replies, 1);
+    HLOGW("tcp-ctl", "Command rejected (WRONG): %s", command);
+    tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
 }
 
 static void execute_control_command(char *buffer)
@@ -309,6 +468,10 @@ static void execute_control_command(char *buffer)
         return;
 
     HLOGI("tcp-ctl", "Command received: %s", buffer);
+    /* Some handlers tokenize buffer in place (MYCALL); keep the line as sent
+     * for reply_wrong(). */
+    char received[128];
+    snprintf(received, sizeof(received), "%s", buffer);
 
     if (!strncmp(buffer, "MYCALL", strlen("MYCALL")))
     {
@@ -323,7 +486,7 @@ static void execute_control_command(char *buffer)
         char *tok = strtok_r(tmp, " \t\r\n", &saveptr);
         if (!tok)
         {
-            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            reply_wrong(received);
             return;
         }
 
@@ -337,7 +500,7 @@ static void execute_control_command(char *buffer)
         snprintf(primary_call, sizeof(primary_call), "%s", tok);
         if (arq_submit_tcp_cmd(&cmd) != 0)
         {
-            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            reply_wrong(received);
             return;
         }
 
@@ -385,10 +548,27 @@ static void execute_control_command(char *buffer)
             cmd.type = ARQ_CMD_LISTEN_ON;
         if (temp[1] == 'F')
             cmd.type = ARQ_CMD_LISTEN_OFF;
+        /* A scanning host (BPQ32) sends LISTEN OFF at every hop.  If a CALL
+         * is half received at that moment, nothing else would show it is
+         * lost: say so, with no session up (a LISTEN OFF in a session is
+         * logged by the ARQ layer).  The LISTEN OFF itself drops it: the
+         * decoders are flushed when listening ends with no session after. */
+        const char *inflight_mode = NULL;
+        uint64_t inflight_ms = 0;
+        if (cmd.type == ARQ_CMD_LISTEN_OFF && !link_connected_cached() &&
+            modem_rx_frame_in_flight(&inflight_mode, &inflight_ms))
+            HLOGI("tcp-ctl", "LISTEN OFF %.1f s into a %s frame not yet decoded: "
+                  "LISTEN OFF drops it (or it was noise)",
+                  (double)inflight_ms / 1000.0, inflight_mode ? inflight_mode : "?");
+        /* Each hop starts with LISTEN OFF, and Mercury is told nothing else
+         * of it: the busy detector's floor belongs to the channel it left.
+         * Re-seeding is the operator's choice (BUSYRESEED). */
+        if (cmd.type == ARQ_CMD_LISTEN_OFF && modem_get_busy_reseed_on_hop())
+            modem_busy_channel_changed();
         if (cmd.type != ARQ_CMD_NONE && arq_submit_tcp_cmd(&cmd) == 0)
             tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
         else
-            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            reply_wrong(received);
         return;
     }
 
@@ -416,7 +596,7 @@ static void execute_control_command(char *buffer)
             }
             else
             {
-                tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+                reply_wrong(received);
             }
         }
         else
@@ -426,6 +606,47 @@ static void execute_control_command(char *buffer)
                       on ? 11 : 12);
         }
         return;
+    }
+
+    /* BUSYDETECT ON|OFF  -- the channel-busy detector (ini busy_detect);
+     * BUSYRESEED ON|OFF  -- its new noise floor at each scan hop (ini
+     * busy_reseed_on_hop).  Bare, each reports its state.  Neither is saved:
+     * the ini sets them again at the next start. */
+    {
+        static const struct {
+            const char *name;
+            void      (*set)(bool);
+            bool      (*get)(void);
+        } busy_switches[] = {
+            { "BUSYDETECT", modem_set_busy_detect_enabled, modem_get_busy_detect_enabled },
+            { "BUSYRESEED", modem_set_busy_reseed_on_hop,  modem_get_busy_reseed_on_hop  },
+        };
+        for (size_t k = 0; k < sizeof(busy_switches) / sizeof(busy_switches[0]); k++)
+        {
+            size_t len = strlen(busy_switches[k].name);
+            if (strncmp(buffer, busy_switches[k].name, len) ||
+                (buffer[len] != '\0' && buffer[len] != ' '))
+                continue;
+            char arg[16] = {0};
+            if (sscanf(buffer + len, " %15s", arg) == 1)
+            {
+                if (!strcasecmp(arg, "ON") || !strcasecmp(arg, "OFF"))
+                {
+                    busy_switches[k].set(!strcasecmp(arg, "ON"));
+                    tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+                }
+                else
+                    reply_wrong(received);
+            }
+            else
+            {
+                char reply[32];
+                int n = snprintf(reply, sizeof(reply), "%s %s\r", busy_switches[k].name,
+                                 busy_switches[k].get() ? "ON" : "OFF");
+                tcp_write(CTL_TCP_PORT, (uint8_t *)reply, (size_t)n);
+            }
+            return;
+        }
     }
 
     if (!strncmp(buffer, "PUBLIC", strlen("PUBLIC")))
@@ -440,7 +661,7 @@ static void execute_control_command(char *buffer)
         if (arq_submit_tcp_cmd(&cmd) == 0)
             tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
         else
-            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            reply_wrong(received);
         return;
     }
 
@@ -463,7 +684,7 @@ static void execute_control_command(char *buffer)
             if (arq_submit_tcp_cmd(&cmd) == 0)
                 tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
             else
-                tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+                reply_wrong(received);
         }
         else
         {
@@ -483,7 +704,7 @@ static void execute_control_command(char *buffer)
             arq_submit_tcp_cmd(&cmd) == 0)
             tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
         else
-            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            reply_wrong(received);
         return;
     }
 
@@ -491,12 +712,12 @@ static void execute_control_command(char *buffer)
     {
         memset(&cmd, 0, sizeof(cmd));
         cmd.type = ARQ_CMD_SET_RETRY;
-        if (sscanf(buffer, "RETRIES %d", &cmd.value) == 1 &&
+        if (parse_int_command(buffer, "RETRIES", &cmd.value) &&
             cmd.value >= 0 &&
             arq_submit_tcp_cmd(&cmd) == 0)
             tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
         else
-            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            reply_wrong(received);
         return;
     }
 
@@ -507,6 +728,43 @@ static void execute_control_command(char *buffer)
      * owns the payload mode and would overwrite this within one RX-loop
      * iteration.  Note this does NOT give a later ARQ connection a head start
      * -- every session's start rung comes from the connect. */
+    /* BEACONMODE <index>  -- the mode a broadcast client's station messages
+     * (the beacon: PACKET_TYPE_STATION, sent with CMD_MODEM_FRAME) go on,
+     * instead of the listen mode: 8 (DATAC16, the default) or any index MODE
+     * accepts; -1 sends them at the listen mode.  BEACONMODE alone reports it. */
+    if (!strncmp(buffer, "BEACONMODE", strlen("BEACONMODE")))
+    {
+        int idx = -2;
+        int count = mercury_cli_mode_count();
+        if (sscanf(buffer, "BEACONMODE %d", &idx) == 1)
+        {
+            int mode = idx >= 0 && idx < count ? freedv_modes[idx] : -1;
+            if (idx == -1 ||
+                (mode >= 0 && modem_beacon_mode_ok(mode)))
+            {
+                atomic_store(&bcast_beacon_mode, mode);
+                tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+            }
+            else
+                reply_wrong(received);
+        }
+        else
+        {
+            int mode = atomic_load(&bcast_beacon_mode);
+            char reply[64];
+            int n = snprintf(reply, sizeof(reply), "BEACONMODE -1 LISTEN\r");
+            for (int i = 0; mode >= 0 && i < count; i++)
+                if (freedv_modes[i] == mode)
+                {
+                    n = snprintf(reply, sizeof(reply), "BEACONMODE %d %s\r",
+                                 i, freedv_mode_names[i]);
+                    break;
+                }
+            tcp_write(CTL_TCP_PORT, (uint8_t *)reply, (size_t)n);
+        }
+        return;
+    }
+
     if (!strncmp(buffer, "MODE", strlen("MODE")))
     {
         int idx = -1;
@@ -521,7 +779,7 @@ static void execute_control_command(char *buffer)
             else if (rc == MODEM_LISTEN_MODE_BUSY)
                 tcp_write(CTL_TCP_PORT, (uint8_t *)"BUSY\r", 5);
             else
-                tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+                reply_wrong(received);
         }
         else
         {
@@ -547,18 +805,23 @@ static void execute_control_command(char *buffer)
     {
         memset(&cmd, 0, sizeof(cmd));
         cmd.type = ARQ_CMD_SET_CALLINT;
-        if (sscanf(buffer, "CALLINT %d", &cmd.value) == 1 &&
+        if (parse_int_command(buffer, "CALLINT", &cmd.value) &&
             cmd.value >= 0 &&
             arq_submit_tcp_cmd(&cmd) == 0)
             tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
         else
-            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            reply_wrong(received);
         return;
     }
 
     if (!strncmp(buffer, "BUFFER", strlen("BUFFER")))
     {
+        /* A query is always answered, even with the count of the last BUFFER
+         * line: past tnc_send_buffer's "unchanged" filter, which is for the
+         * unsolicited reports (#584).  The value is still recorded, so the
+         * next report does not repeat it. */
         int buffered = arq_buffered_bytes_snapshot();
+        atomic_store_explicit(&tnc_last_buffer_sent, -1, memory_order_relaxed);
         tnc_send_buffer((uint32_t)buffered);
         return;
     }
@@ -598,7 +861,7 @@ static void execute_control_command(char *buffer)
         char arg[16] = {0};
         if (sscanf(buffer, "TUNE %15s", arg) != 1)
         {
-            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            reply_wrong(received);
             return;
         }
 
@@ -621,7 +884,7 @@ static void execute_control_command(char *buffer)
         float dbfs = 0.0f;
         if (sscanf(arg, "%f", &dbfs) != 1 || modem_tune_start(dbfs) != 0)
         {
-            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            reply_wrong(received);
             return;
         }
         tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
@@ -636,7 +899,7 @@ static void execute_control_command(char *buffer)
             arq_submit_tcp_cmd(&cmd) == 0)
             tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
         else
-            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            reply_wrong(received);
         return;
     }
 
@@ -651,18 +914,43 @@ static void execute_control_command(char *buffer)
             arq_submit_tcp_cmd(&cmd) == 0)
             tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
         else
-            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            reply_wrong(received);
         return;
     }
 
     if (!strncmp(buffer, "DISCONNECT", strlen("DISCONNECT")))
     {
+        uint64_t idle_ms = atomic_load(&tnc_absorb_idle_disconnect_ms);
+        if (idle_ms)
+        {
+            tnc_absorb_state_t s = {
+                .idle_ms            = idle_ms,
+                .session_up         = atomic_load(&tnc_session_up),
+                .disconnect_passed  = atomic_load(&tnc_disconnect_passed),
+                .host_data_held     = atomic_load(&tnc_host_data_held),
+                .now_ms             = monotonic_ms(),
+                .last_data_rx_ms    = atomic_load(&tnc_last_data_rx_ms),
+            };
+            s.last_disconnect_ms = atomic_exchange(&tnc_last_disconnect_ms, s.now_ms);
+            if (tnc_absorb_disconnect_due(&s))
+            {
+                HLOGW("tcp-ctl",
+                      "DISCONNECT absorbed: no host data for %llu s%s, %d bytes still to deliver "
+                      "(absorb_idle_disconnect_s); another DISCONNECT within %d s ends the session",
+                      (unsigned long long)((s.now_ms - s.last_data_rx_ms) / 1000),
+                      s.host_data_held ? " (more held)" : "",
+                      arq_buffered_bytes_snapshot(), TNC_DISCONNECT_REPEAT_MS / 1000);
+                tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+                return;
+            }
+            atomic_store(&tnc_disconnect_passed, true);
+        }
         memset(&cmd, 0, sizeof(cmd));
         cmd.type = ARQ_CMD_DISCONNECT;
         if (arq_submit_tcp_cmd(&cmd) == 0)
             tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
         else
-            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            reply_wrong(received);
         return;
     }
 
@@ -675,19 +963,81 @@ static void execute_control_command(char *buffer)
         if (arq_submit_tcp_cmd(&cmd) == 0)
             tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
         else
-            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            reply_wrong(received);
         return;
     }
 
     if (!strncmp(buffer, "VERSION", strlen("VERSION")))
     {
-        /* VARA compatibility: respond with modem identification.
-         * OpenX6X00: as a VERSION line.  Pat's VARA driver waits, with no
-         * timeout, for a reply that starts "VERSION" or "WRONG"; "VARA
-         * version 4.9.0 registered" was neither, and Pat hung starting
-         * the modem unless the WRONG for its CWID ON came after it asked. */
-        static const char version_reply[] = "VERSION Mercury " MERCURY_VERSION "\r";
-        tcp_write(CTL_TCP_PORT, (uint8_t *)version_reply, sizeof(version_reply) - 1);
+        /* VARA compatibility: respond with modem identification, in two
+         * lines, for two hosts that want different ones.
+         *
+         * VarAC needs "VARA version 4.9.0 registered", exactly: it goes
+         * first and unchanged.
+         *
+         * Pat (Pat-Vara, its VARA HF/FM driver) asks right after its
+         * start-up commands and waits, with no timeout, for a line starting
+         * with "VERSION" or equal to "WRONG"; any other line it ignores.  The
+         * VarAC line alone matched neither: Pat's start-up hung with the
+         * connection open, and its next attempt was refused as a second host
+         * (#627, #591).  While CWID ON was answered WRONG, that WRONG usually
+         * ended the wait, though not when Pat read it before the wait began
+         * (#627); once CWID was accepted, nothing ended it.  The second line
+         * ends it.
+         *
+         * It has VARA's own form, "VERSION VARA HF v<n>" (VarAC logs real
+         * VARA's as "VARA version: VARA HF v4.8.0"): VarAC parses a VERSION
+         * line too, and a shorter "VERSION 4.9.0" made it log "Failed to read
+         * VARA version: Index was outside the bounds of the array" (VarAC
+         * 13.2.7 under Wine). */
+        /* OpenX6X00: the VERSION line names Mercury and its version, not a
+         * VARA HF one: Pat, the only host here (the ports are on 127.0.0.1),
+         * takes what follows "VERSION " as the modem's version and logs it. */
+        static const char reply[] = "VARA version 4.9.0 registered\r"
+                                    "VERSION Mercury " MERCURY_VERSION "\r";
+        tcp_write(CTL_TCP_PORT, (uint8_t *)reply, sizeof(reply) - 1);
+        return;
+    }
+
+    /* VARA's CLEANTXBUFFER: BPQ32 sends it before DISCONNECT at a session
+     * time limit.  Answered WRONG, the DISCONNECT after it drained the whole
+     * backlog first. */
+    if (!strcmp(buffer, "CLEANTXBUFFER"))
+    {
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = ARQ_CMD_CLEAN_TX_BUFFER;
+        /* VARA's reply, not OK: the ARQ thread answers once the clear is
+         * done (tnc_send_cleantxbuffer). */
+        if (arq_submit_tcp_cmd(&cmd) != 0)
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"CLEANTXBUFFER FAILED\r", 21);
+        return;
+    }
+
+    /* "WINLINK SESSION": Pat sends it (or P2P SESSION) before each CONNECT.
+     * No-op like P2P: Mercury runs both the same way. */
+    if (!strcmp(buffer, "WINLINK SESSION"))
+    {
+        tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        return;
+    }
+
+    /* CWID ON|OFF: Pat sends CWID ON after PUBLIC ON at every VARA HF
+     * start, without waiting for the answer.  Mercury keys no CW ID and no
+     * periodic ID: only a CALL or CQ carries the sender's callsign, so
+     * identifying the station is up to the operator or the host.  Accepted
+     * so the host's init does not fail, and ON says so in the log. */
+    if (!strncmp(buffer, "CWID", 4) && (buffer[4] == '\0' || buffer[4] == ' '))
+    {
+        char arg[16] = {0};
+        if (sscanf(buffer + 4, " %15s", arg) != 1 ||
+            (strcasecmp(arg, "ON") && strcasecmp(arg, "OFF")))
+        {
+            reply_wrong(received);
+            return;
+        }
+        if (!strcasecmp(arg, "ON"))
+            HLOGI("tcp-ctl", "CWID ON: Mercury sends no CW ID");
+        tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
         return;
     }
 
@@ -699,7 +1049,7 @@ static void execute_control_command(char *buffer)
     }
 
     HLOGW("tcp-ctl", "Unknown command: %s", buffer);
-    tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+    reply_wrong(received);
 }
 
 static void process_control_bytes(char *line_buf, int *line_len, const uint8_t *data, ssize_t len)
@@ -731,6 +1081,143 @@ static void process_control_bytes(char *line_buf, int *line_len, const uint8_t *
     }
 }
 
+/* One host at a time on each TCP port.
+ *
+ * A control (or data) connection that arrives while a client is connected
+ * and still there is refused: closed at once, and the client keeps the TNC.
+ * It used to take over, closing the client, and two host programs set up for
+ * the same Mercury then took it from each other for good: on air (KG9NI,
+ * 2026-11-12, 16:26-18:11) two BPQ32 ports reconnected every 3 to 7 s, 536
+ * control connects in under two hours, and each one was an
+ * ARQ_CMD_CLIENT_DISCONNECT that would have ended a session.  Each reconnect
+ * logged only "Control client connected", so nothing said why.
+ *
+ * "Still there" is a peek at the client's socket (client_gone): a host that
+ * restarts on this machine has had its old socket closed by the OS (FIN or
+ * RST, already in), so its new connection replaces it as before.  A client
+ * whose peer vanished without a word (a remote host's link down: half-open)
+ * reads as there until TCP keepalive (keep_alive) gives up on it, 40-60 s;
+ * the next connection then gets in.  A host that hangs on this machine
+ * without closing its socket holds the port for good: its kernel answers
+ * the keepalive probes.  Its replacement is refused until the old process
+ * is killed (docs/TNC.md says so; before, the replacement took over). */
+#define REFUSED_SAY_MS 60000
+
+/* The client's socket closed (EOF) or broken: it can be replaced.
+ * Non-blocking: data waiting, or none, is a client still there. */
+static bool client_gone(int fd)
+{
+    char probe;
+    ssize_t got = recv(fd, &probe, 1, MSG_PEEK);
+    if (got > 0)
+        return false;
+    if (got == 0)
+        return true;
+    int e = sock_errno();
+    return e != SOCK_EAGAIN && e != SOCK_EWOULDBLOCK && e != SOCK_EINTR;
+}
+
+/* TCP keepalive on a client's socket, so a half-open one is found dead and
+ * stops refusing its replacement: 30 s idle, then 3 probes 10 s apart
+ * (Linux, about a minute) or 10 probes 1 s apart (Windows, about 40 s).
+ * Plain SO_KEEPALIVE alone waits 2 hours.  Best effort: the system's
+ * defaults where an option is missing. */
+static void keep_alive(int fd)
+{
+    int on = 1;
+    (void)setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (const char *)&on, sizeof(on));
+#if defined(_WIN32)
+    /* Windows sends its probes 1 s apart, 10 of them (Vista and later). */
+    struct tcp_keepalive ka = { .onoff = 1, .keepalivetime = 30000, .keepaliveinterval = 1000 };
+    DWORD ret = 0;
+    (void)WSAIoctl((SOCKET)fd, SIO_KEEPALIVE_VALS, &ka, sizeof(ka), NULL, 0, &ret, NULL, NULL);
+#elif defined(TCP_KEEPIDLE)
+    int idle = 30;
+    (void)setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, (const char *)&idle, sizeof(idle));
+#elif defined(TCP_KEEPALIVE)
+    int idle = 30;   /* macOS */
+    (void)setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, (const char *)&idle, sizeof(idle));
+#endif
+#if defined(TCP_KEEPINTVL)
+    int intvl = 10;
+    (void)setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, (const char *)&intvl, sizeof(intvl));
+#endif
+#if defined(TCP_KEEPCNT)
+    int cnt = 3;
+    (void)setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, (const char *)&cnt, sizeof(cnt));
+#endif
+}
+
+/* Who knocked: "127.0.0.1:52344". */
+static void peer_name(int fd, char *out, size_t len)
+{
+    struct sockaddr_storage ss;
+    socklen_t sl = sizeof(ss);
+    snprintf(out, len, "?");
+    if (getpeername(fd, (struct sockaddr *)&ss, &sl) != 0)
+        return;
+    char host[64] = "?";
+    int port = 0;
+    if (ss.ss_family == AF_INET) {
+        struct sockaddr_in *a = (struct sockaddr_in *)&ss;
+        inet_ntop(AF_INET, &a->sin_addr, host, sizeof(host));
+        port = ntohs(a->sin_port);
+    } else if (ss.ss_family == AF_INET6) {
+        struct sockaddr_in6 *a = (struct sockaddr_in6 *)&ss;
+        inet_ntop(AF_INET6, &a->sin6_addr, host, sizeof(host));
+        port = ntohs(a->sin6_port);
+    }
+    snprintf(out, len, "%s:%d", host, port);
+}
+
+/* A refused connection, said once and then counted: the second host knocks
+ * every few seconds for as long as it runs. */
+typedef struct {
+    const char *comp, *port;
+    unsigned    since_said;     /* refused since the last line */
+    uint64_t    said_ms;        /* 0: never said */
+} refusals_t;
+
+static void refuse_client(refusals_t *r, int fd, int holder, uint64_t now_ms)
+{
+    char who[80], holds[80];
+    peer_name(fd, who, sizeof(who));
+    peer_name(holder, holds, sizeof(holds));
+    SOCK_CLOSE(fd);
+    r->since_said++;
+    if (!r->said_ms) {
+        HLOGW(r->comp, "%s connection from %s refused: %s is connected and keeps the TNC. "
+              "Two host programs (or two ports of one) set up for this Mercury? "
+              "Only one can use it at a time", r->port, who, holds);
+        r->said_ms = now_ms;
+        r->since_said = 0;
+    } else if (now_ms - r->said_ms >= REFUSED_SAY_MS) {
+        HLOGW(r->comp, "%u more %s connections refused in %llu s (the last from %s); %s keeps the TNC",
+              r->since_said, r->port, (unsigned long long)((now_ms - r->said_ms) / 1000), who, holds);
+        r->said_ms = now_ms;
+        r->since_said = 0;
+    }
+}
+
+/* held_payload, held_payload_len: declared above host_data_held(). */
+
+/* Queue the held piece if the bus takes it now; true when none is held.
+ *
+ * A piece held when a call ends goes on the next pass that sees no call up
+ * (dropped, as before); if the host places its next CONNECT before such a
+ * pass, the piece joins the next session -- as do the messages already on
+ * the bus in that case, an old window this does not widen. */
+static bool flush_held_payload(void)
+{
+    if (held_payload_len == 0)
+        return true;
+    if (arq_submit_tcp_payload(held_payload, held_payload_len) != 0)
+        return false;
+    held_payload_len = 0;
+    tnc_send_buffer((uint32_t)arq_buffered_bytes_snapshot());
+    return true;
+}
+
 static void close_data_client(int *data_client_fd)
 {
     if (!data_client_fd || *data_client_fd < 0)
@@ -741,6 +1228,95 @@ static void close_data_client(int *data_client_fd)
     cli_data_sockfd = -1;
     net_set_status(DATA_TCP_PORT, NET_LISTENING);
     HLOGI("tcp-data", "Data client disconnected");
+
+    /* A piece held for the bus (only ever in a call) stays held and goes
+     * when the session makes room: the client has left, its bytes have not. */
+
+    /* Bytes it wrote with no call up would be the first payload of the next
+     * session, with whatever station that is, after their writer has gone
+     * (#572: a readiness probe's one newline broke a B2F session that came
+     * later).  The TX side of the rule arq_discard_stale_rx keeps for RX.
+     * Its BUFFER line, if anything went: the control client still there is
+     * owed the drop to 0, as at a recv. */
+    if (arq_discard_stale_tx() > 0)
+        tnc_send_buffer((uint32_t)arq_buffered_bytes_snapshot());
+}
+
+static void close_ctl_socket(int *ctl_client_fd)
+{
+    SOCK_CLOSE(*ctl_client_fd);
+    *ctl_client_fd = -1;
+    cli_ctl_sockfd = -1;
+    net_set_status(CTL_TCP_PORT, NET_LISTENING);
+    atomic_store_explicit(&tnc_last_buffer_sent, -1, memory_order_relaxed);
+}
+
+/* A web browser on the control port.
+ *
+ * On air (K7EK, 2026-11-14 03:59) Firefox opened the control port twice
+ * ("GET / HTTP/1.1" and its headers, each line answered WRONG) while no host
+ * was connected to it.  It held the port for 30 s and more each time, and its
+ * leaving took BPQ32's data connection with it.  A request line never looks
+ * like a TNC command: a method, a path, then " HTTP/".  So a client whose
+ * first line says " HTTP/" is told, in HTTP so the browser shows it, that this
+ * port is for host programs, and only its own connection is closed: it ran no
+ * command, so the ARQ is not told, and the data client stays. */
+static bool is_http_request(const uint8_t *data, ssize_t len)
+{
+    static const char tag[] = " HTTP/";
+    const size_t tl = sizeof(tag) - 1;
+    for (ssize_t i = 0; i + (ssize_t)tl <= len; i++) {
+        if (data[i] == '\r' || data[i] == '\n')
+            return false;
+        if (memcmp(data + i, tag, tl) == 0)
+            return true;
+    }
+    return false;
+}
+
+static void refuse_web_client(int *ctl_client_fd)
+{
+    static const char reply[] =
+        "HTTP/1.0 400 Bad Request\r\n"
+        "Content-Type: text/plain\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+        "This is Mercury's TNC control port, for host programs such as BPQ32 or Pat.\r\n"
+        "It is not a web page. Mercury's web interface, when it is enabled, is on its\r\n"
+        "UI port (10000 by default).\r\n";
+    char who[80];
+    peer_name(*ctl_client_fd, who, sizeof(who));
+    (void)send(*ctl_client_fd, reply, sizeof(reply) - 1, 0);   /* best effort */
+    /* Closed with request bytes still unread (headers in a later segment),
+     * the socket would answer with a RST, and the browser could show
+     * "connection reset" instead of the reply (#583 review).  So: our side
+     * done (FIN after the reply), and what has arrived read and dropped
+     * before the close.  Non-blocking: only what is already here. */
+    (void)SOCK_SHUTDOWN_WR(*ctl_client_fd);
+    char sink[512];
+    for (int i = 0; i < 64 && recv(*ctl_client_fd, sink, sizeof(sink), 0) > 0; i++)
+        ;
+    HLOGW("tcp-ctl", "control connection from %s is a web browser: closed. This port is for "
+          "host programs (BPQ32, Pat...); the web interface is on the UI port", who);
+    close_ctl_socket(ctl_client_fd);
+}
+
+/* Why poll() ended a host's connection, in the words recv() uses: on Linux a
+ * reset ends here (POLLERR, SO_ERROR = ECONNRESET), where Windows reports it
+ * through recv() (WSAECONNRESET), so both systems' logs read the same (#608
+ * review).  Read before the close: SO_ERROR is the socket's. */
+static void log_client_poll_end(const char *tag, const char *who, int fd, short events)
+{
+    int err = 0;
+    socklen_t len = sizeof(err);
+    if (events & POLLNVAL)
+        HLOGW(tag, "%s client socket invalid (POLLNVAL), closing", who);
+    else if (!(events & POLLERR))
+        HLOGI(tag, "%s client closed the connection", who);
+    else if (getsockopt(fd, SOL_SOCKET, SO_ERROR, (char *)&err, &len) == 0 && err == SOCK_ECONNRESET)
+        HLOGI(tag, "%s client reset the connection", who);
+    else
+        HLOGW(tag, "%s client socket error (err=%d), closing", who, err);
 }
 
 static void close_ctl_client(int *ctl_client_fd, int *data_client_fd, bool notify_arq)
@@ -748,11 +1324,7 @@ static void close_ctl_client(int *ctl_client_fd, int *data_client_fd, bool notif
     if (!ctl_client_fd || *ctl_client_fd < 0)
         return;
 
-    SOCK_CLOSE(*ctl_client_fd);
-    *ctl_client_fd = -1;
-    cli_ctl_sockfd = -1;
-    net_set_status(CTL_TCP_PORT, NET_LISTENING);
-    atomic_store_explicit(&tnc_last_buffer_sent, -1, memory_order_relaxed);
+    close_ctl_socket(ctl_client_fd);
     /* The monitor runs nine extra decoders; a host that crashed or exited
      * must not leave them spinning until the modem restarts.  Clear it on the
      * same disconnect that tears down the rest of the host's state. */
@@ -768,6 +1340,96 @@ static void close_ctl_client(int *ctl_client_fd, int *data_client_fd, bool notif
     }
 
     close_data_client(data_client_fd);
+}
+
+/* The host program as the TNC's client (tnc_host_command).  A host in this
+ * process (the UI's chat window) drives the TNC with the control port's own
+ * lines, in the one client slot, while no TCP control client is attached.
+ * Its replies and state lines go where an absent client's go (nowhere:
+ * drain_tnc_queue_to_ctl); it follows the session from the status instead.
+ * A TCP client that connects takes the slot from it as from another TCP
+ * client, ending its session (host_release_tnc from the accept).
+ * host_tnc_lock makes the host's check-and-run and the accept's taking of
+ * the slot one step each, so the two never hold it together. */
+static atomic_bool host_holds_tnc = false;
+static pthread_mutex_t host_tnc_lock = PTHREAD_MUTEX_INITIALIZER;
+
+/* What a TCP control client's leaving does (close_ctl_client), for the host. */
+static bool host_release_tnc(void)
+{
+    if (!atomic_exchange(&host_holds_tnc, false))
+        return false;
+    modem_set_monitor_enabled(false);
+    arq_cmd_msg_t cmd;
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.type = ARQ_CMD_CLIENT_DISCONNECT;
+    (void)arq_submit_tcp_cmd(&cmd);
+    return true;
+}
+
+int tnc_host_command(const char *line)
+{
+    if (!line)
+        return -1;
+    char buf[256];
+    snprintf(buf, sizeof(buf), "%s", line);
+    size_t n = strlen(buf);
+    while (n > 0 && (buf[n - 1] == '\r' || buf[n - 1] == '\n'))
+        buf[--n] = '\0';
+    if (n == 0)
+        return -1;
+    pthread_mutex_lock(&host_tnc_lock);
+    if (net_get_status(CTL_TCP_PORT) == NET_CONNECTED)
+    {
+        pthread_mutex_unlock(&host_tnc_lock);
+        return -2;
+    }
+    atomic_store(&host_holds_tnc, true);
+    unsigned wrong = atomic_load(&wrong_replies);
+    execute_control_command(buf);
+    bool refused = atomic_load(&wrong_replies) != wrong;
+    pthread_mutex_unlock(&host_tnc_lock);
+    return refused ? -1 : 0;
+}
+
+bool tnc_host_holds(void)
+{
+    return atomic_load(&host_holds_tnc);
+}
+
+void tnc_host_release(void)
+{
+    pthread_mutex_lock(&host_tnc_lock);
+    (void)host_release_tnc();
+    pthread_mutex_unlock(&host_tnc_lock);
+}
+
+/* Something takes the session's received bytes off data_rx_buffer_arq: a TCP
+ * data client (arq_reactor_thread), or else the host holding the TNC
+ * (tnc_host_arq_read).  With neither, cb_deliver_rx_data drops what does not
+ * fit rather than wait on a ring nobody drains. */
+bool tnc_rx_reader_attached(void)
+{
+    return net_get_status(DATA_TCP_PORT) == NET_CONNECTED || atomic_load(&host_holds_tnc);
+}
+
+/* The session's received bytes go to the data client when one is attached
+ * (arq_reactor_thread); otherwise to the host, so the ring never fills and
+ * holds up the ARQ thread (cb_deliver_rx_data waits on a full one). */
+size_t tnc_host_arq_read(uint8_t *buf, size_t len)
+{
+    /* Not under host_tnc_lock: a read under way may end just after the
+     * reactor gives the slot to a TCP client, which is harmless, since that
+     * eviction ends the session anyway. */
+    if (!buf || len == 0 || !atomic_load(&host_holds_tnc) ||
+        net_get_status(DATA_TCP_PORT) == NET_CONNECTED)
+        return 0;
+    size_t n = size_buffer(data_rx_buffer_arq);
+    if (n > len)
+        n = len;
+    if (n == 0 || read_buffer(data_rx_buffer_arq, buf, n) != 0)
+        return 0;
+    return n;
 }
 
 /* The queued lines to the control client, never dropping a byte: what the
@@ -801,6 +1463,24 @@ static void drain_tnc_queue_to_ctl(void)
     }
 }
 
+/* Shutting down: send what is still queued while the host is connected, and
+ * if we are keyed, PTT OFF.  The TX loop stops on the same mercury_stop and
+ * unkeys only after this thread has closed the socket, so its own PTT OFF
+ * never reached the host.  A host that keys the radio from PTT ON / PTT OFF
+ * (BPQ32 with Mercury's PTT method "none") was left believing we were still
+ * transmitting (K7EK, 2026-11-10 18:46:41Z, shutdown 18 s into a 26 s
+ * keydown).  tcp_send_some, not tcp_write: the latter gives up once
+ * mercury_stop is set. */
+static void tell_host_before_closing(void)
+{
+    drain_tnc_queue_to_ctl();
+    if (arq_get_trx() != TX)
+        return;
+    static const uint8_t off[] = "PTT OFF\r";
+    if (tcp_send_some(CTL_TCP_PORT, off, sizeof off - 1) == (ssize_t)(sizeof off - 1))
+        HLOGI("tcp-ctl", "Shutting down while keyed: PTT OFF sent to the host");
+}
+
 static void dispose_tnc_tx_queue(void)
 {
     atomic_store_explicit(&tnc_txq_open, false, memory_order_release);
@@ -817,8 +1497,11 @@ void *arq_reactor_thread(void *port)
     int data_listener = -1;
     int ctl_client = -1;
     int data_client = -1;
+    refusals_t ctl_refused  = { .comp = "tcp-ctl",  .port = "control" };
+    refusals_t data_refused = { .comp = "tcp-data", .port = "data" };
     char ctl_line[TCP_BLOCK_SIZE + 1] = {0};
     int ctl_len = 0;
+    bool ctl_first_read = false;   /* the client's first bytes: a web browser? */
     int last_buffer_report = -1;
     uint64_t next_keepalive_ms = 0;
     uint64_t next_buffer_report_ms = 0;
@@ -866,15 +1549,24 @@ void *arq_reactor_thread(void *port)
             nfds++;
         }
 
+        /* A piece held for the bus first; while one is, the data socket is
+         * not read (the host waits on TCP) and the loop comes back sooner.
+         * Held only in a call: if the call has ended, it goes as before. */
+        if (held_payload_len && !arq_call_in_progress() && !flush_held_payload())
+        {
+            HLOGW("tcp-data", "Failed to queue ARQ data frame(s) (%zu bytes held, no call up)", held_payload_len);
+            held_payload_len = 0;
+        }
+        (void)flush_held_payload();
         if (data_client >= 0)
         {
             pfds[nfds].fd = data_client;
-            pfds[nfds].events = POLLIN | POLLERR | POLLHUP;
+            pfds[nfds].events = held_payload_len ? (POLLERR | POLLHUP) : (POLLIN | POLLERR | POLLHUP);
             nfds++;
         }
 
         {
-            int poll_rc = poll(pfds, (nfds_t)nfds, 100);
+            int poll_rc = poll(pfds, (nfds_t)nfds, held_payload_len ? 10 : 100);
             if (poll_rc < 0)
                 HLOGW("tcp-poll", "poll() error: %d", sock_errno());
         }
@@ -889,14 +1581,24 @@ void *arq_reactor_thread(void *port)
                 {
                     SOCK_CLOSE(fd);
                 }
+                else if (ctl_client >= 0 && !client_gone(ctl_client))
+                {
+                    refuse_client(&ctl_refused, fd, ctl_client, now_ms);
+                }
                 else
                 {
                     arq_cmd_msg_t cmd;
                     if (ctl_client >= 0)
                         close_ctl_client(&ctl_client, &data_client, true);
+                    keep_alive(fd);
+                    ctl_refused.said_ms = 0;   /* a new holder: a refusal is news again */
+                    pthread_mutex_lock(&host_tnc_lock);
+                    if (host_release_tnc())
+                        HLOGI("tcp-ctl", "Control client connected: it takes the TNC from the host program");
                     ctl_client = fd;
                     cli_ctl_sockfd = fd;
                     net_set_status(CTL_TCP_PORT, NET_CONNECTED);
+                    pthread_mutex_unlock(&host_tnc_lock);
                     memset(&cmd, 0, sizeof(cmd));
                     cmd.type = ARQ_CMD_CLIENT_CONNECT;
                     (void)arq_submit_tcp_cmd(&cmd);
@@ -905,6 +1607,7 @@ void *arq_reactor_thread(void *port)
                     last_buffer_report = -1;
                     atomic_store_explicit(&tnc_last_buffer_sent, -1, memory_order_relaxed);
                     ctl_len = 0;
+                    ctl_first_read = true;
                     HLOGI("tcp-ctl", "Control client connected");
                 }
             }
@@ -919,10 +1622,16 @@ void *arq_reactor_thread(void *port)
                 {
                     SOCK_CLOSE(fd);
                 }
+                else if (data_client >= 0 && !client_gone(data_client))
+                {
+                    refuse_client(&data_refused, fd, data_client, now_ms);
+                }
                 else
                 {
                     if (data_client >= 0)
                         close_data_client(&data_client);
+                    keep_alive(fd);
+                    data_refused.said_ms = 0;
                     /* A client that connects with no session up must not be
                      * handed bytes some earlier session left behind: they were
                      * for a reader that is gone.  (With a session up, a client
@@ -946,23 +1655,43 @@ void *arq_reactor_thread(void *port)
             short events = pfds[(ctl_client >= 0) ? 3 : 2].revents;
             if (events & (POLLERR | POLLHUP | POLLNVAL))
             {
+                log_client_poll_end("tcp-data", "Data", data_client, events);
                 close_data_client(&data_client);
             }
+
             else if (events & POLLIN)
             {
                 ssize_t n = recv(data_client, (char *)rx_buf, sizeof(rx_buf), 0);
                 if (n > 0)
                 {
                     HLOGD("tcp-data", "recv %zd bytes from data client", n);
+                    atomic_store(&tnc_last_data_rx_ms, monotonic_ms());
                     int queued = arq_submit_tcp_payload(rx_buf, (size_t)n);
-                    if (queued < 0)
-                        HLOGW("tcp-data", "Failed to queue ARQ data frame(s)");
-                    else
+                    if (queued == 0)
                         tnc_send_buffer((uint32_t)arq_buffered_bytes_snapshot());
+                    else if (errno == EAGAIN && (size_t)n <= sizeof(held_payload) && arq_call_in_progress())
+                    {
+                        /* the bus is full in a call: held, and no more read
+                         * until it is queued (held_payload).  With no call
+                         * up nothing would send it, and the client must be
+                         * read to its end to see it go: dropped, as the
+                         * bytes it leaves behind are (#572). */
+                        memcpy(held_payload, rx_buf, (size_t)n);
+                        held_payload_len = (size_t)n;
+                    }
+                    else
+                        HLOGW("tcp-data", "Failed to queue ARQ data frame(s) (%zd bytes, errno %d)", n, errno);
                 }
                 else if (n == 0 || (n < 0 && sock_errno() != SOCK_EAGAIN && sock_errno() != SOCK_EWOULDBLOCK && sock_errno() != SOCK_EINTR))
                 {
-                    HLOGW("tcp-data", "Data recv returned %zd (err=%d), closing", n, sock_errno());
+                    /* A reset is how a Windows host often leaves (Winlink
+                     * Express: err=10054), as ordinary as a close. */
+                    if (n == 0)
+                        HLOGI("tcp-data", "Data client closed the connection");
+                    else if (sock_errno() == SOCK_ECONNRESET)
+                        HLOGI("tcp-data", "Data client reset the connection");
+                    else
+                        HLOGW("tcp-data", "Data recv returned %zd (err=%d), closing", n, sock_errno());
                     close_data_client(&data_client);
                 }
             }
@@ -973,6 +1702,7 @@ void *arq_reactor_thread(void *port)
             short events = pfds[2].revents;
             if (events & (POLLERR | POLLHUP | POLLNVAL))
             {
+                log_client_poll_end("tcp-ctl", "Control", ctl_client, events);
                 close_ctl_client(&ctl_client, &data_client, true);
             }
             else if (events & POLLIN)
@@ -981,11 +1711,29 @@ void *arq_reactor_thread(void *port)
                 if (n > 0)
                 {
                     HLOGD("tcp-ctl", "recv %zd bytes from control client", n);
-                    process_control_bytes(ctl_line, &ctl_len, rx_buf, n);
+                    bool first = ctl_first_read;
+                    ctl_first_read = false;
+                    if (first && is_http_request(rx_buf, n))
+                        refuse_web_client(&ctl_client);
+                    else
+                    {
+                        /* for an absorbed DISCONNECT: the host's data this
+                         * thread holds back */
+                        atomic_store(&tnc_host_data_held, host_data_held());
+                        process_control_bytes(ctl_line, &ctl_len, rx_buf, n);
+                        atomic_store(&tnc_host_data_held, false);
+                    }
                 }
                 else if (n == 0 || (n < 0 && sock_errno() != SOCK_EAGAIN && sock_errno() != SOCK_EWOULDBLOCK && sock_errno() != SOCK_EINTR))
                 {
-                    HLOGW("tcp-ctl", "Control recv returned %zd (err=%d), closing", n, sock_errno());
+                    /* A reset is how a Windows host often leaves (Winlink
+                     * Express: err=10054), as ordinary as a close. */
+                    if (n == 0)
+                        HLOGI("tcp-ctl", "Control client closed the connection");
+                    else if (sock_errno() == SOCK_ECONNRESET)
+                        HLOGI("tcp-ctl", "Control client reset the connection");
+                    else
+                        HLOGW("tcp-ctl", "Control recv returned %zd (err=%d), closing", n, sock_errno());
                     close_ctl_client(&ctl_client, &data_client, true);
                 }
             }
@@ -1007,7 +1755,7 @@ void *arq_reactor_thread(void *port)
                 {
                     int buffered = arq_buffered_bytes_snapshot();
                     uint64_t said = atomic_load_explicit(&tnc_last_buffer_ms, memory_order_relaxed);
-                    if (tnc_buffer_report_due(buffered, last_buffer_report, arq_is_link_connected(),
+                    if (tnc_buffer_report_due(buffered, last_buffer_report, link_connected_cached(),
                                               now_ms, said))
                     {
                         /* the same count again: past tnc_send_buffer's
@@ -1048,9 +1796,9 @@ void *arq_reactor_thread(void *port)
         }
     }
 
+    tell_host_before_closing();
     close_ctl_client(&ctl_client, &data_client, true);
     close_data_client(&data_client);
-    drain_tnc_queue_to_ctl();
     if (ctl_listener >= 0)
         SOCK_CLOSE(ctl_listener);
     if (data_listener >= 0)
@@ -1119,6 +1867,25 @@ static bool bcast_frame_and_queue(uint8_t *decoded_frame, int frame_len,
 static bool bcast_process_decoded_frame(uint8_t *decoded_frame, int frame_len,
                                          uint8_t kiss_cmd, size_t frame_size)
 {
+    /* A station message, with BEACONMODE set: on that mode, not the listen
+     * mode's ring.  The queue holds a few; past that this client waits, as it
+     * does on a full broadcast ring.  One too big for that mode goes at the
+     * listen mode instead, as with BEACONMODE -1: dropping it would tell the
+     * client nothing. */
+    int beacon_mode = atomic_load(&bcast_beacon_mode);
+    if (kiss_cmd == CMD_MODEM_FRAME && beacon_mode >= 0 && frame_len > 0 &&
+        frame_header_packet_type(decoded_frame[0]) == PACKET_TYPE_STATION)
+    {
+        int rc;
+        while ((rc = modem_beacon_send(decoded_frame, (size_t)frame_len, beacon_mode)) == MODEM_BEACON_FULL &&
+               !mercury_stop && !bcast_client_done)
+            msleep(100);
+        if (rc != MODEM_BEACON_BAD)
+            return rc == 0;
+        HLOGI("tcp-bcast", "Station message of %d bytes does not fit the BEACONMODE frame: sending it at the listen mode",
+              frame_len);
+    }
+
     /* Latch reply command — same framing style goes back to the client */
     atomic_store_explicit(&bcast_reply_cmd,
         (kiss_cmd == CMD_AX25 || kiss_cmd == CMD_AX25CALLSIGN)
@@ -1297,6 +2064,16 @@ static bool bcast_frame_and_queue(uint8_t *decoded_frame, int frame_len,
 static uint8_t bcast_get_tx_payload(uint8_t *frame_buffer, size_t frame_size,
                                      uint8_t **payload_out, int *payload_len_out)
 {
+    /* A station message (the beacon) goes up whole, as it was sent: one
+     * modem frame, at its own mode's size. */
+    if (frame_size >= HEADER_SIZE &&
+        frame_header_packet_type(frame_buffer[0]) == PACKET_TYPE_STATION)
+    {
+        *payload_out     = frame_buffer;
+        *payload_len_out = (int)frame_size;
+        return CMD_MODEM_FRAME;
+    }
+
     /* A length-prefixed broadcast frame is self-describing: detect it from the
      * received frame's own header, independent of what the local client last
      * transmitted (bcast_reply_cmd defaults to CMD_DATA and is reset on every
@@ -1380,8 +2157,8 @@ void broadcast_rx_frame(const uint8_t *frame, size_t len, int mode, float snr)
     memcpy(copy, frame, len);
     uint8_t *payload_start;
     int payload_len;
-    (void)bcast_get_tx_payload(copy, len, &payload_start, &payload_len);
-    if (payload_len > 0)
+    uint8_t cmd = bcast_get_tx_payload(copy, len, &payload_start, &payload_len);
+    if (payload_len > 0 && cmd != CMD_MODEM_FRAME)   /* a beacon is not chat */
     {
         int text_len = payload_len;
         while (text_len > 0 && payload_start[text_len - 1] == '\0')
@@ -1395,8 +2172,16 @@ void broadcast_rx_frame(const uint8_t *frame, size_t len, int mode, float snr)
     if (tap)
         tap(frame, len, mode, snr);
 
+    /* Each frame behind its length: a station message is not the listen
+     * mode's size, and the listen mode can change under buffered frames. */
     if (atomic_load(&bcast_client_present))
-        write_buffer(data_rx_buffer_broadcast, (uint8_t *)frame, len);
+    {
+        uint8_t rec[BCAST_RX_REC_HDR + MAX_PAYLOAD];
+        uint16_t l = (uint16_t)len;
+        memcpy(rec, &l, BCAST_RX_REC_HDR);
+        memcpy(rec + BCAST_RX_REC_HDR, frame, len);
+        write_buffer(data_rx_buffer_broadcast, rec, BCAST_RX_REC_HDR + len);
+    }
 }
 
 void *send_thread(void *client_socket_ptr)
@@ -1412,9 +2197,8 @@ void *send_thread(void *client_socket_ptr)
         return NULL;
     }
 
-    /* Size for the widest selectable frame, not the current one: a listen-mode
-     * change can grow the frame size under a connected client, and the loop
-     * below re-reads it.  MAX_PAYLOAD is 1213 bytes, so this costs nothing. */
+    /* Size for the widest frame, not the listen mode's: each record says its
+     * own size, and MAX_PAYLOAD is 1184 bytes, so this costs nothing. */
     frame_buffer = (uint8_t *)malloc(MAX_PAYLOAD);
     kiss_buffer = (uint8_t *)malloc((MAX_PAYLOAD * 2) + 3);
 
@@ -1428,19 +2212,10 @@ void *send_thread(void *client_socket_ptr)
 
     while (!mercury_stop && !bcast_client_done)
     {
-        /* Re-read: a MODE command can change the broadcast framing while this
-         * client stays connected. */
-        frame_size = atomic_load(&broadcast_frame_size_cfg);
-        if (frame_size == 0 || frame_size > MAX_PAYLOAD)
-        {
-            msleep(100);
-            continue;
-        }
-
         /* Only this worker consumes the RX ring, and the server clears it
-         * after joining us. A full frame therefore cannot disappear between
-         * this size check and read_buffer(). Poll while no frame is ready. */
-        if (size_buffer(data_rx_buffer_broadcast) < frame_size)
+         * after joining us. broadcast_rx_frame writes each record whole, so
+         * once its length is there the frame is too. Poll while none is. */
+        if (size_buffer(data_rx_buffer_broadcast) < BCAST_RX_REC_HDR)
         {
             msleep(100);
             continue;
@@ -1449,12 +2224,15 @@ void *send_thread(void *client_socket_ptr)
         if (bcast_client_done)
             break;
 
-        if (read_buffer(data_rx_buffer_broadcast, frame_buffer, frame_size) < 0)
+        uint16_t rec_len;
+        if (read_buffer(data_rx_buffer_broadcast, (uint8_t *)&rec_len, BCAST_RX_REC_HDR) < 0 ||
+            rec_len == 0 || rec_len > MAX_PAYLOAD ||
+            read_buffer(data_rx_buffer_broadcast, frame_buffer, rec_len) < 0)
             break;
 
         uint8_t *payload_start;
         int payload_len;
-        uint8_t reply_cmd = bcast_get_tx_payload(frame_buffer, frame_size,
+        uint8_t reply_cmd = bcast_get_tx_payload(frame_buffer, rec_len,
                                                   &payload_start, &payload_len);
         if (payload_len <= 0)
             continue;
@@ -1517,7 +2295,7 @@ void *recv_thread(void *client_socket_ptr)
                 /* Re-read: see send_thread. */
                 frame_size = atomic_load(&broadcast_frame_size_cfg);
                 uint8_t kiss_cmd = kiss_last_command();
-                HLOGI("tcp-bcast", "KISS frame decoded: cmd=0x%02X len=%d (expected %zu)",
+                HLOGI("tcp-bcast", "KISS frame decoded: cmd=0x%02X len=%d (listen-mode frame %zu)",
                       kiss_cmd, frame_len, frame_size);
 
                 if (!bcast_process_decoded_frame(decoded_frame, frame_len, kiss_cmd, frame_size))
@@ -1538,6 +2316,15 @@ void *recv_thread(void *client_socket_ptr)
             {
                 hermes_usleep(20000);
                 continue;
+            }
+            /* The server thread shuts the socket down when the client has
+             * gone, to wake this recv(); Windows then answers WSAESHUTDOWN
+             * where Linux returns 0.  That is the client leaving, not an
+             * error (N3JXB, closing VARA Terminal: "err=10058"). */
+            if (err == SOCK_ESHUTDOWN)
+            {
+                HLOGI("tcp-bcast", "Client disconnected.");
+                break;
             }
             HLOGW("tcp-bcast", "Error receiving TCP data (err=%d)", err);
             break;
@@ -1625,6 +2412,17 @@ void *tcp_server_thread(void *port_ptr)
             SOCK_CLOSE(client_socket);
             continue;
         }
+
+        /* Known and left alone (#588): a second client waits in the listen
+         * backlog while one holds this port, and any KISS frame it sends
+         * then is read and transmitted once it is accepted, however late.
+         * That holds even when it has given up: on Linux a client that
+         * aborts with a reset (SO_LINGER 0) still has its buffered frame
+         * returned by recv() before ECONNRESET.  A plain close() or a crash
+         * ends with FIN, not a reset, so only that deliberate abort hits
+         * this, and no KISS client is known to do it.  If late frames from
+         * queued clients ever matter, refuse a second client here as the
+         * control and data ports do. */
 #if defined(SO_NOSIGPIPE)
         setsockopt(client_socket, SOL_SOCKET, SO_NOSIGPIPE, (const char *)&opt, sizeof(opt));
 #endif
@@ -1732,6 +2530,11 @@ void tnc_send_connected()
     const char *source_call = src[0] ? src : my_call;
     const char *dest_call   = dst[0] ? dst : my_call;
     int bw = arq_reported_bandwidth_hz();   /* separate locked call, AFTER the getter returns */
+    /* a new session: its idle time counts from now, no DISCONNECT yet */
+    atomic_store(&tnc_last_data_rx_ms, monotonic_ms());
+    atomic_store(&tnc_last_disconnect_ms, 0);
+    atomic_store(&tnc_disconnect_passed, false);
+    atomic_store(&tnc_session_up, true);
     snprintf(buffer, sizeof(buffer), "CONNECTED %s %s %d\r",
              source_call, dest_call, bw);
     if (tnc_queue_line_critical(buffer) < 0)
@@ -1766,6 +2569,9 @@ void tnc_send_disconnected()
 {
     char buffer[128];
     snprintf(buffer, sizeof(buffer), "DISCONNECTED\r");
+    atomic_store(&tnc_last_disconnect_ms, 0);
+    atomic_store(&tnc_disconnect_passed, false);
+    atomic_store(&tnc_session_up, false);
     if (tnc_queue_line_critical(buffer) < 0)
     {
         HLOGW("tcp-ctl", "Error queuing disconnected message");
@@ -1803,6 +2609,13 @@ void tnc_send_buffer(uint32_t bytes)
     }
 }
 
+void tnc_send_cleantxbuffer(bool dropped_any)
+{
+    if (tnc_queue_line_critical(dropped_any ? "CLEANTXBUFFER OK\r"
+                                            : "CLEANTXBUFFER BUFFEREMPTY\r") < 0)
+        HLOGW("tcp-ctl", "Error queuing CLEANTXBUFFER reply");
+}
+
 /* TNC notification callbacks registered into the ARQ layer.  Decouples ARQ
  * from this file: ARQ calls arq_tnc_send_*(), which dispatch here. */
 static const arq_tnc_callbacks_t g_arq_tnc_cbs = {
@@ -1813,6 +2626,8 @@ static const arq_tnc_callbacks_t g_arq_tnc_cbs = {
     .send_disconnected  = tnc_send_disconnected,
     .send_buffer        = tnc_send_buffer,
     .send_registered    = tnc_send_registered,
+    .send_bitrate       = tnc_send_bitrate_progress,
+    .send_cleantxbuffer = tnc_send_cleantxbuffer,
 };
 
 void tnc_send_sn(float snr)
@@ -1844,6 +2659,20 @@ void tnc_send_bitrate(uint32_t speed_level, uint32_t bps)
     atomic_store_explicit(&last_bitrate_bps, bps, memory_order_relaxed);
     snprintf(buffer, sizeof(buffer), "BITRATE (%u) %u BPS\r", speed_level, bps);
     (void)tnc_queue_line(buffer);
+}
+
+/* A BITRATE line to say the link is still being worked on (the ARQ's
+ * calling keepalive, arq.c call_progress): the rate given, unless the last
+ * BITRATE sent was for the same speed level, whose rate it repeats -- the
+ * modem's, from the codec, where the caller's is from the mode table (an
+ * MFSK CALL read 63 bps from the modem and 58 from the table). */
+void tnc_send_bitrate_progress(uint32_t speed_level, uint32_t bps)
+{
+    if (atomic_load_explicit(&last_bitrate_sl, memory_order_relaxed) == speed_level) {
+        uint32_t last = atomic_load_explicit(&last_bitrate_bps, memory_order_relaxed);
+        if (last) bps = last;
+    }
+    tnc_send_bitrate(speed_level, bps);
 }
 
 void tnc_send_monitor(const char *mode_name, const char *kind,

@@ -113,17 +113,6 @@ static bool get_frequency(uint64_t *hz, void *user) {
     return false;
 }
 
-/* The Fyne bridge's Android hooks (gui_interface/fyne-ui/engine/mercury_bridge.c), which upstream's daemon
- * build does not have: never called here */
-void radio_io_set_usb_fd(const char *device, int dev_fd) {
-    (void)device;
-    (void)dev_fd;
-}
-
-void audioio_set_android_devices(const char *list) {
-    (void)list;
-}
-
 /* ---- The GUI's socket, on the audio thread ------------------------------------------ */
 
 static void gui_close(const char *why) {
@@ -317,11 +306,18 @@ int main(int argc, char **argv) {
     fprintf(stderr, "x6x00-mercury: stopping\n");
 
     /* The exchange ends before Mercury does (host/mercury_host.h). A stop that hangs ends at SIGALRM, as
-     * Mercury's own main() has it */
+     * Mercury's own main() has it.
+     * From 1.9.25 mercury_request_shutdown() first ends a session that is up on the air (one DISCONNECT, a wait of
+     * up to 40 s for it to get out: common/mercury_engine.c, mercury_engine_say_goodbye). Not here: the exchange
+     * that would carry that key has ended, so the DISCONNECT went nowhere while the stop waited for it (4.5 s on
+     * the PC, tools/winlink; into the alarm when the peer's slot is long in coming), and whoever stops the modem
+     * (x6100-winlink: Winlink turned off, another modem chosen) gives it 10 s and expects no key after. It
+     * returns at once when Mercury is stopping already, so the stop is as it was: at once, nothing more sent */
     atomic_store(&quit, true);
     poke();
     pthread_join(th, NULL);
     alarm(10);
+    mercury_stop = true;
     mercury_request_shutdown();
     mercury_shutdown();
     return 0;

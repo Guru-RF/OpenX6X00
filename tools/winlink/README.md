@@ -65,13 +65,24 @@ it, the first time with a download of about 150 MB, then it only gives the path;
   channel is noise only: a tone is a busy channel, which holds that ID back.
   `PROTOCOLMODE FEC`, then `BOGUS`: `FAULT Syntax Err`, the mode still FEC;
   `PROTOCOLMODE ARQ`, as Pat sets it: `PROTOCOLMODE now ARQ`.
-- Mercury: two stations, each a `winlink_host` and an `x6x00-mercury`, what one
-  transmits the other hears with a little noise under it. Mercury answers Pat's
-  `VERSION` with a `VERSION` line even when the `WRONG` for `CWID ON` came first (the
-  order that hung Pat). Pat B listens on varahf; Pat A sends B a 1500-byte message
-  peer to peer (`varahf:///N0BBB?p2p=true`): connected, sent, disconnected, the message
-  in B's inbox, no key stopped by the GUI, both bridges stop on SIGTERM. About a minute
-  (2026-10-29: 58 s, six keys a station, the longest 3.8 s).
+- Mercury (1.9.25): two stations, each a `winlink_host` and an `x6x00-mercury`, what
+  one transmits the other hears with a little noise under it. Mercury takes Pat's
+  start-up commands, `CWID ON` too (1.9.21 said `WRONG` to it), and answers `VERSION`
+  with the line `VERSION Mercury 1.9.25` (our patch; Pat waits for a `VERSION` line
+  with no timeout). Pat B listens on varahf; Pat A sends B a 1500-byte message peer to
+  peer (`varahf:///N0BBB?p2p=true`): connected, sent, disconnected, the message in B's
+  inbox, no key stopped by the GUI. Each station's last key peaks between -7.5 and
+  -5.5 dBFS as the GUI's player gets it: Mercury 1.9.21's level, which the
+  supervisor's `tx_gain_db = -4` keeps (2026-11-22: -6.0 dBFS a data mode, -6.5 the
+  MFSK; with `tx_gain_db = 0`, 1.9.25's own level, -2.0 and -2.5, and the check
+  fails). Then a session of the two Mercurys alone (`CONNECT` on A's host port) and
+  SIGTERM to each bridge with it up: stopped within 3 s with code 0 and no key after
+  (0.1 s; without the bridge's `mercury_stop` before `mercury_request_shutdown()`,
+  1.9.25 waits for a DISCONNECT that the ended audio cannot carry: 4.6 s here). About
+  a minute and a half (2026-11-22, 1.9.25: Pat's session 68 s, eight keys a station,
+  the longest 3.8 s; 2026-10-29, 1.9.21: 58 s, six keys). Both stations are the same
+  build: that 1.9.25 refuses 1.9.24 and older is upstream's word and its code
+  (`datalink_arq/arq.c`), not tested here.
 - XARA: two stations the same way (ON4AAA and ON4BBB at the free speed, N0AAA and
   N0BBB at full speed), each a `winlink_host` and our patched XARA (`tools/xara`),
   started as `x6100-winlink` starts it (`xara --config` with the settings it writes,

@@ -99,8 +99,8 @@ typedef struct
      * frame itself (RX_CAROUSEL). */
     uint8_t  session_id;
     int      mode;
-    uint8_t  payload[1280];           /* >= largest user payload: QAM16C2
-                                       * carries 1213 - 8 = 1205 bytes      */
+    uint8_t  payload[1280];           /* >= largest user payload: DATAC17
+                                       * carries 1184 - 8 = 1176 bytes      */
     size_t   payload_len;
 
     /* RX_CAROUSEL: the control decoder (DATAC16) produced it; otherwise the
@@ -158,7 +158,8 @@ typedef struct
     uint8_t  session_id;               /* random byte chosen by caller         */
     int      call_sends_done;          /* CALLs sent this attempt (escalation) */
     int      call_carrier;             /* the carrier the last CALL went out on */
-    int      call_rx_mode;             /* the carrier the CALL we answer came on */
+    int      call_rx_mode;             /* the connect's ACCEPT carrier: the one we key it
+                                        * on (accept_carrier), or calling, the one it came on */
     char     remote_call[CALLSIGN_MAX_SIZE];
     char     local_call[CALLSIGN_MAX_SIZE];  /* our dialed callsign/SSID for an
                                               * accepted incoming CALL (empty =>
@@ -197,6 +198,8 @@ typedef struct
     bool     tx_active;                /* we are keyed (TX_STARTED seen, no
                                         * TX_COMPLETE yet)                   */
     uint64_t last_tx_end_ms;           /* when our last transmission ended  */
+    uint64_t disc_req_ms;              /* when the application asked to hang up
+                                        * (diagnostics only, #442)            */
     bool     host_released;            /* the application ended this session
                                         * (DISCONNECT/ABORT): nothing more is
                                         * delivered to it until a new one.
@@ -204,7 +207,7 @@ typedef struct
                                         * ABORT, control client gone) sets
                                         * it: it is the one teardown that stays
                                         * CONNECTED (draining the backlog)
-                                        * after the host is told DISCONNECTED.
+                                        * after the host hangs up.
                                         * Peer DISCONNECT, timeouts and LISTEN
                                         * OFF leave CONNECTED at once, so
                                         * nothing is delivered after them. */
@@ -297,14 +300,28 @@ typedef struct
                           int burst_remaining);
 
     /** Notify TCP interface that a connection is established.
-     *  @param remote_call  the peer (caller) callsign
-     *  @param local_call   our dialed callsign/SSID (empty => use primary) */
-    void (*notify_connected)(const char *remote_call, const char *local_call);
+     *  @param remote_call  the peer's callsign
+     *  @param local_call   callee: our dialed callsign/SSID (empty => primary)
+     *  @param we_called    true when we placed the call (an ACCEPT was heard),
+     *                      false when we answered one.  The receiver must take
+     *                      the side from here, not from its own state: an
+     *                      incoming CALL can reset that state after the host
+     *                      queued a CONNECT. */
+    void (*notify_connected)(const char *remote_call, const char *local_call,
+                             bool we_called);
 
     /** Notify TCP interface of an incoming call that is pending acceptance.
      *  @param remote_call  the peer (caller) callsign
      *  @param local_call   our dialed callsign/SSID (empty => use primary) */
     void (*notify_pending)(const char *remote_call, const char *local_call);
+
+    /** Send PENDING again for the call already pending: a repeat of the CALL
+     *  we are answering renews a scanning host's hold (BPQ32: six scan
+     *  intervals per PENDING).  Only the notice: unlike notify_pending, it
+     *  must not reset the connection's addresses, since a host CONNECT may
+     *  have written them while the repeat sat in the queue.
+     *  @param remote_call  the peer (caller) callsign */
+    void (*notify_pending_again)(const char *remote_call);
 
     /** Notify TCP interface that a pending incoming call did not complete. */
     void (*notify_cancelpending)(void);
@@ -378,6 +395,31 @@ void arq_fsm_release(arq_session_t *sess);
  */
 void arq_fsm_dispatch(arq_session_t *sess, const arq_event_t *event);
 
+/* How a spell of listening for calls (LISTENING or ACCEPTING) ended, if the
+ * event ended one.  Zero when it did not, so the result reads as a bool. */
+typedef enum {
+    ARQ_LISTEN_GOES_ON = 0,   /* still listening, or was not                 */
+    ARQ_LISTEN_ENDS_IN_SESSION,  /* a session takes over: CALLING, CONNECTED */
+    ARQ_LISTEN_ENDS_RELEASED, /* to DISCONNECTED: the host has the radio,
+                               * and a scanning host retunes it now         */
+} arq_listen_end_t;
+
+/**
+ * @brief arq_fsm_dispatch(), and whether that one event ended a spell of
+ * listening for calls (LISTENING or ACCEPTING, to any other state), and how.
+ *
+ * The MFSK call listeners must drop what they hold when such a spell ends --
+ * above all at a scanning host's LISTEN OFF, whose LISTEN ON follows within a
+ * millisecond, often in the same batch of events, and usually on another
+ * channel.  Checked per event, so a spell that ends and restarts at once is
+ * still seen (arq.c counts them for the modem).
+ *
+ * ARQ_LISTEN_ENDS_RELEASED is the hop itself: no session goes on, so the
+ * control and payload decoders can drop what they hold as well.  In a session
+ * they cannot: the control decoder is carrying it.
+ */
+arq_listen_end_t arq_fsm_dispatch_ends_listening(arq_session_t *sess, const arq_event_t *event);
+
 /**
  * @brief Return milliseconds until the next deadline, or INT_MAX if idle.
  *
@@ -390,19 +432,42 @@ void arq_fsm_dispatch(arq_session_t *sess, const arq_event_t *event);
 int arq_fsm_timeout_ms(const arq_session_t *sess, uint64_t now);
 
 /** The carrier the next CALL goes out on: the control mode for the first
- *  ARQ_CALL_FAST_SLOTS, then MFSK and the control mode alternately. */
+ *  ARQ_CALL_FAST_SLOTS, then MFSK and the control mode alternately -- or,
+ *  wider than 500 Hz, the floor and then the 500 Hz MFSK twice. */
 int arq_call_carrier(const arq_session_t *sess);
 /** Whether a pattern can arrive now (the modem's detector runs only then). */
 bool arq_fsm_expect_pattern(const arq_session_t *sess, uint64_t now);
+/** Why the channel is busy now (a CAR_KEYED_* sign), 0 when clear: the
+ *  listen-before-talk test the FSM keys by. */
+int arq_fsm_channel_keyed(const arq_session_t *sess);
+/** Whether the FSM will still tell the host DISCONNECTED for this session:
+ *  it is up, or it ended on the peer's DISCONNECT and the reply (then the
+ *  notice) is still to go.  A host DISCONNECT or ABORT is answered at once
+ *  only when it is not (arq.c), so the host hears one per session. */
+bool arq_fsm_notice_owed(const arq_session_t *sess);
 
 /**
  * @brief Human-readable name for a connection state (for log output).
  */
 const char *arq_conn_state_name(arq_conn_state_t s);
 
+/** The link to the peer exists: CONNECTED, or DISCONNECTING (the teardown is
+ *  still an exchange with that peer).  Energy on the channel in these states
+ *  is the peer, not occupancy (the busy detector's mute, modem.c). */
+bool arq_conn_state_has_peer(arq_conn_state_t s);
+
 /**
  * @brief Human-readable name for an event (for log output).
  */
 const char *arq_event_name(arq_event_id_t ev);
+
+/* The carousel's open blocks as BUFFER shows them (arq_buffer_inflight_shown),
+ * as last set with tx_inflight_bytes, readable without the session lock
+ * (BUFFER from the TCP reactor). */
+int arq_fsm_tx_inflight_published(void);
+/* What BUFFER counts of `inflight` unconfirmed bytes in the carousel's open
+ * blocks, `unstopped` of them in blocks no floor BREAK has said are in: those,
+ * but at least 1 while any is unconfirmed (0 means all acknowledged). */
+int arq_buffer_inflight_shown(int inflight, int unstopped);
 
 #endif /* ARQ_FSM_H_ */

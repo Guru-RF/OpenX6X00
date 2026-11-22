@@ -12,11 +12,14 @@ From the air, as the reporters posted them (Pat's log as the mailbox shows it):
   gateway's password challenge (`;PQ:`) went unanswered, "Exchange failed: context deadline exceeded"
   ([#80](https://github.com/Guru-RF/OpenX6X00/issues/80), 2026-10-29).
 
-From the PC, Mercury (`tools/winlink`, `make modems`, 2026-10-29):
+From the PC, Mercury 1.9.25 (`tools/winlink`, `make modems`, 2026-11-22; Mercury 1.9.21's of 2026-10-29
+before, whose lines began with the time alone and whose Pat log said `VARA modem () initialized`):
 
 - `pc-n0aaa-n0bbb-mercury.pat.log`, `.mercury.log`, `.events.log`: station A's Pat log, its
-  x6x00-mercury's log (Mercury's own lines and the bridge's `x6x00-mercury: ...`) and Pat's event log:
-  Pat A sends N0BBB a message peer to peer over Mercury, two stubbed radios.
+  x6x00-mercury's log (Mercury's own lines, with the date and the time, and the bridge's
+  `x6x00-mercury: ...`) and Pat's event log: Pat A sends N0BBB a message peer to peer over Mercury, two
+  stubbed radios; then the test's own session of the two Mercurys, and the bridge stopped with it up.
+  The test's temporary paths are written as the radio's (`/run/ardop.sock`, `/run/winlink/mercury.ini`).
 
 From the PC, XARA (`make modems`, 2026-11-04):
 
@@ -32,7 +35,9 @@ that writes them: ardopcf's `[STATUS: ...]` lines (`third-party/ardopcf/src/comm
 Pat v1.0.0, the same in v1.0.1) and errors (wl2k-go v1.0.1: `Connect timeout`, `aborted while waiting for clear channel`,
 the gateway's `Secure login failed` text from `fbb/handshake_test.go`). With Mercury: Pat-Vara v1.2.0's
 `connect timeout` and `bandwidth ... not supported` (`vara/transport.go`), Pat's `vara initialization
-failed` (`app/connect.go`), and Mercury's `decoder ring full` (`third-party/mercury/modem/modem.c`).
+failed` (`app/connect.go`), and Mercury's `decoder ring full` and `RX backlog exceeded`
+(`third-party/mercury/modem/modem.c`) and its `ACCEPT for ... from Mercury 1.9.24 or older ...`
+(`datalink_arq/arq.c`, 1.9.25: an older station's answer, which only an older Mercury on the air prints).
 XARA's `xara is falling behind real time` and its echo of `REGISTERED <call>`, `LINK REGISTERED` and
 `LINK UNREGISTERED` (`crates/xara/src/audio/mod.rs`, `crates/xara-host/src/response.rs` of v0.1.3; the
 registered run of `make modems` printed them).

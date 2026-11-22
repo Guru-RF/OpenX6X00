@@ -89,7 +89,11 @@ row = filter({xara_bandwidth: 2750}, {tx_filter_low: 160, tx_filter_high: 3000})
 check('XARA at 2750 Hz: 120-2880 Hz, past a TX filter from 160 Hz (red)', row === "100-2900 Hz, Does not cover " +
       "XARA's 120-2880 Hz at 2750 Hz; TX filter 160-3000 Hz: widen the TX filter (red)", row);
 row = filter({modem_choice: 'mercury'});
-check("Mercury's span as before", row === "100-2900 Hz, Covers Mercury's 450-2550 Hz at 2300 Hz", row);
+check("Mercury 1.9.25 at 2300 Hz: 375-2625 Hz", row === "100-2900 Hz, Covers Mercury's 375-2625 Hz at 2300 Hz", row);
+row = filter({modem_choice: 'mercury', mercury_bandwidth: 2750});
+check("Mercury at 2750 Hz: 125-2875 Hz", row === "100-2900 Hz, Covers Mercury's 125-2875 Hz at 2750 Hz", row);
+row = filter({modem_choice: 'mercury', mercury_bandwidth: 500});
+check("Mercury at 500 Hz: 1200-1800 Hz", row === "100-2900 Hz, Covers Mercury's 1200-1800 Hz at 500 Hz", row);
 
 p.eval(between(p.script, 'const PW_STATE', '// 14105000 as "14.105.000"'));     // the names the rows say
 p.eval(between(p.script, '// The outcomes the supervisor keeps apart', 'const form = EditFlow.form'));

@@ -196,11 +196,21 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
   ardopcf's maintainer has stepped back (its README asks for forks), so fixes may have to be ours.
 - **Mercury** (github.com/Rhizomatica/mercury, GPL-3.0-or-later): faster OFDM with a VARA-style TCP interface,
   which Pat's varahf transport talks to. Some Winlink RMS gateways do run it, behind RMS Trimode's or BPQ32's
-  VARA driver: KO0OOO (its banner gives 7.101.5) and K7EK-10, seen in Mercury's issues (#162, #384, #442); only
-  Mercury 1.9.20 and later talk to each other. VARA itself is closed and Windows-only: out.
-  - **Built, experimental, chosen on the Winlink page** (v0.3.7): v1.9.21 vendored as its daemon build
+  VARA driver: KO0OOO (its banner gives 7.101.5) and K7EK-10, seen in Mercury's issues (#162, #384, #442).
+  Mercury's versions connect in groups (its docs/RELEASE-1.9.25.md and discussion #637): 1.9.25 to 1.9.25 only,
+  1.9.20-1.9.24 to one another, 1.9.19 and 1.9.18 each to itself, 1.9.17 and older to one another. VARA itself is
+  closed and Windows-only: out.
+  - **v1.9.25 vendored** (#328, 2026-11-22; v1.9.21 from v0.3.7 to v0.3.13): it does not connect to 1.9.24 or
+    older in either direction, so the radio follows the gateways. Mercury's own level kept as before
+    (tx_gain_db = -4: 1.9.25 alone is 4 dB louder), the stop still at once with a session up, an answer from
+    1.9.24 or older told as that, the Filter row's spans (375-2625 Hz at 2300, 125-2875 Hz at 2750). Tested on
+    the PC only (make modems, two 1.9.25 stations): **not on a radio and not on the air yet**; open there: the
+    processor load (more modes, two MFSK call listeners), the drive and ALC at the kept level, a session with a
+    gateway on 1.9.25, and whether to let 1.9.25 end a session on the air when the modem is stopped (its own
+    DISCONNECT at exit, up to 40 s more of keys: left out for now).
+  - **Built, experimental, chosen on the Winlink page** (v0.3.7): Mercury vendored as its daemon build
     (third-party/mercury, two local patches: the TNC and broadcast ports on 127.0.0.1, VERSION answered with a
-    VERSION line so Pat cannot hang), linked into x6x00-mercury, which takes the audio and the PTT through the
+    VERSION line that names Mercury and its version), linked into x6x00-mercury, which takes the audio and the PTT through the
     GUI's modem socket in its protocol 2 (8000 Hz, keys of up to 40 s; ardopcf stays on protocol 1). In the image
     and the bundle. Operating > Winlink's Modem (ARDOP or Mercury, one at a time) and Mercury's bandwidth (500,
     2300, 2750); x6100-winlink runs x6x00-mercury in place of ardopcf with /run/winlink/mercury.ini, Pat's varahf

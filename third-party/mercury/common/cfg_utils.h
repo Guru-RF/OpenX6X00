@@ -43,6 +43,8 @@
 #define CFG_KEY_RADIO_DEVICE        "main:radio_device"
 #define CFG_KEY_INPUT_DEVICE        "main:input_device"
 #define CFG_KEY_OUTPUT_DEVICE       "main:output_device"
+#define CFG_KEY_INPUT_DEVICE_NAME   "main:input_device_name"
+#define CFG_KEY_OUTPUT_DEVICE_NAME  "main:output_device_name"
 #define CFG_KEY_CAPTURE_CHANNEL     "main:capture_channel"
 #define CFG_KEY_SOUND_SYSTEM        "main:sound_system"
 #define CFG_KEY_ARQ_TCP_BASE_PORT   "main:arq_tcp_base_port"
@@ -50,6 +52,10 @@
 #define CFG_KEY_CALLSIGN            "main:callsign"
 #define CFG_KEY_VERBOSE             "main:verbose"
 #define CFG_KEY_TRACE               "main:trace"
+#define CFG_KEY_LOG_UTC             "main:log_utc"
+#define CFG_KEY_LOG_MAX_MB          "main:log_max_mb"
+#define CFG_LOG_MAX_MB_DEFAULT      20
+#define CFG_LOG_MAX_MB_MAX          100000
 #define CFG_KEY_FREEDV_VERBOSITY    "main:freedv_verbosity"
 #define CFG_KEY_HAMLIB_LOG_LEVEL    "main:hamlib_log_level"
 #define CFG_KEY_RADIO_SERIAL_SPEED  "main:radio_serial_speed"
@@ -65,15 +71,21 @@
 #define CFG_KEY_DISCONNECT_DRAIN_TIMEOUT_S "arq:disconnect_drain_timeout_s"
 #define CFG_KEY_TX_GAIN_DB          "audio:tx_gain_db"
 #define CFG_KEY_TX_DELAY_MS         "audio:tx_delay_ms"
+#define CFG_KEY_PULSE_KEEPALIVE     "audio:pulse_keepalive"
 #define CFG_KEY_TNC_KEEPALIVE_S     "tnc:keepalive_s"
 #define CFG_KEY_TNC_BUFFER_REPORT_MS "tnc:buffer_report_ms"
+#define CFG_KEY_TNC_ABSORB_IDLE_DISCONNECT_S "tnc:absorb_idle_disconnect_s"
 #define CFG_KEY_ARQ_RETRY_STAGGER_MS          "arq:retry_stagger_ms"
+#define CFG_KEY_ARQ_SILENCE_FALLBACK_S        "arq:silence_fallback_s"
+#define CFG_KEY_ARQ_CALL_MAX_S                "arq:call_max_s"
 #define CFG_KEY_ARQ_MFSK_TX_ONLY              "arq:mfsk_tx_only"
+#define CFG_KEY_ARQ_MAX_KEYDOWN_S             "arq:max_keydown_s"
 #define CFG_KEY_BUSY_DETECT                   "channel:busy_detect"
 #define CFG_KEY_BUSY_THRESHOLD_DB             "channel:busy_threshold_db"
 #define CFG_KEY_BUSY_HYSTERESIS_DB            "channel:busy_hysteresis_db"
 #define CFG_KEY_BUSY_ON_DEBOUNCE_MS           "channel:busy_on_debounce_ms"
 #define CFG_KEY_BUSY_HANG_MS                  "channel:busy_hang_ms"
+#define CFG_KEY_BUSY_RESEED_ON_HOP            "channel:busy_reseed_on_hop"
 #define CFG_KEY_STORE_ENABLED                 "store:enabled"
 #define CFG_KEY_STORE_PATH                    "store:path"
 #define CFG_KEY_STORE_MAX_MESSAGES            "store:max_messages"
@@ -96,6 +108,11 @@ typedef struct {
     ptt_config_t ptt;               /* selected PTT method and backend config */
     char     input_device[512];
     char     output_device[512];
+    /* The two devices' names when they were chosen: used to find a device
+     * whose id is gone (Windows gives a USB codec a new id when it is
+     * re-plugged or re-enumerated, under the same name). */
+    char     input_device_name[512];
+    char     output_device_name[512];
     int      capture_channel;       /* LEFT / RIGHT / STEREO */
     int      sound_system;          /* AUDIO_SUBSYSTEM_* or -1 for auto */
     int      arq_tcp_base_port;
@@ -104,6 +121,8 @@ typedef struct {
                                                * when no client has set one  */
     bool     verbose;
     bool     trace;                 /* TRACE log level: raw decoded frame bytes */
+    bool     log_utc;               /* text log timestamps in UTC (default: local) */
+    int      log_max_mb;            /* log file cap: past it, moved to <file>.1 (0: none) */
     int      freedv_verbosity;      /* 0..3 */
     int      disconnect_drain_timeout_s;/* ARQ: absolute cap (s) on how long an
                                     * app DISCONNECT stays deferred while
@@ -114,8 +133,17 @@ typedef struct {
     int      retry_stagger_ms;          /* ARQ: deterministic per-node retry
                                          * offset. 0 disables. Default 2000,
                                          * clamped 0..5000.                  */
+    int      silence_fallback_s;        /* ARQ: seconds of silence before the
+                                         * control moves to the MFSK floor.
+                                         * Default 150, range 110..600.      */
+    int      call_max_s;                /* ARQ: the longest a station calls,
+                                         * seconds, whatever RETRIES says.
+                                         * Default 300, 0 = no cap, max 3600. */
     bool     mfsk_tx_only;              /* ARQ: transmit MFSK only (FSK-only
                                          * radios).  Default false.          */
+    int      max_keydown_s;             /* ARQ: longest carousel round asked
+                                         * for or sent, in s.  0 (default):
+                                         * the protocol's 30 s; else 5..30.  */
     float    tx_gain_db;            /* Linear-equivalent gain on the modulator
                                     * TX samples, in dB. 0.0 = no change.
                                     * Range -20.0 .. +20.0 (clamped). */
@@ -126,11 +154,21 @@ typedef struct {
                                     * slow external PTT more time to key up
                                     * before the signal starts. Clamped
                                     * 0..2000. */
+    bool     pulse_keepalive;       /* PulseAudio: keep playback fed with
+                                    * silence between transmissions (#591);
+                                    * costs idle CPU, so off by default. */
     int      tnc_keepalive_s;       /* IAMALIVE interval on the TNC control
                                     * port. Default 60, clamped 5..600.   */
     int      tnc_buffer_report_ms;  /* BUFFER report interval on the TNC
                                     * control port. Default 1000, clamped
                                     * 100..10000.                          */
+    int      tnc_absorb_idle_disconnect_s; /* Answer OK to, and ignore, a
+                                    * DISCONNECT that comes in a session with
+                                    * no host data for this long (or with it
+                                    * held back by a full TX queue), unless one came in the
+                                    * last 60 s or one went through (Winlink Express
+                                    * P2P inactivity timeout, #392).  Default
+                                    * 0 (off); else 30..3600, 240 suggested. */
     bool     busy_detect;           /* Channel-busy detector on/off. Default
                                     * false (opt-in). Emits VARA "BUSY ON/OFF". */
     int      busy_threshold_db;     /* Passband peak dB above noise floor to
@@ -141,6 +179,8 @@ typedef struct {
                                     * Default 300, clamped 0..5000.           */
     int      busy_hang_ms;          /* Sustain below release before CLEAR.
                                      * Default 1500, clamped 0..10000.         */
+    bool     busy_reseed_on_hop;    /* New noise floor at each scan hop (LISTEN
+                                     * OFF). Default false.                    */
     bool     store_enabled;         /* Persist ARQ/broadcast chat messages to
                                      * disk. Default true.                     */
     char     store_path[512];       /* JSONL message-store path; empty = auto

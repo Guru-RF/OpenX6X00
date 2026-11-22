@@ -82,8 +82,14 @@ static const char *ui_arq_mode_name(int mode)
     case FREEDV_MODE_DATAC15: return "DATAC15";
     case FREEDV_MODE_DATAC17: return "DATAC17";
     case FREEDV_MODE_QAM16C2: return "QAM16C2";
+    case FREEDV_MODE_DATAC17W: return "DATAC17W";
+    case FREEDV_MODE_QAM16C2W: return "QAM16C2W";
+    case FREEDV_MODE_DATAN1: return "DATAN1";
+    case FREEDV_MODE_QAM16N1: return "QAM16N1";
+    case FREEDV_MODE_QAM16N2: return "QAM16N2";
     case MERCURY_MODE_MFSK: return "MFSK";
     case MERCURY_MODE_MFSK_N32: return "MFSK500";
+    case MERCURY_MODE_MFSK_W2:  return "MFSK2K";
     default: return "";
     }
 }
@@ -239,6 +245,12 @@ int ui_comm_handle_command(ui_ctx_t *ctx, const ws_command_t *cmd)
             strncpy(ctx->cfg.output_device, ctx->selected_playback_dev,
                     sizeof(ctx->cfg.output_device) - 1);
             ctx->cfg.output_device[sizeof(ctx->cfg.output_device) - 1] = '\0';
+            /* With their names, which find them if Windows gives them new
+             * ids (audioio_set_saved_device_names). */
+            audioio_device_name(active_system, 1 /* capture */, ctx->cfg.input_device,
+                                ctx->cfg.input_device_name, sizeof(ctx->cfg.input_device_name));
+            audioio_device_name(active_system, 0 /* playback */, ctx->cfg.output_device,
+                                ctx->cfg.output_device_name, sizeof(ctx->cfg.output_device_name));
             ctx->cfg.capture_channel = ctx->rx_input_channel;
             ctx->cfg.sound_system = active_system;
             if (ctx->cfg_path[0] && cfg_write(&ctx->cfg, ctx->cfg_path))

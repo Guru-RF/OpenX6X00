@@ -43,7 +43,7 @@
 # on the bench. Pat listens for no P2P call with any modem, and XARA answers none before Pat asks (tools/xara).
 # Pat asks its VARA HF modem for a CW ID (CWID ON) as it starts it: XARA then identifies as each session closes and
 # after a call with no answer, whatever the callsign (our patch 0004; XARA alone only with a US one), and at once
-# after a call Pat cancels (0005), Mercury not (not one of its commands).
+# after a call Pat cancels (0005), Mercury not (1.9.25 takes the command and sends no CW ID).
 #
 # Pat's own Connect chooses the modem too (#296): our Pat runs `x6100-winlink switch <transport>` before it dials
 # through ARDOP or VARA HF (tools/pat, 0008; OPENX6X00_MODEM_SWITCH in its environment names this file). When the
@@ -544,13 +544,17 @@ def start_ardop(ardop, want):
 
 def write_mercury_ini(want):
     """Mercury's settings (common/cfg_utils.c), in RAM: its TNC ports for Pat (127.0.0.1 only, our patch), no UI and
-    no spectrum, the callsign (Pat sends its own too), no gain or delay of its own (the GUI sets the drive and holds
-    the audio until the radio is keyed), its busy check off (upstream's default), a keepalive well within Pat's 2
-    minutes, and no message store on the root filesystem"""
+    no spectrum, the callsign (Pat sends its own too), its level as before 1.9.25 and no delay of its own (the GUI
+    sets the drive and holds the audio until the radio is keyed), its busy check off (upstream's default), a
+    keepalive well within Pat's 2 minutes, and no message store on the root filesystem.
+    tx_gain_db: Mercury 1.9.25's modulator (modem/modem.c, TX_BASE_GAIN) raises every mode 4 dB, to peaks at -2 dBFS
+    (-2.5 MFSK), before the samples come to x6x00-mercury and the GUI's socket; -4 keeps the -6 dBFS (-6.5 MFSK) of
+    1.9.21 to 1.9.24, the level the GUI's drive was set up and tried on the air with (upstream's own word for the
+    1.9.24 level, docs/RELEASE-1.9.25.md; `make modems` reads the peaks)"""
     call = f"callsign = {want['mycall']}\n" if want["mycall"] else ""
     body = (f"[main]\nui_enabled = false\nwaterfall_enabled = false\narq_tcp_base_port = {MERCURY_PORT}\n"
             f"broadcast_tcp_port = {MERCURY_BROADCAST_PORT}\n{call}\n"
-            "[audio]\ntx_gain_db = 0.0\ntx_delay_ms = 10\n\n[channel]\nbusy_detect = false\n\n"
+            "[audio]\ntx_gain_db = -4.0\ntx_delay_ms = 10\n\n[channel]\nbusy_detect = false\n\n"
             "[tnc]\nkeepalive_s = 60\n\n[store]\nenabled = false\n")
     os.makedirs(RUN, exist_ok=True)
     tmp = f"{MERCURY_INI}.{os.getpid()}"
@@ -708,6 +712,9 @@ ARDOP_STATUS_RE = re.compile(r"\[STATUS: (.*)\]\s*$")
 PAT_QSY_RE = re.compile(r"QSY (ardop|varahf): (.*)$")
 PAT_CONNECTING_RE = re.compile(r"Connecting to (\S+) \((ardop|varahf)\)\.\.\.$")
 XARA_ECHO_RE = re.compile(r"^\s*[\d.]+ < (.*)$")       # a reply XARA sent Pat, as its console echoes it
+# Mercury 1.9.25's warning (datalink_arq/arq.c) for an answer to our call from a station of 1.9.20 to 1.9.24: those
+# still answer a 1.9.25 call, 1.9.25 ignores the answer (the versions do not connect), and Pat's call times out
+MERCURY_OLDER_RE = re.compile(r"\] ACCEPT for \S+ from Mercury 1\.9\.24 or older ")
 
 
 class Tail:
@@ -762,6 +769,7 @@ class Connection:
         self.bw_asked = self.bw_capped = ""        # the gateway list's bw= and the radio's (tools/pat, 0003)
         self.bw = 0                                # Hz, the session's (ardopcf, XARA)
         self.speed = ""                            # XARA's link: "free" (VARA's free levels) or "full"
+        self.older = False                         # Mercury: the answer came from Mercury 1.9.24 or older, ignored
         self.busy_wait = False                     # Pat waited for a clear channel
         self.ardop = ""                            # ardopcf's word: no answer, bandwidth, busy, rejected
         self.accepted = self.receiving = 0         # Pat's log: proposals the gateway accepted, messages coming in
@@ -903,6 +911,15 @@ class Outcome:
         elif st.startswith("ARQ CONNECTION REJECTED BY"):
             c.ardop = c.ardop or "rejected"
 
+    def mercury_line(self, line):
+        """A line of Mercury's own log: the other station answered our call with Mercury 1.9.24 or older
+        (MERCURY_OLDER_RE). Pat's timeout for that call may have been read first, in the same poll"""
+        c = self.current()
+        if c is None or c.transport != "varahf" or not MERCURY_OLDER_RE.search(line):
+            return
+        if c.stage == "dialing" or (c.stage == "failed" and c.failed_in == "dial" and not c.noted):
+            c.older = True
+
     def xara_line(self, line):
         """A reply of XARA's to Pat, as its console echoes it. REGISTERED after Pat's MYCALL: with our calls when it
         runs registered (the VARA licence ticked), alone when not. On the air the caller's bit counts, and the radio
@@ -1034,11 +1051,15 @@ def judge(c, chosen="ardop"):
     if "waiting for clear channel" in low:
         return "failed", "The frequency stayed busy, or Abort was chosen while Pat waited for it to clear", (
             "Try again later, another gateway or another band")
+    if mercury and c.older and "connect timeout" in low:
+        return "failed", f"{gw} answered{on} with Mercury 1.9.24 or older, which does not connect to this radio's", (
+            "The radio has Mercury 1.9.25, and 1.9.25 connects only to 1.9.25: the other station has to update its "
+            "Mercury. Until then try another gateway, or ARDOP")
     if mercury and "connect timeout" in low:
         return "failed", f"No answer from {gw}{on}", (
             "Check the power, the antenna and the SWR, and the radio's screen for \"Winlink: no TX\". The other "
-            "station needs Mercury 1.9.20 or later: a VARA gateway from Pat's list does not answer it. Or try "
-            "another band")
+            "station needs Mercury 1.9.25: 1.9.24 and older do not connect to it, and a VARA gateway from Pat's "
+            "list does not answer it. Or try another band")
     if xara and "connect timeout" in low:
         return "failed", f"No answer from {gw}{on}", (
             "Check the power, the antenna and the SWR, and the radio's screen for \"Winlink: no TX\"; call the "
@@ -1133,8 +1154,10 @@ class Watch:
         self.outcome.xara_full = None              # said again after Pat's MYCALL
 
     def mercury_line(self, line):
-        """A line of Mercury's log: x6x00-mercury on the GUI's socket or not, and its receiver falling behind
-        (MERCURY_BEHIND_SAID: the radio's processor short for it, its connects then fail)"""
+        """A line of Mercury's log: x6x00-mercury on the GUI's socket or not, its receiver falling behind
+        (MERCURY_BEHIND_SAID: the radio's processor short for it, its connects then fail), and what it says of the
+        other station (Outcome). Mercury's own lines begin with the date and time since 1.9.22, with the time
+        before: nothing here goes by where a line begins but x6x00-mercury's, which have neither"""
         if line.startswith("x6x00-mercury: connected to "):
             self.modem = True
         elif line.startswith(("x6x00-mercury: the GUI's socket closed", "x6x00-mercury: stopping")) or (
@@ -1147,6 +1170,8 @@ class Watch:
                     "processor is short for it, and its connections may fail. ARDOP needs far less (Operating > "
                     "Winlink); the logs download from that page helps us measure it"):
                 self.behind_noted = self.behind
+        else:
+            self.outcome.mercury_line(line)
 
     def xara_line(self, line):
         """A line of XARA's log: on the GUI's socket or not (our patch's lines, tools/xara), its receiver falling
