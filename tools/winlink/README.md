@@ -134,7 +134,7 @@ Also here, in Python alone: `winlink_test.py`, the tests of the supervisor
 (`rootfs/usr/sbin/x6100-winlink`: the settings, Pat's config, Mercury's and
 XARA's, XARA's callsign, its speed and the VARA HF licence tick, the outcome of
 each connection from the logs in `fixtures/`, Pat's own switch of the modem,
-#296, Pat's service codes for the modem in use with the user's own kept, #324, and
+#296, Pat's service codes, all three always with the user's own kept, #324, and
 `x6100-winlink modem`, APP > Mail's Modem, #322 and #323: chosen as the page does,
 refused when the modem is not there, XARA without a callsign, during a switch of
 Pat's), and `winlink_web_test.py`, the web
