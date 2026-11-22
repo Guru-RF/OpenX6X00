@@ -8082,7 +8082,12 @@ web mailbox.
   sends the Outbox and fetches the new mail. Another gateway chosen, or the
   dial turned, and the next press is a first one again. When the radio
   cannot go there the line says why ("Not on 7100.0 kHz: FT8 is open, close
-  it"; the radio on the air; LOCK). Back, another band or closing the app
+  it"; the radio on the air; LOCK). It never moves the radio under a
+  connection, also one begun from the web mailbox while the list is open:
+  the app asks Pat at the press ("Not on 7100.0 kHz: a connection is under
+  way", "Pat is calling a gateway", "the modem is being switched for a
+  connection", or "Pat just tuned the radio for a connection, try again in a
+  moment" in the 4 seconds after Pat tuned). Back, another band or closing the app
   without calling takes the radio back to where it was before the first
   press, and so does the end of the connection, as Pat's own tune back does
   for a connection from the web mailbox; a dial you turned yourself in
