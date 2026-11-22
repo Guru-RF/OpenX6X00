@@ -16,8 +16,14 @@
  *  The network, the DMR ID, the hotspot password and the talkgroups are on the web page's DMR page (webserver
  *  apps.py); the callsign is the radio's (Settings > General). The network's rules: the manual, DMR.
  *
+ *  Map (the second button) shows, in place of the two lists, the stations the radio heard in the last 24 hours on
+ *  the world (live_map.c), each in the country of its callsign, and the one talking now in two rings with a window:
+ *  its callsign, name, its record's city and the talkgroup. The helper works the places out (its header: cty.dat,
+ *  radioid.net, a place search) and writes them to MAP_FILE while this window touches MAP_WANT; while the app is not
+ *  connected the helper's "map" gives the stations kept, once, to MAP_KEPT. The MFK zooms, its press goes back.
+ *
  *  After the CX8ANM edition's DMR app (condoruy, Cóndor Tecnológico): DMR heard through mbelib, the window's
- *  talkgroups and last heard.
+ *  talkgroups and last heard, the map.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -26,17 +32,21 @@
 #include "audio.h"
 #include "board.h"
 #include "buttons.h"
+#include "cJSON.h"
 #include "cfg/cfg_api.h"
 #include "dmr_ambe.h"
 #include "dmr_proto.h"
 #include "gui_events.h"
 #include "i18n.h"
 #include "keyboard.h"
+#include "live_map.h"
+#include "map_geo.h"
 #include "msg_box.h"
 #include "olivia_resamp.h"
 #include "params/params.h"
 #include "radio.h"
 #include "scheduler.h"
+#include "station.h"
 #include "styles.h"
 #include "theme.h"
 #include "util.h"
@@ -54,6 +64,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 #ifndef X6100_SBIN
@@ -74,6 +85,14 @@
 #define VOICE_GAP_MS 3000   /* no voice and no end from the helper: the call is over here anyway */
 #define OPEN_AGAIN_MS 5000  /* the stream could not open: tried again after this */
 #define END_WAIT_MS  4000   /* the helper's logout, then it is killed */
+#define MAP_FILE     "/tmp/x6100-dmr-map.json"         /* the helper's, while it listens and a map is looked at */
+#define MAP_WANT     "/tmp/x6100-dmr-map.want"         /* touched while the map shows: the helper writes MAP_FILE */
+#define MAP_KEPT     "/tmp/x6100-dmr-map-kept.json"    /* the helper's "map": the stations kept, asked for here */
+#define MAP_MS       2000   /* the map drawn again */
+#define MAP_WANT_MS  30000  /* MAP_WANT touched again (the helper gives up after 90 s without) */
+#define MAP_KEPT_MS  60000  /* MAP_KEPT asked for again while MAP_FILE is not written */
+#define MAP_FRESH_S  10     /* MAP_FILE older than this: the helper does not write it now */
+#define MAP_PTS      300    /* the helper's own most */
 
 extern char **environ;
 
@@ -81,10 +100,13 @@ static void construct_cb(lv_obj_t *parent);
 static void destruct_cb(void);
 static void conn_cb(button_data_t *b);
 static const char *conn_label(void);
+static void map_cb(button_data_t *b);
+static const char *map_label(void);
 
 static button_data_t btn_conn = {.type = BTN_TEXT_FN, .label_fn = conn_label, .press = conn_cb};
+static button_data_t btn_map  = {.type = BTN_TEXT_FN, .label_fn = map_label, .press = map_cb};
 
-static buttons_page_t page_1 = {{&btn_conn}};
+static buttons_page_t page_1 = {{&btn_conn, &btn_map}};
 
 static dialog_t dialog = {
     .run          = false,
@@ -610,6 +632,238 @@ static void status_cb(lv_timer_t *t) {
     }
 }
 
+/* ---------- the map ---------- */
+
+static lv_obj_t     *map_obj;       /* the canvas; NULL while the lists show */
+static lv_timer_t   *map_timer;
+static int           map_zoom = 1;
+static uint32_t      map_want_ms, map_kept_ms;      /* lv_tick of the last touch and the last "map" asked; 0 never */
+static live_map_pt_t map_pts[MAP_PTS + 1];
+
+static const char *map_label(void) {
+    return map_obj ? "List" : "Map";
+}
+
+static time_t file_mtime(const char *path) {
+    struct stat sb;
+
+    return stat(path, &sb) == 0 ? sb.st_mtime : 0;
+}
+
+/* The helper's "map": the stations kept, to MAP_KEPT; its end waited for here */
+static void *map_kept_fn(void *arg) {
+    char                     **env    = arg;
+    char                      *argv[] = {(char *)HELPER, (char *)"map", (char *)MAP_KEPT, NULL};
+    posix_spawn_file_actions_t fa;
+    pid_t                      pid;
+
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
+    posix_spawn_file_actions_addopen(&fa, 1, "/dev/null", O_WRONLY, 0);
+    posix_spawn_file_actions_addopen(&fa, 2, "/dev/null", O_WRONLY, 0);
+    if (posix_spawn(&pid, HELPER, &fa, NULL, argv, env) == 0) waitpid(pid, NULL, 0);
+    posix_spawn_file_actions_destroy(&fa);
+    free(env);
+    return NULL;
+}
+
+/* While the map shows: MAP_WANT touched, and the stations kept asked for while no helper writes MAP_FILE */
+static void map_ask(bool live) {
+    if (!map_want_ms || lv_tick_elaps(map_want_ms) > MAP_WANT_MS) {
+        int fd = open(MAP_WANT, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
+
+        if (fd >= 0) {
+            futimens(fd, NULL);
+            close(fd);
+        }
+        map_want_ms = lv_tick_get() | 1;
+    }
+    if (!live && (!map_kept_ms || lv_tick_elaps(map_kept_ms) > MAP_KEPT_MS)) {
+        char    **env = helper_env();
+        pthread_t t;
+
+        map_kept_ms = lv_tick_get() | 1;
+        if (env && pthread_create(&t, NULL, map_kept_fn, env) == 0) pthread_detach(t);
+        else free(env);
+    }
+}
+
+static cJSON *map_read(const char *path) {
+    FILE  *f = fopen(path, "r");
+    cJSON *j = NULL;
+
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+
+    fseek(f, 0, SEEK_SET);
+    char *text = len > 0 && len < 512 * 1024 ? malloc((size_t)len + 1) : NULL;
+
+    if (text) {
+        text[fread(text, 1, (size_t)len, f)] = 0;
+        j = cJSON_Parse(text);
+        free(text);
+    }
+    fclose(f);
+    return j;
+}
+
+static bool map_num(const cJSON *o, const char *k, double *v) {
+    const cJSON *j = cJSON_GetObjectItemCaseSensitive(o, k);
+
+    if (!cJSON_IsNumber(j)) return false;
+    *v = j->valuedouble;
+    return true;
+}
+
+static const char *map_str(const cJSON *o, const char *k) {
+    const char *t = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o, k));
+
+    return t ? t : "";
+}
+
+static void map_show(void) {
+    bool        live = want_on && time(NULL) - file_mtime(MAP_FILE) < MAP_FRESH_S;
+    char        box[200] = "", footer[160], place[96];
+    double      lat, lon, clat = 0, clon = 0;
+    const char *src;
+    int         n = 0, heard = 0;
+
+    if (!map_obj) return;
+    map_ask(live);
+    cJSON *j = map_read(live ? MAP_FILE : MAP_KEPT);
+    cJSON *t = cJSON_GetObjectItemCaseSensitive(j, "talker"), *st;
+
+    /* The station talking: only what a helper that listens says of it */
+    if (live && cJSON_IsObject(t)) {
+        const char *call = map_str(t, "call"), *city = map_str(t, "city"), *country = map_str(t, "country");
+        double      id = 0, tg = 0;
+
+        map_num(t, "id", &id);
+        map_num(t, "tg", &tg);
+        snprintf(place, sizeof(place), "%s%s%s", city, city[0] && country[0] ? ", " : "", country);
+        if (call[0]) snprintf(box, sizeof(box), "%.15s\n%.40s\n%s\nTG %u", call, map_str(t, "name"), place, (unsigned)tg);
+        else snprintf(box, sizeof(box), "%u\n%s\nTG %u", (unsigned)id, _("its callsign is not known yet"), (unsigned)tg);
+        if (map_num(t, "lat", &lat) && map_num(t, "lon", &lon)) {
+            map_pts[n].lat  = (float)lat;
+            map_pts[n].lon  = (float)lon;
+            map_pts[n].kind = LIVE_MAP_HIGHLIGHT;
+            snprintf(map_pts[n].label, sizeof(map_pts[n].label), "%s", call);
+            n++;
+        }
+    }
+    cJSON_ArrayForEach(st, cJSON_GetObjectItemCaseSensitive(j, "stations")) {
+        if (n >= MAP_PTS || !map_num(st, "lat", &lat) || !map_num(st, "lon", &lon)) continue;
+        map_pts[n].lat      = (float)lat;
+        map_pts[n].lon      = (float)lon;
+        map_pts[n].kind     = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(st, "recent")) ? LIVE_MAP_ACTIVE : LIVE_MAP_IDLE;
+        map_pts[n].label[0] = 0;
+        n++;
+        heard++;
+    }
+    cJSON_Delete(j);
+
+    if (heard) {
+        snprintf(footer, sizeof(footer), _("%d stations heard in the last 24 hours, each in its callsign's country"), heard);
+        size_t l = strlen(footer);
+
+        if (map_zoom > 1) snprintf(footer + l, sizeof(footer) - l, "   x%d", map_zoom);
+    } else {
+        snprintf(footer, sizeof(footer), "%s", _("No station heard in the last 24 hours: the ones the app hears come here"));
+    }
+    if (station_position(&lat, &lon, &src)) {     /* without a station talking: the radio's own part of the world */
+        clat = lat;
+        clon = lon;
+    }
+    live_map_draw(map_pts, n, map_zoom, clat, clon, box[0] ? box : NULL, footer);
+}
+
+static void map_timer_cb(lv_timer_t *t) {
+    (void)t;
+    map_show();
+}
+
+static void map_close(void);
+
+/* The map's keys: the MFK's turn zooms, its press goes back to the lists */
+static void map_key_cb(lv_event_t *e) {
+    switch (*((uint32_t *)lv_event_get_param(e))) {
+        case LV_KEY_ESC:
+            dialog_destruct();
+            break;
+        case LV_KEY_RIGHT:
+        case LV_KEY_DOWN:
+            if (map_zoom < MAP_ZOOM_MAX) map_zoom *= 2;
+            map_show();
+            break;
+        case LV_KEY_LEFT:
+        case LV_KEY_UP:
+            if (map_zoom > 1) map_zoom /= 2;
+            map_show();
+            break;
+        case LV_KEY_ENTER:
+            map_close();
+            break;
+        case KEY_VOL_LEFT_EDIT:
+        case KEY_VOL_LEFT_SELECT:
+            radio_change_vol(-1);
+            break;
+        case KEY_VOL_RIGHT_EDIT:
+        case KEY_VOL_RIGHT_SELECT:
+            radio_change_vol(1);
+            break;
+        default:
+            break;
+    }
+}
+
+static void map_pressed_cb(lv_event_t *e) {
+    (void)e;
+    map_close();
+}
+
+/* Back to the lists */
+static void map_close(void) {
+    if (!map_obj) return;
+    if (map_timer) lv_timer_del(map_timer);
+    map_timer = NULL;
+    lv_group_remove_obj(map_obj);
+    lv_obj_del_async(map_obj);  /* a key of its own may have asked: not deleted under its event */
+    map_obj = NULL;
+    lv_obj_clear_flag(table, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(heard_lbl, LV_OBJ_FLAG_HIDDEN);
+    lv_group_add_obj(keyboard_group, table);
+    lv_group_focus_obj(table);
+    lv_group_set_editing(keyboard_group, true);
+    buttons_refresh(&btn_map);
+}
+
+/* Map / List: the map in the place of the talkgroups and the last heard */
+static void map_cb(button_data_t *b) {
+    (void)b;
+    if (!dialog.obj || !table) return;
+    if (map_obj) {
+        map_close();
+        return;
+    }
+    map_obj = live_map_create(dialog.obj, 780, DIALOG_H - 108);
+    if (!map_obj) return;
+    lv_obj_set_pos(map_obj, 10, 100);
+    lv_obj_add_flag(table, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(heard_lbl, LV_OBJ_FLAG_HIDDEN);
+    lv_group_remove_obj(table);
+    lv_obj_add_event_cb(map_obj, map_key_cb, LV_EVENT_KEY, NULL);
+    lv_obj_add_event_cb(map_obj, map_pressed_cb, LV_EVENT_PRESSED, NULL);
+    lv_group_add_obj(keyboard_group, map_obj);
+    lv_group_focus_obj(map_obj);
+    lv_group_set_editing(keyboard_group, true);
+    map_want_ms = map_kept_ms = 0;
+    unlink(MAP_KEPT);       /* one of an earlier look: not shown as now's */
+    map_show();
+    map_timer = lv_timer_create(map_timer_cb, MAP_MS, NULL);
+    buttons_refresh(&btn_map);
+}
+
 static bool may_start(void) {
     read_conf();
     if (!set_up) {
@@ -795,6 +1049,10 @@ static void construct_cb(lv_obj_t *parent) {
 /* Closing the window logs out */
 static void destruct_cb(void) {
     session_stop();
+    if (map_timer) lv_timer_del(map_timer);
+    map_timer = NULL;
+    if (map_obj) lv_group_remove_obj(map_obj);
+    map_obj = NULL;         /* deleted with the window */
     if (status_timer) lv_timer_del(status_timer);
     status_timer = NULL;
     lv_group_remove_obj(table);

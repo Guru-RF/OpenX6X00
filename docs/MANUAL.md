@@ -6934,6 +6934,41 @@ air and nobody was worked.
 - After the CX8ANM edition of OpenX6X00 (condoruy), whose listening log this
   is.
 
+**The map**: **Map** (the second button of the app; **List** goes back, and
+so does a press of the MFK) shows the world in place of the two lists, with
+a dot for each station the radio heard in the last 24 hours, brighter when
+that was within 5 minutes. The station talking now is a larger dot in two
+rings with its callsign, and a window has its callsign, name, city and
+country and the talkgroup. The MFK zooms (2, 4, 8, 16 times) around the
+station talking, or around where you are when nobody talks; the bottom line
+counts the stations. The web page's **Map** shows the same, and names a
+station when the pointer is on its dot.
+
+- The places are approximate: DMR sends no positions. A station is drawn in
+  the country of its callsign (cty.dat, the list the FT8 table's countries
+  come from), a little apart from the others of that country; a station
+  without a callsign at radioid.net is not on the map. The station talking
+  is drawn in the city of its radioid.net record when that city is found,
+  else in its country.
+- Finding the city asks two services, and only for a station the radio
+  hears while a map is open on the radio or on the web page, once for a
+  station: radioid.net for the record's city, state and country, and
+  [OpenStreetMap's place search](https://nominatim.openstreetmap.org/)
+  (Nominatim; its data are © OpenStreetMap contributors, under the Open
+  Database Licence) for where that city is, never more than one request a
+  second, as its usage policy asks. Both get the firmware's name and version
+  (`OpenX6X00/0.3.12`) and nothing of yours: no callsign, no DMR ID, no
+  position. The answers are kept in `/mnt/dmr/places.json` (the last 2000
+  stations).
+- The map is of what your own radio heard, from the listening log, on the
+  network you chose. It is not the activity of a whole network: that would
+  take a network's feed made for it, and the radio uses none.
+- Without the app connected the map still shows the stations of the last 24
+  hours; nobody talks then, and nothing is looked up.
+- After the CX8ANM edition of OpenX6X00 (condoruy), whose DMR map of the
+  world this follows: the map on the radio, the country of the callsign and
+  the city of the station heard.
+
 **On the radio:**
 
 - Turn the MFK to a talkgroup and press it: the radio logs in and listens to

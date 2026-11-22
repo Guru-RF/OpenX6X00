@@ -13,6 +13,7 @@
 #   x6100-dmr test            logs in and out: one line, "ok <master>" or "error <reason>" (the web page's Test)
 #   x6100-dmr set-password    the hotspot password, from stdin (the web page): never on a command line
 #   x6100-dmr clear-password
+#   x6100-dmr map [FILE]      the map's stations (below) from what is kept, once, to FILE or stdout: asks nobody
 #
 # run: stdin and stdout are one SOCK_SEQPACKET socket from the GUI, a record each. A record that starts with a 0 byte
 # is a voice burst, DMRD's 33 bytes after the 0; any other is a line of text:
@@ -49,16 +50,35 @@
 #                         Over 2 MB it becomes heard.tsv.1 (the one before it goes) and a new one starts
 # The callsign is the radio's (Settings > General, params.db).
 #
+# The map (APP > DMR > Map, src/live_map.c; the web page's Map): the stations the radio itself heard in the last 24
+# hours, from the listening log, and the one it hears now. DMR sends no positions: a station is drawn in the country
+# of its callsign (cty.dat, the radio's own: /mnt/cty.dat, else the image's), moved a little by its DMR ID so that a
+# country's stations do not all sit on one point. While a map is looked at (whoever shows one touches
+# /tmp/x6100-dmr-map.want every half minute) run writes /tmp/x6100-dmr-map.json every 2 s, and looks up where the
+# station it hears is:
+#   radioid.net                   the city, state and country of the DMR ID's record, once for an ID
+#   nominatim.openstreetmap.org   where that city is (OpenStreetMap's place search; data (c) OpenStreetMap
+#                                 contributors, ODbL): one request for a station heard, never more than one a second,
+#                                 the client named (OpenX6X00/<version>), the answer kept, as its usage policy asks
+# Both only for a station the radio hears while a map shows; what they said is kept in /mnt/dmr/places.json (2000
+# IDs). Nothing of the radio's own (callsign, DMR ID, position) goes to either. The map's file:
+#   {"t": Unix time, "hours": 24, "stations": [{"id", "call", "tg", "lat", "lon", "country", "ago", "recent"}, ...],
+#    "talker": {"id", "call", "name", "tg", "city", "country", "lat", "lon", "exact"} or null}
+# the newest heard first, 300 at most; ago: s since its call ended; recent: within 5 minutes; talker's lat and lon
+# are missing while its country is not known, exact says they are its city's.
+#
 # The log, for a report: /mnt/app_logs/dmr.txt (logins, their ends and why, the calls heard; never the password).
 # The web page's "On the air": /tmp/x6100-dmr.json while it runs.
 #
 # After the CX8ANM edition's x6100-dmr (condoruy/OpenX6X00-CX8ANM c6e7be19, 2cffbc0c): the login and the description,
 # the voice frames passed on to the GUI, the calls' start and end, the names, the web page's last heard; the
-# listening log after its 7841ea61.
+# listening log after its 7841ea61, the map's country of a callsign and city of the station heard after its
+# x6100-dmr-world (6b640aaf).
 #
 # For tests and the bench only: X6100_DMR_DIR (the settings' folder), X6100_DMR_LOG, X6100_DMR_STATUS, X6100_PARAMS_DB,
 # X6100_DMR_RADIOID (the name lookup's URL with {} for the ID; empty: none), X6100_DMR_PING, X6100_DMR_DEAD,
-# X6100_DMR_RETRY, X6100_DMR_STEP (s).
+# X6100_DMR_RETRY, X6100_DMR_STEP (s), X6100_DMR_MAP and X6100_DMR_MAP_WANT (the map's two files), X6100_DMR_PLACE
+# (the place search's URL with {} for the place; empty: none), X6100_CTY (a cty.dat).
 #
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -73,6 +93,7 @@ import sys
 import threading
 import time
 import traceback
+import urllib.parse
 import urllib.request
 
 
@@ -91,6 +112,19 @@ NAMES = os.path.join(DIR, "names.json")
 HEARD_LOG = os.path.join(DIR, "heard.tsv")
 HEARD_LOG_MAX = 2 * 1024 * 1024     # bytes: then it is heard.tsv.1 and a new one starts (some 40 000 calls each)
 HEARD_LOG_MIN = 0.5                 # s: a shorter call (a key touched, one frame of a late entry) is not logged
+PLACES = os.path.join(DIR, "places.json")
+MAP = os.environ.get("X6100_DMR_MAP") or "/tmp/x6100-dmr-map.json"
+MAP_WANT = os.environ.get("X6100_DMR_MAP_WANT") or "/tmp/x6100-dmr-map.want"
+MAP_WANT_S = 90.0                   # s: a map not asked for this long is not looked at any more
+MAP_EVERY = 2.0                     # s: the map's file written this often while it is looked at
+MAP_HOURS = 24                      # the stations heard this long ago are on the map
+MAP_RECENT = 300.0                  # s: heard this short ago is drawn brighter
+MAP_MAX = 300
+MAP_TAIL = 512 * 1024               # bytes of the listening log's end read for the map
+CTY = [os.environ.get("X6100_CTY") or "/mnt/cty.dat", "/usr/share/x6100/cty.dat"]
+PLACE = os.environ.get("X6100_DMR_PLACE", "https://nominatim.openstreetmap.org/search?format=json&limit=1&q={}")
+PLACES_MAX = 2000
+PLACE_GAP = 1.1                     # s between two place searches (the service asks for one a second at most)
 LOG = os.environ.get("X6100_DMR_LOG") or "/mnt/app_logs/dmr.txt"
 LOG_MAX = 256 * 1024
 STATUS = os.environ.get("X6100_DMR_STATUS") or "/tmp/x6100-dmr.json"
@@ -535,6 +569,264 @@ def heard_log(start, src, name, dst, secs, private, network, path=None):
         pass
 
 
+# ---------- the map: where the stations heard are ----------
+
+class Cty:
+    """cty.dat (country-files.com): an entity's line (name: CQ: ITU: continent: latitude: longitude, west positive:
+    ...), then its prefixes, a whole callsign as =CALL; a prefix may have its own <lat/lon>. Read when first asked"""
+
+    def __init__(self, paths=None):
+        self.paths = paths or CTY
+        self.prefix = None
+        self.exact = {}
+        self.longest = 0
+
+    def load(self):
+        self.prefix = {}
+        for path in self.paths:
+            try:
+                with open(path, encoding="latin-1") as f:
+                    self.parse(f.read())
+                break
+            except OSError:
+                continue
+        self.longest = max((len(p) for p in self.prefix), default=0)
+
+    def parse(self, text):
+        ent = None
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            if not line.startswith((" ", "\t")):
+                f = [x.strip() for x in line.split(":")]
+                ent = None
+                if len(f) >= 8:
+                    try:
+                        ent = (f[0], float(f[4]), -float(f[5]))
+                    except ValueError:
+                        pass
+                continue
+            if not ent:
+                continue
+            for tok in line.replace(";", ",").split(","):
+                tok = tok.strip()
+                if not tok:
+                    continue
+                lat, lon = ent[1], ent[2]
+                if "<" in tok and ">" in tok:
+                    try:
+                        a, b = tok[tok.index("<") + 1:tok.index(">")].split("/")
+                        lat, lon = float(a), -float(b)
+                    except ValueError:
+                        pass
+                core = tok
+                for ch in "([<{~":
+                    if ch in core:
+                        core = core[:core.index(ch)]
+                core = core.lstrip("*").upper()
+                if core.startswith("="):
+                    self.exact[core[1:]] = (ent[0], lat, lon)
+                elif core:
+                    self.prefix[core] = (ent[0], lat, lon)
+
+    def lookup(self, call):
+        """(country, lat, lon) of a callsign, None when it is none or no prefix fits"""
+        call = (call or "").upper().strip()
+        if not re.fullmatch(r"(?=[A-Z0-9/]*[A-Z])(?=[A-Z0-9/]*[0-9])[A-Z0-9/]{3,15}", call):
+            return None
+        if self.prefix is None:
+            self.load()
+        if call in self.exact:
+            return self.exact[call]
+        base = max(call.split("/"), key=len)
+        for n in range(min(len(base), self.longest), 0, -1):
+            v = self.prefix.get(base[:n])
+            if v:
+                return v
+        return None
+
+
+def spread(i, lat, lon):
+    """A station's own place around its country's point (up to 1.5 degrees north or south, 2 east or west), the same
+    every time, so that a country's stations do not hide one another"""
+    h = hashlib.sha256(str(i).encode()).digest()
+    return (round(max(-89.0, min(89.0, lat + (h[0] / 255.0 - 0.5) * 3.0)), 2),
+            round((lon + (h[1] / 255.0 - 0.5) * 4.0 + 180.0) % 360.0 - 180.0, 2))
+
+
+def map_wanted():
+    """Somebody looks at a map: the app or the web page touched MAP_WANT not long ago"""
+    try:
+        return 0 <= time.time() - os.path.getmtime(MAP_WANT) < MAP_WANT_S
+    except OSError:
+        return False
+
+
+def get_json(url):
+    req = urllib.request.Request(url, headers={"User-Agent": AGENT % version(), "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read(262144).decode("utf-8", "replace"))
+
+
+class Places:
+    """Where a DMR ID's station is: the city of its radioid.net record, searched once and kept in PLACES ({ID:
+    {"call", "name", "city", "country", "lat", "lon"}}; no "lat": no city, or it was not found). One lookup at a
+    time, in a thread; the place searches PLACE_GAP apart; one that failed is not tried again within NAME_AGAIN"""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.busy = False
+        self.failed = {}
+        self.last_search = -PLACE_GAP
+        try:
+            with open(PLACES, encoding="utf-8") as f:
+                self.db = json.load(f)
+        except (OSError, ValueError):
+            self.db = {}
+        if not isinstance(self.db, dict):
+            self.db = {}
+
+    def get(self, i, ask=False):
+        """The place kept for an ID, None when there is none; ask: looked up in the background then"""
+        with self.lock:
+            v = self.db.get(str(i))
+            if isinstance(v, dict):
+                return v
+            if (ask and RADIOID and not self.busy
+                    and time.monotonic() - self.failed.get(i, -NAME_AGAIN) >= NAME_AGAIN):
+                self.busy = True
+                threading.Thread(target=self.find, args=(i,), daemon=True).start()
+        return None
+
+    def find(self, i):
+        rec = None
+        try:
+            res = (get_json(RADIOID.format(i)) or {}).get("results") or []
+            u = res[0] if res and isinstance(res[0], dict) else {}
+            rec = {"call": clean(u.get("callsign") or "", 12).upper(), "name": clean(u.get("fname") or "", 30),
+                   "city": clean(u.get("city") or "", 40), "country": clean(u.get("country") or "", 40)}
+            q = ", ".join(x for x in (rec["city"], clean(u.get("state") or "", 40), rec["country"]) if x)
+            if rec["city"] and PLACE:
+                wait = PLACE_GAP - (time.monotonic() - self.last_search)
+                if wait > 0:
+                    time.sleep(wait)
+                self.last_search = time.monotonic()
+                g = get_json(PLACE.format(urllib.parse.quote(q)))
+                if isinstance(g, list) and g and isinstance(g[0], dict):
+                    lat, lon = float(g[0]["lat"]), float(g[0]["lon"])
+                    if -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0:
+                        rec["lat"], rec["lon"] = round(lat, 3), round(lon, 3)
+        except Exception as e:
+            log(f"the place of {i}: {e.__class__.__name__}")
+            rec = None
+        with self.lock:
+            self.busy = False
+            if rec is None:
+                self.failed[i] = time.monotonic()
+                return
+            self.db[str(i)] = rec
+            while len(self.db) > PLACES_MAX:
+                del self.db[next(iter(self.db))]
+            try:
+                write_private(PLACES, json.dumps(self.db))
+            except OSError:
+                pass
+
+
+class WorldMap:
+    """The stations heard in the last MAP_HOURS hours, from the listening log's end and the calls since, and the map's
+    file of them. name_of(ID): the name kept for an ID ("" when none)"""
+
+    def __init__(self, name_of, places, path=None):
+        self.name_of, self.places = name_of, places
+        self.cty = Cty()
+        self.st = {}            # DMR ID -> [name as logged, talkgroup, when its last call ended], the newest last
+        self.written = 0.0
+        for name in (".1", ""):
+            self.load((path or HEARD_LOG) + name)
+
+    def load(self, path):
+        try:
+            with open(path, "rb") as f:
+                f.seek(0, os.SEEK_END)
+                size = f.tell()
+                f.seek(max(0, size - MAP_TAIL))
+                lines = f.read().decode("utf-8", "replace").splitlines()
+        except OSError:
+            return
+        for line in lines[1 if size > MAP_TAIL else 0:]:       # the first may be half a line
+            p = line.split("\t")
+            try:
+                start, i, dst, secs = int(p[0]), int(p[1]), int(p[3]), int(p[4])
+            except (ValueError, IndexError):
+                continue
+            self.heard(i, p[2], dst, start + secs)
+
+    def heard(self, i, name, dst, end):
+        self.st.pop(i, None)
+        self.st[i] = [name, dst, end]
+        while len(self.st) > 4 * MAP_MAX:
+            del self.st[next(iter(self.st))]
+
+    def where(self, i, who):
+        """(callsign, country, lat, lon) of a station by its name ("ON4ABC Jan"), None when its callsign has none"""
+        call = who.partition(" ")[0].upper()
+        c = self.cty.lookup(call)
+        return (call, c[0]) + spread(i, c[1], c[2]) if c else None
+
+    def snapshot(self, talker=None):
+        """talker: {"id", "tg"} of the call on now (and "name" when the caller has one), or None"""
+        now = time.time()
+        out = []
+        for i, (name, dst, end) in reversed(list(self.st.items())):
+            if not -MAP_RECENT <= now - end < MAP_HOURS * 3600 or len(out) >= MAP_MAX:
+                continue
+            w = self.where(i, name or self.name_of(i))
+            if w:
+                out.append({"id": i, "call": w[0], "tg": dst, "lat": w[2], "lon": w[3], "country": w[1],
+                            "ago": int(max(0, now - end)), "recent": now - end < MAP_RECENT})
+        t = None
+        if talker:
+            i = int(talker["id"])
+            who = clean(talker.get("name") or self.name_of(i), 40)
+            call, _, name = who.partition(" ")
+            t = {"id": i, "call": call.upper(), "name": name, "tg": int(talker["tg"]), "city": "", "country": "",
+                 "exact": False}
+            place = self.places.get(i, ask=map_wanted())
+            if place:
+                t["call"] = t["call"] or str(place.get("call") or "")
+                t["name"] = t["name"] or str(place.get("name") or "")
+                t["city"], t["country"] = str(place.get("city") or ""), str(place.get("country") or "")
+                if isinstance(place.get("lat"), (int, float)) and isinstance(place.get("lon"), (int, float)):
+                    t["lat"], t["lon"], t["exact"] = place["lat"], place["lon"], True
+            if "lat" not in t:
+                w = self.where(i, t["call"])
+                if w:
+                    t["lat"], t["lon"] = w[2], w[3]
+                    t["country"] = t["country"] or w[1]
+        return {"t": int(now), "hours": MAP_HOURS, "stations": out, "talker": t}
+
+    def write(self, talker=None, path=None):
+        path = path or MAP
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            json.dump(self.snapshot(talker), f, ensure_ascii=False, separators=(",", ":"))
+        os.replace(path + ".tmp", path)
+        self.written = time.monotonic()
+
+    def tick(self, talker):
+        """The map's file while a map is looked at, every MAP_EVERY s; gone once nobody looks"""
+        if time.monotonic() - self.written < MAP_EVERY:
+            return
+        try:
+            if map_wanted():
+                self.write(talker)
+            elif self.written:
+                self.written = 0.0
+                os.remove(MAP)
+        except OSError:
+            self.written = time.monotonic()
+
+
 # ---------- the calls ----------
 
 class Calls:
@@ -542,8 +834,8 @@ class Calls:
     its first voice frame (a late entry) and ends with its terminator or CALL_END s without voice. Another call while
     one is on waits; a private call not to this hotspot, data and a frame seen twice are dropped"""
 
-    def __init__(self, s, gui, status, names):
-        self.s, self.gui, self.status, self.names = s, gui, status, names
+    def __init__(self, s, gui, status, names, world=None):
+        self.s, self.gui, self.status, self.names, self.world = s, gui, status, names, world
         self.call = None        # dict: stream, src, dst, private, slot, start, last, seq
 
     def packet(self, d):
@@ -602,11 +894,16 @@ class Calls:
         self.status.heard(c["src"], name, c["dst"], c["wall"], secs)
         if secs >= HEARD_LOG_MIN:
             heard_log(c["wall"], c["src"], name, c["dst"], secs, c["private"], self.s.name)
+            if self.world:
+                self.world.heard(c["src"], name, c["dst"], int(c["wall"] + secs))
         self.status.set(talker=None)
 
     def tick(self):
         if self.call and time.monotonic() - self.call["last"] >= CALL_END:
             self.end()
+        if self.world:
+            c = self.call
+            self.world.tick({"id": c["src"], "tg": c["dst"]} if c else None)
 
 
 def listen(link, gui, status, calls):
@@ -652,7 +949,7 @@ def run(tg, gui):
         return 1
     status = Status(s, tg)
     names = Names(lambda i, name: gui.line(f"name {i} {name}"))
-    calls = Calls(s, gui, status, names)
+    calls = Calls(s, gui, status, names, WorldMap(lambda i: (names.entry(i) or ("",))[0], Places()))
     wait = RETRY
     try:
         while not gui.gone.is_set():
@@ -694,6 +991,10 @@ def run(tg, gui):
         return 0
     finally:
         Status.remove()
+        try:
+            os.remove(MAP)
+        except OSError:
+            pass
 
 
 def test():
@@ -714,6 +1015,30 @@ def test():
         return f"error {e}"
     log(f"test: logged in to {s.host}:{s.port} as {s.hid} and out")
     return f"ok {s.name} {s.host}:{s.port}, hotspot {s.hid}"
+
+
+def map_once(path=None):
+    """The map from what is kept (the listening log, the names, the places), with the station the app hears now when
+    it listens (its STATUS): to path, else stdout. Asks nobody"""
+    names = Names(None)
+    talker = None
+    try:
+        if time.time() - os.path.getmtime(STATUS) < 60:
+            with open(STATUS, encoding="utf-8") as f:
+                d = json.load(f)
+            t = d.get("talker") if isinstance(d, dict) and d.get("state") == "online" else None
+            if isinstance(t, dict):
+                talker = {"id": int(t["id"]), "name": str(t.get("name") or ""), "tg": int(t["tg"])}
+    except (OSError, ValueError, TypeError, KeyError):
+        talker = None
+    places = Places()
+    places.get = lambda i, ask=False, kept=places.db: kept.get(str(i)) if isinstance(kept.get(str(i)), dict) else None
+    world = WorldMap(lambda i: (names.entry(i) or ("",))[0], places)
+    if path:
+        world.write(talker, path)
+    else:
+        json.dump(world.snapshot(talker), sys.stdout, ensure_ascii=False, separators=(",", ":"))
+        print()
 
 
 def set_password():
@@ -740,6 +1065,13 @@ def main(argv):
         if cmd == "run" and len(argv) <= 3:
             tg = int(argv[2]) if len(argv) == 3 and argv[2].isdigit() else 0
             return run(tg, Gui(socket.socket(fileno=0)))
+        if cmd == "map" and len(argv) <= 3:
+            try:
+                map_once(argv[2] if len(argv) == 3 else None)
+            except OSError as e:
+                print(f"error {e}", file=sys.stderr)
+                return 1
+            return 0
         if cmd == "test" and len(argv) == 2:
             line = test()
             for h in log.hide:
@@ -756,7 +1088,7 @@ def main(argv):
     except Exception:
         log("failed:\n" + traceback.format_exc())
         raise
-    print("usage: x6100-dmr run [TG] | test | set-password | clear-password", file=sys.stderr)
+    print("usage: x6100-dmr run [TG] | test | set-password | clear-password | map [FILE]", file=sys.stderr)
     return 2
 
 

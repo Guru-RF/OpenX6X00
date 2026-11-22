@@ -6040,5 +6040,43 @@ def get_dmr_log_csv():
     return out.getvalue()
 
 
+# The DMR page's Map: the stations the radio heard in the last 24 hours, each in the country of its callsign, and the
+# one talking now in the city of its radioid.net record, as APP > DMR > Map shows them (the helper's header). While
+# the page's map is open it touches DMR_MAP_WANT, and a helper that listens writes DMR_MAP every 2 s (and looks up
+# the talker's city); with no helper listening, its "map" gives the stations kept, asked for at most every 20 s.
+
+DMR_MAP_FRESH = 10              # s: DMR_MAP older than this is not written now
+DMR_MAP_KEPT = 20               # s: the stations kept, asked of the helper again after this
+dmr_map_kept = {"at": 0.0, "map": None}
+dmr_map_lock = threading.Lock()
+DMR_MAP_EMPTY = {"t": 0, "hours": 24, "stations": [], "talker": None}
+
+
+@app.get('/api/dmr/map')
+def get_dmr_map():
+    try:
+        with open(settings.DMR_MAP_WANT, "a"):
+            os.utime(settings.DMR_MAP_WANT, None)
+    except OSError:
+        pass
+    try:
+        if time.time() - os.path.getmtime(settings.DMR_MAP) < DMR_MAP_FRESH:
+            with open(settings.DMR_MAP, encoding="utf-8") as f:
+                d = json.load(f)
+            if isinstance(d, dict):
+                return dict(d, live=True)
+    except (OSError, ValueError):
+        pass
+    with dmr_map_lock:
+        if time.monotonic() - dmr_map_kept["at"] >= DMR_MAP_KEPT or dmr_map_kept["map"] is None:
+            rc, line = dmr_run(["map"], timeout=20)
+            try:
+                d = json.loads(line) if rc == 0 else None
+            except ValueError:
+                d = None
+            dmr_map_kept.update(at=time.monotonic(), map=d if isinstance(d, dict) else DMR_MAP_EMPTY)
+        return dict(dmr_map_kept["map"], talker=None, live=False)
+
+
 # The Bands, Digital modes, Time and Files pages, static files: config_pages.py adds their routes to app
 from . import config_pages   # noqa: E402,F401  (last: it imports app and api_error from here)

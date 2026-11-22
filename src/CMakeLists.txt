@@ -38,7 +38,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     apps_menu.c
     birdie.c dialog_birdie.c dialog_flights.c
     dialog_zello.c zello.c voice_net.c voice_link.c voice_ptt.c ctcss.c dialog_svx.c svx.c svx_proto.c
-    dialog_dmr.c dmr_ambe.c dmr_proto.c
+    dialog_dmr.c dmr_ambe.c dmr_proto.c live_map.c
     dialog_meteo.c meteo.c meteo_alerts.c
     first_start.c first_start_rule.c first_start_kbd.c
     dialog_cw_trainer.c cw_trainer_score.c

@@ -16,7 +16,12 @@ through dmr_proto_dump) and checked there.
   - settings missing, a BrandMeister master: refused before any packet;
   - the password: set and cleared through stdin, for root alone, never in what the helper writes or says;
   - Test, the web page's; the names from a lookup, asked again when old (30 days; a day for an ID not known), an
-    empty answer never wiping a name known; the web page's status file.
+    empty answer never wiping a name known; the web page's status file;
+  - the listening log: a line a call, the short ones left out, the full log set aside;
+  - the map: the stations heard in the last 24 hours in their callsign's country (the repository's cty.dat), the
+    one talking in the city of its record (a radioid.net and a place search of the test's, on 127.0.0.1), asked
+    once and kept, and only while a map is looked at; the map's file gone when nobody looks; "map" alone asks
+    nobody.
 
     python3 -I -B dmr_test.py
 """
@@ -34,10 +39,12 @@ import tempfile
 import threading
 import time
 import unittest
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HELPER = os.path.join(HERE, "..", "..", "rootfs", "usr", "sbin", "x6100-dmr")
+CTY = os.path.join(HERE, "..", "..", "third-party", "cty", "cty.dat")
 DUMP = os.path.join(HERE, "dmr_proto_dump")
 _spec = importlib.util.spec_from_file_location("fake_master", os.path.join(HERE, "fake_master.py"))
 fake_master = importlib.util.module_from_spec(_spec)
@@ -60,8 +67,25 @@ class Names(BaseHTTPRequestHandler):
     def do_GET(self):
         i = self.path.rsplit("=", 1)[-1]
         Names.asked.append(int(i))
-        res = [] if int(i) in Names.unknown else [{"id": int(i), "callsign": "ON4ABC", "fname": "Jan"}]
+        res = [] if int(i) in Names.unknown else [{"id": int(i), "callsign": "ON4ABC", "fname": "Jan",
+                                                    "city": "Gent", "state": "Oost-Vlaanderen", "country": "Belgium"}]
         body = json.dumps({"results": res}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *a):
+        pass
+
+
+class PlaceSearch(BaseHTTPRequestHandler):
+    """The place search's answer, on 127.0.0.1: what was asked kept in asked"""
+    asked = []
+
+    def do_GET(self):
+        PlaceSearch.asked.append(urllib.parse.unquote(self.path.rsplit("q=", 1)[-1]))
+        body = json.dumps([{"lat": "51.0538", "lon": "3.7251", "display_name": "Gent"}]).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
@@ -139,8 +163,11 @@ class DmrHelper(unittest.TestCase):
         con.close()
         self.conf()
         self.set_password(PASSWORD)
+        self.map = os.path.join(self.dir, "map.json")
+        self.want = os.path.join(self.dir, "map.want")
         self.env = dict(os.environ, X6100_DMR_DIR=self.data, X6100_DMR_LOG=self.log, X6100_DMR_STATUS=self.status,
-                        X6100_PARAMS_DB=self.db, X6100_DMR_RADIOID="", **FAST)
+                        X6100_PARAMS_DB=self.db, X6100_DMR_RADIOID="", X6100_DMR_MAP=self.map,
+                        X6100_DMR_MAP_WANT=self.want, X6100_DMR_PLACE="", X6100_CTY=CTY, **FAST)
         self.sessions = []
 
     def tearDown(self):
@@ -371,6 +398,147 @@ class DmrHelper(unittest.TestCase):
         old = self.heard_log("heard.tsv.1")
         self.assertGreater(len(old), 40000)
         self.assertEqual(old[0][1], "9990009")
+
+    # ---------- the map ----------
+
+    def map_servers(self):
+        env = self.names_server()
+        PlaceSearch.asked = []
+        httpd = HTTPServer(("127.0.0.1", 0), PlaceSearch)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        return dict(env, X6100_DMR_PLACE=f"http://127.0.0.1:{httpd.server_port}/search?format=json&limit=1&q={{}}")
+
+    def look(self):
+        """Somebody looks at a map"""
+        with open(self.want, "a"):
+            os.utime(self.want, None)
+
+    def wait_map(self, ok, timeout=8.0):
+        t0 = time.monotonic()
+        d = None
+        while time.monotonic() - t0 < timeout:
+            try:
+                with open(self.map, encoding="utf-8") as f:
+                    d = json.load(f)
+                if ok(d):
+                    return d
+            except (OSError, ValueError):
+                pass
+            time.sleep(0.05)
+        raise AssertionError(f"the map: {d}")
+
+    def kept_log(self, now):
+        """A listening log from before: a station 2 hours ago, one 25 hours ago, one whose name came later, one
+        radioid.net has no callsign for"""
+        rows = [(now - 25 * 3600, 9990011, "DL1ABC Old", 91, 9), (now - 7200, 9990012, "W1ABC Sam", 3100, 20),
+                (now - 3600, 9990013, "", 91, 4), (now - 1800, 9990014, "Club station", 91, 4),
+                (now - 900, 9990012, "W1ABC Sam", 91, 30)]
+        with open(os.path.join(self.data, "heard.tsv"), "w") as f:
+            f.write("".join("%d\t%d\t%s\t%d\t%d\tFreeDMR\tgroup\n" % r for r in rows))
+        with open(os.path.join(self.data, "names.json"), "w") as f:
+            json.dump({"9990013": ["JA1ABC Ken", now]}, f)
+
+    def test_map(self):
+        now = int(time.time())
+        self.kept_log(now)
+        env = self.map_servers()
+        s = self.start("91", env=env)
+        s.wait_line("state online")
+        time.sleep(1.0)
+        self.assertFalse(os.path.exists(self.map))              # nobody looks: no file
+        self.master.call(9990001, 91, 0x1111, 12)
+        s.wait_line("end 9990001")
+        self.assertEqual(PlaceSearch.asked, [])                 # and no place asked for
+        self.assertEqual(Names.asked, [9990001])                # the name, as before
+        self.assertFalse(os.path.exists(os.path.join(self.data, "places.json")))
+
+        self.look()
+        d = self.wait_map(lambda d: len(d["stations"]) == 3)
+        self.assertEqual((d["hours"], d["talker"]), (24, None))
+        st = d["stations"]
+        self.assertEqual([(x["id"], x["call"], x["tg"], x["country"], x["recent"]) for x in st],
+                         [(9990001, "ON4ABC", 91, "Belgium", True),         # heard just now, the newest first
+                          (9990012, "W1ABC", 91, "United States", False),   # once, with its last call
+                          (9990013, "JA1ABC", 91, "Japan", False)])         # its name from names.json
+        self.assertTrue(49 < st[0]["lat"] < 52.5 and 2 < st[0]["lon"] < 7, st[0])       # Belgium, moved a little
+        self.assertTrue(860 < st[1]["ago"] < 930, st[1])
+
+        t = threading.Thread(target=self.master.call, args=(9990001, 91, 0x2222, 80))    # 4.8 s
+        t.start()
+        d = self.wait_map(lambda d: d["talker"] and d["talker"].get("exact"))
+        self.assertEqual(d["talker"], {"id": 9990001, "call": "ON4ABC", "name": "Jan", "tg": 91, "city": "Gent",
+                                       "country": "Belgium", "lat": 51.054, "lon": 3.725, "exact": True})
+        t.join()
+        s.wait_line("end 9990001")
+        self.assertEqual(PlaceSearch.asked, ["Gent, Oost-Vlaanderen, Belgium"])
+        self.assertEqual(Names.asked, [9990001, 9990001])       # the record, once more for its city
+        with open(os.path.join(self.data, "places.json")) as f:
+            self.assertEqual(json.load(f)["9990001"]["city"], "Gent")
+        self.master.call(9990001, 91, 0x3333, 60)               # heard again: nothing asked again
+        s.wait_line("end 9990001")
+        self.assertEqual((len(PlaceSearch.asked), len(Names.asked)), (1, 2))
+        d = self.wait_map(lambda d: d["talker"] is None and d["stations"][0]["ago"] < 5)
+        s.close()
+        self.assertFalse(os.path.exists(self.map))              # the app closed: the file goes with it
+
+    def test_map_country_only(self):
+        """No place search (or no city): the station talking is drawn in its callsign's country, not exact"""
+        self.look()
+        s = self.start("91", env=self.names_server())
+        s.wait_line("state online")
+        t = threading.Thread(target=self.master.call, args=(9990001, 91, 0x2222, 80))
+        t.start()
+        d = self.wait_map(lambda d: d["talker"] and d["talker"].get("city"))
+        t.join()
+        self.assertEqual((d["talker"]["exact"], d["talker"]["country"], d["talker"]["city"]), (False, "Belgium", "Gent"))
+        self.assertTrue(49 < d["talker"]["lat"] < 52.5)
+        s.close()
+
+    def test_map_not_looked_at(self):
+        """The map's file goes once nobody looks any more"""
+        self.look()
+        s = self.online()
+        self.wait_map(lambda d: True)
+        old = time.time() - 120
+        os.utime(self.want, (old, old))
+        t0 = time.monotonic()
+        while os.path.exists(self.map) and time.monotonic() - t0 < 6:
+            time.sleep(0.05)
+        self.assertFalse(os.path.exists(self.map))
+        s.close()
+
+    def test_map_once(self):
+        """x6100-dmr map: from what is kept, asking nobody, to stdout or to a file; the app's talker when it listens"""
+        now = int(time.time())
+        self.kept_log(now)
+        with open(os.path.join(self.data, "places.json"), "w") as f:
+            json.dump({"9990013": {"call": "JA1ABC", "name": "Ken", "city": "Tokyo", "country": "Japan",
+                                   "lat": 35.68, "lon": 139.69}}, f)
+        env = self.map_servers()
+        r = subprocess.run([sys.executable, "-I", HELPER, "map"], capture_output=True, text=True, env=env, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertEqual([x["call"] for x in d["stations"]], ["W1ABC", "JA1ABC"])
+        self.assertIsNone(d["talker"])
+        with open(self.status, "w") as f:
+            json.dump({"state": "online", "talker": {"id": 9990013, "name": "JA1ABC Ken", "tg": 91}}, f)
+        out = os.path.join(self.dir, "once.json")
+        r = subprocess.run([sys.executable, "-I", HELPER, "map", out], capture_output=True, text=True, env=env,
+                           timeout=30)
+        self.assertEqual((r.returncode, r.stdout), (0, ""), r.stderr)
+        with open(out) as f:
+            d = json.load(f)
+        self.assertEqual(d["talker"], {"id": 9990013, "call": "JA1ABC", "name": "Ken", "tg": 91, "city": "Tokyo",
+                                       "country": "Japan", "lat": 35.68, "lon": 139.69, "exact": True})
+        with open(self.status, "w") as f:                       # a talker without a place kept: not asked for
+            json.dump({"state": "online", "talker": {"id": 9990001, "name": "", "tg": 91}}, f)
+        self.look()
+        r = subprocess.run([sys.executable, "-I", HELPER, "map"], capture_output=True, text=True, env=env, timeout=30)
+        self.assertEqual(json.loads(r.stdout)["talker"]["call"], "")
+        self.assertEqual((Names.asked, PlaceSearch.asked), ([], []))
+        self.assertEqual(self.master.packets(), [])             # and the master hears nothing of it
 
     def test_names_asked_again(self):
         """Old names are shown and asked again (30 days; a day for an ID radioid.net did not know); a fresh one is

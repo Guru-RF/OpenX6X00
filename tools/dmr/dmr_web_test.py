@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""The web DMR page's Listening log (webserver apps.py: /api/dmr/log, log.adi, log.csv) on this PC, over a heard.tsv
-as rootfs/usr/sbin/x6100-dmr writes it (dmr_test.py checks that it does). Nothing is contacted.
+"""The web DMR page's Listening log (webserver apps.py: /api/dmr/log, log.adi, log.csv) and Map (/api/dmr/map) on
+this PC, over a heard.tsv as rootfs/usr/sbin/x6100-dmr writes it (dmr_test.py checks that it does). Nothing is
+contacted.
 
   - the list: the newest first, heard.tsv.1 before heard.tsv, a name filled in from names.json when the call was
     logged without one, a private call, lines that are no call's left out; the 500 newest and "more";
@@ -9,7 +10,9 @@ as rootfs/usr/sbin/x6100-dmr writes it (dmr_test.py checks that it does). Nothin
   - the ADIF: our logs' header, a record for each call with a callsign, the oldest first, as a listening report
     (SWL Y, DIGITALVOICE / DMR, INTERNET, no BAND and no FREQ), UTC, the lengths in bytes (a name with an umlaut),
     every record read back by the web server's own ADIF reader;
-  - the CSV: all the calls, a cell that a spreadsheet would take for a formula made text.
+  - the CSV: all the calls, a cell that a spreadsheet would take for a formula made text;
+  - the map: the stations kept, from the helper itself (its "map", asked once in 20 s) while no helper listens; a
+    listening helper's own file while it is fresh, with the station talking; the page's look told to the helper.
 
     BOTTLE=<a folder with bottle.py> python3 -I -B dmr_web_test.py      (without bottle: skipped)
 """
@@ -27,6 +30,8 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOP = os.path.join(HERE, "..", "..")
+HELPER = os.path.join(TOP, "rootfs", "usr", "sbin", "x6100-dmr")
+CTY = os.path.join(TOP, "third-party", "cty", "cty.dat")
 
 
 def import_web():
@@ -207,6 +212,44 @@ class DmrLog(unittest.TestCase):
         self.assertEqual(rows[4][1:6], ["DL1JUR", "Jürgen", "9990004", "9990000", "Y"])
         self.assertEqual(rows[5][1:4], ["", "", "9990003"])
         self.assertEqual(len(rows), 7)
+
+    def test_map(self):
+        apps, settings = WEB
+        saved = {k: getattr(settings, k) for k in ("DMR_CMD", "DMR_MAP", "DMR_MAP_WANT")}
+        self.addCleanup(lambda: [setattr(settings, k, v) for k, v in saved.items()])
+        settings.DMR_CMD = HELPER
+        settings.DMR_MAP = os.path.join(self.tmp, "map.json")
+        settings.DMR_MAP_WANT = os.path.join(self.tmp, "map.want")
+        for k, v in {"X6100_CTY": CTY, "X6100_DMR_STATUS": os.path.join(self.tmp, "none.json"),
+                     "X6100_DMR_MAP_WANT": settings.DMR_MAP_WANT, "X6100_DMR_RADIOID": "", "X6100_DMR_PLACE": "",
+                     "X6100_DMR_LOG": os.path.join(self.tmp, "log.txt")}.items():
+            self.addCleanup(os.environ.pop, k, None)
+            os.environ[k] = v
+        apps.dmr_map_kept.update(at=0.0, map=None)
+        now = int(time.time())
+        self.write("heard.tsv", row(now - 3600, 9990001, "ON4ABC Jan", 91, 12) + row(now - 60, 9990002, "", 2062, 7)
+                   + row(now - 30 * 3600, 9990007, "W1ABC Sam", 91, 5))
+        d = json.loads(self.get("/api/dmr/map")[0])
+        self.assertTrue(os.path.exists(settings.DMR_MAP_WANT))          # the helper is told somebody looks
+        self.assertEqual((d["live"], d["talker"], d["hours"]), (False, None, 24))
+        self.assertEqual([(s["id"], s["call"], s["country"], s["recent"]) for s in d["stations"]],
+                         [(9990002, "PA0XYZ", "Netherlands", True), (9990001, "ON4ABC", "Belgium", False)])
+        self.write("heard.tsv", "")                                     # asked again only after 20 s
+        self.assertEqual(len(json.loads(self.get("/api/dmr/map")[0])["stations"]), 2)
+        # a helper that listens writes its own
+        live = {"t": now, "hours": 24, "stations": [], "talker": {"id": 9990001, "call": "ON4ABC", "name": "Jan",
+                                                                   "tg": 91, "city": "Gent", "country": "Belgium",
+                                                                   "lat": 51.054, "lon": 3.725, "exact": True}}
+        with open(settings.DMR_MAP, "w") as f:
+            json.dump(live, f)
+        self.assertEqual(json.loads(self.get("/api/dmr/map")[0]), dict(live, live=True))
+        old = time.time() - 60
+        os.utime(settings.DMR_MAP, (old, old))                          # it stopped: the stations kept again
+        self.assertFalse(json.loads(self.get("/api/dmr/map")[0])["live"])
+        settings.DMR_CMD = os.path.join(self.tmp, "no-such-helper")     # no helper: an empty map, no error
+        apps.dmr_map_kept.update(at=0.0, map=None)
+        self.assertEqual(json.loads(self.get("/api/dmr/map")[0]),
+                         {"t": 0, "hours": 24, "stations": [], "talker": None, "live": False})
 
     def test_empty(self):
         shutil.rmtree(WEB[1].DMR_DIR)

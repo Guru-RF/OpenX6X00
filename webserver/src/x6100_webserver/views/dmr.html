@@ -49,6 +49,30 @@
 </div>
 
 <div class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-globe"/></svg></span><div><h3>Map</h3><p id="map-sum">The stations the radio heard in the last 24 hours, and the one talking now.</p></div></div>
+  <div class="dp-body">
+    <svg id="dmr-map" viewBox="0 8 360 160" preserveAspectRatio="xMidYMid meet" role="img" aria-label="The stations heard, on a map of the world">
+      <rect x="0" y="0" width="360" height="180" class="sea"/>
+      <path id="dmr-land" class="land" d=""/>
+      <g id="dmr-dots"></g>
+    </svg>
+    <p id="map-talker" class="meta"></p>
+    <p class="meta">DMR sends no positions, so these are approximate: each station is drawn in the country of its callsign, a little apart from the others of that country. The one talking is drawn in the city of its record at radioid.net when the radio finds that city (OpenStreetMap's place search, &copy; OpenStreetMap contributors), else in its country. The radio asks those two only for a station it hears while this map or the app's is open, once for a station, and sends neither anything of its own. On the radio: APP &gt; DMR, the Map button.</p>
+  </div>
+</div>
+
+<style>
+#dmr-map{width:100%;height:auto;max-height:70vh;background:#0a1220;border-radius:8px;display:block}
+#dmr-map .sea{fill:#0a1220}
+#dmr-map .land{fill:#1c2a40;stroke:#2c3e57;stroke-width:.15}
+#dmr-map .st{fill:#8da2bd;opacity:.75}
+#dmr-map .st.recent{fill:#3fd2ff;opacity:1}
+#dmr-map .hl{fill:#ffb040}
+#dmr-map .ring{fill:none;stroke:#ffb040;stroke-width:.5}
+#dmr-map text{fill:#ffb040;font-size:5px;font-weight:600}
+</style>
+
+<div class="dp-card">
   <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-list"/></svg></span><div><h3>Listening log</h3><p>Every station the app heard for half a second or more, kept on the radio (/mnt/dmr/heard.tsv). These are listening reports (SWL), not QSOs: nothing was on the air, and nobody was worked. A callsign opens its page on QRZ.com.</p></div></div>
   <div class="dp-body">
     <div class="actions" style="margin-top:0">
@@ -119,6 +143,53 @@ var showOnAir = function(a) {
   });
 }
 
+/* The map: an SVG of the world's land (the FT8 page's, equirectangular: x = lon + 180, y = 90 - lat) with a dot
+   for each station heard, brighter within 5 minutes, and the one talking in two rings with its callsign */
+var mapShape = function(tag, attrs) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  Object.keys(attrs).forEach(function(k) { el.setAttribute(k, attrs[k]); });
+  return el;
+}
+
+var showMap = function(d) {
+  const g = document.getElementById("dmr-dots");
+  while (g.firstChild) g.removeChild(g.firstChild);
+  const t = d.talker;
+  (d.stations || []).slice().reverse().forEach(function(s) {       /* the newest drawn last, on top */
+    if (t && s.id === t.id) return;
+    const c = mapShape("circle", {cx: s.lon + 180, cy: 90 - s.lat, r: s.recent ? 1.1 : 0.8, "class": s.recent ? "st recent" : "st"});
+    const tip = mapShape("title", {});
+    tip.textContent = s.call + ", " + s.country + ", TG " + s.tg + ", " + Math.round(s.ago / 60) + " min ago";
+    c.appendChild(tip);
+    g.appendChild(c);
+  });
+  const who = $("#map-talker").empty();
+  if (t) {
+    if (t.lat != null) {
+      const x = t.lon + 180, y = 90 - t.lat;
+      g.appendChild(mapShape("circle", {cx: x, cy: y, r: 3.6, "class": "ring"}));
+      g.appendChild(mapShape("circle", {cx: x, cy: y, r: 2.2, "class": "ring"}));
+      g.appendChild(mapShape("circle", {cx: x, cy: y, r: 1.2, "class": "hl"}));
+      const label = mapShape("text", {x: x > 320 ? x - 5 : x + 5, y: y + 1.7, "text-anchor": x > 320 ? "end" : "start"});
+      label.textContent = t.call;
+      g.appendChild(label);
+    }
+    const place = [t.city, t.country].filter(Boolean).join(", ");
+    who.append(document.createTextNode("Talking now: "), station(((t.call || t.id) + " " + t.name).trim()),
+               document.createTextNode((place ? ", " + place : "") + ", TG " + t.tg +
+                                       (t.lat == null ? " (not on the map: its country is not known)" :
+                                        t.exact ? "" : " (drawn in its country)")));
+  }
+  const n = (d.stations || []).length;
+  $("#map-sum").text((n ? "Stations heard in the last " + d.hours + " hours: " + n : "No station heard in the last " + d.hours + " hours") +
+                     (d.live ? "" : ". The app is not listening: no station is talking"));
+}
+
+var loadMap = function() {
+  if (document.hidden) return;
+  $.ajax({url: "/api/dmr/map", dataType: "json", timeout: 25000, success: showMap});
+}
+
 /* The search as it was last shown: the downloads are of what the table shows the newest of */
 var logShown = "";
 
@@ -180,6 +251,12 @@ var post = function(url, data, done, ms) {
 
 $.get('/api/dmr', {}, render);
 loadLog();
+fetch("/static/img/world.svg?v=1").then(function(r) { return r.text(); }).then(function(t) {
+  const d = /\sd="([^"]+)"/.exec(t);
+  if (d) document.getElementById("dmr-land").setAttribute("d", d[1]);
+}).catch(function() {});
+loadMap();
+setInterval(loadMap, 3000);
 $("#log-search").on("click", loadLog);
 $("#log-q, #log-tg").on("keydown", function(e) { if (e.key === "Enter") { e.preventDefault(); loadLog(); } });
 $("#log-adif").on("click", function() { window.location = "/api/dmr/log.adi?" + logShown; });
