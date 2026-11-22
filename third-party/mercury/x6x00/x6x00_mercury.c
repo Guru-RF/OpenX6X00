@@ -113,17 +113,6 @@ static bool get_frequency(uint64_t *hz, void *user) {
     return false;
 }
 
-/* The Fyne bridge's Android hooks (gui_interface/fyne-ui/engine/mercury_bridge.c), which upstream's daemon
- * build does not have: never called here */
-void radio_io_set_usb_fd(const char *device, int dev_fd) {
-    (void)device;
-    (void)dev_fd;
-}
-
-void audioio_set_android_devices(const char *list) {
-    (void)list;
-}
-
 /* ---- The GUI's socket, on the audio thread ------------------------------------------ */
 
 static void gui_close(const char *why) {
