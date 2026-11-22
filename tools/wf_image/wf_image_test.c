@@ -41,6 +41,9 @@
  *    carrier in TX on the line in USB, CW and CW-R, with +1.5 kHz and with the reporter's -3 kHz; placed from where
  *    the base was tuned the TX rows were the IF shift off the line (#191). At Speed 1 a line holds frames of TX or
  *    of receive there too
+ *  - another height (waterfall_set_height(): the full-screen waterfall and back, the spectrum's height, #302) keeps
+ *    the rows that fit: taller, the rows it had are the top lines, newest first, and nothing is under them; lower,
+ *    its newest rows stay; a new row comes in at the top each time. It emptied the waterfall before
  *  - the walkie screen's mini waterfall (waterfall_mini_draw(), #302), 360 x 100 pixels of the same rows: a station
  *    on the dial is a line down its middle and nowhere else; a call with no new row draws nothing; a new row comes
  *    in at the top and the rest moves down a line; another centre draws it all again, the station where it now is
@@ -367,6 +370,29 @@ static int32_t carrier_at(void) {
 /* The newest row's level away from its carrier, near the low edge: its noise */
 static uint8_t noise_level(void) {
     return rows[__atomic_load_n(&newest, __ATOMIC_ACQUIRE)].values[DATA_AT + 8];
+}
+
+/* The picture's first n lines each the colour of its level in had, the lines under them empty (level 0), at the left
+ * edge, the middle and the right edge */
+enum { TALL = 300, LOW = 120 };
+
+static uint32_t colour(uint8_t v);
+
+static bool history_is(const uint8_t *had, int n) {
+    static const int32_t xs[] = {3, WIDTH / 2 + 40, WIDTH - 4};
+
+    for (int32_t y = 0; y < height; y++) {
+        const lv_color_t *px = (const lv_color_t *)frame->data + (size_t)y * WIDTH;
+
+        for (int i = 0; i < 3; i++) {
+            if ((px[xs[i]].full | 0xff000000) != colour(y < n ? had[y] : 0)) {
+                printf("        line %d, x %d: 0x%06x, not level %d\n", y, xs[i], px[xs[i]].full & 0xffffff,
+                       y < n ? had[y] : 0);
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 /* The mini waterfall's line y (MW pixels): where its strongest pixel is and its level, and the level at the left
@@ -762,6 +788,40 @@ int main(void) {
     check(rows[newest].center_freq == (uint32_t)fg_freq - 700,
           "TX, the IF shift on: the row centred the key tone below the dial it sent");
     if_shift_to(0);
+
+    printf("Another height keeps the rows that fit (#302): %d lines to %d, a row more, then to %d\n", WF_H, TALL, LOW);
+    static uint8_t had[TALL];
+    int            off = 0;
+
+    theme_shape.mono = false;
+    lo_offsets(0, 0);
+    lv_obj_set_y(obj, 0);
+    for (int i = 0; i < WF_H; i++) row();
+    loop(300);
+    for (int y = 0; y < WF_H; y++) had[y] = row_at(y)->values[DATA_AT];
+    waterfall_set_height(TALL);
+    loop(300);
+    for (int y = 0; y < TALL; y++) {
+        off += y < WF_H ? row_at(y)->width == 0 || row_at(y)->values[DATA_AT] != had[y] : row_at(y)->width != 0;
+    }
+    check(height == TALL && !off, "taller: the %d rows it had, newest first, the rest empty", WF_H);
+    check(history_is(had, WF_H), "the picture: those lines at the top, nothing under them");
+    row();
+    loop(100);
+    memmove(had + 1, had, WF_H);
+    had[0] = level;
+    check(history_is(had, WF_H + 1), "a new row: at the top, the others a line down");
+    waterfall_set_height(LOW);
+    loop(300);
+    off = 0;
+    for (int y = 0; y < LOW; y++) off += row_at(y)->width == 0 || row_at(y)->values[DATA_AT] != had[y];
+    check(height == LOW && !off, "lower: its newest %d rows", LOW);
+    check(history_is(had, LOW), "the picture: those lines");
+    row();
+    loop(100);
+    memmove(had + 1, had, LOW - 1);
+    had[0] = level;
+    check(history_is(had, LOW), "a new row: at the top, the others a line down");
 
     printf("The walkie screen's mini waterfall: %d x %d of the same rows, over the same 100 kHz\n", MW, MH);
     int at, peak, edge, wrong = 0;

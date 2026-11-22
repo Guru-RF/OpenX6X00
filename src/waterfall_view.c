@@ -1977,22 +1977,51 @@ static void make_objs(void) {
     band_info_init(obj);
 }
 
+/* The ring from was + 1 rows to now + 1: the newest rows that fit kept, oldest first from rows[0], the newest the
+ * last of them, the slots after them empty. A taller waterfall has its history at the top and fills up below, a
+ * lower one loses its oldest lines (#302: the full-screen waterfall and back, the spectrum's height, a new theme).
+ * Without the memory for the copy: an empty waterfall, as before */
+static void rows_keep(lv_coord_t was, lv_coord_t now) {
+    int32_t   ring = was + 1;
+    int32_t   top = __atomic_load_n(&newest, __ATOMIC_ACQUIRE);
+    int32_t   n = LV_MIN(was, now);
+    wf_row_t *kept = n > 0 ? malloc((size_t) n * sizeof(*kept)) : NULL;
+
+    if (!kept) {
+        n = 0;
+    }
+    for (int32_t i = 0; i < n; i++) {
+        kept[i] = rows[(top - (n - 1 - i) + ring) % ring];
+    }
+    if (n) {
+        memcpy(rows, kept, (size_t) n * sizeof(*kept));
+        free(kept);
+    }
+    for (int32_t i = n; i <= MAX_HEIGHT; i++) {
+        rows[i].width = 0;
+    }
+    __atomic_store_n(&newest, n ? n - 1 : 0, __ATOMIC_RELEASE);
+}
+
 void waterfall_set_height(lv_coord_t h) {
+    lv_coord_t was = height;
+
     lv_obj_set_height(obj, h);
     lv_obj_update_layout(obj);
     height = lv_obj_get_height(obj);
 
     if (ready) {
-        /* Again (main_screen.c): the same buffers, an empty waterfall of the new height. The
-         * DSP thread may write a row meanwhile: it stays within the MAX_HEIGHT + 1 rows */
-        __atomic_store_n(&newest, 0, __ATOMIC_RELEASE);
-        for (size_t i = 0; i <= MAX_HEIGHT; i++) {
-            rows[i].width = 0;
+        /* Again (main_screen.c): the same buffers, the waterfall at the new height with the rows it had that fit.
+         * The DSP thread may write a row meanwhile: it stays within the MAX_HEIGHT + 1 rows, and a row written
+         * while they move may be lost or stand a line off, once */
+        if (height != was) {
+            rows_keep(was, height);
         }
         wfp_head = 0;
         wfp_full = true;
         mini.buf = NULL;
         d3_drawn_buf = NULL;
+        d3_peak_span = 0;       /* 3D: the held peaks from the new front edge, not a line where the old one was */
         if (!direct) {
             lv_img_buf_free(frame);
             frame = lv_img_buf_alloc(WIDTH, height, LV_IMG_CF_TRUE_COLOR);

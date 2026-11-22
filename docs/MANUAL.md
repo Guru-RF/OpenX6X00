@@ -419,6 +419,18 @@ range of them.
 To go further at once, type the frequency (F-INP, or `f` on a keyboard).
 Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 
+Out of the box:
+
+| Key | Long press |
+|---|---|
+| GEN | screenshot |
+| APP | the RX recorder (the app) |
+| KEY | none |
+| MSG | RX recorder on/off |
+| DFN | none |
+| DFL | WF full screen on/off: the waterfall over the whole screen, and back (see [Waterfall](#waterfall)). Up to v0.3.13 DFL had none; a radio whose DFL long press was set in Settings > Keys, to None too, keeps what it was set to. The X6100 hand mic's FIL held does DFL's long press |
+| FST | step down |
+
 A key let go while the radio is busy (a band change, an app closing) is a
 tap however late the radio reads it. Up to v0.3.12 one read after the long
 press time counted as held: a tap of F1 did its long action (#233).
@@ -1612,9 +1624,8 @@ are out of sight. Off by default, and not kept over a restart.
 
 - On and off: give a key "WF full screen on/off" in Settings > Keys (the long
   press of GEN, APP, KEY, MSG, DFN, DFL or FST, or a hand mic F key). The same
-  key goes back. A touch held on the waterfall for 0.4 s does the same, both
-  ways (in the PC build the mouse; nothing else on the main screen uses that
-  touch).
+  key goes back. Out of the box it is DFL's long press (and so the X6100
+  hand mic's FIL held), see [Buttons and knobs](#buttons-and-knobs).
 - A tag in the bottom left corner keeps the frequency and the mode in sight.
 - The main knob tunes, PTT keys the radio, and the band, mode, PRE, AGC, ATU,
   A/B, FST and LOCK keys do what they always do; their notes show over the
@@ -1630,8 +1641,11 @@ are out of sight. Off by default, and not kept over a restart.
 - On the air the tag turns red and reads TX before the frequency, a red frame
   goes around the screen, and the TX panel (power, SWR, ALC) shows as on the
   normal screen.
-- The waterfall starts empty at the new height each way, as it does when the
-  spectrum's height changes.
+- The waterfall keeps its lines both ways: going to full screen they are at
+  the top and it fills up below them, going back the newest that fit stay.
+  The same now when the spectrum's height changes or the spectrum is switched
+  on or off, and over a new theme; up to v0.3.13 those started an empty
+  waterfall.
 
 ### Band plan
 
@@ -1778,7 +1792,9 @@ bars. It follows the theme.
   a small waterfall in the bandscope's frame in place of the trace, the
   newest line at the top, in the waterfall's colours, with a line where the
   VFO is. The band edges and the span under it stay, and the zoom is still
-  the main screen's. Switched live, the screen up or not.
+  the main screen's. Switched live, the screen up or not, also on the web
+  configurator's Display page (Spectrum and waterfall > Walkie mini
+  waterfall).
 
 Where: Settings > Walkie > WALKIE TALKIE > Walkie Talkie (or Settings >
 General > CONTROLS > Walkie Talkie). The screen turns to portrait at once, no

@@ -345,6 +345,24 @@ class AutoOpen(unittest.TestCase):
         self.assertIn("autoOpen: autoOpen", open(os.path.join(STATIC, "js", "radio_session.js")).read())
 
 
+class DisplayPage(unittest.TestCase):
+    def test_each_row_is_an_option_of_the_radio(self):
+        """Every row of the Display page's cards is an option the GUI's socket knows by that name (cfg_socket.cpp:
+        disp_get reports it, disp_set takes it); a row it does not report is never shown. The walkie screen's mini
+        waterfall (#302) is one of them, with the waterfall's"""
+        page = open(os.path.join(TOP, "webserver", "src", "x6100_webserver", "views", "display.html")).read()
+        cards = page[page.index("const CARDS = ["):page.index("let D = {};")]
+        rows = re.findall(r'^    \["([a-z0-9_]+)", "', cards, re.M)
+        sock = source("cfg_socket.cpp")
+        self.assertGreater(len(rows), 60)
+        self.assertEqual(len(rows), len(set(rows)))
+        for name in rows:
+            self.assertIn('"%s"' % name, sock, name)
+        self.assertIn('{"walkie_wf", &cfg_sm.p_walkie_wf, 0, 1}', sock)
+        wf = cards[cards.index('["wf", "Spectrum and waterfall"'):cards.index('["layers", ')]
+        self.assertIn('["walkie_wf", "Walkie mini waterfall", ', wf)
+
+
 class RemoteWords(unittest.TestCase):
     def test_watching_before_the_apps_commands(self):
         src = source("remote_server.c")
