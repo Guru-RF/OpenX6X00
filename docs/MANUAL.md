@@ -6482,13 +6482,21 @@ nothing retunes it; ESC closes.
   range, with the firmware's name and version (`OpenX6X00/0.3.12`); never
   your callsign. The distances and bearings are worked out on the radio
   from your position itself.
-- How often: when the app opens, then every 20 s (every 60 s while the data
-  come from adsb.lol, which allows 500 requests a day from an address
-  without a key), only while the app is open and the screen is lit; never
-  in the background. airplanes.live allows one request a second, adsb.lol
-  answers "too many" with a time to wait, which the radio keeps. The app
-  and the web page (below) share an answer for 10 s, so having both open
-  costs no extra requests.
+- How often: when the app opens, then every 60 s, only while the app is
+  open and the screen is lit; never in the background. airplanes.live
+  allows one request a second, adsb.lol 500 a day from an address without
+  a key and answers "too many" with a time to wait, which the radio keeps.
+  A service that answers "not allowed" (HTTP 401 or 403) is not asked
+  again for an hour, then two, four and so on up to a day, until the radio
+  is switched off; the other one is used meanwhile, and when neither has an
+  answer the bottom line says *refused* with what the service said
+  ("airplanes.live: refused (Please contact us at ...)").
+  The app and the web page (below) share an answer for 50 s, so having both
+  open costs no extra requests: the one that gets the other's answer shows
+  the time it was fetched at, and asks again a minute after that time.
+- Range: a narrower one is cut from the answer kept, with no request. A
+  wider one is asked for 2 s after the last press, so stepping through the
+  ranges asks once, for the one you stop at.
 - The web configurator has the same as Operating > Flights: the plot and
   the list in the browser, with Range and a **Centre** box for another
   place by its locator (empty: the radio's position, as above). It asks
@@ -8625,7 +8633,8 @@ client that showed what it asked for can show the radio's again. One the
 radio drops because an app locked the frequency, mode or band in between
 gets no `err`, but the whole `state` goes to every panel client. The keys
 and knobs go as on the Screen page. The apps: the FT8 list's rows come as `ft8r {...}` (id, type,
-text, call, grid, audio Hz, SNR, to me, worked, distance, country), the app's
+text, call, grid, audio Hz, SNR, to me, worked, distance, country and
+`flag`, the number of its flag as the radio's list draws it, -1 for none), the app's
 state as `ft8 {...}` (open, proto, cq, tx, auto, hold, sending, txf, next),
 the CW decoder's text as `cw "..."`; `ft8 open|close|cq|stop|auto|hold|mode`,
 `ft8 txcall`, `ft8 txfreq HZ` and `ft8 reply ID` work the app; `wefax
@@ -8966,6 +8975,8 @@ follows the newest once you have scrolled to its end; on top, what you are
 reading stays put while you are scrolled down. The distance is in km or in
 miles as the radio's Settings > Display > INTERFACE > FT8/FT4 info has it
 (mi or Country + mi), and the radio's "Saved QSO" message follows it too.
+The sender's country has its flag in front, the radio's own as on its FT8
+list; a call of no known country has neither.
 Up to v0.3.9 the page showed km only, the radio's message too (issue #227).
 
 STOP is one button with one stated outcome: the transmission under way and

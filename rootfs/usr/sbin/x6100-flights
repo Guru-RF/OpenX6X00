@@ -12,10 +12,13 @@
 #
 # The position leaves the radio rounded to 0.1 degree (about 11 km): the radius asked is wider by what the rounding
 # moved the centre, and each aircraft's distance and bearing are worked out here from the position itself. The GUI
-# asks only while the app is open, the web server only while its page is open and seen, every NEXT seconds: 20 with
-# airplanes.live, 60 with adsb.lol (at most 60 an hour of its 500 a day). One answer serves both for CACHE_S, and the
-# requests of both are taken one at a time (LOCK), each service not asked again before the time kept in STATE (a
-# second after the last request; a "429 too many" with its Retry-After).
+# asks only while the app is open, the web server only while its page is open and seen, every NEXT seconds: 60 with
+# either service (at most 60 an hour of adsb.lol's 500 a day). One answer serves both for CACHE_S, a narrower range
+# too (no request when the range is turned down): it goes out with the time it was fetched at, and the next poll is
+# due 60 s after that, so the two end up asking together and showing the same. The requests of both are taken one
+# at a time (LOCK), each service not asked again before the time kept in STATE (a second after the last request; a
+# "429 too many" with its Retry-After; a "401" or "403 not allowed" for REFUSED_S, twice as long each time in a row,
+# a day at most: such a service is shown as "refused" with what it said, and the other one is used).
 #
 # From condoruy's CX8ANM edition of OpenX6X00 (its Flights app), rewritten for the rules above.
 import fcntl
@@ -32,7 +35,7 @@ OUT = os.path.join(TMP, "x6100-flights.json")
 CACHE = os.path.join(TMP, "x6100-flights-cache.json")
 STATE = os.path.join(TMP, "x6100-flights-state.json")
 LOCK = os.path.join(TMP, "x6100-flights.lock")
-CACHE_S = 10
+CACHE_S = 50            # under the 60 s poll: a poll that is due asks again, a narrower range or the other one doesn't
 TIMEOUT_S = 10
 KM_PER_NM = 1.852
 FT_M = 0.3048
@@ -45,12 +48,15 @@ STALE_S = 60            # a position not heard for longer is left out
 
 # name, URL ({lat}, {lon}, {nm}), seconds between requests, seconds to the next poll, the credit shown
 SERVICES = [
-    ("airplanes.live", "https://api.airplanes.live/v2/point/{lat}/{lon}/{nm}", 1, 20, "airplanes.live"),
+    ("airplanes.live", "https://api.airplanes.live/v2/point/{lat}/{lon}/{nm}", 1, 60, "airplanes.live"),
     ("adsb.lol", "https://api.adsb.lol/v2/point/{lat}/{lon}/{nm}", 60, 60, "adsb.lol (ODbL)"),
 ]
 RETRY_S = 60            # after an error: the GUI's and the page's next try
 BUSY_S = 900            # a 429 without a Retry-After
 DOWN_S = 30             # a service that answered with an error, not asked again before
+REFUSED_S = 3600        # a 401 or a 403 (not allowed): an hour, twice that each time in a row, DAY_S at most
+DAY_S = 86400
+SAID_N = 64             # of what a refusing service said, on the status line
 
 
 def version():
@@ -201,14 +207,40 @@ def short(e):
     return msg[:60]
 
 
+def said(body):
+    """What a service's error answer says, for the status line: the text of its JSON's "error" (or "message", "msg",
+    "detail"), its first sentence when that is short enough, in plain ASCII without LVGL's recolour mark; "" when
+    it says nothing of the kind"""
+    try:
+        doc = json.loads(body.decode("utf-8", "replace"))
+    except (ValueError, AttributeError):
+        return ""
+    if not isinstance(doc, dict):
+        return ""
+    msg = next((doc[k] for k in ("error", "message", "msg", "detail") if isinstance(doc.get(k), str)), "")
+    msg = " ".join("".join(c if " " <= c <= "~" and c != "#" else " " for c in msg).split())
+    for i, c in enumerate(msg):
+        if c in ".!?" and msg[i + 1:i + 2] in ("", " "):
+            if i <= SAID_N:
+                msg = msg[:i] if c == "." else msg[:i + 1]
+            break
+    return msg if len(msg) <= SAID_N else msg[:SAID_N - 3].rstrip() + "..."
+
+
 def fetch(qlat, qlon, nm, now, state):
     """(service, its aircraft) from the first service that answers; RuntimeError with the reasons. state: when each
-    may be asked again, updated"""
+    may be asked again, and of a service that refused ("refused:<name>") how often in a row and what it said, updated"""
     why = []
     for name, url, gap, _, _ in services():
         wait = state.get(name, 0) - now
+        refused = state.get("refused:" + name)
+        if not (isinstance(refused, list) and len(refused) == 2 and number(refused[0])):
+            refused = None
         if wait > 2:
-            why.append("%s: next try in %d s" % (name, math.ceil(wait)))
+            if refused:
+                why.append("%s: refused (%s)" % (name, str(refused[1])[:SAID_N]))
+            else:
+                why.append("%s: next try in %d s" % (name, math.ceil(wait)))
             continue
         if wait > 0:
             time.sleep(wait)        # the other one of GUI and web page asked a moment ago
@@ -218,15 +250,29 @@ def fetch(qlat, qlon, nm, now, state):
                                      headers={"User-Agent": AGENT, "Accept": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
-                return name, parse(r.read(4 * 1024 * 1024))
+                body = r.read(4 * 1024 * 1024)
+            state.pop("refused:" + name, None)      # allowed again
+            return name, parse(body)
         except urllib.error.HTTPError as e:
+            if e.code not in (401, 403):
+                state.pop("refused:" + name, None)
             if e.code == 429:
                 try:
                     after = int(e.headers.get("Retry-After", ""))
                 except ValueError:
                     after = BUSY_S
-                state[name] = now + max(gap, min(after, 86400))
+                state[name] = now + max(gap, min(after, DAY_S))
                 why.append("%s: busy" % name)
+            elif e.code in (401, 403):
+                n = int(refused[0]) + 1 if refused else 1
+                try:
+                    reason = said(e.read(4096))
+                except Exception:       # noqa: BLE001 (what it said is a nicety)
+                    reason = ""
+                reason = reason or "HTTP %d" % e.code
+                state[name] = now + max(gap, min(REFUSED_S * 2 ** min(n - 1, 10), DAY_S))
+                state["refused:" + name] = [n, reason]
+                why.append("%s: refused (%s)" % (name, reason))
             else:
                 state[name] = now + max(gap, DOWN_S)
                 why.append("%s: HTTP %d" % (name, e.code))
@@ -250,19 +296,23 @@ def update(lat, lon, km, out=OUT, now=None):
         cache = read_json(CACHE, {})
         if (cache.get("at") == [qlat, qlon] and number(cache.get("nm")) and cache["nm"] >= nm and
                 number(cache.get("t")) and 0 <= now - cache["t"] < CACHE_S and isinstance(cache.get("ac"), list)):
-            src, aircraft = cache.get("src", ""), cache["ac"]
+            src, aircraft, at = cache.get("src", ""), cache["ac"], cache["t"]
         else:
             state = read_json(STATE, {})
             try:
                 src, aircraft = fetch(qlat, qlon, nm, now, state)
             finally:
                 write_json(STATE, state)
+            at = now
             write_json(CACHE, {"at": [qlat, qlon], "nm": nm, "t": now, "src": src, "ac": aircraft})
-    service = next((s for s in services() if s[0] == src), (src, "", 1, RETRY_S, src))
-    ac = place(aircraft, lat, lon, km)
-    write_json(out, {"t": int(now), "time": time.strftime("%H:%M:%S", time.localtime(now)), "src": src,
-                     "credit": service[4], "km": km, "next": service[3], "ac": ac})
-    return len(ac), service[3]
+        service = next((s for s in services() if s[0] == src), (src, "", 1, RETRY_S, src))
+        ac = place(aircraft, lat, lon, km)
+        # The time is the answer's, a kept one's too, and the next poll a minute after it was fetched. Written
+        # before the lock goes: of two runs for one file (the range changed while a request was out) the later wins
+        nxt = max(1, int(math.ceil(service[3] - (now - at))))
+        write_json(out, {"t": int(at), "time": time.strftime("%H:%M:%S", time.localtime(at)), "src": src,
+                         "credit": service[4], "km": km, "next": nxt, "ac": ac})
+    return len(ac), nxt
 
 
 def main():

@@ -59,7 +59,7 @@ leaves the radio rounded to 0.1 degree (about 11 km).</p>
 </section>
 
 <script>
-const fl = {data: null, sel: null, timer: null, next: 0, busy: false};
+const fl = {data: null, sel: null, timer: null, next: 0, busy: false, km: 0};
 const NS = "http://www.w3.org/2000/svg";
 const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
@@ -158,6 +158,7 @@ function update() {
   flStatus("Asking…");
   $.ajax({url: "/api/flights", data: {km: km(), grid: $("#fl-grid").val().trim()}, dataType: "json", timeout: 50000,
     success: (d) => {
+      if (d.km !== km()) { schedule(1); return; }   // asked before Range was changed: ask for the new one
       fl.data = d;
       if (!d.ac.some((a) => a.hex === fl.sel)) fl.sel = d.ac.length ? d.ac[0].hex : null;
       render();
@@ -171,9 +172,15 @@ function update() {
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && !fl.busy && (fl.timer === null || Date.now() >= fl.next)) update();
 });
-$("#fl-km").on("change", () => { fl.data = null; render(); update(); });
+// A narrower range at once (the helper cuts it from the answer it keeps), a wider one 2 s after the last change
+$("#fl-km").on("change", () => {
+  const wider = km() > fl.km;
+  fl.km = km(); fl.data = null; render();
+  if (wider) schedule(2); else update();
+});
 $("#fl-grid").on("change", () => { fl.data = null; render(); update(); });
 $("#fl-upd").on("click", update);
+fl.km = km();
 render();
 update();
 </script>

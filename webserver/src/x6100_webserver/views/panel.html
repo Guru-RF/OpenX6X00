@@ -103,6 +103,7 @@
 .ft li .x { overflow:hidden; text-overflow:ellipsis; }
 .ft li .i { color:var(--pd); font-size:11px; }
 .ft li .k { grid-column:1 / span 2; color:var(--pd); font-size:11px; font-family:system-ui,sans-serif; overflow:hidden; text-overflow:ellipsis; }
+.ft li .k .flag { display:inline-block; width:20px; height:15px; margin-right:6px; border-radius:2px; vertical-align:-3px; background:url(/static/img/flags.png?v=1) no-repeat; background-size:320px auto; box-shadow:0 0 0 1px rgba(128,128,128,.3); }
 .ft li.t0, .ft li.t1 { color:var(--pd); cursor:default; }
 .ft li.t3 { background:#14301f; }
 .ft li.t4 { background:#3a2a10; color:#ffd27a; }
@@ -878,6 +879,16 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     ftTab.scrollTop = 0;
     ftOrderShow();
   });
+
+  /* The sender's flag, as the radio's own list has it: decode.flag is the flag's number in src/flags.h (flag_px,
+   * flag_iso; -1 none), which is its cell in /static/img/flags.png (tools/flags_web: FLAG_COLS a row, 40 x 30 each,
+   * shown at half, as on the FT8 and JS8 pages). null: no flag, or a GUI from before it sent one */
+  const FLAG_COLS = 16;
+  function flagCell(k) {
+    if (!Number.isInteger(k) || k < 0) return null;
+    return {x: -(k % FLAG_COLS) * 20, y: -Math.floor(k / FLAG_COLS) * 15};
+  }
+
   function addFt8Row(decode) {
     const isTabVisible = ftTab.classList.contains("cur");
     const scrollHeightBefore = ftTab.scrollHeight;
@@ -908,7 +919,10 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
       ].filter(Boolean).join(" · ");
 
       if (details) {
-        row.append($("<span class='k'>").text(details));
+        const $k = $("<span class='k'>").text(details);
+        const cell = decode.k ? flagCell(decode.flag) : null;
+        if (cell) $k.prepend($("<span class='flag'>").css("background-position", cell.x + "px " + cell.y + "px"));
+        row.append($k);
       }
 
       row.on("click", function() {

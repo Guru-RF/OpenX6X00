@@ -9,8 +9,10 @@ here goes to airplanes.live or adsb.lol.
    aircraft cleaned into the screen's units, the answers parsed (an empty area, an answer with no list, not JSON).
 2. The helper run as the GUI runs it, against the stand-in: what it sends (the rounded position, the radius, the
    User-Agent, nothing else), what it writes (the aircraft in range, from the position itself, the nearest first,
-   the credit and the next poll), the answer kept 10 s for the GUI and the web page alike, adsb.lol when
-   airplanes.live fails, a 429 and its Retry-After kept, a second between two requests to one service, no internet,
+   the credit and the next poll), the answer kept 50 s for the GUI and the web page alike, adsb.lol when
+   airplanes.live fails, a 429 and its Retry-After kept, a 403 or 401 (not allowed) not asked again for an hour,
+   then two, a day at most, with what the service said on the status line, a kept answer with the time it was
+   fetched at and its next poll a minute after that, a second between two requests to one service, no internet,
    wrong arguments.
 3. With bottle: the web page's /api/flights by a locator typed, by the radio's position from the GUI's socket
    (pos_get, not the place of the radio's country it falls back to), by the QTH locator when the GUI does not answer,
@@ -203,6 +205,18 @@ class Functions(unittest.TestCase):
             with self.assertRaises(ValueError, msg=bad):
                 self.h.parse(bad)
 
+    def test_said(self):
+        self.assertEqual(self.h.said(sample("refused.json")), "Please contact us at contact@airplanes.live")
+        self.assertEqual(self.h.said(b'{"message": "Forbidden"}'), "Forbidden")
+        self.assertEqual(self.h.said(b'{"detail": "No!  Go\\naway"}'), "No!")
+        self.assertEqual(self.h.said('{"msg": "#ff0000 caf\\u00e9 \\u0007x#"}'.encode()), "ff0000 caf x",
+                         "plain ASCII, without the mark LVGL recolours with")
+        long = self.h.said(json.dumps({"error": "word " * 40}).encode())
+        self.assertEqual((len(long), long[-3:]), (self.h.SAID_N, "..."))
+        self.assertLessEqual(len(self.h.said(json.dumps({"error": "a" * 70 + ". b"}).encode())), self.h.SAID_N)
+        for nothing in (b"", b"<html>403</html>", b"[]", b'{"error": 5}', b'{"error": {"a": 1}}', b"\xff"):
+            self.assertEqual(self.h.said(nothing), "", nothing)
+
     def test_place(self):
         ac = self.h.parse(sample("airplanes_live.json"))
         near = self.h.place(ac, *HOME, 100)
@@ -218,38 +232,56 @@ class Functions(unittest.TestCase):
 class Helper(HelperCase):
     def test_request_and_answer(self):
         line, out = self.run_helper(*HOME, 100)
-        self.assertEqual(line, "ok 4 20")
+        self.assertEqual(line, "ok 4 60")
         self.assertEqual(len(Stand.seen), 1)
         r = Stand.seen[0]
         self.assertEqual(r["path"], "/a/50.8/4.4/59", "the rounded position, the radius in NM, nothing else")
         self.assertEqual(r["headers"].get("User-Agent"), AGENT)
         d = self.read(out)
-        self.assertEqual((d["src"], d["credit"], d["km"], d["next"]), ("airplanes.live", "airplanes.live", 100, 20))
+        self.assertEqual((d["src"], d["credit"], d["km"], d["next"]), ("airplanes.live", "airplanes.live", 100, 60))
         self.assertEqual([a["hex"] for a in d["ac"]], ["2A1B3C", "44CDC6", "485A32", "4CA7B5"])
         self.assertEqual([a["call"] for a in d["ac"]], ["", "BEL7PC", "KLM29T", "RYR4TP"])
         self.assertAlmostEqual(d["ac"][3]["dist_km"], cos_law_km(*HOME, 51.10012, 4.90031), delta=0.1)
         self.assertRegex(d["time"], r"^\d\d:\d\d:\d\d$")
         self.assertNotIn("50.8467", json.dumps(d), "the exact position is in no file")
 
-    def test_one_answer_for_ten_seconds(self):
+    def test_one_answer_for_fifty_seconds(self):
         self.run_helper(*HOME, 100)
         line, out = self.run_helper(50.84, 4.36, 25, out=os.path.join(self.tmp, "web.json"))
-        self.assertEqual(line, "ok 3 20", "a smaller radius around the same 0.1 degree: the answer kept")
+        self.assertEqual(line, "ok 3 60", "a smaller radius around the same 0.1 degree: the answer kept")
         self.assertEqual(len(Stand.seen), 1)
         self.assertEqual(self.read(out)["ac"][0]["dist_km"], round(cos_law_km(50.84, 4.36, 50.86, 4.37), 1))
         line, _ = self.run_helper(*HOME, 200)
-        self.assertEqual(line, "ok 5 20", "a wider radius: asked again")
+        self.assertEqual(line, "ok 5 60", "a wider radius: asked again")
         self.assertEqual([r["path"] for r in Stand.seen], ["/a/50.8/4.4/59", "/a/50.8/4.4/113"])
         line, _ = self.run_helper(51.2, 4.4, 100)
         self.assertEqual(len(Stand.seen), 3, "another 0.1 degree: asked again")
         cache = os.path.join(self.tmp, "x6100-flights-cache.json")
         with open(cache) as f:
             c = json.load(f)
-        c["t"] -= 11
+        c["t"] -= 51
         with open(cache, "w") as f:
             json.dump(c, f)
         self.run_helper(51.2, 4.4, 100)
-        self.assertEqual(len(Stand.seen), 4, "kept 10 s, no longer")
+        self.assertEqual(len(Stand.seen), 4, "kept 50 s, no longer")
+
+    def test_a_kept_answer_has_its_own_time(self):
+        """An answer 20 s old for the other one of app and page, or a narrower range: the time it was fetched at on
+        it, and the next poll a minute after that, not a minute from now"""
+        self.run_helper(*HOME, 200)
+        cache = os.path.join(self.tmp, "x6100-flights-cache.json")
+        with open(cache) as f:
+            c = json.load(f)
+        c["t"] -= 20
+        with open(cache, "w") as f:
+            json.dump(c, f)
+        line, out = self.run_helper(*HOME, 100, out=os.path.join(self.tmp, "web.json"))
+        self.assertRegex(line, r"^ok 4 (40|39)$")
+        self.assertEqual(len(Stand.seen), 1)
+        d = self.read(out)
+        self.assertEqual(d["t"], int(c["t"]))
+        self.assertEqual(d["time"], time.strftime("%H:%M:%S", time.localtime(c["t"])))
+        self.assertIn(d["next"], (39, 40))
 
     def test_adsb_lol_when_airplanes_live_fails(self):
         Stand.answers["a"] = (500, b"oops", {})
@@ -279,10 +311,67 @@ class Helper(HelperCase):
         self.assertRegex(line, r"^error airplanes\.live: next try in 1[12]\d s; adsb\.lol: next try in [56]\d s$")
         self.assertEqual(len(Stand.seen), 2)
 
+    def test_not_allowed_is_not_asked_again_for_long(self):
+        Stand.answers["a"] = (403, sample("refused.json"), {})
+        state_file = os.path.join(self.tmp, "x6100-flights-state.json")
+
+        def state(**change):
+            with open(state_file) as f:
+                s = json.load(f)
+            if change:
+                s.update(change)
+                with open(state_file, "w") as f:
+                    json.dump(s, f)
+            return s
+
+        t = time.time()
+        line, out = self.run_helper(*HOME, 100)
+        self.assertEqual(line, "ok 2 60", "adsb.lol in its place")
+        s = state()
+        self.assertAlmostEqual(s["airplanes.live"], t + 3600, delta=5)
+        self.assertEqual(s["refused:airplanes.live"], [1, "Please contact us at contact@airplanes.live"])
+        # The next polls, another place (nothing kept for it): airplanes.live is not asked, and what it said is shown
+        line, _ = self.run_helper(51.5, 4.4, 100)
+        self.assertEqual(line, "error airplanes.live: refused (Please contact us at contact@airplanes.live); "
+                               "adsb.lol: next try in 60 s")
+        state(**{"adsb.lol": 0})
+        self.assertRegex(self.run_helper(51.5, 4.4, 100)[0], r"^ok \d+ 60$")
+        self.assertEqual([r["svc"] for r in Stand.seen], ["a", "b", "b"], "airplanes.live once")
+        # Its hour over and refused again: two hours, then four ... and a day at most
+        for n, wait in ((2, 7200), (3, 14400)):
+            state(**{"airplanes.live": 0, "adsb.lol": 0})
+            t = time.time()
+            self.run_helper(52.5 + n, 4.4, 100)
+            s = state()
+            self.assertAlmostEqual(s["airplanes.live"], t + wait, delta=5)
+            self.assertEqual(s["refused:airplanes.live"][0], n)
+        state(**{"airplanes.live": 0, "adsb.lol": 0, "refused:airplanes.live": [30, "x"]})
+        t = time.time()
+        self.run_helper(60.5, 4.4, 100)
+        self.assertAlmostEqual(state()["airplanes.live"], t + 86400, delta=5)
+        # Allowed again: the row ends
+        Stand.answers["a"] = (200, sample("airplanes_live.json"), {})
+        state(**{"airplanes.live": 0, "adsb.lol": 0})
+        line, out = self.run_helper(*HOME, 100, out=os.path.join(self.tmp, "again.json"))
+        self.assertEqual((line, self.read(out)["src"]), ("ok 4 60", "airplanes.live"))
+        self.assertNotIn("refused:airplanes.live", state())
+
+    def test_not_allowed_without_a_message(self):
+        Stand.answers["a"] = (401, b"<html>no</html>", {})
+        Stand.answers["b"] = (403, b"", {})
+        t = time.time()
+        line, _ = self.run_helper(*HOME, 100)
+        self.assertEqual(line, "error airplanes.live: refused (HTTP 401); adsb.lol: refused (HTTP 403)")
+        line, _ = self.run_helper(*HOME, 100)
+        self.assertEqual(line, "error airplanes.live: refused (HTTP 401); adsb.lol: refused (HTTP 403)")
+        self.assertEqual(len(Stand.seen), 2, "neither asked again")
+        with open(os.path.join(self.tmp, "x6100-flights-state.json")) as f:
+            self.assertAlmostEqual(json.load(f)["adsb.lol"], t + 3600, delta=5)
+
     def test_nothing_around(self):
         Stand.answers["a"] = (200, sample("no_ac.json"), {})
         line, out = self.run_helper(*HOME, 50)
-        self.assertEqual(line, "ok 0 20")
+        self.assertEqual(line, "ok 0 60")
         self.assertEqual(self.read(out)["ac"], [])
 
     def test_a_second_between_two_requests(self):
@@ -292,7 +381,7 @@ class Helper(HelperCase):
                                   stdout=subprocess.PIPE, text=True, env=self.env())
                  for lat, out in ((50.85, outs[0]), (51.85, outs[1]))]
         lines = [p.communicate(timeout=60)[0].strip() for p in procs]
-        self.assertEqual(sorted(lines), ["ok 2 20", "ok 4 20"])
+        self.assertEqual(sorted(lines), ["ok 2 60", "ok 4 60"])
         self.assertEqual([r["svc"] for r in Stand.seen], ["a", "a"], "both from airplanes.live")
         self.assertGreaterEqual(Stand.seen[1]["t"] - Stand.seen[0]["t"], 0.9)
 
@@ -422,7 +511,7 @@ class Web(HelperCase):
         self.assertEqual(st, 200, data)
         d = json.loads(data)
         self.assertEqual(asked, [{"cmd": "pos_get"}])
-        self.assertEqual((d["where"], d["credit"], d["next"]), ("GPS", "airplanes.live", 20))
+        self.assertEqual((d["where"], d["credit"], d["next"]), ("GPS", "airplanes.live", 60))
         self.assertEqual([a["hex"] for a in d["ac"]], ["2A1B3C", "44CDC6", "485A32", "4CA7B5"])
         self.assertEqual(Stand.seen[0]["path"], "/a/50.8/4.4/59")
         self.assertEqual(Stand.seen[0]["headers"].get("User-Agent"), AGENT, "the version from app-version")
