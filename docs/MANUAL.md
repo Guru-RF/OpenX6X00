@@ -6165,6 +6165,12 @@ what keeps it, what the FT8 decodes say of it, and a time station's minute
 marker. The clock part is F4OLI's (OlivLoze's fork), merged with FT8's Auto
 Sync.
 
+A press of the MFK, APP or ESC closes it, and the line under the rows says so
+("MFK press, APP or ESC: close"). Up to v0.3.13 the window had no such line,
+and the MFK's press, which opens it from the apps menu, did nothing in it
+(issue #347). A tap on the touch screen does not close it. With speech on, a
+keyboard's Enter and arrows still read the rows.
+
 - Satellites, fix: the satellites the GPS sees and uses, and the fix ("25/8,
   3D", "25/0, no fix"). It keeps the last count gpsd gave, as not all of
   gpsd's reports carry one once there is a fix.

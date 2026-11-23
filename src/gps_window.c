@@ -31,9 +31,10 @@
 #include <string.h>
 #include <time.h>
 
-/* Seven rows in the dialog's height, the values in one column wide enough for a position */
+/* Seven rows over a line that says how to leave (#347), the values in one column wide enough for a position */
 #define ROWS        7
-#define ROW_H       ((DIALOG_H - 12) / ROWS)
+#define HINT_H      26
+#define ROW_H       ((DIALOG_H - 12 - HINT_H) / ROWS)
 #define NAME_X      20
 #define NAME_W      220
 #define VALUE_X     (NAME_X + NAME_W + 10)
@@ -58,6 +59,7 @@ static unsigned      result_seen;
 static void open_cb(lv_obj_t *parent);
 static void close_cb(void);
 static void window_key_cb(lv_event_t *e);
+static void click_cb(lv_event_t *e);
 
 static const char *station_label(void);
 static const char *listen_label(void);
@@ -375,8 +377,17 @@ static void open_cb(lv_obj_t *parent) {
     for (int i = 0; i < ROWS; i++)
         add_row(win, i);
 
+    /* How to leave, as the menus say it */
+    lv_obj_t *hint = lv_label_create(win);
+
+    lv_obj_set_style_text_font(hint, &sony_20, 0);
+    lv_obj_set_style_text_color(hint, TC(text_dim), 0);
+    lv_label_set_text(hint, "MFK press, APP or ESC: close");
+    lv_obj_set_pos(hint, NAME_X, 6 + ROWS * ROW_H);
+
     lv_obj_add_event_cb(win, report_cb, EVENT_GPS, NULL);
     lv_obj_add_event_cb(win, window_key_cb, LV_EVENT_KEY, NULL);
+    lv_obj_add_event_cb(win, click_cb, LV_EVENT_CLICKED, NULL);
     voice_focus_quiet(win);     /* the knob reads it all (window_key_cb) */
     lv_group_add_obj(keyboard_group, win);
 
@@ -388,6 +399,16 @@ static void open_cb(lv_obj_t *parent) {
 static void close_cb(void) {
     listen_stop();
     lv_timer_del(status_timer);
+}
+
+/* The MFK's press leaves, as it opened the window from the menu: it had no job here (#347). The encoder sends a
+ * click, not ENTER; a tap on the screen is a click too and leaves the window open */
+static void click_cb(lv_event_t *e) {
+    lv_indev_t *indev = lv_indev_get_act();
+
+    (void)e;
+    if (indev && lv_indev_get_type(indev) == LV_INDEV_TYPE_ENCODER)
+        dialog_destruct();
 }
 
 static void window_key_cb(lv_event_t *e) {
