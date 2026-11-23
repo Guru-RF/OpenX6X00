@@ -627,7 +627,10 @@ static void make_slot(disp_btn_t *s, lv_obj_t *parent, lv_coord_t x, uint8_t idx
 
     s->vol_mark = make_mark(f, mx, my);
     s->mfk_mark = make_mark(f, mx, my);
-    lv_obj_set_style_bg_color(s->mfk_mark, TC(info), 0);
+    /* Not where the theme's info colour is the one of "the knob is on this now" (Black Metal, Total Black: cyan): a
+     * page of MFK controls then had the same line on every button, the one being turned too (#340). There the MFK's
+     * mark is the plain one, as VOL's */
+    if (theme_hex(TC_info) != theme_hex(TC_btn_mark_active)) lv_obj_set_style_bg_color(s->mfk_mark, TC(info), 0);
     if (theme_shape.mono) {     /* 1bit: the MFK's mark hollow, the VOL's solid */
         lv_obj_set_style_bg_color(s->mfk_mark, TC(btn), 0);
         lv_obj_set_style_border_width(s->mfk_mark, 1, 0);

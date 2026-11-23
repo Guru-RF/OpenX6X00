@@ -684,7 +684,7 @@ msgid "GPS / Clock"
 msgstr ""
 
 #: src/apps_menu.c
-msgid "Position, clock"
+msgid "Position, time"
 msgstr ""
 
 #: src/apps_menu.c
@@ -8000,6 +8000,10 @@ msgstr ""
 msgid ""
 "Auto Sync on\n"
 "FT8 and FT4 set the clock"
+msgstr ""
+
+#: src/gps_window.c
+msgid "MFK press, APP or ESC: close"
 msgstr ""
 
 #: src/gui_main.c

@@ -740,8 +740,8 @@ msgid "GPS / Clock"
 msgstr "GPS / Reloj"
 
 #: src/apps_menu.c
-msgid "Position, clock"
-msgstr "Posición, reloj"
+msgid "Position, time"
+msgstr "Posición, hora"
 
 #: src/apps_menu.c
 msgid "Screen Rec"
@@ -8504,6 +8504,10 @@ msgid ""
 msgstr ""
 "Sinc. auto encendida\n"
 "FT8 y FT4 ponen el reloj en hora"
+
+#: src/gps_window.c
+msgid "MFK press, APP or ESC: close"
+msgstr "Pulsar MFK, APP o ESC: cerrar"
 
 #: src/gui_main.c
 msgid ""
@@ -19048,9 +19052,6 @@ msgstr "apagando"
 
 #~ msgid "Auto Tilt..."
 #~ msgstr "Inclinación auto..."
-
-#~ msgid "Position, time"
-#~ msgstr "Posición, hora"
 
 #~ msgid "Auto Sync off: the clock moves only with Time Sync"
 #~ msgstr "Sinc. auto apagada: el reloj solo se mueve con Sincronizar hora"

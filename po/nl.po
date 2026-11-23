@@ -739,8 +739,8 @@ msgid "GPS / Clock"
 msgstr "GPS / Klok"
 
 #: src/apps_menu.c
-msgid "Position, clock"
-msgstr "Positie, klok"
+msgid "Position, time"
+msgstr "Positie, tijd"
 
 #: src/apps_menu.c
 msgid "Screen Rec"
@@ -8467,6 +8467,10 @@ msgid ""
 msgstr ""
 "Auto-sync aan\n"
 "FT8 en FT4 zetten de klok gelijk"
+
+#: src/gps_window.c
+msgid "MFK press, APP or ESC: close"
+msgstr "MFK drukken, APP of ESC: sluiten"
 
 #: src/gui_main.c
 msgid ""
@@ -17561,9 +17565,6 @@ msgstr "INSTELLINGEN"
 
 #~ msgid "Auto Tilt..."
 #~ msgstr "Auto-helling..."
-
-#~ msgid "Position, time"
-#~ msgstr "Positie, tijd"
 
 #~ msgid "Auto Sync off: the clock moves only with Time Sync"
 #~ msgstr "Auto-sync uit: de klok verschuift alleen met Tijdsync"
