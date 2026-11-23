@@ -1572,6 +1572,13 @@ issue #132).
   use.
 - It follows Zoom and step per mode: on, each mode has its own steps per
   zoom (CW finer than SSB at the same zoom); off, one set for every mode.
+- A mode change, by hand or from the band plan, brings back the step the
+  mode was left with, and the zoom the mode is at takes that step. Up to
+  v0.3.13 a mode whose step was chosen while Step per zoom was off could
+  come back with an older step of its zoom, when the mode before it was on
+  the same step at another zoom: CW left on 1 kHz came back with 100 kHz
+  from SSB on 1 kHz, and the main knob went from 14.069.000 to 13.900.000
+  (issue #348).
 - A zoom between those four, which CAT or the browser panel can set, keeps
   the step in use.
 
