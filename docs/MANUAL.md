@@ -6487,7 +6487,8 @@ nothing retunes it; ESC closes.
   allows one request a second, adsb.lol 500 a day from an address without
   a key and answers "too many" with a time to wait, which the radio keeps.
   The app and the web page (below) share an answer for 50 s, so having both
-  open costs no extra requests.
+  open costs no extra requests: the one that gets the other's answer shows
+  the time it was fetched at, and asks again a minute after that time.
 - Range: a narrower one is cut from the answer kept, with no request. A
   wider one is asked for 2 s after the last press, so stepping through the
   ranges asks once, for the one you stop at.

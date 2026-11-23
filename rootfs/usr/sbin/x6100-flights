@@ -14,9 +14,10 @@
 # moved the centre, and each aircraft's distance and bearing are worked out here from the position itself. The GUI
 # asks only while the app is open, the web server only while its page is open and seen, every NEXT seconds: 60 with
 # either service (at most 60 an hour of adsb.lol's 500 a day). One answer serves both for CACHE_S, a narrower range
-# too (no request when the range is turned down), and the
-# requests of both are taken one at a time (LOCK), each service not asked again before the time kept in STATE (a
-# second after the last request; a "429 too many" with its Retry-After).
+# too (no request when the range is turned down): it goes out with the time it was fetched at, and the next poll is
+# due 60 s after that, so the two end up asking together and showing the same. The requests of both are taken one
+# at a time (LOCK), each service not asked again before the time kept in STATE (a second after the last request; a
+# "429 too many" with its Retry-After).
 #
 # From condoruy's CX8ANM edition of OpenX6X00 (its Flights app), rewritten for the rules above.
 import fcntl
@@ -251,19 +252,23 @@ def update(lat, lon, km, out=OUT, now=None):
         cache = read_json(CACHE, {})
         if (cache.get("at") == [qlat, qlon] and number(cache.get("nm")) and cache["nm"] >= nm and
                 number(cache.get("t")) and 0 <= now - cache["t"] < CACHE_S and isinstance(cache.get("ac"), list)):
-            src, aircraft = cache.get("src", ""), cache["ac"]
+            src, aircraft, at = cache.get("src", ""), cache["ac"], cache["t"]
         else:
             state = read_json(STATE, {})
             try:
                 src, aircraft = fetch(qlat, qlon, nm, now, state)
             finally:
                 write_json(STATE, state)
+            at = now
             write_json(CACHE, {"at": [qlat, qlon], "nm": nm, "t": now, "src": src, "ac": aircraft})
-    service = next((s for s in services() if s[0] == src), (src, "", 1, RETRY_S, src))
-    ac = place(aircraft, lat, lon, km)
-    write_json(out, {"t": int(now), "time": time.strftime("%H:%M:%S", time.localtime(now)), "src": src,
-                     "credit": service[4], "km": km, "next": service[3], "ac": ac})
-    return len(ac), service[3]
+        service = next((s for s in services() if s[0] == src), (src, "", 1, RETRY_S, src))
+        ac = place(aircraft, lat, lon, km)
+        # The time is the answer's, a kept one's too, and the next poll a minute after it was fetched. Written
+        # before the lock goes: of two runs for one file (the range changed while a request was out) the later wins
+        nxt = max(1, int(math.ceil(service[3] - (now - at))))
+        write_json(out, {"t": int(at), "time": time.strftime("%H:%M:%S", time.localtime(at)), "src": src,
+                         "credit": service[4], "km": km, "next": nxt, "ac": ac})
+    return len(ac), nxt
 
 
 def main():

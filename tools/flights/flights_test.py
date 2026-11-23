@@ -10,8 +10,8 @@ here goes to airplanes.live or adsb.lol.
 2. The helper run as the GUI runs it, against the stand-in: what it sends (the rounded position, the radius, the
    User-Agent, nothing else), what it writes (the aircraft in range, from the position itself, the nearest first,
    the credit and the next poll), the answer kept 50 s for the GUI and the web page alike, adsb.lol when
-   airplanes.live fails, a 429 and its Retry-After kept, a second between two requests to one service, no internet,
-   wrong arguments.
+   airplanes.live fails, a 429 and its Retry-After kept, a kept answer with the time it was fetched at and its next
+   poll a minute after that, a second between two requests to one service, no internet, wrong arguments.
 3. With bottle: the web page's /api/flights by a locator typed, by the radio's position from the GUI's socket
    (pos_get, not the place of the radio's country it falls back to), by the QTH locator when the GUI does not answer,
    and its refusals.
@@ -250,6 +250,24 @@ class Helper(HelperCase):
             json.dump(c, f)
         self.run_helper(51.2, 4.4, 100)
         self.assertEqual(len(Stand.seen), 4, "kept 50 s, no longer")
+
+    def test_a_kept_answer_has_its_own_time(self):
+        """An answer 20 s old for the other one of app and page, or a narrower range: the time it was fetched at on
+        it, and the next poll a minute after that, not a minute from now"""
+        self.run_helper(*HOME, 200)
+        cache = os.path.join(self.tmp, "x6100-flights-cache.json")
+        with open(cache) as f:
+            c = json.load(f)
+        c["t"] -= 20
+        with open(cache, "w") as f:
+            json.dump(c, f)
+        line, out = self.run_helper(*HOME, 100, out=os.path.join(self.tmp, "web.json"))
+        self.assertRegex(line, r"^ok 4 (40|39)$")
+        self.assertEqual(len(Stand.seen), 1)
+        d = self.read(out)
+        self.assertEqual(d["t"], int(c["t"]))
+        self.assertEqual(d["time"], time.strftime("%H:%M:%S", time.localtime(c["t"])))
+        self.assertIn(d["next"], (39, 40))
 
     def test_adsb_lol_when_airplanes_live_fails(self):
         Stand.answers["a"] = (500, b"oops", {})
