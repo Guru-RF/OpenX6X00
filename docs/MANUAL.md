@@ -6486,6 +6486,11 @@ nothing retunes it; ESC closes.
   open and the screen is lit; never in the background. airplanes.live
   allows one request a second, adsb.lol 500 a day from an address without
   a key and answers "too many" with a time to wait, which the radio keeps.
+  A service that answers "not allowed" (HTTP 401 or 403) is not asked
+  again for an hour, then two, four and so on up to a day, until the radio
+  is switched off; the other one is used meanwhile, and when neither has an
+  answer the bottom line says *refused* with what the service said
+  ("airplanes.live: refused (Please contact us at ...)").
   The app and the web page (below) share an answer for 50 s, so having both
   open costs no extra requests: the one that gets the other's answer shows
   the time it was fetched at, and asks again a minute after that time.
