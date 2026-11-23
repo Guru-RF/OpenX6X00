@@ -461,7 +461,21 @@ static void draw_row_cb(lv_event_t *e) {
             rect->border_width = 1;
         }
     } else if (mfk_here) {
-        rect->bg_color = lv_color_lighten(rect->bg_color, 20);
+        /* The MFK's row in the theme's colours of a selected row, solid and framed (#355). It was the row's own colour
+         * a little lighter, half see-through: on a green CQ row that showed (v0.3.12), on the near-black rows the
+         * redesign gave the CQs and the traffic (v0.3.13) it hardly did, on a pure black theme not at all. A call to
+         * us and our own TX keep their red and blue under the frame */
+        rect->border_color = TC(sel_border);
+        rect->border_opa   = LV_OPA_COVER;
+        rect->border_side  = LV_BORDER_SIDE_FULL;
+        rect->border_width = 2;
+        rect->bg_opa       = LV_OPA_COVER;
+        if (cd && (cd->cell_type == CELL_RX_TO_ME || cd->cell_type == CELL_TX_MSG)) {
+            rect->bg_color = lv_color_lighten(rect->bg_color, 20);
+        } else {
+            rect->bg_color = TC(sel_bg);
+            label->color   = TC(sel_text);
+        }
     }
 }
 

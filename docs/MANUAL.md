@@ -3691,6 +3691,15 @@ traffic, to answer them fast:
 | a message to you | red |
 | your TX | blue |
 
+The row the MFK is on, the one a press calls, has the theme's colours of a
+selected row, solid, with a frame around it (gold in RF.Guru, yellow in
+Outdoor, blue in Classic, cyan in Black Metal and Total Black); a message to
+you and your TX keep their red and blue inside the frame. In the 1bit theme it
+has a heavy frame. Up to v0.3.13 that row was only a shade lighter than the
+others and half see-through: on a green CQ row it showed, on the dark rows
+v0.3.13 gave the CQs and the traffic it hardly did, and on Total Black not at
+all (issue #355).
+
 The countries of your log are read from the radio's QSO list as the app
 opens, and a QSO logged since adds its own; one deleted or imported meanwhile
 counts from the next time the app opens. In the 1bit theme a CQ not worked
