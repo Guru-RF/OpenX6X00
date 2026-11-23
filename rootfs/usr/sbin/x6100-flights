@@ -12,8 +12,9 @@
 #
 # The position leaves the radio rounded to 0.1 degree (about 11 km): the radius asked is wider by what the rounding
 # moved the centre, and each aircraft's distance and bearing are worked out here from the position itself. The GUI
-# asks only while the app is open, the web server only while its page is open and seen, every NEXT seconds: 20 with
-# airplanes.live, 60 with adsb.lol (at most 60 an hour of its 500 a day). One answer serves both for CACHE_S, and the
+# asks only while the app is open, the web server only while its page is open and seen, every NEXT seconds: 60 with
+# either service (at most 60 an hour of adsb.lol's 500 a day). One answer serves both for CACHE_S, a narrower range
+# too (no request when the range is turned down), and the
 # requests of both are taken one at a time (LOCK), each service not asked again before the time kept in STATE (a
 # second after the last request; a "429 too many" with its Retry-After).
 #
@@ -32,7 +33,7 @@ OUT = os.path.join(TMP, "x6100-flights.json")
 CACHE = os.path.join(TMP, "x6100-flights-cache.json")
 STATE = os.path.join(TMP, "x6100-flights-state.json")
 LOCK = os.path.join(TMP, "x6100-flights.lock")
-CACHE_S = 10
+CACHE_S = 50            # under the 60 s poll: a poll that is due asks again, a narrower range or the other one doesn't
 TIMEOUT_S = 10
 KM_PER_NM = 1.852
 FT_M = 0.3048
@@ -45,7 +46,7 @@ STALE_S = 60            # a position not heard for longer is left out
 
 # name, URL ({lat}, {lon}, {nm}), seconds between requests, seconds to the next poll, the credit shown
 SERVICES = [
-    ("airplanes.live", "https://api.airplanes.live/v2/point/{lat}/{lon}/{nm}", 1, 20, "airplanes.live"),
+    ("airplanes.live", "https://api.airplanes.live/v2/point/{lat}/{lon}/{nm}", 1, 60, "airplanes.live"),
     ("adsb.lol", "https://api.adsb.lol/v2/point/{lat}/{lon}/{nm}", 60, 60, "adsb.lol (ODbL)"),
 ]
 RETRY_S = 60            # after an error: the GUI's and the page's next try
