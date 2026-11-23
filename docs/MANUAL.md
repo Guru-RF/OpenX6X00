@@ -349,8 +349,14 @@ line, unless Keep knob lines is on).
   Comp, IF shift, VOX, PRE, ATT, ATU, Step, Brightness, NB, NR, DNF, the KEY
   and CW values...): each hold steps it from no knob to VOL ("Added to VOL
   encoder"), then to the MFK ("Moved to MFK encoder"), then off again
-  ("Removed from MFK encoder"). A mark on the left of the button shows which
-  knob it is on, in another colour while that knob turns it.
+  ("Removed from MFK encoder"). A mark on the button (a bar on its left edge;
+  a line along its top in Black Metal and Total Black) shows which knob it is
+  on. A value button that is on no knob has the mark too: it shows the knob a
+  press of the button would put it on (next item). So on a page such as
+  MFK 1:4 every button has a mark, and only one of them is the control the
+  knob turns now: that one's mark is in another colour (red in most themes,
+  cyan in Black Metal and Total Black beside grey ones, a solid bar twice as
+  wide in 1bit; see [Themes](#themes)).
 - A press of a value button puts it on a knob at once: VOL for Volume,
   Squelch, RF gain, TX power, Brightness and the filter, the MFK for the
   others. A press of an on/off button (NB, NR, DNF, VOX, PRE, ATT, ATU)
@@ -7450,9 +7456,16 @@ lines joined with a space. VISION and the walkie screen's buttons fit each text
 to its button instead. A theme file sets the size and the capitals with
 `btn_text_size` and `btn_caps`.
 
-Encoder LED. The bottom buttons show which encoder their control is on. The
-control the encoder adjusts now has a red LED, which follows button presses
-and encoder changes. A theme can draw the LED with an image.
+Encoder LED. The bottom buttons show which encoder their control is on, or
+would go on at a press (see [Buttons and knobs](#buttons-and-knobs)): a bar on the button's left edge,
+in Black Metal and Total Black a line along its top. The control the encoder
+adjusts now has its own: red in RF.Guru, Outdoor, Outdoor-Negative, Classic
+and VISION, cyan in Black Metal and Total Black, where the other lines are
+grey (up to v0.3.13 a page of MFK controls had the same cyan line on every
+button there, issue #340), and in 1bit a solid bar twice as wide. It follows
+button presses and encoder changes. A theme can draw the LED with an image; in
+a theme file whose `info` colour is its `btn_mark_active`, the MFK's plain mark
+takes `btn_mark`, so the two never look alike.
 
 Fonts. Sony Sketch, Roboto and DejaVu (default) are in Settings > Display >
 INTERFACE > Font. Arial is set by a theme's `font`; its LVGL sizes are

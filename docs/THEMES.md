@@ -75,10 +75,16 @@ Every key is optional: what a file does not set comes from its `base`.
 | `codec` | the S-meter as a SIGNAL bar: a framed row of segments, red above S9, the peak bright, the S scale under it and the dB value top right (themes/Codec); in TX the TX readings, as in any theme. Settings > Display > S-meter type and S-meter colours have no effect under it |
 | `ops_room` | the Ops Room theme's own pieces: a red band with TRANSMIT and ON AIR across the main screen under the TX panel while the radio transmits (not over an app: the app shows the TX its own way); the time in 7-segment digits between INTERNAL/EXTERNAL and the battery %, the battery's time left as LIMIT under it (TO FULL on a supply, the supply's voltage without a battery); the S-meter as a row of SIGNAL hexagons, its value or TX over them. Settings > Display > Power display, S-meter type and S-meter colours have no effect under it |
 
-The encoder LED shows which encoder a button's control is on (`btn_mark`,
-`btn_mark_assigned`); the control the encoder adjusts now is `btn_mark_active`
-(red in the built-in themes). Pressing a button or turning to another control
-moves it.
+The encoder LED shows which encoder a button's control is on, or would go on
+at a press of the button: `btn_mark` for VOL and `info` for the MFK when a
+press would put it there, `btn_mark_assigned` when it is bound to the knob
+(half see-through unless `focus_solid`). The control the encoder adjusts now
+is `btn_mark_active`: red in the built-in themes, cyan in Black Metal and
+Total Black, 1bit a bar twice as wide. Keep it apart from the other three: on
+a page of MFK controls every button has a mark. Where `info` is the same
+colour as `btn_mark_active` the MFK's plain mark takes `btn_mark` instead
+(Black Metal and Total Black: grey lines, the one in use cyan; issue #340).
+Pressing a button or turning to another control moves it.
 
 ## Images
 
