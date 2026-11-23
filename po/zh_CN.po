@@ -740,8 +740,8 @@ msgid "GPS / Clock"
 msgstr "GPS / 时钟"
 
 #: src/apps_menu.c
-msgid "Position, clock"
-msgstr "位置, 时钟"
+msgid "Position, time"
+msgstr "位置、时间"
 
 #: src/apps_menu.c
 msgid "Screen Rec"
@@ -8520,6 +8520,10 @@ msgid ""
 msgstr ""
 "自动同步开\n"
 "FT8 和 FT4 设置时钟"
+
+#: src/gps_window.c
+msgid "MFK press, APP or ESC: close"
+msgstr "按下 MFK、APP 或 ESC:关闭"
 
 #: src/gui_main.c
 msgid ""
@@ -17662,9 +17666,6 @@ msgstr "设置"
 
 #~ msgid "Auto Tilt..."
 #~ msgstr "自动倾斜..."
-
-#~ msgid "Position, time"
-#~ msgstr "位置、时间"
 
 #~ msgid "Auto Sync off: the clock moves only with Time Sync"
 #~ msgstr "自动同步关: 只有按时间同步才调整时钟"

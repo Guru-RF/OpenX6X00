@@ -736,8 +736,8 @@ msgid "GPS / Clock"
 msgstr ""
 
 #: src/apps_menu.c
-msgid "Position, clock"
-msgstr ""
+msgid "Position, time"
+msgstr "Position, Zeit"
 
 #: src/apps_menu.c
 msgid "Screen Rec"
@@ -8194,6 +8194,10 @@ msgid ""
 "Auto Sync on\n"
 "FT8 and FT4 set the clock"
 msgstr ""
+
+#: src/gps_window.c
+msgid "MFK press, APP or ESC: close"
+msgstr "MFK drücken, APP oder ESC: schließen"
 
 #: src/gui_main.c
 msgid ""
@@ -19511,9 +19515,6 @@ msgstr "stoppt"
 
 #~ msgid "Logged"
 #~ msgstr "Geloggt"
-
-#~ msgid "Position, time"
-#~ msgstr "Position, Zeit"
 
 #~ msgid "QSO logged: %s %s %s %s"
 #~ msgstr "QSO geloggt: %s %s %s %s"
