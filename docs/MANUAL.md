@@ -6482,13 +6482,15 @@ nothing retunes it; ESC closes.
   range, with the firmware's name and version (`OpenX6X00/0.3.12`); never
   your callsign. The distances and bearings are worked out on the radio
   from your position itself.
-- How often: when the app opens, then every 20 s (every 60 s while the data
-  come from adsb.lol, which allows 500 requests a day from an address
-  without a key), only while the app is open and the screen is lit; never
-  in the background. airplanes.live allows one request a second, adsb.lol
-  answers "too many" with a time to wait, which the radio keeps. The app
-  and the web page (below) share an answer for 10 s, so having both open
-  costs no extra requests.
+- How often: when the app opens, then every 60 s, only while the app is
+  open and the screen is lit; never in the background. airplanes.live
+  allows one request a second, adsb.lol 500 a day from an address without
+  a key and answers "too many" with a time to wait, which the radio keeps.
+  The app and the web page (below) share an answer for 50 s, so having both
+  open costs no extra requests.
+- Range: a narrower one is cut from the answer kept, with no request. A
+  wider one is asked for 2 s after the last press, so stepping through the
+  ranges asks once, for the one you stop at.
 - The web configurator has the same as Operating > Flights: the plot and
   the list in the browser, with Range and a **Centre** box for another
   place by its locator (empty: the radio's position, as above). It asks

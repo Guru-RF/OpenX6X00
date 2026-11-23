@@ -49,6 +49,7 @@
 #define HELPER    X6100_SBIN "/x6100-flights"
 #define DATA_FILE "/tmp/x6100-flights.json"
 #define RETRY_S   60        /* after an error, as the helper's own */
+#define SETTLE_S  2         /* a wider range is asked for this long after the last press of Range */
 #define ROWS      6
 #define ROW_H     22
 #define PLOT      (APP_FRAME_BODY_H - 2)
@@ -574,7 +575,11 @@ static const char *range_label(void) {
     return s;
 }
 
+/* A narrower range at once: the helper cuts it from the answer it keeps, no request. A wider one SETTLE_S after the
+ * last press, so stepping through the ranges asks once, for the one stopped at */
 static void range_cb(button_data_t *b) {
+    int before = ranges_km[range_i];
+
     (void)b;
     range_i = (range_i + 1) % RANGES_N;
     buttons_refresh(&btn_range);
@@ -584,7 +589,10 @@ static void range_cb(button_data_t *b) {
     data = NULL;
     sel = top = 0;
     show();
-    start_update();
+    if (ranges_km[range_i] < before)
+        start_update();
+    else
+        next_at = time(NULL) + SETTLE_S;
 }
 
 static void update_cb(button_data_t *b) {
