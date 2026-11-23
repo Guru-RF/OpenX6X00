@@ -1197,6 +1197,8 @@ class SettingsManager {
     // on, is kept for the zoom in use. step_zoom_slot: the zoom's p_mode_step_z*, nullptr for a zoom not 1, 2, 4, 8
     Parameter<int32_t> *step_zoom_slot(int32_t zoom);
     void step_zoom(Subject *subj);
+    // After a mode's zoom, step and zoom's steps are loaded: the step of the zoom in use is the mode's step (#348)
+    void step_zoom_agree();
     static void step_zoom_cb(Subject *subj, void *user_data);
 
     // Switch-time band loads: never loads current_vfo; when `implicit` is true

@@ -4,6 +4,8 @@
 # - freq_steps_cfg_x6100 / _x6200: the real src/cfg (as tools/iambic_default builds it) on a database made in memory from
 #   sql/params.sql: FST's step change and the knob's stop with the range, the range kept at the next start. src/cfg's
 #   headers want LVGL beside src/ (LVGL) and ft8_lib's headers (DEPS, as host/build.sh puts them in build-host/deps).
+# - step_mode_x6100 / _x6200: the same settings, the main knob turned across a band plan's CW edge with Zoom and step
+#   per mode on: the mode the band plan sets comes back with the step it was left with (#348). See step_mode_test.cpp.
 TOP      := ../..
 SRC      := $(TOP)/src
 DEPS     ?= $(TOP)/build-host/deps
@@ -18,6 +20,7 @@ CFG_CPP  := $(wildcard $(SRC)/cfg/*.cpp)
 CFG_C    := $(wildcard $(SRC)/cfg/*.c)
 HEADERS  := $(wildcard $(SRC)/cfg/*.h) $(SRC)/board.h $(SRC)/radio_types.h
 TEST     := freq_steps_cfg_test.cpp stubs.cpp
+MODE     := step_mode_test.cpp stubs.cpp
 
 all: test
 
@@ -36,12 +39,20 @@ freq_steps_cfg_x6100: $(TEST) $(CFG_CPP) $(HEADERS) $(patsubst $(SRC)/cfg/%.c,bu
 freq_steps_cfg_x6200: $(TEST) $(CFG_CPP) $(HEADERS) $(patsubst $(SRC)/cfg/%.c,build/x6200/%.o,$(CFG_C))
 	$(CXX) $(CXXFLAGS) -DBOARD_X6200=1 -o $@ $(TEST) $(CFG_CPP) $(filter build/%,$^) -lsqlite3 -lpthread
 
-test: freq_steps_test freq_steps_cfg_x6100 freq_steps_cfg_x6200
+step_mode_x6100: $(MODE) $(CFG_CPP) $(HEADERS) $(patsubst $(SRC)/cfg/%.c,build/x6100/%.o,$(CFG_C))
+	$(CXX) $(CXXFLAGS) -o $@ $(MODE) $(CFG_CPP) $(filter build/%,$^) -lsqlite3 -lpthread
+
+step_mode_x6200: $(MODE) $(CFG_CPP) $(HEADERS) $(patsubst $(SRC)/cfg/%.c,build/x6200/%.o,$(CFG_C))
+	$(CXX) $(CXXFLAGS) -DBOARD_X6200=1 -o $@ $(MODE) $(CFG_CPP) $(filter build/%,$^) -lsqlite3 -lpthread
+
+test: freq_steps_test freq_steps_cfg_x6100 freq_steps_cfg_x6200 step_mode_x6100 step_mode_x6200
 	./freq_steps_test
 	./freq_steps_cfg_x6100 $(TOP)/sql/params.sql
 	./freq_steps_cfg_x6200 $(TOP)/sql/params.sql
+	./step_mode_x6100 $(TOP)/sql/params.sql
+	./step_mode_x6200 $(TOP)/sql/params.sql
 
 clean:
-	rm -rf freq_steps_test freq_steps_cfg_x6100 freq_steps_cfg_x6200 build
+	rm -rf freq_steps_test freq_steps_cfg_x6100 freq_steps_cfg_x6200 step_mode_x6100 step_mode_x6200 build
 
 .PHONY: all test clean

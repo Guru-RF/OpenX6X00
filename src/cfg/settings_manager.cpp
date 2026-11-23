@@ -252,10 +252,15 @@ void SettingsManager::zoom_step_scope(bool at_init) {
         // Back per mode: the current mode's own values, which the shared ones never wrote over. A change made in its
         // rows just before the option went off may still be queued, and load() reads the database
         pending_writes_.flush_storage(StorageType::MODE, mode_group_id_);
+        // One round of notifications, as a mode change has: the zoom told on its own, before the rest was bound to
+        // the mode, had step_zoom() read that zoom's step from the rows of every mode
+        NotifySuppressGuard guard;
+
         for (Parameter<int32_t> *p : zs) {
             p->set_context_id(mode_group_id_);
             p->load();
         }
+        step_zoom_agree();
         return;
     }
     if (p_mode_zoom.context_id() == MODE_ALL) {
@@ -288,7 +293,8 @@ Parameter<int32_t> *SettingsManager::step_zoom_slot(int32_t zoom) {
 
 // A zoom change brings its step back, when one was chosen there. Anything else (the step chosen with FST, the
 // option turned on, a zoom with no step yet) keeps the step in use for the zoom in use. A mode change loads the
-// zoom, the step and the zoom's steps of that mode (or of every mode) together, so they agree already
+// zoom, the step and the zoom's steps of that mode (or of every mode) together, and step_zoom_agree() has them
+// agree before this hears of the new zoom
 void SettingsManager::step_zoom(Subject *subj) {
     Parameter<int32_t> *slot = step_zoom_slot(p_mode_zoom.get());
 
@@ -302,6 +308,20 @@ void SettingsManager::step_zoom(Subject *subj) {
         return;
     }
     slot->set(p_mode_freq_step.get());
+}
+
+// The zoom, the step and the zoom's steps were just loaded together (a mode change, Zoom and step per mode turned
+// back on): the step loaded is the mode's own, the one it was left with, and its zoom's step takes it. The two differ
+// when the mode's step was chosen while Step per zoom was off, which writes no zoom's step. A mode change to another
+// zoom but the same step (SSB and CW both on 1 kHz) then told step_zoom() of the zoom only, and the zoom's older step
+// became the mode's: CW left on 1 kHz came back with a 100 kHz once chosen there, and the main knob went 14.069.000,
+// 13.900.000 (#348). With two different steps the step is told first and the zoom's step follows it
+void SettingsManager::step_zoom_agree() {
+    Parameter<int32_t> *slot = step_zoom_slot(p_mode_zoom.get());
+
+    if (p_step_per_zoom.get() && slot) {
+        slot->set(p_mode_freq_step.get());
+    }
 }
 
 void SettingsManager::step_zoom_cb(Subject *subj, void *user_data) {
@@ -513,6 +533,7 @@ void SettingsManager::switch_mode(ModeGroup new_group_id) {
     set_mode_context(mode_group_id_);
 
     load_mode_all();
+    step_zoom_agree();
 
     // The mode context can affect computed parameters that depend on mode
     // (e.g. current_mode_id); recompute the fg frequency chain.
