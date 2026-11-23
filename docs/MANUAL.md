@@ -8633,7 +8633,8 @@ client that showed what it asked for can show the radio's again. One the
 radio drops because an app locked the frequency, mode or band in between
 gets no `err`, but the whole `state` goes to every panel client. The keys
 and knobs go as on the Screen page. The apps: the FT8 list's rows come as `ft8r {...}` (id, type,
-text, call, grid, audio Hz, SNR, to me, worked, distance, country), the app's
+text, call, grid, audio Hz, SNR, to me, worked, distance, country and
+`flag`, the number of its flag as the radio's list draws it, -1 for none), the app's
 state as `ft8 {...}` (open, proto, cq, tx, auto, hold, sending, txf, next),
 the CW decoder's text as `cw "..."`; `ft8 open|close|cq|stop|auto|hold|mode`,
 `ft8 txcall`, `ft8 txfreq HZ` and `ft8 reply ID` work the app; `wefax
@@ -8974,6 +8975,8 @@ follows the newest once you have scrolled to its end; on top, what you are
 reading stays put while you are scrolled down. The distance is in km or in
 miles as the radio's Settings > Display > INTERFACE > FT8/FT4 info has it
 (mi or Country + mi), and the radio's "Saved QSO" message follows it too.
+The sender's country has its flag in front, the radio's own as on its FT8
+list; a call of no known country has neither.
 Up to v0.3.9 the page showed km only, the radio's message too (issue #227).
 
 STOP is one button with one stated outcome: the transmission under way and
