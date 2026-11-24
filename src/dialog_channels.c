@@ -7,14 +7,19 @@
 // of its draw (name on the left, frequency and mode on the right), so the cursor and the
 // scrolling stay LVGL's own. Keys: Close, Add, Delete, Edit (name) and Drag: while
 // dragging the MFK carries the channel up and down the list, Drop writes the new order.
+// A channel may name an app (#346: RTTY, WEFAX, NAVTEX, SSTV; Edit held goes through them),
+// shown after its name: the press opens that app and then tunes (channel_recall.h). The hand
+// mic's UP/DOWN only tune.
 //
 // Copyright (c) 2026 Giovanni Ricciardi IU1WXY, own code of the IU1WXY firmware
 
 #include "dialog_channels.h"     /* dialog_channels */
 
 #include <stdio.h>       /* snprintf */
+#include <string.h>      /* strcmp, strlen */
 
 #include "channels.h"            /* the list and its file */
+#include "channel_recall.h"      /* what a recall does, in which order */
 #include "keyboard.h"            /* keyboard_group */
 #include "textarea_window.h"     /* the name editor */
 #include "cfg/cfg_api.h"         /* the current frequency */
@@ -32,13 +37,16 @@ static void key_close_cb(button_data_t *data);
 static void key_add_cb(button_data_t *data);
 static void key_delete_cb(button_data_t *data);
 static void key_edit_cb(button_data_t *data);
+static void key_app_cb(button_data_t *data);
 static void key_drag_cb(button_data_t *data);
 static void key_drop_cb(button_data_t *data);
 
 static button_data_t btn_close  = { .type = BTN_TEXT, .label = "Close",  .press = key_close_cb };
 static button_data_t btn_add    = { .type = BTN_TEXT, .label = "Add",    .press = key_add_cb };
 static button_data_t btn_delete = { .type = BTN_TEXT, .label = "Delete", .press = key_delete_cb };
-static button_data_t btn_edit   = { .type = BTN_TEXT, .label = "Edit",   .press = key_edit_cb };
+/* Edit: the name; held: the app the channel opens (#346) */
+static button_data_t btn_edit   = { .type = BTN_TEXT, .label = "Edit\nhold: App", .press = key_edit_cb,
+                                    .hold = key_app_cb };
 static button_data_t btn_drag   = { .type = BTN_TEXT, .label = "Drag",   .press = key_drag_cb };
 static button_data_t btn_drop   = { .type = BTN_TEXT, .label = "Drop",   .press = key_drop_cb };
 
@@ -106,6 +114,18 @@ static void draw_row_cb(lv_event_t *e) {
 
     a.x1 = cell->x1 + lv_obj_get_style_pad_left(obj, LV_PART_ITEMS);
     a.x2 = cell->x2 - 340;
+    if (channels_app_known(c->app)) {
+        /* The app the channel opens (#346), at the end of the name's column in the accent colour; the name keeps
+         * what is left of it */
+        lv_draw_label_dsc_t tag = text;
+        lv_area_t           t   = a;
+
+        t.x1 = a.x2 - lv_txt_get_width(c->app, strlen(c->app), tag.font, tag.letter_space, LV_TEXT_FLAG_NONE);
+        tag.color = TC(accent);
+        tag.align = LV_TEXT_ALIGN_RIGHT;
+        lv_draw_label(dsc->draw_ctx, &tag, &t, c->app, NULL);
+        a.x2 = t.x1 - 10;
+    }
     text.align = LV_TEXT_ALIGN_LEFT;
     lv_draw_label(dsc->draw_ctx, &text, &a, c->name, NULL);
 
@@ -133,7 +153,10 @@ static void row_said(lv_obj_t *t, uint16_t row, char *buf, size_t size) {
     }
     voice_freq_text(c->freq, f, sizeof(f));
     voice_mode_text(channels_mode_name(c->mode), m, sizeof(m));
-    snprintf(buf, size, "%s%s%s, %s", c->name[0] ? c->name : "", c->name[0] ? ", " : "", f, m);
+    if (channels_app_known(c->app))
+        snprintf(buf, size, "%s%s%s, %s, opens %s", c->name[0] ? c->name : "", c->name[0] ? ", " : "", f, m, c->app);
+    else
+        snprintf(buf, size, "%s%s%s, %s", c->name[0] ? c->name : "", c->name[0] ? ", " : "", f, m);
 }
 
 static int16_t cursor_row(void) {
@@ -202,7 +225,33 @@ static void cursor_to(int16_t row, bool middle) {
     lv_obj_scroll_to_y(table, y < 0 ? 0 : y, LV_ANIM_OFF);
 }
 
-static bool tune(int16_t row, bool close) {
+/* The radio behind a recall (channel_recall.h). The app's opening closes this window, as any app's does */
+static void recall_open_app(const char *app) {
+    static const struct { const char *id; press_action_t action; } apps[] = {
+        { "RTTY", ACTION_APP_RTTY }, { "WEFAX", ACTION_APP_WEFAX }, { "NAVTEX", ACTION_APP_NAVTEX },
+        { "SSTV", ACTION_APP_SSTV },
+    };
+
+    for (size_t i = 0; i < sizeof(apps) / sizeof(apps[0]); i++)
+        if (!strcmp(apps[i].id, app)) {
+            main_screen_start_app(apps[i].action);
+            return;
+        }
+}
+
+static void recall_freq(uint32_t hz) { cparam_i_set(cfg_fg_freq, hz); }
+static void recall_mode(radio_mode_t mode) { cparam_i_set(cfg_cur_mode, mode); }
+static void recall_agc(radio_agc_t agc) { cparam_i_set(cfg_cur_agc, agc); }
+static void recall_pre(bool on) { cparam_i_set(cfg_cur_pre, on ? radio_pre_on : radio_pre_off); }
+static void recall_att(bool on) { cparam_i_set(cfg_cur_att, on ? radio_att_on : radio_att_off); }
+
+static const channel_recall_ops_t recall_ops = {
+    .open_app = recall_open_app, .set_freq = recall_freq, .set_mode = recall_mode,
+    .set_agc = recall_agc, .set_pre = recall_pre, .set_att = recall_att,
+};
+
+/* open_app: the window's press, which opens the channel's app first (#346); the hand mic's UP/DOWN only tune */
+static bool tune(int16_t row, bool close, bool open_app) {
     const channel_t *c = row < 0 ? NULL : channels_get(row);
 
     if (!c) return false;
@@ -219,13 +268,12 @@ static bool tune(int16_t row, bool close) {
         return false;
     }
 
+    channel_t ch = *c;      /* a copy: an app that opens may read the file again (WeFax lists the WEFAX channels) */
+
     recalled = row;
-    cparam_i_set(cfg_fg_freq, c->freq);
-    cparam_i_set(cfg_cur_mode, c->mode);
-    cparam_i_set(cfg_cur_agc, c->agc);
-    cparam_i_set(cfg_cur_pre, c->pre ? radio_pre_on : radio_pre_off);
-    cparam_i_set(cfg_cur_att, c->att ? radio_att_on : radio_att_off);
-    if (close) dialog_destruct();
+    /* The app first, then the channel: an app opens where it was last used, and tuned first the radio ended there.
+     * The app's own close brings the radio back to where it was before the recall, as for an app opened by hand */
+    if (!channel_recall(&ch, open_app, &recall_ops) && close) dialog_destruct();
     return true;        /* tuned */
 }
 
@@ -240,7 +288,7 @@ static void pressed_cb(lv_event_t *e) {
     uint16_t row = LV_TABLE_CELL_NONE, col;
 
     lv_table_get_selected_cell(table, &row, &col);
-    if (row != LV_TABLE_CELL_NONE) tune(row, true);
+    if (row != LV_TABLE_CELL_NONE) tune(row, true, true);
 }
 
 /* While dragging, the channel follows the cursor; the order is saved on Drop */
@@ -331,6 +379,29 @@ static void key_edit_cb(button_data_t *data) {
     lv_textarea_set_max_length(textarea_window_text(), CHANNEL_NAME_MAX - 1);
     lv_textarea_set_placeholder_text(textarea_window_text(), "Channel name");
     textarea_window_set(channels_get(row)->name);
+}
+
+/* Edit held (#346): the app the channel opens, the next of none, RTTY, WEFAX, NAVTEX and SSTV; saved at once */
+static void key_app_cb(button_data_t *data) {
+    int16_t          row = dragging >= 0 ? -1 : cursor_row();
+    const channel_t *c   = row < 0 ? NULL : channels_get(row);
+
+    if (!c) return;
+
+    const char *app = channels_app_next(c->app);
+
+    if (!channels_set_app(row, app)) {
+        msg_update_text_fmt("Channel not saved");
+        return;
+    }
+    lv_obj_invalidate(table);
+    if (app[0]) {
+        msg_update_text_fmt("Channel opens %s", app);
+        voice_say_text_fmt("Opens %s", app);
+    } else {
+        msg_update_text_fmt("Channel opens no app");
+        voice_say_text_fmt("Opens no app");
+    }
 }
 
 static void key_drag_cb(button_data_t *data) {
@@ -441,7 +512,7 @@ bool dialog_channels_recall_relative(int8_t step) {
     else
         row = (recalled + (step < 0 ? n - 1 : 1)) % n;
 
-    if (!tune(row, false)) return false;
+    if (!tune(row, false, false)) return false;
 
     /* The window is open: rebuild it with the cursor on the new channel */
     if (win.run && win.obj && table) {

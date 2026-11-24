@@ -5,10 +5,13 @@
 // The file, as cJSON prints it (tabs, one key per line, a newline at the end):
 //
 //   { "version": 1, "channels": [ { "name": "NAVTEX MF", "frequency": 517000, "mode": "USB-D",
-//     "agc": "SLOW", "pre": false, "att": false }, ... ] }
+//     "agc": "SLOW", "pre": false, "att": false, "app": "NAVTEX" }, ... ] }
 //
 // An entry with a missing field, a wrong type, a frequency out of 1..4294967295 Hz or an
-// unknown mode or AGC is left out, as the web configurator does. Writes go through a .tmp
+// unknown mode or AGC is left out, as the web configurator does. "app" (#346) is the one key
+// that may be missing: the app a recall opens, written only for a channel that has one. An
+// "app" that is no string, empty or longer than 11 bytes is read as none and the channel kept;
+// a word this version does not know is kept as it is and opens nothing. Writes go through a .tmp
 // file and a rename, since the web configurator may read the file at any moment.
 //
 // Copyright (c) 2026 Giovanni Ricciardi IU1WXY, own code of the IU1WXY firmware
@@ -34,26 +37,27 @@ static channel_t        list[CHANNELS_MAX];
 static uint16_t         list_len;
 static struct timespec  file_time;     /* mtime when this GUI last read or wrote the file */
 
-/* What a new radio starts with: weather and navigation broadcasts worth a listen */
+/* What a new radio starts with: weather and navigation broadcasts worth a listen. The RTTY, WEFAX and NAVTEX ones
+ * open their app when recalled (#346) */
 static const channel_t presets[] = {
-    { "NAVTEX MF",       517000,   radio_mode_usb_dig, radio_agc_slow },
-    { "NAVTEX HF",       4208500,  radio_mode_usb_dig, radio_agc_slow },
+    { "NAVTEX MF",       517000,   radio_mode_usb_dig, radio_agc_slow, .app = "NAVTEX" },
+    { "NAVTEX HF",       4208500,  radio_mode_usb_dig, radio_agc_slow, .app = "NAVTEX" },
     { "SHANNON VOLMET",  3413000,  radio_mode_usb,     radio_agc_fast },
     { "SHANNON VOLMET",  5505000,  radio_mode_usb,     radio_agc_fast },
     { "SHANNON VOLMET",  8957000,  radio_mode_usb,     radio_agc_fast },
     { "SHANNON VOLMET",  13264000, radio_mode_usb,     radio_agc_fast },
-    { "RTTY DWD DDK2",   4582200,  radio_mode_usb_dig, radio_agc_fast },
-    { "RTTY DWD DDH7",   7645200,  radio_mode_usb_dig, radio_agc_fast },
-    { "RTTY DWD DDK9",   10100000, radio_mode_usb_dig, radio_agc_fast },
-    { "RTTY DWD DDH9",   11038200, radio_mode_usb_dig, radio_agc_fast },
-    { "RTTY DWD DDH8",   14466500, radio_mode_usb_dig, radio_agc_fast },
-    { "WEFAX DWD DDH3",  3853500,  radio_mode_usb_dig, radio_agc_slow },
-    { "WEFAX DWD DDK3",  7878470,  radio_mode_usb_dig, radio_agc_slow },
-    { "WEFAX DWD DDK6",  13881000, radio_mode_usb_dig, radio_agc_slow },
-    { "WEFAX GYA",       11085000, radio_mode_usb_dig, radio_agc_slow },
-    { "WEFAX GYA",       8038500,  radio_mode_usb_dig, radio_agc_slow },
-    { "WEFAX GYA",       4608500,  radio_mode_usb_dig, radio_agc_slow },
-    { "WEFAX GYA",       2617000,  radio_mode_usb_dig, radio_agc_slow },
+    { "RTTY DWD DDK2",   4582200,  radio_mode_usb_dig, radio_agc_fast, .app = "RTTY" },
+    { "RTTY DWD DDH7",   7645200,  radio_mode_usb_dig, radio_agc_fast, .app = "RTTY" },
+    { "RTTY DWD DDK9",   10100000, radio_mode_usb_dig, radio_agc_fast, .app = "RTTY" },
+    { "RTTY DWD DDH9",   11038200, radio_mode_usb_dig, radio_agc_fast, .app = "RTTY" },
+    { "RTTY DWD DDH8",   14466500, radio_mode_usb_dig, radio_agc_fast, .app = "RTTY" },
+    { "WEFAX DWD DDH3",  3853500,  radio_mode_usb_dig, radio_agc_slow, .app = "WEFAX" },
+    { "WEFAX DWD DDK3",  7878470,  radio_mode_usb_dig, radio_agc_slow, .app = "WEFAX" },
+    { "WEFAX DWD DDK6",  13881000, radio_mode_usb_dig, radio_agc_slow, .app = "WEFAX" },
+    { "WEFAX GYA",       11085000, radio_mode_usb_dig, radio_agc_slow, .app = "WEFAX" },
+    { "WEFAX GYA",       8038500,  radio_mode_usb_dig, radio_agc_slow, .app = "WEFAX" },
+    { "WEFAX GYA",       4608500,  radio_mode_usb_dig, radio_agc_slow, .app = "WEFAX" },
+    { "WEFAX GYA",       2617000,  radio_mode_usb_dig, radio_agc_slow, .app = "WEFAX" },
 };
 
 /* The first name of each table is also what an unknown value is written as */
@@ -102,6 +106,25 @@ bool channels_agc_parse(const char *value, radio_agc_t *agc) {
     return false;
 }
 
+/* The apps a channel may open (#346): the receive apps a broadcast is listened to in */
+static const char *const app_ids[] = { "RTTY", "WEFAX", "NAVTEX", "SSTV" };
+
+const char *channels_app_id(uint8_t i) {
+    return i < COUNT(app_ids) ? app_ids[i] : NULL;
+}
+
+bool channels_app_known(const char *app) {
+    for (size_t i = 0; app && i < COUNT(app_ids); i++)
+        if (!strcmp(app_ids[i], app)) return true;
+    return false;
+}
+
+const char *channels_app_next(const char *app) {
+    for (size_t i = 0; app && i < COUNT(app_ids); i++)
+        if (!strcmp(app_ids[i], app)) return i + 1 < COUNT(app_ids) ? app_ids[i + 1] : "";
+    return app_ids[0];
+}
+
 static bool file_mtime(struct timespec *t) {
     struct stat st;
 
@@ -116,6 +139,7 @@ static bool parse_entry(const cJSON *it, channel_t *c) {
     const cJSON *freq = cJSON_GetObjectItemCaseSensitive(it, "frequency");
     const cJSON *pre = cJSON_GetObjectItemCaseSensitive(it, "pre");
     const cJSON *att = cJSON_GetObjectItemCaseSensitive(it, "att");
+    const char *app = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(it, "app"));
 
     if (!name || !cJSON_IsNumber(freq) || !cJSON_IsBool(pre) || !cJSON_IsBool(att))
         return false;
@@ -128,6 +152,8 @@ static bool parse_entry(const cJSON *it, channel_t *c) {
     c->freq = (uint32_t)freq->valuedouble;
     c->pre = cJSON_IsTrue(pre);
     c->att = cJSON_IsTrue(att);
+    /* Optional (#346): a file from before it has none. One that does not fit is no app, not a channel left out */
+    snprintf(c->app, sizeof(c->app), "%s", app && strlen(app) < sizeof(c->app) ? app : "");
     return true;
 }
 
@@ -240,6 +266,7 @@ bool channels_save(void) {
         cJSON_AddStringToObject(o, "agc", channels_agc_name(c->agc));
         cJSON_AddBoolToObject(o, "pre", c->pre);
         cJSON_AddBoolToObject(o, "att", c->att);
+        if (c->app[0]) cJSON_AddStringToObject(o, "app", c->app);
     }
 
     char *text = ok ? cJSON_Print(json) : NULL;
@@ -276,6 +303,19 @@ bool channels_set_name(uint16_t i, const char *name) {
     if (channels_save()) return true;
 
     memcpy(list[i].name, old, sizeof(old));
+    return false;
+}
+
+bool channels_set_app(uint16_t i, const char *app) {
+    if (i >= list_len || (app && strlen(app) >= CHANNEL_APP_MAX)) return false;
+
+    char old[CHANNEL_APP_MAX];
+
+    memcpy(old, list[i].app, sizeof(old));
+    snprintf(list[i].app, sizeof(list[i].app), "%s", app ? app : "");
+    if (channels_save()) return true;
+
+    memcpy(list[i].app, old, sizeof(old));
     return false;
 }
 

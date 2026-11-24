@@ -2822,6 +2822,10 @@ AGCS = ["OFF", "SLOW", "FAST", "AUTO"]
 MEM_SLOTS = range(1, 10)  # MEM_HKEY_MAX_ID in src/main_screen.h; 10 is the GUI's backup slot
 CHANNELS_MAX = 100
 CHANNEL_NAME_RE = re.compile(r"[ -~]{0,31}")
+# The apps a channel may open when it is recalled on the radio (#346), as channels.json's "app" names them
+# (app_ids in src/channel_list.c); no "app" key: the channel only tunes
+CHANNEL_APPS = ("RTTY", "WEFAX", "NAVTEX", "SSTV")
+CHANNEL_APP_MAX = 11   # bytes the GUI holds of one (CHANNEL_APP_MAX - 1): a longer one is no app to it
 # Where the radio tunes a MEM slot or a channel, Hz: both go through cp_fg_freq, which takes any other frequency to
 # the nearest edge (clamp_to_valid_hw_freq, src/cfg/settings_manager.h). HF, and 70-500 MHz through a transverter;
 # the X6200 also FM broadcast and the airband and the WR12's 54 MHz-1 GHz, so all of 0.1-1000 MHz. The model's,
@@ -2846,7 +2850,9 @@ def tune_ranges():
 def parse_entry(data, named, shown=None):
     """Validated slot/channel dict from request JSON; ValueError with a message. shown: the channel as the page
     showed it; a field the request leaves as shown is not checked and not in the dict, so the entry keeps it as the
-    file has it (a name or a frequency the page would not take, a fraction of a hertz)"""
+    file has it (a name or a frequency the page would not take, a fraction of a hertz). A channel's "app" (#346) is
+    in the dict only when the request has one that is not as shown: one of CHANNEL_APPS, or "" for none, which
+    channel_entry() takes out of the entry. A request without it (a page from before it) leaves the entry's"""
     if not isinstance(data, dict):
         raise ValueError("Invalid request")
     shown = shown or {}
@@ -2872,6 +2878,12 @@ def parse_entry(data, named, shown=None):
         if not same("name") and (not isinstance(name, str) or not CHANNEL_NAME_RE.fullmatch(name)):
             raise ValueError("Invalid name: up to 31 printable ASCII characters")
         entry = {"name": name, **entry}
+        if "app" in data:
+            app_id = data["app"]
+            if not isinstance(app_id, str) or app_id != shown.get("app", "") and app_id not in ("",) + CHANNEL_APPS:
+                raise ValueError("Invalid app: " + ", ".join(CHANNEL_APPS) + " or none")
+            if app_id != shown.get("app", ""):
+                entry["app"] = app_id
     return {k: v for k, v in entry.items() if not same(k)}
 
 
@@ -3742,7 +3754,9 @@ def cjson_loads(data, finite=True):
 def gui_channel(x):
     """The channel the GUI makes of an entry of channels.json (parse_entry in src/channel_list.c), None for one it
     leaves out: a name, a frequency of 1 Hz to 4294967295 Hz (a fraction cut off), a mode and an AGC it knows, PRE
-    and ATT true or false, each string as the GUI holds it, up to a NUL; the name at most 31 bytes"""
+    and ATT true or false, each string as the GUI holds it, up to a NUL; the name at most 31 bytes. "app" (#346),
+    the app a recall opens, only for an entry that has one the GUI keeps: a string of 1 to 11 bytes, also one that
+    is none of CHANNEL_APPS (a later version's: the GUI keeps it and opens nothing)"""
     if not isinstance(x, dict):
         return None
     name, freq, mode, agc, pre, att = (x.get(k).partition("\0")[0] if isinstance(x.get(k), str) else x.get(k)
@@ -3753,7 +3767,19 @@ def gui_channel(x):
     if not 0 < freq <= 0xFFFFFFFF or mode not in MODES or agc not in AGCS:
         return None
     name = name.encode("utf-8", "surrogateescape")[:31].decode("utf-8", "surrogateescape")
-    return {"name": name, "frequency": int(freq), "mode": mode, "agc": agc, "pre": pre, "att": att}
+    c = {"name": name, "frequency": int(freq), "mode": mode, "agc": agc, "pre": pre, "att": att}
+    app_id = x.get("app").partition("\0")[0] if isinstance(x.get("app"), str) else ""
+    if 0 < len(app_id.encode("utf-8", "surrogateescape")) <= CHANNEL_APP_MAX:
+        c["app"] = app_id
+    return c
+
+
+def channel_entry(old, new):
+    """An entry of the file with the page's change in it: every other key as it was, and no "app" key for no app"""
+    entry = {**old, **new}
+    if entry.get("app") == "":
+        del entry["app"]
+    return entry
 
 
 def channels_read():
@@ -3897,7 +3923,7 @@ def add_channel():
     def change(entries, kept):
         if len(kept) >= CHANNELS_MAX:
             raise ValueError(f"At most {CHANNELS_MAX} channels")
-        entries.append(parse_entry(bottle.request.json, True))
+        entries.append(channel_entry({}, parse_entry(bottle.request.json, True)))
     return channels_edit(change)
 
 
@@ -3908,7 +3934,7 @@ def set_channel(i):
         data = channel_request()
         place = shown_place(kept, i, data.get("was"))
         # Into the entry: what the page left as it showed it stays as the file has it, the entry's other keys too
-        entries[place] = {**entries[place], **parse_entry(data, True, kept[i][1])}
+        entries[place] = channel_entry(entries[place], parse_entry(data, True, kept[i][1]))
     return channels_edit(change)
 
 

@@ -18,12 +18,12 @@
 </section>
 
 <section class="dp-card">
-<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-list"/></svg></span><div><h3>Channels</h3><p>The named list in APP → Channels. A name that starts with WEFAX also puts the channel in the WeFax app's Freq. list: give it the dial, 1.5 kHz below the fax station (7.7935 for a station on 7.795 MHz)</p></div><div class="dp-x"><button id="add" class="primary"><svg class="i"><use href="#i-plus"/></svg>Add</button></div></div>
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-list"/></svg></span><div><h3>Channels</h3><p>The named list in APP → Channels. A name that starts with WEFAX also puts the channel in the WeFax app's Freq. list: give it the dial, 1.5 kHz below the fax station (7.7935 for a station on 7.795 MHz). Opens: the app a press on the channel in APP → Channels opens before it tunes there (RTTY, WeFax, NAVTEX or SSTV), for a broadcast you listen to in that app; the hand mic's UP/DOWN and the Scanner only tune</p></div><div class="dp-x"><button id="add" class="primary"><svg class="i"><use href="#i-plus"/></svg>Add</button></div></div>
 <div class="dp-body tbl">
 <div class="table-wrap">
 <table id="channels">
   <thead>
-    <tr><th>Name</th><th class="freq">Freq, MHz</th><th>Mode</th><th>AGC</th><th>PRE</th><th>ATT</th><th></th></tr>
+    <tr><th>Name</th><th class="freq">Freq, MHz</th><th>Mode</th><th>AGC</th><th>PRE</th><th>ATT</th><th>Opens</th><th></th></tr>
   </thead>
   <tbody></tbody>
 </table>
@@ -37,6 +37,9 @@
 // Same names as x6100_mode_t / x6100_agc_t
 const MODES = ["LSB", "LSB-D", "USB", "USB-D", "CW", "CWR", "AM", "NFM", "SAM", "WFM"];
 const AGCS = ["OFF", "SLOW", "FAST", "AUTO"];
+// The apps a channel may open when it is recalled on the radio (apps.py CHANNEL_APPS, #346): what channels.json's
+// "app" says, and the app's name; "" is no app
+const APPS = [["", "No app"], ["RTTY", "RTTY"], ["WEFAX", "WeFax"], ["NAVTEX", "NAVTEX"], ["SSTV", "SSTV"]];
 // What the radio tunes for a MEM slot or a channel, MHz, the lowest and the highest (apps.py TUNE_RANGES: on the
 // X6100 not 55-70)
 const TUNE_MHZ = [{{mhz[0]}}, {{mhz[1]}}];
@@ -76,6 +79,13 @@ var makeRow = function(d, named) {
   cell(select(AGCS, d.agc || "AUTO").addClass("agc"));
   cell($("<input class='pre' type='checkbox'>").prop("checked", !!d.pre));
   cell($("<input class='att' type='checkbox'>").prop("checked", !!d.att));
+  if (named) {
+    // An app this page does not know (a later version's) stays chosen as it is, and stays in the file
+    const app = d.app || "", el = $("<select class='app' title='The app a press on this channel in APP → Channels opens'>");
+    APPS.concat(APPS.some(function(a) { return a[0] === app; }) ? [] : [[app, app + " (not in this version)"]])
+        .forEach(function(a) { el.append($("<option>").val(a[0]).text(a[1]).prop("selected", a[0] === app)); });
+    cell(el);
+  }
   return row;
 }
 
@@ -87,7 +97,7 @@ var readRow = function(row, named) {
     mode: row.find(".mode").val(), agc: row.find(".agc").val(),
     pre: row.find(".pre").prop("checked"), att: row.find(".att").prop("checked"),
   };
-  if (named) d.name = row.find(".name").val();
+  if (named) { d.name = row.find(".name").val(); d.app = row.find(".app").val(); }
   return d;
 }
 
