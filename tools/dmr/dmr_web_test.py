@@ -110,7 +110,7 @@ class DmrLog(unittest.TestCase):
         apps = WEB[0]
         out = {}
 
-        def start(st, headers):
+        def start(st, headers, exc_info=None):     # WSGI: bottle 0.13 always passes exc_info
             out["status"], out["headers"] = int(st.split()[0]), dict(headers)
 
         env = {"REQUEST_METHOD": "GET", "PATH_INFO": path, "QUERY_STRING": query, "SERVER_NAME": "radio",
