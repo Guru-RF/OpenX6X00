@@ -133,14 +133,18 @@ static void hexagon(lv_draw_ctx_t *dc, lv_coord_t x, lv_coord_t y, lv_coord_t w,
     lv_draw_polygon(dc, &d, p, 6);
 }
 
-void ops_room_meter_draw(lv_obj_t *o, lv_draw_ctx_t *dc, float db, float peak, float value, bool tx) {
+void ops_room_meter_draw(lv_obj_t *o, lv_draw_ctx_t *dc, float db, float peak, float value, bool tx, bool audio) {
     static const struct { int16_t db; const char *t; } marks[] = {
         {S1, "1"}, {S3, "3"}, {S1 + 24, "5"}, {S1 + 36, "7"}, {S9, "9"}, {S9_20, "+20"}, {S9_40, "+40"}};
     lv_coord_t x0 = o->coords.x1 + 12, x1 = o->coords.x2 - 12, w = x1 - x0, y0 = o->coords.y1;
     char       buf[16];
 
-    text(dc, &sony_20, TC(text_head), x0, y0 + 4, LV_TEXT_ALIGN_LEFT, "SIGNAL");
-    snprintf(buf, sizeof(buf), "%.1f", value);
+    text(dc, &sony_20, TC(text_head), x0, y0 + 4, LV_TEXT_ALIGN_LEFT, audio ? "AUDIO" : "SIGNAL");
+    if (audio) {
+        snprintf(buf, sizeof(buf), "%.0f dB", value);
+    } else {
+        snprintf(buf, sizeof(buf), "%.1f", value);
+    }
     text(dc, &sony_20, tx ? TC(err) : TC(text_value), x1, y0 + 4, LV_TEXT_ALIGN_RIGHT, tx ? "TX" : buf);
 
     /* 18 cells 14 px wide, overlapping into a honeycomb row; S9 at 70%, as Codec's SIGNAL bar */
@@ -156,9 +160,15 @@ void ops_room_meter_draw(lv_obj_t *o, lv_draw_ctx_t *dc, float db, float peak, f
         hexagon(dc, x0 + cx, y0 + (i % 2 ? 29 : 26), cw, 12, col);
     }
 
-    for (int i = 0; i < (int)(sizeof(marks) / sizeof(marks[0])); i++)
+    for (int i = 0; !audio && i < (int)(sizeof(marks) / sizeof(marks[0])); i++)
         text(dc, &sony_14, marks[i].db > S9 ? TC(meter_over) : TC(text_dim), x0 + meter_x70(marks[i].db, w), y0 + 45,
              LV_TEXT_ALIGN_CENTER, marks[i].t);
+    for (int i = 0; audio && i < METER_AUDIO_MARKS; i++) {
+        const meter_mark_t *m = &meter_audio_marks[i];
+
+        text(dc, &sony_14, m->db > S9 ? TC(meter_over) : TC(text_dim), x0 + meter_x70(m->db, w), y0 + 45,
+             LV_TEXT_ALIGN_CENTER, m->t);
+    }
 }
 
 /* ---- The TRANSMIT band while the radio transmits ---- */

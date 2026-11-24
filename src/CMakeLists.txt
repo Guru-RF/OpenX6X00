@@ -7,7 +7,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     spectrum_view.c radio.c dsp.cpp util.cpp
     waterfall_view.c knob_device.c key_input.c input_caps.c mfk_device.c
     gui_events.c msg_box.c msg_note.c front_keys.c kbd_rollover.c kbd_hyper.c kbd_keymap.c kbd_layout.c kbd_ptt.c
-    mic_keys.c clock.c bat_est.c bat_watch.c info_bar.c smeter.c
+    mic_keys.c clock.c bat_est.c bat_watch.c info_bar.c smeter.c audio_meter.c
     band_names.cpp tx_meters.c
     audio.c audio_owner.c mfk_control.cpp cw.cpp cw_decoder.c cw_parse.c text_panel.cpp
     rtty.c rtty_tx.c rtty_send.c rtty_macro.c screen_shot.c screen_rec.c avi_writer.c screen_light.c screen_idle.c screen_saver.c gps.c

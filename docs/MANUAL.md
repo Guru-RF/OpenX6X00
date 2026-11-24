@@ -6819,6 +6819,13 @@ Internet radio stations, which anyone can add a station to.
   after the over.
 - While a station plays the speaker plays it in place of the receiver, as
   for the RX recorder's playback; the receiver comes back at Stop.
+- While a station plays the S-meter shows how loud it is, marked so that it
+  is not taken for a signal: the box says Audio (AUDIO on Codec and Ops
+  Room, AF on Black Metal and Total Black) and its scale reads -60, -40,
+  -20, -10 and 0 dB of full scale where the S units were. It shows the
+  receiver again the moment the station stops, and the TX meter in TX; CAT,
+  TCI and the remote keep the receiver's reading (issue #360). VISION's
+  S-meter row and Amber Trey's bar graph are under the window.
 - A message of a [Zello](#zello) channel or an over on an
   [SVXConnect](#svxconnect) talkgroup (with its Simplex repeater on, the
   session stays when its app closes) is heard over the station: the station
