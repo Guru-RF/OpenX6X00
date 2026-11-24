@@ -6,6 +6,7 @@
  */
 
 #include "decode_list.h"
+#include "row_look.h"
 #include "../remote_server.h"
 
 #include <stdio.h>
@@ -398,9 +399,9 @@ void table_view_reset(void) {
 
 /* ---- drawing ---- */
 
-/* The row's background from what it holds; the MFK row lighter. After F4OLI's redesign the CQs stand out of the
- * traffic, to answer them fast: plain rows in the text's colour, with a green edge and a tag (draw_extras_cb), the
- * other stations' QSOs grey; to us red, ours blue as before */
+/* The row's look from what it holds and CQ rows (row_look.h): after F4OLI's redesign the CQs stand out of the
+ * traffic, to answer them fast, plain rows in the text's colour with a green edge and a tag (draw_extras_cb), or on
+ * the green rows of v0.3.12 (#359); the other stations' QSOs grey, to us red, ours blue. The MFK's row framed */
 static void draw_row_cb(lv_event_t *e) {
     lv_obj_t               *obj = lv_event_get_target(e);
     lv_obj_draw_part_dsc_t *dsc = lv_event_get_draw_part_dsc(e);
@@ -411,32 +412,14 @@ static void draw_row_cb(lv_event_t *e) {
     cell_data_t *cd = row_data(obj, r);
     lv_draw_rect_dsc_t  *rect  = dsc->rect_dsc;
     lv_draw_label_dsc_t *label = dsc->label_dsc;
+    ft8_row_look_t       look  = ft8_row_look(cd, param_i_get(cfg_ft8_cq_rows), theme_shape.mono);
 
-    rect->bg_opa = obj == pin.obj ? LV_OPA_80 : 115;
-    if (cd && cd->cell_type == CELL_SLOT_SEP) {     /* its rules: draw_extras_cb */
-        label->align   = LV_TEXT_ALIGN_CENTER;
-        label->color   = TC(text_mute);
-        rect->bg_color = TC(panel);
-    } else if (!cd || cd->cell_type == CELL_RX_INFO || cd->cell_type == CELL_START_QSO) {
-        label->align  = LV_TEXT_ALIGN_CENTER;
-        rect->bg_color = TC(row);
-    } else if (cd->cell_type == CELL_RX_CQ) {
-        rect->bg_color = TC(panel);
-        label->color   = TC(text);
-        if (cd->worked_type == SEARCH_WORKED_YES) {     /* on another band or mode */
-            label->opa = LV_OPA_80;
-        } else if (cd->worked_type == SEARCH_WORKED_SAME_MODE) {
-            label->decor = LV_TEXT_DECOR_STRIKETHROUGH;
-            label->opa   = LV_OPA_60;
-        }
-    } else if (cd->cell_type == CELL_RX_MSG) {
-        rect->bg_color = TC(panel);
-        label->color   = TC(text_mute);
-    } else if (cd->cell_type == CELL_RX_TO_ME) {
-        rect->bg_color = TC(ft8_to_me);
-    } else if (cd->cell_type == CELL_TX_MSG) {
-        rect->bg_color = TC(ft8_tx);
-    }
+    rect->bg_opa   = obj == pin.obj ? LV_OPA_80 : 115;
+    rect->bg_color = lv_color_hex(theme_hex(look.bg));
+    if (look.text != TC_COUNT) label->color = lv_color_hex(theme_hex(look.text));
+    if (look.text_opa != LV_OPA_COVER) label->opa = look.text_opa;
+    if (look.strike) label->decor = LV_TEXT_DECOR_STRIKETHROUGH;
+    if (look.center) label->align = LV_TEXT_ALIGN_CENTER;
 
     bool     mfk_here;
     uint16_t sel_row, sel_col;
@@ -628,13 +611,15 @@ static void draw_extras_cb(lv_event_t *e) {
     }
     if (!cd || (cd->cell_type != CELL_RX_MSG && cd->cell_type != CELL_RX_CQ && cd->cell_type != CELL_RX_TO_ME))
         return;
-    if (cd->cell_type == CELL_RX_CQ && !theme_shape.mono) {    /* the CQ's green edge (1bit: its left border) */
+    lv_opa_t edge_opa = ft8_row_look(cd, param_i_get(cfg_ft8_cq_rows), theme_shape.mono).edge;
+
+    if (edge_opa) {     /* the CQ's green edge (1bit: its left border; Filled: none, the row is green) */
         lv_draw_rect_dsc_t edge;
         lv_area_t          ea = *dsc->draw_area;
 
         lv_draw_rect_dsc_init(&edge);
         edge.bg_color = TC(ok);
-        edge.bg_opa   = cd->worked_type == SEARCH_WORKED_NO ? LV_OPA_COVER : LV_OPA_40;
+        edge.bg_opa   = edge_opa;
         ea.x2         = ea.x1 + 3;
         lv_draw_rect(dsc->draw_ctx, &edge, &ea);
     }

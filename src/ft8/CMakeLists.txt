@@ -1,6 +1,6 @@
 add_library(FT8 STATIC
     qso.cpp worker.c utils.c gfsk.c
-    decode_list.c heard.c
+    decode_list.c heard.c row_look.c
     cq_scheduler.c msg_encode.c
     tx_worker.c
     audio_worker.c

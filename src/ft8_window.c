@@ -69,6 +69,7 @@
 #include "ft8/qso.h"
 #include "ft8/decode_list.h"
 #include "ft8/heard.h"
+#include "ft8/row_look.h"
 #include "ft8/time_sync.h"
 #include "ft8/tx_worker.h"
 #include "ft8/utils.h"
@@ -1207,6 +1208,11 @@ static const char *foryou_label(void) {
     return switch_label(buf, sizeof(buf), "For you", param_i_get(cfg_ft8_foryou));
 }
 
+/* CQ rows: F4OLI's plain rows with a green edge, or the green rows of v0.3.12 (#359) */
+static const char *cq_rows_label(void) {
+    return param_i_get(cfg_ft8_cq_rows) == FT8_CQ_ROWS_FILLED ? "CQ rows:\nFilled" : "CQ rows:\nEdge";
+}
+
 static const char *freq_label(void) {
     static char buf[32];
     if (!params.ft8_custom_on.x) return "Freq:\nPreset";
@@ -1739,10 +1745,18 @@ static void foryou_cb(button_data_t *btn) {
     table_view_pin_clear();
 }
 
+static void cq_rows_cb(button_data_t *btn) {
+    if (kb_open) return;
+    param_i_set(cfg_ft8_cq_rows, param_i_get(cfg_ft8_cq_rows) == FT8_CQ_ROWS_FILLED ? FT8_CQ_ROWS_EDGE
+                                                                                     : FT8_CQ_ROWS_FILLED);
+    lv_obj_invalidate(table_view_obj());    /* the rows drawn again, at once */
+}
+
 static buttons_page_t page_1, page_2, page_3, page_4, page_5;
 
 /* The labels show the state now; a press changes it. F4OLI's pages: operate, the QSO, the band, the tools; then
- * ours that their four left to a hold (Log Map, For you) as buttons of their own. Auto Sync: on the GPS / Clock page */
+ * ours that their four left to a hold (Log Map, For you) as buttons of their own, and CQ rows. Auto Sync: on the
+ * GPS / Clock page */
 static button_data_t button_page_1  = {.type = BTN_TEXT, .label = "(FT8 1:5)", .press = button_next_page_cb, .next = &page_2};
 static button_data_t button_tx_cq   = {.type = BTN_TEXT_FN, .label_fn = tx_cq_label, .press = tx_cq_cb};
 static button_data_t button_tx_call = {.type = BTN_TEXT_FN, .label_fn = tx_call_label, .press = tx_call_cb};
@@ -1769,12 +1783,13 @@ static button_data_t button_live_map = {.type = BTN_TEXT, .label = "Live\nMap", 
 static button_data_t button_page_5  = {.type = BTN_TEXT, .label = "(FT8 5:5)", .press = button_next_page_cb, .next = &page_1};
 static button_data_t button_log_map = {.type = BTN_TEXT, .label = "Log\nMap", .press = map_cb};
 static button_data_t button_foryou  = {.type = BTN_TEXT_FN, .label_fn = foryou_label, .press = foryou_cb};
+static button_data_t button_cq_rows = {.type = BTN_TEXT_FN, .label_fn = cq_rows_label, .press = cq_rows_cb};
 
 static buttons_page_t page_1 = {{&button_page_1, &button_tx_cq, &button_tx_call, &button_show, &button_view}};
 static buttons_page_t page_2 = {{&button_page_2, &button_auto, &button_hold, &button_retries, &button_force}};
 static buttons_page_t page_3 = {{&button_page_3, &button_mode, &button_freq, &button_hound, &btn_dig_pwr}};
 static buttons_page_t page_4 = {{&button_page_4, &button_cq_mod, &button_sync, &button_live_map, &btn_ext_tune}};
-static buttons_page_t page_5 = {{&button_page_5, &button_log_map, &button_foryou}};
+static buttons_page_t page_5 = {{&button_page_5, &button_log_map, &button_foryou, &button_cq_rows}};
 
 /* ---- keyboard window ---- */
 
@@ -2280,6 +2295,7 @@ static void construct_cb(lv_obj_t *parent) {
     button_hold.subj    = (Subject *)cfg_ft8_hold_freq;
     button_auto.subj    = (Subject *)cfg_ft8_auto;
     button_foryou.subj  = (Subject *)cfg_ft8_foryou;
+    button_cq_rows.subj = (Subject *)cfg_ft8_cq_rows;
     button_retries.subj = (Subject *)cfg_ft8_max_repeats;
 
     /* TX CQ starts off each time, TX Call as it was left */

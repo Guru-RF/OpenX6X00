@@ -3763,7 +3763,7 @@ Buttons:
 | 2 the QSO | Auto, Hold Freq, Retries, Force QSO save |
 | 3 the band | Mode: FT8 / FT4 / FT2, Freq: Preset / 14.091, Hound: Off / On, Power |
 | 4 tools | CQ Modifier, Time Sync, Live Map (held: the Log Map), Ext tune (see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
-| 5 | Log Map, For you |
+| 5 | Log Map, For you, CQ rows: Edge / Filled |
 
 - Show: CQ shows the CQs and the messages to you; All shows all traffic. It
   filters the tiles and the lane as it does the list: a station seen in
@@ -3861,6 +3861,13 @@ traffic, to answer them fast:
 | the other stations' QSOs (Show: All) | grey |
 | a message to you | red |
 | your TX | blue |
+
+CQ rows (page 5): Edge, the default, draws the CQs as in the table above;
+Filled puts them on green rows as up to v0.3.12, bright green a CQ not worked,
+darker one worked on another band or mode, darker still and struck through
+one worked on this band and mode, with the same tags and no edge (issue
+#359). The choice is kept, for FT4 and FT2 too; the tiles and the 1bit theme
+look the same with either.
 
 The row the MFK is on, the one a press calls, has the theme's colours of a
 selected row, solid, with a frame around it (gold in RF.Guru, yellow in
