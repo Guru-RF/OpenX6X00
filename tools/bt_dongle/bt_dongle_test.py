@@ -81,7 +81,7 @@ class Sys:
         shutil.rmtree(root, ignore_errors=True)
         os.makedirs(os.path.join(root, "class/bluetooth"))
         drivers = os.path.join(root, "bus/usb/drivers")
-        for d in ("btusb", "rtl8xxxu"):
+        for d in ("btusb", "wifi_drv"):
             os.makedirs(os.path.join(drivers, d))
         write(os.path.join(drivers, "btusb/bind"), "")
         write(os.path.join(drivers, "btusb/unbind"), "")
@@ -101,7 +101,7 @@ class Sys:
                    os.path.join(self.root, "class/bluetooth", hci))
 
     def own(self, hci="hci0"):
-        self.adapter(hci, OWN_DEV, {"2-1:1.0": "btusb", "2-1:1.1": "btusb", "2-1:1.2": "rtl8xxxu"})
+        self.adapter(hci, OWN_DEV, {"2-1:1.0": "btusb", "2-1:1.1": "btusb", "2-1:1.2": "wifi_drv"})
 
     def dongle(self, hci="hci1"):
         self.adapter(hci, DONGLE_DEV, {"1-1:1.0": "btusb", "1-1:1.1": "btusb"})
