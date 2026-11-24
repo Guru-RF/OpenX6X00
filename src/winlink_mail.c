@@ -144,6 +144,10 @@ static char   tuned_url[220];
 static char   ask_url[220];          /* the gateway of a first press, while Pat is asked that no connection runs */
 static bool   tuned_shown;           /* what the Connect button says now: the second press */
 static int    sess_running;
+/* After call (#336): Stay, the radio is left on the gateway's frequency after a connection from the list, and when
+ * the list is left with no call; false, Go back, to where it was before Set freq. The setting is after_call= in
+ * /mnt/winlink.conf, read with the status and kept past the window: a connection may end after it closed */
+static bool   stay_after;
 
 /* Modem pressed (#322, #323): the one asked for, followed in the status until it is ready or did not come up */
 static bool   modem_moving;
@@ -509,12 +513,22 @@ static bool gw_tuned(const cJSON *g) {
     return g && tuned_url[0] && !strcmp(tuned_url, jstr(g, "url")) && winlink_preset_at(gw_hz(g));
 }
 
+/* The radio after Set freq, with no call or (after_call) once the connection is over: back where it was, or left on
+ * the gateway's frequency in USB-D when After call is Stay (#336) */
+static void radio_after(bool after_call) {
+    if (stay_after) {
+        winlink_preset_stay();
+    } else {
+        winlink_preset_back(after_call);
+    }
+}
+
 /* No call after the first press (the list left, the app closed): the radio back where it was, unless a connection
  * begun here still runs, whose end does that */
 static void tuned_drop(void) {
     tuned_url[0] = 0;
     if (!sess_running) {
-        winlink_preset_back(false);
+        radio_after(false);
     }
 }
 
@@ -565,6 +579,7 @@ static void view_done(int rc, cJSON *out) {
     if (st) {
         cJSON_Delete(status);
         status = st;
+        stay_after = !strcmp(jstr(status, "after_call"), "stay");
     }
     if (ls && cJSON_IsArray(ls) && res_tag != box_i) {
         cJSON_Delete(ls);           /* the box before Box was pressed: the one shown now is asked again */
@@ -1405,6 +1420,7 @@ static void type_cb(button_data_t *b);
 static void send_cb(button_data_t *b);
 static void band_cb(button_data_t *b);
 static void connect_cb(button_data_t *b);
+static void after_cb(button_data_t *b);
 static void abort_cb(button_data_t *b);
 static void prompt_cb(button_data_t *b);
 
@@ -1441,6 +1457,14 @@ static const char *go_label(void) {
     return tuned_shown || (g && !gw_hz(g)) ? "Connect" : "Set\nfreq";
 }
 
+/* After call (#336): what the radio does once the connection is over, or the list is left with no call */
+static const char *after_label(void) {
+    static char s[64];
+
+    snprintf(s, sizeof(s), "%s:\n%s", _("After call"), stay_after ? _("Stay") : _("Go back"));
+    return s;
+}
+
 static const char *conn_label(void) {
     return sess_on || pat_busy() ? "Connection" : "Connect";
 }
@@ -1475,12 +1499,20 @@ static button_data_t  btn_send    = {.type = BTN_TEXT, .label = "Send", .press =
 static button_data_t  btn_cancel  = {.type = BTN_TEXT, .label = "Cancel", .press = back_cb};
 static buttons_page_t page_compose = {{&btn_cp, &btn_next, &btn_type, &btn_send, &btn_cancel}};
 
-static button_data_t  btn_gp      = {.type = BTN_TEXT, .label = "(CONNECT 1:1)"};
+static buttons_page_t page_gateways, page_gateways_2;
+static button_data_t  btn_gp      = {.type = BTN_TEXT, .label = "(CONNECT 1:2)", .press = button_next_page_cb,
+                                     .hold = button_prev_page_cb, .next = &page_gateways_2, .prev = &page_gateways_2};
 static button_data_t  btn_band    = {.type = BTN_TEXT_FN, .label_fn = band_label, .press = band_cb};
 static button_data_t  btn_go      = {.type = BTN_TEXT_FN, .label_fn = go_label, .press = connect_cb};
 static button_data_t  btn_sess    = {.type = BTN_TEXT, .label = "Connection", .press = session_view_cb};
 static button_data_t  btn_back2   = {.type = BTN_TEXT, .label = "Back", .press = back_cb};
 static buttons_page_t page_gateways = {{&btn_gp, &btn_band, &btn_go, &btn_sess, &btn_back2}};
+/* Page 2: After call (#336), beside the list it is about */
+static button_data_t  btn_gp2     = {.type = BTN_TEXT, .label = "(CONNECT 2:2)", .press = button_next_page_cb,
+                                     .hold = button_prev_page_cb, .next = &page_gateways, .prev = &page_gateways};
+static button_data_t  btn_after   = {.type = BTN_TEXT_FN, .label_fn = after_label, .press = after_cb};
+static button_data_t  btn_back4   = {.type = BTN_TEXT, .label = "Back", .press = back_cb};
+static buttons_page_t page_gateways_2 = {{&btn_gp2, &btn_after, NULL, NULL, &btn_back4}};
 
 static button_data_t  btn_sp      = {.type = BTN_TEXT, .label = "(LINK 1:1)"};
 static button_data_t  btn_abort   = {.type = BTN_TEXT, .label = "Abort", .press = abort_cb};
@@ -1533,11 +1565,12 @@ static void load_page(void) {
             }
             break;
         case V_GATEWAYS:
-            if (cur != &page_gateways) {
+            if (cur != &page_gateways && cur != &page_gateways_2) {
                 buttons_load_page(&page_gateways);
             }
             buttons_refresh(&btn_band);
             buttons_refresh(&btn_go);
+            buttons_refresh(&btn_after);
             buttons_disabled(&btn_sess, !sess_on && !pat_busy());
             break;
         case V_SESSION:
@@ -1995,6 +2028,32 @@ static void modem_cb(button_data_t *b) {
     show();
 }
 
+/* After call (#336): Go back or Stay, written by x6100-winlink into /mnt/winlink.conf (after_call=), where the Winlink
+ * page's "After a call from the radio" has it too. Nothing restarts for it: Pat knows nothing of it */
+static void after_done(int rc, cJSON *out) {
+    if (rc != 0 || !out) {
+        char e[160];
+
+        plain(e, sizeof(e), out ? jstr(out, "error") : "");
+        say("#%06x After call:# %s", theme_hex(TC_err), e[0] ? e : _("not changed"));
+        return;
+    }
+    stay_after = !strcmp(jstr(out, "after_call"), "stay");
+    say(stay_after ? "After call: the radio stays on the gateway's frequency, in USB-D"
+                   : "After call: the radio goes back to where it was before Set freq");
+    load_page();
+}
+
+static void after_cb(button_data_t *b) {
+    (void)b;
+    if (popup_first()) {
+        return;
+    }
+    if (!job_start(after_done, NULL, SUPERVISOR, "after", stay_after ? "back" : "stay", NULL)) {
+        say("Wait, still busy");
+    }
+}
+
 static void apply_done(int rc, cJSON *out) {
     (void)out;
     say(rc == 0 ? "Password set: Pat starts again with it" : "#%06x Password set; Pat did not restart#",
@@ -2414,7 +2473,7 @@ static void session_end_cb(void *arg) {
         sess_running--;
     }
     if (!sess_running) {
-        winlink_preset_back(true);
+        radio_after(true);
     }
     if (m->gen != gen) {
         return;

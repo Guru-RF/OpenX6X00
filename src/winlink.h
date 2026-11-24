@@ -70,6 +70,11 @@ bool winlink_preset_at(int32_t hz);
  * the radio */
 void winlink_preset_back(bool after_call);
 
+/* In its place when APP > Mail's "After call" is Stay (#336): the radio stays on the gateway's frequency, in the mode
+ * the first press gave it (USB-D), and no later winlink_preset_back() moves it. The next press there is a first one
+ * again. Nothing while a way back asked earlier waits for the radio to be off the air */
+void winlink_preset_stay(void);
+
 #ifdef __cplusplus
 }
 #endif

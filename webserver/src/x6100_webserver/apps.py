@@ -1050,6 +1050,9 @@ WINLINK_MODEMS = ("ardop", "mercury", "xara")         # the modem= choice (as x6
 WINLINK_VARA_MODEMS = ("mercury", "xara")             # the ones Pat reaches as VARA HF (varahf_modem=, the last)
 WINLINK_MERCURY_BANDWIDTHS = (500, 2300, 2750)        # Mercury's, VARA's three (as x6100-winlink's), 2300 the default
 WINLINK_XARA_BANDWIDTHS = (500, 2300, 2750)           # XARA's, VARA HF's own three, 2300 the default
+# after_call= (#336): the radio after a connection from APP > Mail's gateway list, back where it was (the default, also
+# with no such line) or left on the gateway's frequency. The GUI's to act on (x6100-winlink-mail status): no restart
+WINLINK_AFTER_CALL = ("back", "stay")
 winlink_lock = threading.Lock()                       # one change at a time: Off may take 20 s
 
 
@@ -1096,6 +1099,7 @@ def winlink_state():
               xara_bandwidth=int(conf["xara_bandwidth"])
               if conf["xara_bandwidth"] in [str(b) for b in WINLINK_XARA_BANDWIDTHS] else 2300,
               vara_licence=conf["vara_licence"] == "1", xara_installed=os.access(WINLINK_XARA, os.X_OK),
+              after_call=conf.get("after_call") if conf.get("after_call") in WINLINK_AFTER_CALL else "back",
               password_set=password_set,
               password="page" if password_set else "pat" if st.get("password") == "pat" else "none",
               radio_mycall=max(read_callsign().upper().split("/"), key=len),   # ON6URE of ON6URE/P
@@ -1171,7 +1175,8 @@ def winlink_logs():
 @app.post('/api/winlink')
 def set_winlink():
     """Any of enabled, mycall, locator, bandwidth, modem_choice (ardop, mercury or xara), mercury_bandwidth,
-    xara_bandwidth, vara_licence and password; what is not sent stays. An empty callsign or locator is the radio's own,
+    xara_bandwidth, vara_licence, after_call (back or stay: saved, nothing restarts for it) and password; what is not
+    sent stays. An empty callsign or locator is the radio's own,
     an empty password keeps the one set. clear_password: true takes the password away, the page's and the one typed
     in Pat's own Settings"""
     try:
@@ -1225,6 +1230,10 @@ def set_winlink():
             if not isinstance(data["vara_licence"], bool):
                 return api_error(400, "VARA HF licence: true or false")
             new["vara_licence"] = "1" if data["vara_licence"] else "0"
+        if "after_call" in data:
+            if data["after_call"] not in WINLINK_AFTER_CALL or not isinstance(data["after_call"], str):
+                return api_error(400, "After a call from the radio: back or stay")
+            new["after_call"] = data["after_call"]
         password = data.get("password", "")
         password = password.strip() if isinstance(password, str) else None
         if password is None or len(password) > 64 or any(ord(c) < 32 or ord(c) == 127 for c in password):

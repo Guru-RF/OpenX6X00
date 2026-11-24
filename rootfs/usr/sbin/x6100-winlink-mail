@@ -677,6 +677,9 @@ def cmd_status(boxes=None):
            # supervisor has not come to it yet)
            "modems": [{"id": m, "name": MODEM_NAMES[m]} for m in MODEM_NAMES if os.access(MODEM_PROGRAMS[m], os.X_OK)],
            "modem_state": sup.get(modem(), "off"),
+           # the app's After call (#336): the radio back where it was after a connection from the gateway list
+           # (back, also for no setting), or left on the gateway's frequency (stay)
+           "after_call": "stay" if conf.get("after_call") == "stay" else "back",
            "last_text": sup.get("last_text", ""), "last_next": sup.get("last_next", ""),
            "last_result": sup.get("last_result", ""), "last_gateway": sup.get("last_gateway", ""),
            "last_time": int(sup["last_time"]) if sup.get("last_time", "").isdigit() else 0,

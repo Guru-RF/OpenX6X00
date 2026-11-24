@@ -1730,6 +1730,65 @@ class MailBusy(Root):
                            text=True, timeout=20)
         self.assertEqual((r.returncode, json.loads(r.stdout)), (0, {"busy": True, "why": "a connection is under way"}))
 
+    def test_after_call_in_the_status(self):
+        """The app's After call (#336) reads it here: back for no setting and for any other word"""
+        for line, want in (("", "back"), ("after_call=stay\n", "stay"), ("after_call=back\n", "back"),
+                           ("after_call=Stay\n", "back"), ("after_call=\n", "back")):
+            with open(self.wl.CONF, "w") as f:
+                f.write("enabled=0\n" + line)
+            self.assertEqual(self.mail.cmd_status()["after_call"], want, line)
+
+
+class AfterCall(Root):
+    """`x6100-winlink after`, APP > Mail's After call (#336): after_call= in the settings, the rest kept, nothing
+    restarted"""
+
+    def run_cmd(self, *args):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = self.wl.cmd_after(list(args))
+        return rc, json.loads(out.getvalue())
+
+    def test_back_until_chosen(self):
+        self.assertEqual(self.run_cmd(), (0, {"after_call": "back"}))           # no settings file at all
+        self.assertFalse(os.path.exists(self.wl.CONF))
+        self.conf(enabled=1, mycall="N0AAA", modem="mercury")
+        before = read(self.wl.CONF)
+        self.assertEqual(self.run_cmd(), (0, {"after_call": "back"}))
+        self.assertEqual(self.run_cmd("back"), (0, {"after_call": "back"}))
+        self.assertEqual(read(self.wl.CONF), before)                            # nothing to write
+
+    def test_chosen_and_the_rest_kept(self):
+        self.conf(enabled=1, mycall="N0AAA", modem="mercury", own_key="kept")
+        self.wl.poke = lambda *a, **k: self.fail("the supervisor has nothing to do for it")
+        self.assertEqual(self.run_cmd("stay"), (0, {"after_call": "stay"}))
+        conf = self.wl.read_conf()
+        self.assertEqual((conf["after_call"], conf["enabled"], conf["mycall"], conf["modem"], conf["own_key"]),
+                         ("stay", "1", "N0AAA", "mercury", "kept"))
+        self.assertEqual(self.run_cmd(), (0, {"after_call": "stay"}))
+        self.assertEqual(self.run_cmd("back"), (0, {"after_call": "back"}))
+        self.assertEqual(self.wl.read_conf()["after_call"], "back")
+        self.assertFalse(os.path.exists(self.wl.PAT_CONFIG))
+
+    def test_a_word_it_does_not_know(self):
+        self.conf(enabled=1, after_call="elsewhere")
+        self.assertEqual(self.run_cmd(), (0, {"after_call": "back"}))           # read as back
+        for args in (("elsewhere",), ("stay", "back"), ("",)):
+            rc, out = self.run_cmd(*args)
+            self.assertEqual((rc, out), (1, {"error": "usage: x6100-winlink after [back|stay]"}), args)
+        self.assertEqual(self.wl.read_conf()["after_call"], "elsewhere")
+
+    def test_as_a_command(self):
+        """As the GUI runs it: one JSON object on stdout"""
+        self.conf(enabled=0, mycall="N0AAA")
+        env = dict(os.environ, X6100_WINLINK_ROOT=self.root)
+        r = subprocess.run([sys.executable, "-B", SUPERVISOR, "after", "stay"], env=env, capture_output=True,
+                           text=True, timeout=20)
+        self.assertEqual((r.returncode, json.loads(r.stdout), r.stderr), (0, {"after_call": "stay"}, ""))
+        r = subprocess.run([sys.executable, "-B", SUPERVISOR, "after", "now"], env=env, capture_output=True,
+                           text=True, timeout=20)
+        self.assertEqual((r.returncode, json.loads(r.stdout)), (1, {"error": "usage: x6100-winlink after [back|stay]"}))
+
 
 class SwitchSupervisor(Root):
     """The supervisor's side: it goes on with Pat through Pat's own switch, and restarts it for the page's"""

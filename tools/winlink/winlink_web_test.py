@@ -239,6 +239,47 @@ class Xara(Web):
         self.assertIn('$("#vara_licence").prop("checked", !!st.vara_licence);', page)
 
 
+class AfterCall(Web):
+    """after_call (#336): the radio after a connection from APP > Mail's gateway list, back where it was (the
+    default) or left on the gateway's frequency. The GUI's to act on: saved, and nothing restarts for it"""
+
+    def test_back_until_chosen(self):
+        self.assertEqual(self.req("GET", "/api/winlink")[1]["after_call"], "back")
+        for word in ("stay", "back", "elsewhere", ""):
+            with open(apps.WINLINK_CONF, "w") as f:
+                f.write(f"enabled=0\nafter_call={word}\n")
+            self.assertEqual(self.req("GET", "/api/winlink")[1]["after_call"], "stay" if word == "stay" else "back")
+
+    def test_saved_with_nothing_restarted(self):
+        with open(apps.WINLINK_CONF, "w") as f:
+            f.write("enabled=1\nmycall=ON6URE\nlocator=\nbandwidth=500\nmodem=ardop\nmercury_bandwidth=2300\n"
+                    "xara_bandwidth=2300\nvara_licence=0\nown_key=kept\n")
+        code, st = self.req("POST", "/api/winlink", {"after_call": "stay"})
+        self.assertEqual((code, st["after_call"]), (200, "stay"))
+        self.assertEqual((self.conf()["after_call"], self.conf()["own_key"], self.conf()["mycall"]),
+                         ("stay", "kept", "ON6URE"))
+        self.assertEqual(self.calls, [["on"]])          # no apply: Pat and the modem go on as they were
+        self.calls.clear()
+        code, st = self.req("POST", "/api/winlink", {"bandwidth": 500})         # another Save keeps it
+        self.assertEqual((st["after_call"], self.conf()["after_call"], self.calls), ("stay", "stay", [["on"]]))
+        code, st = self.req("POST", "/api/winlink", {"after_call": "back"})
+        self.assertEqual((st["after_call"], self.conf()["after_call"]), ("back", "back"))
+
+    def test_refused(self):
+        for bad in ("Stay", "", None, True, 1, ["stay"]):
+            code, r = self.req("POST", "/api/winlink", {"after_call": bad})
+            self.assertEqual((code, r.get("msg")), (400, "After a call from the radio: back or stay"), bad)
+        self.assertFalse(os.path.exists(apps.WINLINK_CONF))
+        self.assertEqual(self.calls, [])
+
+    def test_the_page(self):
+        page = self.req("GET", "/winlink")[1]
+        self.assertIn('<select id="after_call"><option value="back">Go back</option>'
+                      '<option value="stay">Stay on the gateway\'s frequency</option></select>', page)
+        self.assertIn('$("#after_call").val(st.after_call || "back");', page)
+        self.assertIn('after_call: $("#after_call").val()', page)
+
+
 class Radio(Web):
     def test_the_cap(self):
         """The GUI's radio file into the API as numbers: Winlink's cap, and whether it is the X6200's battery's"""

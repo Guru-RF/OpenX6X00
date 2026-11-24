@@ -524,6 +524,31 @@ static int preset_steps(void) {
     ok     = winlink_preset(7101500, why, sizeof(why));
     preset_line("air-first", ok, why, 7101500);
     atomic_store(&keyed, false);
+
+    /* After call: Stay (#336), from 14.105 MHz in CW: the radio is left on the gateway's frequency in USB-D, a way
+     * back asked later moves nothing, and a press there is a first one again, from the frequency it now is on */
+    usleep(4100000);                                        /* Pat's tune of the web mailbox's connection: over */
+    freq.v = 14105000;
+    mode.v = radio_mode_cw;
+    why[0] = 0;
+    ok     = winlink_preset(7101500, why, sizeof(why));
+    winlink_preset_stay();
+    preset_line("stay", ok, why, 7101500);
+    winlink_preset_back(true);
+    preset_line("stay-back", true, "", 7101500);
+    ok = winlink_preset(7101500, why, sizeof(why));
+    preset_line("stay-again", ok, why, 7101500);
+    winlink_preset_back(false);
+    preset_line("stay-home", true, "", 7101500);
+    /* the connection over while the modem's last frame is on the air: it stays there too */
+    freq.v = 14105000;
+    ok     = winlink_preset(7101500, why, sizeof(why));
+    atomic_store(&keyed, true);
+    winlink_preset_stay();
+    atomic_store(&keyed, false);
+    usleep(500000);
+    winlink_preset_back(true);
+    preset_line("stay-air", ok, why, 7101500);
     return 0;
 }
 

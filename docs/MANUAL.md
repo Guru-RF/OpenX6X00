@@ -7812,6 +7812,9 @@ Setting it up:
      Hz) and VARA HF licence, off by default: tick it only if you hold a
      VARA HF licence of your own. The radio does not check it; off, XARA runs
      VARA's free speed levels.
+   - After a call from the radio: Go back (the default) or Stay on the
+     gateway's frequency, for connections made from APP > Mail's gateway
+     list (see [Mail on the radio](#mail-on-the-radio), After call).
 3. Switch Enabled on. Status says "Running as ON6URE" once Pat and the modem
    run. From then on they start with the radio, also after a new card image.
    The Before you connect card shows the radio as Winlink will use it, once
@@ -8229,7 +8232,17 @@ web mailbox.
   between stays where you put it. After Set freq you can also connect from
   the web mailbox: the radio is then left on the gateway's frequency, where
   Pat found it. The mode stays USB-D, as after any
-  Winlink connection. A gateway with no frequency in Pat's list is called
+  Winlink connection.
+- After call (the list's second button page, CONNECT 2:2; or After a call
+  from the radio on the Winlink page; issue #336) says what the radio does
+  once that connection is over. Go back, the default, is the above. Stay:
+  the radio is left on the gateway's frequency, in USB-D, after the
+  connection, and also when you leave the list or close the app after Set
+  freq without calling; the frequency it was on before is not brought back,
+  the VFO simply stays where the gateway was. The next press on that gateway
+  is a Set freq again, which moves nothing. It is for connections from this
+  list only: one from the web mailbox ends as Pat ends it.
+- A gateway with no frequency in Pat's list is called
   where the radio is: Connect, twice within 5 seconds. Up to v0.3.13 the
   radio changed frequency only as it began to transmit.
 - The Connection page shows Calling or Connected, the progress of each
