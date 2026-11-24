@@ -12,7 +12,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     audio.c audio_owner.c mfk_control.cpp cw.cpp cw_decoder.c cw_parse.c text_panel.cpp
     rtty.c rtty_tx.c rtty_send.c rtty_macro.c screen_shot.c screen_rec.c avi_writer.c screen_light.c screen_idle.c screen_saver.c gps.c
     cat.cpp tci_ws.c tci_audio.c tci_server.c tci_ask.c cfg_socket.cpp wavelog_cat.c
-    app_window.c settings_window.cpp swrscan_window.c ft8_window.c
+    app_window.c settings_window.cpp settings_place.c swrscan_window.c ft8_window.c
     freq_entry.c gps_window.c cw_messages.c
     voice_messages.c recorder_window.c qth_entry.c station.c dialog_channels.c
     js8_window.c js8_map.c map_geo.c ghostnet.c ghostnet_gui.c ghostnet_tr.c
