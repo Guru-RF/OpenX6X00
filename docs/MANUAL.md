@@ -954,6 +954,9 @@ active bands of the band list, from the frequency up or down.
   of the knob, an app closing) (#233). An app with its own band list (FT8,
   WSPR, PSK, Olivia, JTTY) steps through it the same way. The browser's
   screen keys work like the radio's.
+  A press that still seems to do nothing now and then: Settings > Info >
+  SYSTEM > [Load meter](#info-tab) shows whether the radio was busy at that
+  moment.
 
 - They skip a band the radio cannot tune: 4 m (70 MHz), 2 m and 70 cm,
   unless a transverter that is on (Settings > General > TRANSVERTERS) or, on
@@ -2766,6 +2769,27 @@ that is simply small does not warn while it still has room. On a DATA
 partition smaller than four times the choice it warns under a quarter of the
 partition instead (a 200 MB partition at Under 100 MB: under 50 MB). The
 default is twice the room under which a screen recording stops (50 MB).
+
+SYSTEM, below STORAGE (issue #233):
+- Memory: how much of the radio's memory is in use, for example "182 of
+  494 MB in use" ("not known" when it cannot be read).
+- Swap: none on the radios' card images.
+- Load meter (off by default): thin bars at the left edge of the screen, over
+  the main screen, every app and Settings, to see whether a key that did
+  nothing came at a busy moment. C is the processor, all its cores together;
+  G the GUI's own thread, as a part of one core (the keys, the knobs and the
+  screen are all handled by it, one after the other); M the memory in use (S
+  the swap, where there is any). A bar is in the theme's normal colour up to
+  70 %, orange up to 90 %, red above; the tick on C and G is their
+  highest of the last 10 seconds. The dot under the bars lights when the GUI
+  could not read the keys for a while in the last 10 seconds: orange from
+  0.1 s, red from 0.5 s. A red one is also written in the GUI log (app_logs):
+  "load: GUI loop late 640 ms (processor 97 %, GUI thread 88 % of a core,
+  memory 41 %)". A press that did nothing while the dot stayed dark was not
+  lost to a busy GUI: the keys wait until the GUI reads them, in order. Say
+  what the bars and the dot showed when you report it. With the meter on, the
+  radio reads three small system files once a second and draws the bars again
+  only when one moves; with it off, nothing.
 
 ### Walkie tab
 

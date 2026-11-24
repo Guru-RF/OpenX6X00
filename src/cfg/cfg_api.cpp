@@ -204,6 +204,7 @@ ParamFloat       *cfg_cessb_power_up      = nullptr;
 ParamInt         *cfg_textlog             = nullptr;
 ParamInt         *cfg_textlog_mb          = nullptr;
 ParamInt         *cfg_card_space_warn     = nullptr;
+ParamInt         *cfg_load_meter          = nullptr;
 ParamInt         *cfg_first_start_done    = nullptr;
 ParamText        *cfg_country             = nullptr;
 ParamInt         *cfg_meteo_alerts        = nullptr;
@@ -467,6 +468,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_textlog          = &cfg_sm.p_textlog;
     cfg_textlog_mb       = &cfg_sm.p_textlog_mb;
     cfg_card_space_warn  = &cfg_sm.p_card_space_warn;
+    cfg_load_meter       = &cfg_sm.p_load_meter;
     cfg_first_start_done = &cfg_sm.p_first_start_done;
     cfg_country          = &cfg_sm.p_country;
     cfg_meteo_alerts     = &cfg_sm.p_meteo_alerts;

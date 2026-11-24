@@ -741,6 +741,11 @@ class SettingsManager {
     // partition says so once. A card_warn_t: 0 Off, 1 under 100 MB (the default), 2 250 MB, 3 500 MB, 4 1 GB
     Parameter<int32_t> p_card_space_warn{"card_space_warn", 1, 0, 4,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Settings > Info > SYSTEM > Load meter (load_meter.c, #233): the processor's, the GUI thread's and the memory's
+    // load in thin bars at the screen's left edge, over every screen, and a mark when the GUI loop was late. Off (the
+    // default): nothing is read or drawn. A diagnosis for keys that go missing, not a look
+    Parameter<int32_t> p_load_meter{"load_meter", 0, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // The first-start guide had (first_start.c): finished, skipped or left once. No row on a new card or after a
     // settings reset, nor on a radio updated from before the guide: there the callsign decides (first_start_rule.h)

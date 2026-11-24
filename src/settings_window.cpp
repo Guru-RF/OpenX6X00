@@ -50,6 +50,7 @@ extern "C" {
     #include "clock.h"
     #include "bat_est.h"
     #include "card_space.h"
+    #include "load_stat.h"
     #include "apps_menu.h"
     #include "cfg/apps_list.h"
     #include "audio.h"
@@ -6122,6 +6123,29 @@ static void make_info_page() {
     wl_row_label(row, "Low space warning");
     row_choice(row++, 1, 4, SMALL_4, CARD_WARN_CHOICES, cfg_sm.p_card_space_warn.get(), int_choice_cb,
                &cfg_sm.p_card_space_warn);
+    card_end(row);
+
+    /* The memory as the kernel counts it, and the Load meter (load_meter.h, #233): bars of the processor's, the GUI
+     * thread's and the memory's load over every screen, to see whether a key that did nothing came at a busy moment */
+    char       text[2048];
+    load_mem_t mem;
+
+    row = card_begin("SYSTEM");
+    if (load_read("/proc/meminfo", text, sizeof(text)) && load_mem_parse(text, &mem)) {
+        snprintf(s, sizeof(s), _("%u of %u MB in use"), (unsigned)((mem.total - mem.avail) / 1024),
+                 (unsigned)(mem.total / 1024));
+        row = info_row(row, "Memory", s);
+        if (mem.swap_total) {
+            snprintf(s, sizeof(s), _("%u of %u MB in use"), (unsigned)((mem.swap_total - mem.swap_free) / 1024),
+                     (unsigned)(mem.swap_total / 1024));
+            row = info_row(row, "Swap", s);
+        } else {
+            row = info_row(row, "Swap", "none");    /* the radios' images have none */
+        }
+    } else {
+        row = info_row(row, "Memory", "not known");
+    }
+    row = make_param_switch(row, "Load meter", cfg_sm.p_load_meter);
     card_end(row);
 }
 
