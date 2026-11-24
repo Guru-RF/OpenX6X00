@@ -149,7 +149,22 @@ static uint32_t     wf_block_at;            /* and the place the first one had a
 static lv_obj_t    *wf_tag_box, *wf_tag;
 static bool         on_air;                 /* rx_tx_cb(): the radio transmits */
 
+/* The decoder's text over the whole screen (#352): the panel of the CW decoder and of RTTY (text_panel.cpp), which
+ * otherwise has the lower part of the screen over the waterfall. The same key as the full-screen waterfall, held DFL
+ * out of the box: with the text on the screen it goes on from the waterfall to the text, and from the text back (in
+ * RTTY, where the waterfall is never full screen, straight to the text). A plain backdrop comes in front of all the
+ * rest, the panel over it from under a top line to the bottom, and over them the waterfall's tag with the frequency
+ * and the mode, at the top right here: red with TX before them, and the red frame around the screen, while the radio
+ * transmits (the paddle, RTTY's macros from a keyboard). CW's speed keeps its place over the panel, RTTY's scope its
+ * corner. Left as the waterfall's: F1-F5, a tap of a key of the buttons, the key again, an app or a window opening;
+ * and when the text goes (the decoder off, another mode, RTTY closed) or a line is typed to send */
+#define TEXT_FULL_TOP   44      /* the top line: the tag, CW's speed */
+
+static bool         text_full;
+static lv_obj_t    *text_full_bg;
+
 static void wf_full_set(bool on);
+static void text_full_set(bool on);
 static void wf_tag_update(void);
 
 /* What an open app keeps the keys from changing. The frequency lock is a subject: the scale
@@ -671,6 +686,7 @@ static const char *app_name(press_action_t a) {
  * digital audio path, the panel */
 static void close_apps(void) {
     wf_full_set(false);     /* an app coming, the buttons asked for, a new theme: the normal screen */
+    text_full_set(false);
     dialog_destruct();
     freq_strip_set_app(NULL);
     if (rtty_get_state() != RTTY_OFF) {
@@ -1083,8 +1099,8 @@ static void hide_arm(void) {
 bool main_screen_buttons_wake(void) {
     bool was = buttons_hidden();
 
-    if (wf_full) {
-        return false;       /* under the full-screen waterfall: they come back when it goes (wf_full_set()) */
+    if (wf_full || text_full) {
+        return false;       /* under the full-screen waterfall or text: they come back when it goes (wf_full_set()) */
     }
 
     buttons_hide(false);
@@ -1116,14 +1132,18 @@ static void front_key_cb(lv_event_t *e) {
      * as with the buttons hidden; a key of the buttons on its tap, as its long press may be the one that goes back
      * (over a page of its own group that page stays, as with the buttons hidden). The other keys do their work
      * under it */
-    if (wf_full && ev->state == KEYPAD_PRESS && ev->key >= KEYPAD_F1 && ev->key <= KEYPAD_F5) {
+    bool full = wf_full || text_full;       /* the decoder's text full screen (#352): left the same way */
+
+    if (full && ev->state == KEYPAD_PRESS && ev->key >= KEYPAD_F1 && ev->key <= KEYPAD_F5) {
         wf_full_set(false);
+        text_full_set(false);
         woke_key = ev->key;
-    } else if (wf_full && tap && (key_group(ev->key) || ev->key == KEYPAD_MSG)) {
+    } else if (full && tap && (key_group(ev->key) || ev->key == KEYPAD_MSG)) {
         if (key_group(ev->key) && buttons_group_shown(key_group(ev->key))) {
             woke_group = ev->key;
         }
         wf_full_set(false);
+        text_full_set(false);
     }
     woke = main_screen_buttons_wake();
     if (woke && ev->state == KEYPAD_PRESS && ev->key >= KEYPAD_F1 && ev->key <= KEYPAD_F5) {
@@ -1754,6 +1774,7 @@ static void spectrum_key_cb(lv_event_t *e) {
         if (cw_field_visible()) {
             wf_full_set(false);     /* the line being typed is under the full-screen waterfall */
         }
+        text_full_set(false);       /* or under the text: CW's line, RTTY's window */
         return;
     }
     switch (key) {
@@ -2054,7 +2075,7 @@ static void on_freq_change(Subject *subj, void *user_data) {
     }
     split_freq(shown_freq(), &mhz, &khz, &hz);
     if (mhz < 100) {
-        msg_tiny_set_text_fmt("%i.%03i.%03i", mhz, khz, hz);
+        msg_tiny_set_text_fmt("%i.%03i%s%03i", mhz, khz, freq_strip_dot(), hz);
     } else {
         msg_tiny_set_text_fmt("%i.%03i", mhz, khz);    /* VHF and up: no Hz */
     }
@@ -2218,11 +2239,12 @@ static void on_spectrum_layout_change(Subject *subj, void *user_data) {
 static void wf_tag_update(void) {
     uint16_t mhz, khz, hz;
 
-    if (!wf_full) {
+    if (!wf_full && !text_full) {
         return;
     }
     split_freq(shown_freq(), &mhz, &khz, &hz);
-    lv_label_set_text_fmt(wf_tag, "%s%i.%03i.%03i %s", on_air ? "TX " : "", mhz, khz, hz, info_params_mode_label_get());
+    lv_label_set_text_fmt(wf_tag, "%s%i.%03i%s%03i %s", on_air ? "TX " : "", mhz, khz, freq_strip_dot(), hz,
+                          info_params_mode_label_get());
     lv_obj_set_style_bg_color(wf_tag, on_air ? TC(tx_bg) : TC(chip), 0);
     lv_obj_set_style_border_color(wf_tag, on_air ? TC(tx) : TC(bar_border), 0);
     lv_obj_set_style_border_width(wf_tag_box, on_air ? 4 : 0, 0);
@@ -2252,6 +2274,15 @@ static void wf_tag_init(void) {
     lv_obj_set_style_pad_ver(wf_tag, 3, 0);
     lv_label_set_text(wf_tag, "");
     lv_obj_align(wf_tag, LV_ALIGN_BOTTOM_LEFT, 8, -28);
+
+    /* What the decoder's text lies on when it has the whole screen (text_full_set()) */
+    text_full_bg = lv_obj_create(obj);
+    lv_obj_remove_style_all(text_full_bg);
+    lv_obj_set_size(text_full_bg, BOARD_DISP_W, BOARD_DISP_H);
+    lv_obj_set_style_bg_color(text_full_bg, TC(bg), 0);
+    lv_obj_set_style_bg_opa(text_full_bg, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(text_full_bg, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(text_full_bg, LV_OBJ_FLAG_HIDDEN);
 }
 
 /* The full-screen waterfall on or off (see wf_full) */
@@ -2260,6 +2291,7 @@ static void wf_full_set(bool on) {
         return;
     }
     if (on) {
+        text_full_set(false);   /* one or the other */
         wf_block = malloc(wf_block_n * sizeof(*wf_block));
         if (!wf_block) {
             return;
@@ -2293,19 +2325,73 @@ static void wf_full_set(bool on) {
     wf_tag_update();
 }
 
-void main_screen_wf_full_end(void) {
-    wf_full_set(false);
+/* The decoder's text over the whole screen, or back (see text_full). Only while its panel is on the screen */
+static void text_full_set(bool on) {
+    if (on == text_full || !text_full_bg || (on && !panel_shown())) {
+        return;
+    }
+    if (on) {
+        wf_full_set(false);     /* one or the other */
+        lv_obj_move_foreground(text_full_bg);
+        lv_obj_clear_flag(text_full_bg, LV_OBJ_FLAG_HIDDEN);
+        text_full = true;
+        panel_set_full(true, TEXT_FULL_TOP, BOARD_DISP_H - TEXT_FULL_TOP - TOP_BAR_MARGIN);
+        lv_obj_move_foreground(wf_tag_box);
+        lv_obj_clear_flag(wf_tag_box, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_align(wf_tag, LV_ALIGN_TOP_RIGHT, -8, 4);
+        buttons_hide(true);     /* as under the full-screen waterfall */
+        knobs_cover(true);
+    } else {
+        text_full = false;
+        panel_set_full(false, 0, 0);
+        panel_keep_below(wf_y - 8);
+        lv_obj_add_flag(text_full_bg, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(wf_tag_box, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_align(wf_tag, LV_ALIGN_BOTTOM_LEFT, 8, -28);     /* where the waterfall has it */
+        knobs_cover(false);
+        main_screen_buttons_wake();
+    }
+    wf_tag_update();
 }
 
-/* The key given it (say: a word when it cannot), or a touch held on the waterfall. Going back is always allowed */
+void main_screen_wf_full_end(void) {
+    wf_full_set(false);
+    text_full_set(false);
+}
+
+void main_screen_text_full_end(void) {
+    text_full_set(false);
+}
+
+/* The key given it (say: a word when it cannot), or a touch held on the waterfall. Going back is always allowed.
+ * With the decoder's text on the screen (CW's decoder, RTTY) the key goes on to the text over the whole screen
+ * before it goes back (#352): the waterfall, the text, the normal screen; in RTTY, where the waterfall is never
+ * full screen, the text and back */
 static void wf_full_toggle(bool say) {
-    if (!wf_full && (dialog_is_run() || rtty_get_state() != RTTY_OFF || walkie_on())) {
+    bool app = dialog_is_run() || walkie_on();
+
+    if (text_full) {
+        text_full_set(false);
+        return;
+    }
+    if (wf_full) {
+        wf_full_set(false);
+        if (!app) {
+            text_full_set(true);    /* nothing without the panel */
+        }
+        return;
+    }
+    if (!app && rtty_get_state() != RTTY_OFF && panel_shown()) {
+        text_full_set(true);
+        return;
+    }
+    if (app || rtty_get_state() != RTTY_OFF) {
         if (say && !walkie_on()) {
             msg_update_text_fmt("Full screen: not over an app");
         }
         return;
     }
-    wf_full_set(!wf_full);
+    wf_full_set(true);
 }
 
 /* A touch (the PC build's mouse) held on the waterfall, where no other touch does anything. The knobs' long presses
@@ -2439,6 +2525,7 @@ static void build(void) {
     subject_subscribe_delayed((Subject*)cfg_bg_freq, on_wf_tag_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_band_split, on_wf_tag_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_cur_mode, on_wf_tag_change, NULL);
+    subject_subscribe_delayed((Subject*)cfg_freq_one_dot, on_wf_tag_change, NULL);     /* 14.074000 (#344) */
 
     /* The order counts: these run in it when several change at once */
     subject_subscribe_delayed((Subject*)freq_lock, on_freq_change, NULL);

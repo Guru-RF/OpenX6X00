@@ -7,6 +7,7 @@
  */
 
 #include "tx_meters.h"
+#include "freq_strip.h"
 
 #include <stdio.h>
 
@@ -190,8 +191,8 @@ static void update_head(void) {
     float     tune = tune_len;
 
     split_freq(f, &mhz, &khz, &hz);
-    lv_label_set_text_fmt(head_label, "%s - %i.%03i.%03i", tune > 0.0f ? "EXTERNAL TUNE" : info_params_mode_label_get(),
-                          mhz, khz, hz);
+    lv_label_set_text_fmt(head_label, "%s - %i.%03i%s%03i", tune > 0.0f ? "EXTERNAL TUNE" : info_params_mode_label_get(),
+                          mhz, khz, freq_strip_dot(), hz);
     if (tune > 0.0f)
         lv_label_set_text_fmt(time_label, "%u / %u s", (unsigned)s, (unsigned)(tune + 0.5f));
     else

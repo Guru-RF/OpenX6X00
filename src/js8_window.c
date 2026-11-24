@@ -83,6 +83,12 @@
 #define WF_VISIBLE       (LANE_H + 40)             /* the lane and the newest rows of the waterfall; the list under */
 #define LANE_SHOW_MS     (3 * 60 * 1000)           /* a call stays in the lane this long after its last decode */
 #define TX_BAR_H         30                        /* the TX line above the list */
+/* The small texts of the board and the chat, one font size up from v0.3.13's 14, 16 and 18 (#345). Not in VISION,
+ * whose type is a quarter larger already: there they fill their rows as they are */
+#define SMALL_UP(a, b)   (theme_shape.vision ? &(a) : &(b))
+#define SMALL_NOTE       SMALL_UP(sony_14, sony_16) /* a chat row's last words and time, the bubbles' times, the way back */
+#define SMALL_INFO       SMALL_UP(sony_16, sony_18) /* a card's country and distance, the chat's line on its station */
+#define SMALL_STATUS     SMALL_UP(sony_18, sony_20) /* the line over the waterfall, the last HB at the TX line's right */
 
 /* Audio and waterfall */
 #define SAMPLE_RATE      (AUDIO_CAPTURE_RATE / AUDIO_DECIM) /* what audio_cb gets */
@@ -2875,10 +2881,11 @@ static void build_waterfall(void) {
 
     /* Speed, decodes and drift, top right over the waterfall */
     lv_obj_t *s = status = lv_label_create(wf);
-    lv_obj_set_style_text_font(s, &sony_18, LV_PART_MAIN);
+    lv_obj_set_style_text_font(s, SMALL_STATUS, LV_PART_MAIN);
     lv_obj_set_style_text_color(s, TC(text), LV_PART_MAIN);
     lv_obj_set_style_bg_color(s, TC(panel), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(s, LV_OPA_50, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(s, LV_OPA_70, LV_PART_MAIN);    /* the waterfall's bright traces under it (#345) */
+    lv_obj_set_style_pad_hor(s, 3, LV_PART_MAIN);
     lv_obj_align(s, LV_ALIGN_TOP_RIGHT, -4, 4);
 }
 
@@ -2896,9 +2903,9 @@ static void build_tx_bar(void) {
 
     /* the last HB and who heard it, on the right of the line */
     hb_info = lv_label_create(dialog.obj);
-    lv_obj_set_style_text_font(hb_info, &sony_18, LV_PART_MAIN);
-    lv_obj_set_style_text_color(hb_info, TC(text_mute), LV_PART_MAIN);
-    lv_obj_align(hb_info, LV_ALIGN_TOP_RIGHT, -20, WF_VISIBLE + 13 + 6);
+    lv_obj_set_style_text_font(hb_info, SMALL_STATUS, LV_PART_MAIN);
+    lv_obj_set_style_text_color(hb_info, TC(text_dim), LV_PART_MAIN);
+    lv_obj_align(hb_info, LV_ALIGN_TOP_RIGHT, -20, WF_VISIBLE + 13 + (TX_BAR_H - lv_font_get_line_height(SMALL_STATUS)) / 2);
     lv_label_set_text(hb_info, "");
 }
 
@@ -2992,7 +2999,7 @@ static void tx_bar_room(void)
 {
     if (!tx_bar || !hb_info) return;
     const char *t = lv_label_get_text(hb_info);
-    lv_obj_set_style_pad_right(tx_bar, t && t[0] ? text_w(t, &sony_18) + 7 + 12 : 6, LV_PART_MAIN);
+    lv_obj_set_style_pad_right(tx_bar, t && t[0] ? text_w(t, SMALL_STATUS) + 7 + 12 : 6, LV_PART_MAIN);
 }
 
 static void hb_info_update(void)
@@ -3071,6 +3078,13 @@ static void card_show(card_t *c, const js8_station_t *st, bool sel)
     lv_label_set_text(c->tag, tag);
     lv_obj_set_style_text_color(c->tag, col, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(c->tag, tag[0] ? LV_OPA_60 : LV_OPA_TRANSP, LV_PART_MAIN);
+
+    /* The country and the distance (#345): on a red card in the callsign's colour, the dim one is hard to read on
+     * it in every theme; and all the room up to the tag, which a short one ("HB", "1 new") leaves wider than the
+     * 110 px kept for the longest ("heard you -12") */
+    lv_obj_set_style_text_color(c->info, fresh ? TC(text) : TC(text_dim), LV_PART_MAIN);
+    lv_obj_update_layout(c->box);
+    lv_obj_set_width(c->info, (tag[0] ? lv_obj_get_x(c->tag) - 6 : lv_obj_get_width(c->box) - 8) - 8);
 }
 
 static void board_update(void)
@@ -3204,9 +3218,9 @@ static void build_board(void) {
         c->info = lv_label_create(box);
         lv_label_set_long_mode(c->info, LV_LABEL_LONG_DOT);
         lv_obj_set_width(c->info, cw - 110);
-        lv_obj_set_style_text_font(c->info, &sony_16, LV_PART_MAIN);
-        lv_obj_set_style_text_color(c->info, TC(text_mute), LV_PART_MAIN);
-        lv_obj_set_pos(c->info, 8, ch - 24);
+        lv_obj_set_style_text_font(c->info, SMALL_INFO, LV_PART_MAIN);
+        lv_obj_set_style_text_color(c->info, TC(text_dim), LV_PART_MAIN);
+        lv_obj_set_pos(c->info, 8, ch - 3 - lv_font_get_line_height(SMALL_INFO));
 
         c->tag = lv_label_create(box);
         lv_obj_set_style_text_font(c->tag, &sony_16, LV_PART_MAIN);
@@ -3218,8 +3232,8 @@ static void build_board(void) {
     }
 
     board_page = lv_label_create(b);
-    lv_obj_set_style_text_font(board_page, &sony_16, LV_PART_MAIN);
-    lv_obj_set_style_text_color(board_page, TC(text_mute), LV_PART_MAIN);
+    lv_obj_set_style_text_font(board_page, SMALL_INFO, LV_PART_MAIN);
+    lv_obj_set_style_text_color(board_page, TC(text_dim), LV_PART_MAIN);
     lv_obj_align(board_page, LV_ALIGN_CENTER, 0, 0);
 
     board_n = 0;
@@ -4107,7 +4121,8 @@ static void settings_cb(button_data_t *b) {
 #define CONV_HEAD_H 40
 #define CONV_MAX    40      /* the last messages shown */
 #define CONV_LEFT_W 248
-#define CONV_ROW_H  42
+#define CONV_ROW_H  42      /* the least a row takes: how many the list shows */
+#define CONV_ROW_MAX 48     /* and the most, where the list has the room */
 #define CONV_LIST_N 16
 
 static lv_obj_t *conv_body, *conv_info, *conv_flag, *conv_title, *conv_left;
@@ -4221,15 +4236,21 @@ static void conv_left_fill(void)
     int sel = 0;
     for (int i = 0; i < conv_n; i++)
         if (!strcasecmp(conv_items[i].call, conv_call)) sel = i;
-    int rows  = (lv_obj_get_height(conv_left)) / CONV_ROW_H;
-    int first = sel >= rows ? sel - rows + 1 : 0;
+    /* As many rows as before (#345), each as tall as the list lets it be, up to CONV_ROW_MAX: the second line and
+     * the time one font size larger */
+    lv_coord_t list_h = lv_obj_get_height(conv_left), small_h = lv_font_get_line_height(SMALL_NOTE);
+    int        rows   = LV_MAX(1, list_h / CONV_ROW_H);
+    lv_coord_t row_h  = LV_MIN(CONV_ROW_MAX, list_h / rows);
+    lv_coord_t call_h = LV_MAX(21, lv_font_get_line_height(&sony_18));     /* 21: as the lines were apart */
+    lv_coord_t top    = LV_MAX(0, (row_h - 1 - call_h - small_h) / 2);    /* the two lines in the row's middle */
+    int        first  = sel >= rows ? sel - rows + 1 : 0;
 
     for (int i = first; i < conv_n && i < first + rows; i++) {
         conv_item_t *it  = &conv_items[i];
         lv_obj_t    *row = lv_obj_create(conv_left);
         lv_obj_remove_style_all(row);
-        lv_obj_set_size(row, CONV_LEFT_W, CONV_ROW_H - 1);
-        lv_obj_set_pos(row, 0, (i - first) * CONV_ROW_H);
+        lv_obj_set_size(row, CONV_LEFT_W, row_h - 1);
+        lv_obj_set_pos(row, 0, (i - first) * row_h);
         lv_obj_set_style_bg_color(row, i == sel ? TC(sel_bg) : TC(row), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
@@ -4239,36 +4260,37 @@ static void conv_left_fill(void)
         if (f) {
             lv_obj_t *img = lv_img_create(row);
             lv_img_set_src(img, f);
-            lv_obj_set_pos(img, 8, 6);
+            lv_obj_set_pos(img, 8, top + 5);
         }
         lv_obj_t *call = lv_label_create(row);
         lv_label_set_text(call, it->call);
         lv_obj_set_style_text_font(call, &sony_18, LV_PART_MAIN);
         lv_obj_set_style_text_color(call, i == sel ? TC(sel_text) : TC(text), LV_PART_MAIN);
-        lv_obj_set_pos(call, 30, 1);
+        lv_obj_set_pos(call, 30, top);
 
         lv_obj_t *last = lv_label_create(row);
         lv_label_set_long_mode(last, LV_LABEL_LONG_DOT);
-        lv_obj_set_size(last, CONV_LEFT_W - 40, 18); /* one line */
+        lv_obj_set_size(last, CONV_LEFT_W - 40, small_h); /* one line */
         js8_station_t st; /* nothing said yet: they heard us, or only chosen (the board, Chat, the map) */
         bool          heard = !it->last[0] && find_station(it->call, &st) && st.heard_me;
         lv_label_set_text(last, it->last[0] ? it->last : heard ? "heard your HB" : "nothing said yet");
-        lv_obj_set_style_text_font(last, &sony_14, LV_PART_MAIN);
-        lv_obj_set_style_text_color(last, TC(text_mute), LV_PART_MAIN);
-        lv_obj_set_pos(last, 8, 22);
+        lv_obj_set_style_text_font(last, SMALL_NOTE, LV_PART_MAIN);
+        /* the selected row's own text colour on its own background: the greyed one was lost on it (#345) */
+        lv_obj_set_style_text_color(last, i == sel ? TC(sel_text) : TC(text_dim), LV_PART_MAIN);
+        lv_obj_set_pos(last, 8, LV_MIN(top + call_h, row_h - 1 - small_h));
 
         if (it->utc >= 0) {
             lv_obj_t *t = lv_label_create(row);
             lv_label_set_text_fmt(t, "%02d:%02d", (int)(it->utc / 10000), (int)(it->utc / 100 % 100));
-            lv_obj_set_style_text_font(t, &sony_14, LV_PART_MAIN);
-            lv_obj_set_style_text_color(t, TC(text_mute), LV_PART_MAIN);
-            lv_obj_align(t, LV_ALIGN_TOP_RIGHT, -6, 2);
+            lv_obj_set_style_text_font(t, SMALL_NOTE, LV_PART_MAIN);
+            lv_obj_set_style_text_color(t, i == sel ? TC(sel_text) : TC(text_dim), LV_PART_MAIN);
+            lv_obj_align(t, LV_ALIGN_TOP_RIGHT, -6, top + 1);
         }
         int n = unread_of(it->call);
         if (n) {
             lv_obj_t *u = lv_label_create(row);
             lv_label_set_text_fmt(u, "%d", n);
-            lv_obj_set_style_text_font(u, &sony_14, LV_PART_MAIN);
+            lv_obj_set_style_text_font(u, SMALL_NOTE, LV_PART_MAIN);
             lv_obj_set_style_text_color(u, TC(text), LV_PART_MAIN);
             lv_obj_set_style_bg_color(u, TC(err), LV_PART_MAIN);
             lv_obj_set_style_bg_opa(u, LV_OPA_COVER, LV_PART_MAIN);
@@ -4296,8 +4318,8 @@ static void conv_bubble(const js8_rx_msg_t *m)
     lv_obj_t *t = lv_label_create(line);
     snprintf(hhmm, sizeof(hhmm), "%02d:%02d", (int)(m->utc / 10000), (int)(m->utc / 100 % 100));
     lv_label_set_text(t, hhmm);
-    lv_obj_set_style_text_font(t, &sony_14, LV_PART_MAIN);
-    lv_obj_set_style_text_color(t, TC(text_mute), LV_PART_MAIN);
+    lv_obj_set_style_text_font(t, SMALL_NOTE, LV_PART_MAIN);
+    lv_obj_set_style_text_color(t, TC(text_dim), LV_PART_MAIN);
 
     /* their words without "CALL: ", ours without our call; GhostNet's translation on a line of its own under them */
     const char *text = m->text, *colon = strstr(text, ": ");
@@ -4351,7 +4373,11 @@ static void conv_fill(void)
     if (known && st.has_reported_snr)
         snprintf(info + strlen(info), sizeof(info) - strlen(info), ", they hear you %+d", st.reported_snr);
     lv_label_set_text(conv_info, info);
-    lv_obj_set_x(conv_info, CONV_LEFT_W + 6 + 40 + text_w(conv_call, &sony_24) + 12);
+    lv_coord_t info_x = CONV_LEFT_W + 6 + 40 + text_w(conv_call, &sony_24) + 12;
+
+    lv_obj_set_x(conv_info, info_x);
+    /* to the window's edge: one size larger, nothing cut (#345); one line, the dots where a long one ends */
+    lv_obj_set_size(conv_info, WIDTH - info_x - 6, lv_font_get_line_height(SMALL_INFO));
 
     /* the messages, oldest first */
     lv_obj_clean(conv_body);
@@ -4460,13 +4486,17 @@ static void conv_open(void)
     /* the way back, under the stations */
     lv_obj_t *back = lv_label_create(r);
     lv_label_set_text(back, "F1, F5 or ESC: back to the board");
-    lv_obj_set_style_text_font(back, &sony_14, LV_PART_MAIN);
-    lv_obj_set_style_text_color(back, TC(text_mute), LV_PART_MAIN);
-    lv_obj_set_pos(back, 6, h - 18);
+    lv_coord_t back_h = lv_font_get_line_height(SMALL_NOTE);
+
+    lv_obj_set_style_text_font(back, SMALL_NOTE, LV_PART_MAIN);
+    lv_obj_set_style_text_color(back, TC(text_dim), LV_PART_MAIN);
+    lv_label_set_long_mode(back, LV_LABEL_LONG_DOT);
+    lv_obj_set_size(back, CONV_LEFT_W - 6, back_h);
+    lv_obj_set_pos(back, 6, h - back_h - 1);
 
     lv_obj_t *l = conv_left = lv_obj_create(r);
     lv_obj_remove_style_all(l);
-    lv_obj_set_size(l, CONV_LEFT_W, h - 20);
+    lv_obj_set_size(l, CONV_LEFT_W, h - back_h - 3);
     lv_obj_set_pos(l, 0, 0);
     lv_obj_clear_flag(l, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
 
@@ -4481,9 +4511,9 @@ static void conv_open(void)
     conv_info = lv_label_create(r);
     lv_label_set_long_mode(conv_info, LV_LABEL_LONG_DOT);
     lv_obj_set_width(conv_info, cw - 180);
-    lv_obj_set_style_text_font(conv_info, &sony_16, LV_PART_MAIN);
-    lv_obj_set_style_text_color(conv_info, TC(text_mute), LV_PART_MAIN);
-    lv_obj_set_pos(conv_info, x0 + 140, 13);
+    lv_obj_set_style_text_font(conv_info, SMALL_INFO, LV_PART_MAIN);
+    lv_obj_set_style_text_color(conv_info, TC(text_dim), LV_PART_MAIN);
+    lv_obj_set_pos(conv_info, x0 + 140, 6 + lv_font_get_line_height(&sony_24) - lv_font_get_line_height(SMALL_INFO) - 1);
 
     lv_obj_t *b = conv_body = lv_obj_create(r);
     lv_obj_remove_style_all(b);

@@ -451,7 +451,7 @@ Out of the box:
 | KEY | none |
 | MSG | RX recorder on/off |
 | DFN | none |
-| DFL | WF full screen on/off: the waterfall over the whole screen, and back (see [Waterfall](#waterfall)). Up to v0.3.13 DFL had none; a radio whose DFL long press was set in Settings > Keys, to None too, keeps what it was set to. The X6100 hand mic's FIL held does DFL's long press |
+| DFL | WF full screen on/off: the waterfall over the whole screen, and back; with the CW decoder's or RTTY's text on the screen, that text over the whole screen too (see [Waterfall](#waterfall)). Up to v0.3.13 DFL had none; a radio whose DFL long press was set in Settings > Keys, to None too, keeps what it was set to. The X6100 hand mic's FIL held does DFL's long press |
 | FST | step down |
 
 A key let go while the radio is busy (a band change, an app closing) is a
@@ -1674,8 +1674,9 @@ are out of sight. Off by default, and not kept over a restart.
   button not seen is never pressed. A tap of GEN, APP, KEY, MSG, DFN, DFL or
   VM brings it back too, with the key's buttons.
 - An app, Settings, the frequency box or any other window opens on the
-  normal screen: full screen ends first. With an app or RTTY open the key
-  says "Full screen: not over an app". Not in walkie mode, which has its own
+  normal screen: full screen ends first. With an app open the key
+  says "Full screen: not over an app"; in RTTY it puts RTTY's text over the
+  whole screen (below). Not in walkie mode, which has its own
   [mini waterfall](#walkie-talkie-mode).
 - On the air the tag turns red and reads TX before the frequency, a red frame
   goes around the screen, and the TX panel (power, SWR, ALC) shows as on the
@@ -1685,6 +1686,39 @@ are out of sight. Off by default, and not kept over a restart.
   The same now when the spectrum's height changes or the spectrum is switched
   on or off, and over a new theme; up to v0.3.13 those started an empty
   waterfall.
+
+Full-screen text (from v0.3.14; issue #352). The decoder's text over the
+whole screen, as the WeFax app shows a chart: the panel that otherwise has
+the lower part of the screen, from under a top line down to the bottom, with
+many more lines of text. For the CW decoder and for RTTY, which share that
+panel.
+
+- On and off: the same key, "WF full screen on/off" (DFL's long press out of
+  the box). With the decoder's text on the screen the key goes on: in CW with
+  the decoder on, first the waterfall, then the text, then the normal screen;
+  in RTTY, where the waterfall is never full screen, the text and back.
+  Without the text on the screen the key is the waterfall's alone, as before.
+- The top line keeps the essentials: at its right the tag with the frequency
+  and the mode, at its left the CW decoder's speed (WPM), also where the
+  frequency strip has it otherwise. RTTY's tuning scope keeps its corner of
+  the panel. The words keep their colours (callsigns, Parse, what RTTY sent).
+- On the air the tag turns red and reads TX before the frequency, and a red
+  frame goes around the screen, as over the full-screen waterfall: the paddle
+  or key in CW, RTTY's macros from a keyboard (CapsLock+1 to 6). The TX panel
+  shows as on the normal screen.
+- The knob tunes, the tag following it, and the
+  keys do what they do under the full-screen waterfall. F1-F5 bring the normal
+  screen back, and that press does nothing more; a tap of GEN, APP, KEY, MSG,
+  DFN, DFL or VM brings it back too, with the key's buttons (GEN in RTTY
+  closes RTTY, as it does on the normal screen). So RTTY's Send...
+  and its macros' buttons are two presses away; a letter typed on a keyboard
+  opens the line to send on the normal screen at once.
+- It ends by itself when the text goes: the decoder switched off, another
+  mode, RTTY closed, an app or a window opening.
+- Text decoded while it is on fills the screen from then on; going back, the
+  newest lines that fit the panel stay.
+- The other text apps (PSK, Olivia, JTTY, NavTex, JS8, FT8) have windows of
+  their own and are as they were.
 
 ### Band plan
 
@@ -2035,16 +2069,45 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
     locator. When the strip needs the room (a split, with its second
     frequency) it hides until the room is back. VISION moves its big digits
     a little left for it, as far as the band name keeps its room.
-  - Black Metal and Total Black: in the second row at the top, between
-    BW IF STEP and the battery; it hides while that row leaves it no room
-    (a wide filter, a big step, a long callsign).
+  - Black Metal and Total Black: in the second row at the top, after
+    BW IF STEP behind a thin bar, with the locator beside it (from v0.3.14;
+    issue #343): the frequency strip of these two themes has no locator.
+    It is the locator the radio uses: the GPS's, with a green dot in front,
+    while the GPS has a fix, else the QTH locator of Settings > General >
+    STATION, as in the other themes' strip. While they are shown the battery
+    sits further right, against SCOPE (up to v0.3.13 the callsign stood
+    against the battery). Where the row still has no room for both (a wide
+    filter, a big step, a long callsign) the locator stays alone, and with
+    no room for that neither is shown.
   - Amber Trey: under the display, in the middle of the bottom line.
   - With it on, the built-in boot logo also shows the callsign over its
     ring, the last thing to come in, from the next start (after the CX8ANM
     edition, condoruy). A picture of your own (see
     [Boot picture](#boot-picture)) is shown as it is.
 
-  No callsign set: nothing is shown.
+  No callsign set: nothing is shown (Black Metal and Total Black: the
+  locator alone).
+- Frequency (14.074.000 by default, from v0.3.14; issue #344): how the
+  main screen writes a frequency. 14.074.000 has a point after the MHz and
+  after the kHz, as before; 14.074000 is one decimal number in MHz, as
+  logging programs, spotting sites and band plans write it. It changes at
+  once:
+  - the frequency in the frequency strip, both frequencies of a split, and
+    in Black Metal and Total Black the big frequency with its smaller 10 Hz
+    digits (14.074 with 00 after it) and the other VFO at the top right;
+  - the line under the digit the tuning step changes stays under that same
+    digit;
+  - the tag over the full-screen waterfall, the big frequency in the middle
+    of the screen (the Freq popup of Popups Freq/Info/TX), the line over the
+    TX meters, the walkie screen, and Amber Trey's two displays (one point,
+    after the MHz);
+  - the VFO's own line in the cluster column, the DX Cluster window and the
+    frequency lists.
+
+  Not changed: the frequencies an app or a list writes for something other
+  than the VFO (channels, spots, the Field Ops and SWR scan lines, Winlink),
+  the frequency scale under the spectrum (kHz only), and the spoken
+  frequency.
 - CW tune and WPM (Spectrum by default, from v0.3.14; issue #308): where
   the CW Tuner's bars and the decoder's speed are in CW and CW-R. Spectrum
   keeps them over the spectrum or the waterfall, as before. Frequency strip
@@ -4102,6 +4165,18 @@ Write... (words for them; MSG first puts them in their Inbox) and Close Chat;
 F1, F5 or ESC go back to the board (Heartbeat is on its page 1). The lane and
 the TX line stay above it.
 
+From v0.3.14 the small texts of the board and the conversations are one font
+size larger, and in the theme's colour for secondary text where they were in
+its greyed one (issue #345): a card's country and distance (on a red card in
+the callsign's colour), the line over the waterfall and the last heartbeat at
+the right of the TX line, a conversation's line on its station, the last
+words and the times in the list of stations (in the selected row's own text
+colour), the times beside the messages and the line on the way back. As many
+cards and rows as before; a card's country and distance have the room up to
+its tag, and the rows of the list of stations are as tall as the list lets
+them be. VISION, whose type is larger already, keeps its sizes and takes the
+colours.
+
 The message window (Reply, Send..., Write...): Enter sends. ESC, the MFK
 held (with a keyboard), the on-screen keyboard's keyboard key, or the same
 button again closes it without sending; what you typed is kept ("Not sent:
@@ -4899,7 +4974,9 @@ screen, into the panel over the waterfall, with a tuning scope at the
 panel's right (mark across, space up: two thin ellipses at right angles
 when tuned, the tones' offset under them) and the mark and space as two
 lines on the spectrum. It opens on its last frequency and mode; the ones
-you were on come back when it closes (GEN).
+you were on come back when it closes (GEN). Held DFL puts the text over the
+whole screen, and again brings the normal screen back (see Full-screen text
+under [Waterfall](#waterfall)).
 
 | Page | Buttons |
 |---|---|
@@ -5019,7 +5096,9 @@ Train is for practice: the key, the paddle, the CW messages and the
 In CW mode the decoder buttons are on the CW pages: CW 1:2 has ZAP, CW
 peak, CW peak Q and Log QSO (the [quick QSO log](#quick-qso-log)), CW 2:2 Decoder on/off, Tuner (tuning
 indicator), Dec SNR and Parse. Text and speed (WPM) appear in the panel
-over the waterfall.
+over the waterfall, or over the whole screen: held DFL once for the
+full-screen waterfall, again for the text (see Full-screen text under
+[Waterfall](#waterfall)).
 
 - The receiver comes from gdyuldin x6100_gui 1.0.1: a coherent tone tracker
   that follows the station inside the CW filter, a detector with a noise
@@ -7787,7 +7866,7 @@ them.
 | Backlight | Brightness, Brightness when idle (greyed with Idle after Off), Idle after (Off, 5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver); Panel stripes fix (see [Panel stripes fix](#panel-stripes-fix)) |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX ranges (Ham bands, South Korea, Own list), TX outside ham bands (Settings > TX Cal), and the own list as a text field: Save writes `tx_ranges.conf` and the radio reads it at once, the ranges it took and a line it could not read said under it (see [Amateur bands only](#amateur-bands-only)) |
-| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom, Tuning steps from, Tuning steps to (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see [Display tab](#display-tab)), CW tune and WPM (Spectrum, Frequency strip; see [CW decoder](#cw-decoder)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
+| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom, Tuning steps from, Tuning steps to (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see [Display tab](#display-tab)), Frequency (14.074.000, 14.074000; see [Display tab](#display-tab)), CW tune and WPM (Spectrum, Frequency strip; see [CW decoder](#cw-decoder)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
 | Apps | a switch for each app of the radio's APP grid and APP button pages, Show all (see [Apps tab](#apps-tab)) |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 

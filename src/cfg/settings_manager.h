@@ -722,6 +722,10 @@ class SettingsManager {
     // the main screen (main_call.c), and on the boot logo from the next start (bootanim/bootanim.c reads it)
     Parameter<int32_t> p_callsign_show{"callsign_show", 0, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Frequency (Settings > Display > MAIN SCREEN, live, #344): the main screen writes a frequency as 14.074.000 (0,
+    // as up to v0.3.13) or as one decimal number, 14.074000 (1): freq_strip_dot() (freq_strip.c)
+    Parameter<int32_t> p_freq_one_dot{"freq_one_dot", 0, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // CW tune and WPM (Settings > Display > MAIN SCREEN, live, #308): in CW the CW Tuner's bars and the decoder's
     // speed on the spectrum (0, as up to v0.3.13) or in the frequency strip, between the band and the frequency (1,
     // freq_strip.c), back on the spectrum while the strip has no room for them

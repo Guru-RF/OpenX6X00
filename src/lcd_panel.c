@@ -342,7 +342,10 @@ static void digits(int x1, int x2, int y1, int y2, const char cells[9], bool fou
             seg14(&box, seg14_of(ch));
         else
             seg7(&box, ch >= '0' && ch <= '9' ? seven[ch - '0'] : 0);
-        if ((st->one_point ? i == 5 : i == 2 || i == 5) && ch != ' ') {   /* the decimal point; MHz and kHz */
+        /* the decimal point; or after the MHz and the kHz, after the MHz alone with Frequency 14.074000 (#344) */
+        bool pt = st->one_point ? i == 5 : i == 2 || (i == 5 && !param_i_get(cfg_freq_one_dot));
+
+        if (pt && ch != ' ') {
             lv_coord_t t = LV_MAX(UX(dw) / st->thick, fourteen ? 2 : 3);
             point(ox + UX(x1 + i * pitch + dw + (pitch - dw) / 2) - t / 2, oy + UY(y2), t);
         }
@@ -605,7 +608,8 @@ static void read_state(lcd_state_t *st) {
     st->cwt    = param_i_get(cfg_cw_tune) && (st->mode == radio_mode_cw || st->mode == radio_mode_cwr);
     st->cwt_on = st->cwt && cw_tune_recent(&hz);
     st->cwt_hz = st->cwt_on ? LV_CLAMP(-99, hz, 99) : 0;
-    st->flags = tx | (param_i_get(cfg_band_split) ? 2 : 0) | (main_screen_freq_locked() ? 4 : 0);
+    st->flags = tx | (param_i_get(cfg_band_split) ? 2 : 0) | (main_screen_freq_locked() ? 4 : 0) |
+                (param_i_get(cfg_freq_one_dot) ? 8 : 0);    /* the points of the frequencies drawn again (#344) */
     st->icons = (param_i_get(cfg_vox_on) ? 1 << I_VOX : 0) | (param_i_get(cfg_atu_enabled) ? 1 << I_ATU : 0) |
                 (param_i_get(cfg_rit) ? 1 << I_RIT : 0) | (param_i_get(cfg_xit) ? 1 << I_XIT : 0) |
                 (param_i_get(cfg_band_split) ? 1 << I_SPLT : 0) | (cparam_i_get(cfg_cur_att) ? 1 << I_ATT : 0) |

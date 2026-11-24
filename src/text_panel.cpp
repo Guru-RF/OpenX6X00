@@ -24,6 +24,7 @@ extern "C" {
     #include "cw_parse.h"
     #include "cw_tune_view.h"
     #include "freq_strip.h"
+    #include "screen_main.h"
 }
 
 /* The decoder text over the waterfall (CW decoder, RTTY, NavTex): a label of the last lines,
@@ -32,12 +33,15 @@ static lv_obj_t    *obj;
 static bool         vision_cw;      /* VISION: CW text shown, its top line holds the speed and the tuning bars */
 static lv_obj_t    *info_line;
 static lv_anim_t    dim_anim;       /* tuning dims the text */
-static char         buf[1024];      /* the text as decoded, '\n' between the lines */
+static char         buf[4096];      /* the text as decoded, '\n' between the lines: 1024 held the panel's few lines,
+                                     * the whole screen (#352) has twenty and more of them */
 static char        *buf_write = buf;   /* its end, where the next text goes */
 static bool         own[sizeof(buf)];   /* buf's characters that were sent (RTTY's TX, #312), not received */
-static char         shown[6144];    /* buf with the words coloured (label recolour), up to 9 more chars a word */
+static char         shown[24576];   /* buf with the words coloured (label recolour), up to 9 more chars a word */
 static uint8_t      max_line_count;
 static radio_mode_t prev_mode;      /* CW-R kept as CW: switching between them keeps the text */
+static bool         full;           /* over the whole screen (panel_set_full(), #352) */
+static uint32_t     full_index;     /* its place among the screen's children, for the way back */
 
 static void mode_cb(Subject *subj, void *user_data);
 static void dim_on_tuning(Subject *subj, void *user_data);
@@ -308,6 +312,20 @@ static bool too_wide() {
 /* New text at the end of buf, decoded or (mine) sent. No bound on its length: the decoders send a few
  * characters at a time and the lines are kept to the panel's */
 static void add(const char *text, bool mine) {
+    /* Never past buf, whatever the lines are (a decoder that sends no line ends, the whole screen's many lines): the
+     * oldest lines go; a text that would not fit an empty buf is not one of a decoder's */
+    size_t len = strlen(text);
+
+    if (len >= sizeof(buf) / 4) return;
+    while ((size_t)(buf_write - buf) + 2 * len + 8 >= sizeof(buf)) {    /* twice: Parse adds spaces (split_words) */
+        const char *nl   = strchr(buf, '\n');
+        size_t      drop = nl ? (size_t)(nl + 1 - buf) : (size_t)(buf_write - buf);
+
+        memmove(own, own + drop, (buf_write - buf) - drop);
+        memmove(buf, buf + drop, (buf_write - buf) - drop + 1);
+        buf_write -= drop;
+    }
+
     char *at = buf_write;
 
     /* Sent and received text never share a line, as in the keyboard modes' windows: a line breaks where one
@@ -398,6 +416,7 @@ lv_obj_t *panel_init(lv_obj_t *parent) {
 
 /* A taller spectrum: the panel starts under it, shorter (upstream panel_set_height()) */
 void panel_keep_below(lv_coord_t y) {
+    if (full) return;       /* over the whole screen: placed again when that ends (screen_main.c) */
     /* From the style's place: the spectrum may have got shorter (live) */
     lv_obj_remove_local_style_prop(obj, LV_STYLE_Y, 0);
     lv_obj_remove_local_style_prop(obj, LV_STYLE_HEIGHT, 0);
@@ -431,12 +450,39 @@ void panel_set_info(const char *text) {
 }
 
 void panel_hide(void) {
+    if (full) main_screen_text_full_end();      /* no text to show over the whole screen */
     lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
     knobs_display(true);    /* the knob labels are where the panel was */
 }
 
 bool panel_shown(void) {
     return obj && !lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN);
+}
+
+/* The panel from y down over h px, in front of the rest of the screen, or back where its style and the spectrum have
+ * it (the caller's panel_keep_below()). Its width stays: the lines are broken for it, and a wider panel's lines
+ * would all go on the way back (text_size_cb()). The lines it holds follow its height: more text is kept from now
+ * on, and the oldest lines go when it is small again */
+void panel_set_full(bool on, lv_coord_t y, lv_coord_t h) {
+    if (!obj || on == full) return;
+    if (on) {
+        full_index = lv_obj_get_index(obj);
+        lv_obj_move_foreground(obj);
+        full = true;
+        lv_obj_set_y(obj, y);
+        lv_obj_set_height(obj, h);
+    } else {
+        full = false;
+        lv_obj_move_to_index(obj, full_index);
+        lv_obj_remove_local_style_prop(obj, LV_STYLE_Y, 0);
+        lv_obj_remove_local_style_prop(obj, LV_STYLE_HEIGHT, 0);
+    }
+    text_size_cb(NULL, NULL);
+    panel_info_place();     /* CW's speed over the panel, also where the frequency strip has it otherwise */
+}
+
+bool panel_full(void) {
+    return full;
 }
 
 /* A hidden panel keeps its text */
@@ -464,7 +510,7 @@ static bool decoder_on(bool *rtty) {
  * strip (Settings > Display > MAIN SCREEN > CW tune and WPM, #308) both are there, and VISION's text starts at the
  * panel's top */
 static void info_place(bool on, bool rtty) {
-    bool strip = freq_strip_holds_cw();
+    bool strip = freq_strip_holds_cw() && !full;    /* over the whole screen the strip is out of sight (#352) */
 
     if (rtty || strip) {
         lv_obj_add_flag(info_line, LV_OBJ_FLAG_HIDDEN);

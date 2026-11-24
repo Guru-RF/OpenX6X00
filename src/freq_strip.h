@@ -17,6 +17,10 @@ extern "C" {
 
 lv_obj_t *freq_strip_init(lv_obj_t *parent);
 
+/* The point between the kHz and the Hz where the main screen writes a frequency, "." or "" (Settings > Display >
+ * MAIN SCREEN > Frequency: 14.074.000 or 14.074000, #344): "%i.%03i%s%03i" with it between the two */
+const char *freq_strip_dot(void);
+
 /* Shows text instead of the band while the VFO stays on freq_hz. */
 void      freq_strip_set_label(const char *text, int32_t freq_hz);
 

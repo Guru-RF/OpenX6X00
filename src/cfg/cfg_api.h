@@ -130,6 +130,7 @@ extern ParamInt         *cfg_wf_3d_range;        // p_wf_3d_range
 extern ParamText        *cfg_encoder_bind;       // p_encoder_bind
 extern ParamInt         *cfg_power_display;      // p_power_display
 extern ParamInt         *cfg_callsign_show;      // p_callsign_show: the callsign on the main screen (#292)
+extern ParamInt         *cfg_freq_one_dot;       // p_freq_one_dot: 14.074000 on the main screen (#344)
 
 // VOX
 extern ParamInt *cfg_vox_on;   // p_vox_en

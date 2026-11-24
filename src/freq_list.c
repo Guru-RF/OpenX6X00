@@ -201,8 +201,8 @@ void freq_list_open(lv_obj_t *parent, const char *title, const freq_list_item_t 
     lv_obj_set_style_text_font(head, &sony_20, 0);
     lv_obj_set_style_text_color(head, lv_color_hex(COLOR_HEAD), 0);
     lv_label_set_recolor(head, true);
-    lv_label_set_text_fmt(head, "%s #%06x - VFO %d.%03d.%02d#", title, theme_hex(TC_text), vfo / 1000000, (vfo / 1000) % 1000,
-                          (vfo % 1000) / 10);
+    lv_label_set_text_fmt(head, "%s #%06x - VFO %d.%03d%s%02d#", title, theme_hex(TC_text), vfo / 1000000, (vfo / 1000) % 1000,
+                          freq_strip_dot(), (vfo % 1000) / 10);
     lv_obj_set_pos(head, 18, HEADER_Y);
 
     lv_obj_t *hint = lv_label_create(panel);
