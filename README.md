@@ -562,7 +562,8 @@ BOARD_DISP_W/H with a landscape blit (#162), taps on the F-bar and decoded keys
 (#163), the spectrum left unpainted while hidden (#177) and TCI's drive, VFO
 limits and RIT clamp from board.h (#189); Calin Rigo (timerealm) the 3D band
 scope (#161); Spyyena Contestia (#154) and the SSH page's FIDO2 security keys,
-with verify-required or no-touch-required (#274); DF8MH the Wavelog upload (#12); Trey
+with verify-required or no-touch-required (#274), and Flights asking once a
+minute however often the range is changed (#349); DF8MH the Wavelog upload (#12); Trey
 (rewtraw) the PC build in Docker (#180), LVGL's clock from CLOCK_MONOTONIC
 (#182), the GUI loop that wakes on keys, knobs and events (#183), the
 Propagation and Scanner apps (#184), APPS and Modes over the whole strip, the CW
@@ -578,7 +579,8 @@ own lines in channels 11 to 13 (#327); erikkt a keyboard's and a Bluetooth knob'
 volume keys on the RX volume, never the CW paddle (#306), and Tuning steps
 from, to, the range of steps FST, a keyboard's + and _ and a knob's Step go
 through (#314); HarryEMartland the Panel page's worked FT8
-stations struck through (#326).
+stations struck through (#326) and the FT8 page's flags (#335); Daolang239342
+the Chinese (zh_CN) translation's missing texts and its words made one (#356).
 
 From their forks: condoruy (Cóndor Tecnológico, the CX8ANM edition) the GUI's
 languages, the hook that passes every text to LVGL through the language and
