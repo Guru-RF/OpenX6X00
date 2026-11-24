@@ -16271,7 +16271,7 @@ msgstr ""
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Connected:# #%06x %s# called on %.1f kHz"
+msgid "#%06x Connected:# #%06x %s# called on %s"
 msgstr ""
 
 #: src/winlink_mail.c
@@ -16280,7 +16280,7 @@ msgstr ""
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Listening# for calls to #%06x %s# on %.1f kHz, %s"
+msgid "#%06x Listening# for calls to #%06x %s# on %s, %s"
 msgstr ""
 
 #: src/winlink_mail.c
@@ -16289,7 +16289,7 @@ msgstr ""
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Starting to listen# on %.1f kHz, %s..."
+msgid "#%06x Starting to listen# on %s, %s..."
 msgstr ""
 
 #: src/winlink_mail.c
@@ -16307,7 +16307,7 @@ msgstr ""
 
 #: src/winlink_mail.c
 #, c-format
-msgid "Listen: Pat answers a station that calls %s peer to peer (P2P) on %.1f kHz, %s, and the radio transmits for it."
+msgid "Listen: Pat answers a station that calls %s peer to peer (P2P) on %s, %s, and the radio transmits for it."
 msgstr ""
 
 #: src/winlink_mail.c
@@ -16388,7 +16388,7 @@ msgstr ""
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Listening %.1f#"
+msgid "#%06x Listening %s#"
 msgstr ""
 
 #: src/winlink_mail.c

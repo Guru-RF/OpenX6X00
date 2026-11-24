@@ -1177,24 +1177,31 @@ static void show_session_lines(void) {
 }
 
 
+/* 14100000 as "14.100.000", the radio's way, as the helper writes a call in its last-call line: one form on the page */
+static const char *dotted(char *s, size_t size, int32_t hz) {
+    snprintf(s, size, "%d.%03d.%03d", (int)(hz / 1000000), (int)(hz / 1000 % 1000), (int)(hz % 1000));
+    return s;
+}
+
 /* The Listen page (#357): whether the radio answers P2P calls now and where, what that means, the last call */
 static void show_listen(void) {
     lv_obj_t *l0 = lv_obj_get_child(body, 0), *l1 = lv_obj_get_child(body, 1), *l2 = lv_obj_get_child(body, 2);
     int32_t   hz = listen_on ? winlink_listen_hz() : cparam_i_get(cfg_fg_freq);
-    char      call[24], t[200];
+    char      call[24], t[200], f[16];
 
+    dotted(f, sizeof(f), hz);
     plain(call, sizeof(call), status && jstr(status, "call")[0] ? jstr(status, "call") : "?");
     if (incoming) {         /* also after Listen went off: the session goes on */
-        lv_label_set_text_fmt(l0, "#%06x Connected:# #%06x %s# called on %.1f kHz", theme_hex(TC_ok), COLOR_HEAD,
-                              incoming_call, hz / 1000.0);
+        lv_label_set_text_fmt(l0, "#%06x Connected:# #%06x %s# called on %s", theme_hex(TC_ok), COLOR_HEAD,
+                              incoming_call, f);
         lv_label_set_text(l1, "Pat exchanges mail with it. Abort ends the connection.");
     } else if (listen_on && listen_heard) {
-        lv_label_set_text_fmt(l0, "#%06x Listening# for calls to #%06x %s# on %.1f kHz, %s", theme_hex(TC_warn),
-                              COLOR_HEAD, call, hz / 1000.0, modem_name());
+        lv_label_set_text_fmt(l0, "#%06x Listening# for calls to #%06x %s# on %s, %s", theme_hex(TC_warn),
+                              COLOR_HEAD, call, f, modem_name());
         lv_label_set_text(l1, "The radio transmits when a station calls. Stay with it: Listen off, closing this app, "
                               "another app, the dial or the mode changed, or the screen dark ends listening.");
     } else if (listen_on) {
-        lv_label_set_text_fmt(l0, "#%06x Starting to listen# on %.1f kHz, %s...", theme_hex(TC_warn), hz / 1000.0,
+        lv_label_set_text_fmt(l0, "#%06x Starting to listen# on %s, %s...", theme_hex(TC_warn), f,
                               modem_name());
         lv_label_set_text(l1, time(NULL) - listen_since < LISTEN_SLOW_S
                                   ? "Pat sets the modem up to answer calls."
@@ -1207,8 +1214,8 @@ static void show_listen(void) {
         } else {
             lv_label_set_text_fmt(l0, "#%06x Not listening#", COLOR_HEAD);
         }
-        lv_label_set_text_fmt(l1, "Listen: Pat answers a station that calls %s peer to peer (P2P) on %.1f kHz, %s, "
-                                  "and the radio transmits for it.", call, hz / 1000.0, modem_name());
+        lv_label_set_text_fmt(l1, "Listen: Pat answers a station that calls %s peer to peer (P2P) on %s, %s, "
+                                  "and the radio transmits for it.", call, f, modem_name());
     }
     if (incoming) {
         lv_label_set_text(l2, "");      /* the last call is this one */
@@ -1453,7 +1460,9 @@ static void show(void) {
         snprintf(right, sizeof(right), "#%06x %s %s#", theme_hex(TC_ok), _("Connected"), incoming_call);
     } else if (listen_on) {
         /* in every view: the radio transmits when a station calls */
-        snprintf(right, sizeof(right), _("#%06x Listening %.1f#"), theme_hex(TC_warn), winlink_listen_hz() / 1000.0);
+        char f[16];
+        snprintf(right, sizeof(right), _("#%06x Listening %s#"), theme_hex(TC_warn),
+                 dotted(f, sizeof(f), winlink_listen_hz()));
     } else if (status && pat_up()) {
         int unread = jint(status, "unread", 0), out = jint(status, "out", 0);
 

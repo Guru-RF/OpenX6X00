@@ -16771,8 +16771,8 @@ msgstr "Aucune connexion"
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Connected:# #%06x %s# called on %.1f kHz"
-msgstr "#%06x Connecté :# #%06x %s# a appelé sur %.1f kHz"
+msgid "#%06x Connected:# #%06x %s# called on %s"
+msgstr "#%06x Connecté :# #%06x %s# a appelé sur %s"
 
 #: src/winlink_mail.c
 msgid "Pat exchanges mail with it. Abort ends the connection."
@@ -16780,8 +16780,8 @@ msgstr "Pat échange le courrier avec la station. Abandon met fin à la connexio
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Listening# for calls to #%06x %s# on %.1f kHz, %s"
-msgstr "#%06x À l'écoute# des appels pour #%06x %s# sur %.1f kHz, %s"
+msgid "#%06x Listening# for calls to #%06x %s# on %s, %s"
+msgstr "#%06x À l'écoute# des appels pour #%06x %s# sur %s, %s"
 
 #: src/winlink_mail.c
 msgid "The radio transmits when a station calls. Stay with it: Listen off, closing this app, another app, the dial or the mode changed, or the screen dark ends listening."
@@ -16789,8 +16789,8 @@ msgstr "La radio émet quand une station appelle. Restez auprès d'elle : Écout
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Starting to listen# on %.1f kHz, %s..."
-msgstr "#%06x Début de l'écoute# sur %.1f kHz, %s..."
+msgid "#%06x Starting to listen# on %s, %s..."
+msgstr "#%06x Début de l'écoute# sur %s, %s..."
 
 #: src/winlink_mail.c
 msgid "Pat sets the modem up to answer calls."
@@ -16807,8 +16807,8 @@ msgstr "#%06x Pas à l'écoute#"
 
 #: src/winlink_mail.c
 #, c-format
-msgid "Listen: Pat answers a station that calls %s peer to peer (P2P) on %.1f kHz, %s, and the radio transmits for it."
-msgstr "Écoute : Pat répond à une station qui appelle %s en pair à pair (P2P) sur %.1f kHz, %s, et la radio émet pour lui."
+msgid "Listen: Pat answers a station that calls %s peer to peer (P2P) on %s, %s, and the radio transmits for it."
+msgstr "Écoute : Pat répond à une station qui appelle %s en pair à pair (P2P) sur %s, %s, et la radio émet pour lui."
 
 #: src/winlink_mail.c
 #, c-format
@@ -16888,8 +16888,8 @@ msgstr "Appel"
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Listening %.1f#"
-msgstr "#%06x Écoute %.1f#"
+msgid "#%06x Listening %s#"
+msgstr "#%06x Écoute %s#"
 
 #: src/winlink_mail.c
 #, c-format
@@ -19236,6 +19236,21 @@ msgstr "Activation"
 #. not in the list: a line or a word of a longer text
 msgid "stopping"
 msgstr "arrêt"
+
+#~ msgid "#%06x Connected:# #%06x %s# called on %.1f kHz"
+#~ msgstr "#%06x Connecté :# #%06x %s# a appelé sur %.1f kHz"
+
+#~ msgid "#%06x Listening# for calls to #%06x %s# on %.1f kHz, %s"
+#~ msgstr "#%06x À l'écoute# des appels pour #%06x %s# sur %.1f kHz, %s"
+
+#~ msgid "#%06x Starting to listen# on %.1f kHz, %s..."
+#~ msgstr "#%06x Début de l'écoute# sur %.1f kHz, %s..."
+
+#~ msgid "Listen: Pat answers a station that calls %s peer to peer (P2P) on %.1f kHz, %s, and the radio transmits for it."
+#~ msgstr "Écoute : Pat répond à une station qui appelle %s en pair à pair (P2P) sur %.1f kHz, %s, et la radio émet pour lui."
+
+#~ msgid "#%06x Listening %.1f#"
+#~ msgstr "#%06x Écoute %.1f#"
 
 #~ msgid "Enter: read - N: new - C: connect - B: next box"
 #~ msgstr "Entrée : lire - N : nouveau - C : connecter - B : dossier suivant"

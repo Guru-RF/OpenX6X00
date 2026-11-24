@@ -16799,8 +16799,8 @@ msgstr "无连接"
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Connected:# #%06x %s# called on %.1f kHz"
-msgstr "#%06x 已连接:# #%06x %s# 在 %.1f kHz 呼入"
+msgid "#%06x Connected:# #%06x %s# called on %s"
+msgstr "#%06x 已连接:# #%06x %s# 在 %s 呼入"
 
 #: src/winlink_mail.c
 msgid "Pat exchanges mail with it. Abort ends the connection."
@@ -16808,8 +16808,8 @@ msgstr "Pat 正与其交换邮件. 按\"中止\"结束连接."
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Listening# for calls to #%06x %s# on %.1f kHz, %s"
-msgstr "#%06x 正在守听# 对 #%06x %s# 的呼叫, %.1f kHz, %s"
+msgid "#%06x Listening# for calls to #%06x %s# on %s, %s"
+msgstr "#%06x 正在守听# 对 #%06x %s# 的呼叫, %s, %s"
 
 #: src/winlink_mail.c
 msgid "The radio transmits when a station calls. Stay with it: Listen off, closing this app, another app, the dial or the mode changed, or the screen dark ends listening."
@@ -16817,8 +16817,8 @@ msgstr "有电台呼叫时本机会发射. 请守在电台旁: 关闭守听, 关
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Starting to listen# on %.1f kHz, %s..."
-msgstr "#%06x 开始守听# %.1f kHz, %s..."
+msgid "#%06x Starting to listen# on %s, %s..."
+msgstr "#%06x 开始守听# %s, %s..."
 
 #: src/winlink_mail.c
 msgid "Pat sets the modem up to answer calls."
@@ -16835,8 +16835,8 @@ msgstr "#%06x 未守听#"
 
 #: src/winlink_mail.c
 #, c-format
-msgid "Listen: Pat answers a station that calls %s peer to peer (P2P) on %.1f kHz, %s, and the radio transmits for it."
-msgstr "守听: 有电台点对点 (P2P) 呼叫 %s 时 Pat 应答, 频率 %.1f kHz, %s, 电台会为此发射."
+msgid "Listen: Pat answers a station that calls %s peer to peer (P2P) on %s, %s, and the radio transmits for it."
+msgstr "守听: 有电台点对点 (P2P) 呼叫 %s 时 Pat 应答, 频率 %s, %s, 电台会为此发射."
 
 #: src/winlink_mail.c
 #, c-format
@@ -16916,8 +16916,8 @@ msgstr "正在呼叫"
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Listening %.1f#"
-msgstr "#%06x 守听 %.1f#"
+msgid "#%06x Listening %s#"
+msgstr "#%06x 守听 %s#"
 
 #: src/winlink_mail.c
 #, c-format
@@ -17863,6 +17863,21 @@ msgstr "自动同步"
 #. not in the list: a line or a word of a longer text
 msgid "SETTINGS"
 msgstr "设置"
+
+#~ msgid "#%06x Connected:# #%06x %s# called on %.1f kHz"
+#~ msgstr "#%06x 已连接:# #%06x %s# 在 %.1f kHz 呼入"
+
+#~ msgid "#%06x Listening# for calls to #%06x %s# on %.1f kHz, %s"
+#~ msgstr "#%06x 正在守听# 对 #%06x %s# 的呼叫, %.1f kHz, %s"
+
+#~ msgid "#%06x Starting to listen# on %.1f kHz, %s..."
+#~ msgstr "#%06x 开始守听# %.1f kHz, %s..."
+
+#~ msgid "Listen: Pat answers a station that calls %s peer to peer (P2P) on %.1f kHz, %s, and the radio transmits for it."
+#~ msgstr "守听: 有电台点对点 (P2P) 呼叫 %s 时 Pat 应答, 频率 %.1f kHz, %s, 电台会为此发射."
+
+#~ msgid "#%06x Listening %.1f#"
+#~ msgstr "#%06x 守听 %.1f#"
 
 #~ msgid "Enter: read - N: new - C: connect - B: next box"
 #~ msgstr "Enter: 阅读 - N: 新建 - C: 连接 - B: 下一个邮箱"

@@ -16726,8 +16726,8 @@ msgstr "Geen verbinding"
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Connected:# #%06x %s# called on %.1f kHz"
-msgstr "#%06x Verbonden:# #%06x %s# riep op %.1f kHz"
+msgid "#%06x Connected:# #%06x %s# called on %s"
+msgstr "#%06x Verbonden:# #%06x %s# riep op %s"
 
 #: src/winlink_mail.c
 msgid "Pat exchanges mail with it. Abort ends the connection."
@@ -16735,8 +16735,8 @@ msgstr "Pat wisselt er mail mee uit. Afbreken beëindigt de verbinding."
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Listening# for calls to #%06x %s# on %.1f kHz, %s"
-msgstr "#%06x Luistert# naar oproepen voor #%06x %s# op %.1f kHz, %s"
+msgid "#%06x Listening# for calls to #%06x %s# on %s, %s"
+msgstr "#%06x Luistert# naar oproepen voor #%06x %s# op %s, %s"
 
 #: src/winlink_mail.c
 msgid "The radio transmits when a station calls. Stay with it: Listen off, closing this app, another app, the dial or the mode changed, or the screen dark ends listening."
@@ -16744,8 +16744,8 @@ msgstr "De radio zendt als een station oproept. Blijf erbij: Luisteren uit, deze
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Starting to listen# on %.1f kHz, %s..."
-msgstr "#%06x Luisteren start# op %.1f kHz, %s..."
+msgid "#%06x Starting to listen# on %s, %s..."
+msgstr "#%06x Luisteren start# op %s, %s..."
 
 #: src/winlink_mail.c
 msgid "Pat sets the modem up to answer calls."
@@ -16762,8 +16762,8 @@ msgstr "#%06x Luistert niet#"
 
 #: src/winlink_mail.c
 #, c-format
-msgid "Listen: Pat answers a station that calls %s peer to peer (P2P) on %.1f kHz, %s, and the radio transmits for it."
-msgstr "Luisteren: Pat beantwoordt een station dat %s peer-to-peer (P2P) oproept op %.1f kHz, %s, en de radio zendt ervoor."
+msgid "Listen: Pat answers a station that calls %s peer to peer (P2P) on %s, %s, and the radio transmits for it."
+msgstr "Luisteren: Pat beantwoordt een station dat %s peer-to-peer (P2P) oproept op %s, %s, en de radio zendt ervoor."
 
 #: src/winlink_mail.c
 #, c-format
@@ -16843,8 +16843,8 @@ msgstr "Oproep"
 
 #: src/winlink_mail.c
 #, c-format
-msgid "#%06x Listening %.1f#"
-msgstr "#%06x Luistert %.1f#"
+msgid "#%06x Listening %s#"
+msgstr "#%06x Luistert %s#"
 
 #: src/winlink_mail.c
 #, c-format
@@ -17770,6 +17770,21 @@ msgstr "Auto-sync"
 #. not in the list: a line or a word of a longer text
 msgid "SETTINGS"
 msgstr "INSTELLINGEN"
+
+#~ msgid "#%06x Connected:# #%06x %s# called on %.1f kHz"
+#~ msgstr "#%06x Verbonden:# #%06x %s# riep op %.1f kHz"
+
+#~ msgid "#%06x Listening# for calls to #%06x %s# on %.1f kHz, %s"
+#~ msgstr "#%06x Luistert# naar oproepen voor #%06x %s# op %.1f kHz, %s"
+
+#~ msgid "#%06x Starting to listen# on %.1f kHz, %s..."
+#~ msgstr "#%06x Luisteren start# op %.1f kHz, %s..."
+
+#~ msgid "Listen: Pat answers a station that calls %s peer to peer (P2P) on %.1f kHz, %s, and the radio transmits for it."
+#~ msgstr "Luisteren: Pat beantwoordt een station dat %s peer-to-peer (P2P) oproept op %.1f kHz, %s, en de radio zendt ervoor."
+
+#~ msgid "#%06x Listening %.1f#"
+#~ msgstr "#%06x Luistert %.1f#"
 
 #~ msgid "Enter: read - N: new - C: connect - B: next box"
 #~ msgstr "Enter: lezen - N: nieuw - C: verbinden - B: volgende map"
