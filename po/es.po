@@ -825,6 +825,7 @@ msgid "Forecast, warnings"
 msgstr "Pronóstico, alertas"
 
 #: src/apps_menu.c src/button_bar.cpp src/js8_window.c src/screen_main.c
+#: src/settings_window.cpp
 msgid "Settings"
 msgstr "Ajustes"
 
@@ -850,7 +851,7 @@ msgstr ""
 msgid "MFK: choose - press: open - APP or ESC: close"
 msgstr "MFK: elegir - pulsar: abrir - APP o ESC: cerrar"
 
-#: src/apps_menu.c
+#: src/apps_menu.c src/settings_window.cpp
 msgid "Apps"
 msgstr ""
 
@@ -1194,14 +1195,15 @@ msgstr "Movido a la perilla MFK"
 msgid "Removed from MFK encoder"
 msgstr "Quitado de la perilla MFK"
 
-#: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
-#: src/rtty_send.c src/screen_main.c src/settings_window.cpp
+#: src/button_bar.cpp src/charger_step.h src/js8_window.c src/knob_info.cpp
+#: src/radio_controls.cpp src/rtty_send.c src/screen_main.c
+#: src/settings_window.cpp
 msgid "On"
 msgstr "Sí"
 
-#: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
-#: src/rtty_send.c src/screen_light.c src/screen_main.c src/settings_window.cpp
-#: src/wifi_window.c src/wspr/wspr_hop.c
+#: src/button_bar.cpp src/charger_step.h src/js8_window.c src/knob_info.cpp
+#: src/radio_controls.cpp src/rtty_send.c src/screen_light.c src/screen_main.c
+#: src/settings_window.cpp src/wifi_window.c src/wspr/wspr_hop.c
 msgid "Off"
 msgstr "No"
 
@@ -1777,6 +1779,28 @@ msgstr ""
 msgid "not used"
 msgstr ""
 
+#: src/card_space.c
+#, c-format
+msgid "%s free of %s"
+msgstr ""
+
+#: src/card_space.h
+msgid ""
+" Off \n"
+" Under 100 MB \n"
+" Under 250 MB \n"
+" Under 500 MB \n"
+" Under 1 GB "
+msgstr ""
+
+#: src/card_space_notice.c
+#, c-format
+msgid ""
+"Card almost full: %s free\n"
+"Delete recordings or pictures\n"
+"on the web Gallery page"
+msgstr ""
+
 #: src/cb.c
 msgid "Europe (CEPT)"
 msgstr "Europa (CEPT)"
@@ -1866,6 +1890,10 @@ msgid "Unknown theme"
 msgstr "Tema desconocido"
 
 #: src/cfg_socket.cpp
+msgid "Unknown app"
+msgstr ""
+
+#: src/cfg_socket.cpp
 msgid "Unknown option"
 msgstr "Opción desconocida"
 
@@ -1920,6 +1948,11 @@ msgstr "LENTO"
 #: src/channel_list.c src/info_bar.c
 msgid "FAST"
 msgstr "RÁPIDO"
+
+#. not in the list: a line or a word of a longer text
+#: src/charger_step.h
+msgid "Shadow"
+msgstr "Sombra"
 
 #: src/clock.c
 msgid "Time is synchronized with NTP"
@@ -2115,7 +2148,7 @@ msgstr "Indicativo [env [rec]]: "
 msgid "New"
 msgstr "Nuevo"
 
-#: src/cw_messages.c src/dialog_channels.c src/winlink_mail.c
+#: src/cw_messages.c src/winlink_mail.c
 msgid "Edit"
 msgstr "Editar"
 
@@ -2506,7 +2539,7 @@ msgstr "Banda aérea HF: no mientras transmite"
 msgid "Saved channel %s"
 msgstr "Canal guardado %s"
 
-#: src/dialog_aero.c src/dialog_cb.c
+#: src/dialog_aero.c src/dialog_cb.c src/dialog_channels.c
 msgid "Channel not saved"
 msgstr "Canal no guardado"
 
@@ -2967,6 +3000,12 @@ msgid "Add"
 msgstr "Agregar"
 
 #: src/dialog_channels.c
+msgid ""
+"Edit\n"
+"hold: App"
+msgstr ""
+
+#: src/dialog_channels.c
 msgid "Drag"
 msgstr "Arrastrar"
 
@@ -2976,6 +3015,11 @@ msgstr "Soltar"
 
 #: src/dialog_channels.c
 msgid "No channels. F2 adds the current frequency"
+msgstr ""
+
+#: src/dialog_channels.c
+#, c-format
+msgid "%s%s%s, %s, opens %s"
 msgstr ""
 
 #: src/dialog_channels.c
@@ -2994,6 +3038,24 @@ msgstr "Canal no sintonizado: %s"
 #: src/dialog_channels.c
 msgid "Channel name"
 msgstr "Nombre del canal"
+
+#: src/dialog_channels.c
+#, c-format
+msgid "Channel opens %s"
+msgstr ""
+
+#: src/dialog_channels.c
+#, c-format
+msgid "Opens %s"
+msgstr ""
+
+#: src/dialog_channels.c
+msgid "Channel opens no app"
+msgstr ""
+
+#: src/dialog_channels.c
+msgid "Opens no app"
+msgstr ""
 
 #: src/dialog_channels.c
 #, c-format
@@ -9043,13 +9105,13 @@ msgstr "MyMemory no dio traducción"
 
 #: src/js8_window.c
 #, c-format
-msgid "heard you (%s)"
-msgstr "te escuchó (%s)"
+msgid "heard you %s"
+msgstr ""
 
 #: src/js8_window.c
 #, c-format
-msgid "heard you %+03d (%s)"
-msgstr "te escuchó %+03d (%s)"
+msgid "heard you %+03d %s"
+msgstr ""
 
 #: src/js8_window.c
 msgid "No stations heard yet"
@@ -12311,6 +12373,10 @@ msgstr ""
 msgid "Split %s"
 msgstr ""
 
+#: src/screen_main.c src/settings_window.cpp
+msgid "Charger"
+msgstr "Cargador"
+
 #: src/screen_main.c
 #, c-format
 msgid "%.*s meters, "
@@ -12703,6 +12769,10 @@ msgid " Mute "
 msgstr " Silenciar "
 
 #: src/settings_window.cpp
+msgid " Charger Off/On/Shadow "
+msgstr ""
+
+#: src/settings_window.cpp
 msgid " Frequency lock on/off "
 msgstr " Bloqueo de frecuencia sí/no "
 
@@ -12973,10 +13043,6 @@ msgstr "Emparejando %i:%02i"
 #: src/settings_window.cpp
 msgid "Pairing (3 min)"
 msgstr "Emparejar (3 min)"
-
-#: src/settings_window.cpp
-msgid "Charger"
-msgstr "Cargador"
 
 #: src/settings_window.cpp
 msgid ""
@@ -14231,6 +14297,10 @@ msgstr ""
 " % + V "
 
 #: src/settings_window.cpp
+msgid "Frequency"
+msgstr ""
+
+#: src/settings_window.cpp
 msgid "CW tune and WPM"
 msgstr "Sintonía CW y WPM"
 
@@ -14277,6 +14347,16 @@ msgstr "Mantener líneas de perillas"
 #: src/settings_window.cpp
 msgid "Knob press: next control"
 msgstr "Pulsar perilla: control siguiente"
+
+#: src/settings_window.cpp
+msgid "MFK rings"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Stock \n"
+" Swapped "
+msgstr ""
 
 #: src/settings_window.cpp
 msgid "Decoder text"
@@ -14796,6 +14876,22 @@ msgid "Daily base check"
 msgstr "Revisión diaria de la banda base"
 
 #: src/settings_window.cpp
+msgid "All apps shown"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Hidden apps"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Show all"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "always shown"
+msgstr ""
+
+#: src/settings_window.cpp
 msgid "FIRMWARE"
 msgstr "FIRMWARE"
 
@@ -14848,6 +14944,26 @@ msgstr "valores iniciales, aprendiendo"
 #: src/settings_window.cpp
 msgid "Time left"
 msgstr "Tiempo restante"
+
+#: src/settings_window.cpp
+msgid "STORAGE"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "not known"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "DATA partition"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "System"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Low space warning"
+msgstr ""
 
 #: src/settings_window.cpp
 msgid "Settings. Tabs on the F-keys"
@@ -17076,6 +17192,18 @@ msgid ""
 msgstr ""
 
 #: src/winlink_mail.c
+msgid "After call"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Stay"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Go back"
+msgstr ""
+
+#: src/winlink_mail.c
 msgid "Connection"
 msgstr "Conexión"
 
@@ -17105,8 +17233,12 @@ msgstr ""
 "siguiente"
 
 #: src/winlink_mail.c
-msgid "(CONNECT 1:1)"
-msgstr "(CONECTAR 1:1)"
+msgid "(CONNECT 1:2)"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "(CONNECT 2:2)"
+msgstr ""
 
 #: src/winlink_mail.c
 msgid "(LINK 1:1)"
@@ -17230,6 +17362,19 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "No other modem on this radio"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x After call:# %s"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "After call: the radio stays on the gateway's frequency, in USB-D"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "After call: the radio goes back to where it was before Set freq"
 msgstr ""
 
 #: src/winlink_mail.c
@@ -17625,10 +17770,6 @@ msgstr "País + km"
 #. not in the list: a line or a word of a longer text
 msgid "Country + mi"
 msgstr "País + mi"
-
-#. not in the list: a line or a word of a longer text
-msgid "Shadow"
-msgstr "Sombra"
 
 #. not in the list: a line or a word of a longer text
 msgid "Lite"
@@ -18861,6 +19002,15 @@ msgstr "Activación"
 #. not in the list: a line or a word of a longer text
 msgid "stopping"
 msgstr "apagando"
+
+#~ msgid "heard you (%s)"
+#~ msgstr "te escuchó (%s)"
+
+#~ msgid "heard you %+03d (%s)"
+#~ msgstr "te escuchó %+03d (%s)"
+
+#~ msgid "(CONNECT 1:1)"
+#~ msgstr "(CONECTAR 1:1)"
 
 #~ msgid "+ called lately - Connect twice: the radio transmits"
 #~ msgstr "+ llamada hace poco - Conectar dos veces: la radio transmite"

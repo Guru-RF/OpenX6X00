@@ -825,6 +825,7 @@ msgid "Forecast, warnings"
 msgstr "预报、预警"
 
 #: src/apps_menu.c src/button_bar.cpp src/js8_window.c src/screen_main.c
+#: src/settings_window.cpp
 msgid "Settings"
 msgstr "设置"
 
@@ -850,7 +851,7 @@ msgstr "应用"
 msgid "MFK: choose - press: open - APP or ESC: close"
 msgstr "MFK:选择 - 按下:打开 - APP 或 ESC:关闭"
 
-#: src/apps_menu.c
+#: src/apps_menu.c src/settings_window.cpp
 msgid "Apps"
 msgstr ""
 
@@ -1193,14 +1194,15 @@ msgstr "已移至 MFK 旋钮"
 msgid "Removed from MFK encoder"
 msgstr "已从 MFK 旋钮移除"
 
-#: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
-#: src/rtty_send.c src/screen_main.c src/settings_window.cpp
+#: src/button_bar.cpp src/charger_step.h src/js8_window.c src/knob_info.cpp
+#: src/radio_controls.cpp src/rtty_send.c src/screen_main.c
+#: src/settings_window.cpp
 msgid "On"
 msgstr "开"
 
-#: src/button_bar.cpp src/js8_window.c src/knob_info.cpp src/radio_controls.cpp
-#: src/rtty_send.c src/screen_light.c src/screen_main.c src/settings_window.cpp
-#: src/wifi_window.c src/wspr/wspr_hop.c
+#: src/button_bar.cpp src/charger_step.h src/js8_window.c src/knob_info.cpp
+#: src/radio_controls.cpp src/rtty_send.c src/screen_light.c src/screen_main.c
+#: src/settings_window.cpp src/wifi_window.c src/wspr/wspr_hop.c
 msgid "Off"
 msgstr "关"
 
@@ -1778,6 +1780,28 @@ msgstr ""
 msgid "not used"
 msgstr ""
 
+#: src/card_space.c
+#, c-format
+msgid "%s free of %s"
+msgstr ""
+
+#: src/card_space.h
+msgid ""
+" Off \n"
+" Under 100 MB \n"
+" Under 250 MB \n"
+" Under 500 MB \n"
+" Under 1 GB "
+msgstr ""
+
+#: src/card_space_notice.c
+#, c-format
+msgid ""
+"Card almost full: %s free\n"
+"Delete recordings or pictures\n"
+"on the web Gallery page"
+msgstr ""
+
 #: src/cb.c
 msgid "Europe (CEPT)"
 msgstr "欧洲 (CEPT)"
@@ -1867,6 +1891,10 @@ msgid "Unknown theme"
 msgstr "未知主题"
 
 #: src/cfg_socket.cpp
+msgid "Unknown app"
+msgstr ""
+
+#: src/cfg_socket.cpp
 msgid "Unknown option"
 msgstr "未知选项"
 
@@ -1921,6 +1949,10 @@ msgstr "慢"
 #: src/channel_list.c src/info_bar.c
 msgid "FAST"
 msgstr "快"
+
+#: src/charger_step.h
+msgid "Shadow"
+msgstr ""
 
 #: src/clock.c
 msgid "Time is synchronized with NTP"
@@ -2116,7 +2148,7 @@ msgstr "呼号 [发 [收]]: "
 msgid "New"
 msgstr "新建"
 
-#: src/cw_messages.c src/dialog_channels.c src/winlink_mail.c
+#: src/cw_messages.c src/winlink_mail.c
 msgid "Edit"
 msgstr "编辑"
 
@@ -2510,7 +2542,7 @@ msgstr "短波航空: 发射时不可用"
 msgid "Saved channel %s"
 msgstr "已保存频道 %s"
 
-#: src/dialog_aero.c src/dialog_cb.c
+#: src/dialog_aero.c src/dialog_cb.c src/dialog_channels.c
 msgid "Channel not saved"
 msgstr "频道未保存"
 
@@ -2969,6 +3001,12 @@ msgid "Add"
 msgstr "添加"
 
 #: src/dialog_channels.c
+msgid ""
+"Edit\n"
+"hold: App"
+msgstr ""
+
+#: src/dialog_channels.c
 msgid "Drag"
 msgstr "拖动"
 
@@ -2978,6 +3016,11 @@ msgstr "放下"
 
 #: src/dialog_channels.c
 msgid "No channels. F2 adds the current frequency"
+msgstr ""
+
+#: src/dialog_channels.c
+#, c-format
+msgid "%s%s%s, %s, opens %s"
 msgstr ""
 
 #: src/dialog_channels.c
@@ -2996,6 +3039,24 @@ msgstr "频道未调谐: %s"
 #: src/dialog_channels.c
 msgid "Channel name"
 msgstr "频道名称"
+
+#: src/dialog_channels.c
+#, c-format
+msgid "Channel opens %s"
+msgstr ""
+
+#: src/dialog_channels.c
+#, c-format
+msgid "Opens %s"
+msgstr ""
+
+#: src/dialog_channels.c
+msgid "Channel opens no app"
+msgstr ""
+
+#: src/dialog_channels.c
+msgid "Opens no app"
+msgstr ""
 
 #: src/dialog_channels.c
 #, c-format
@@ -9059,13 +9120,13 @@ msgstr "MyMemory 未返回翻译"
 
 #: src/js8_window.c
 #, c-format
-msgid "heard you (%s)"
-msgstr "听到你 (%s)"
+msgid "heard you %s"
+msgstr ""
 
 #: src/js8_window.c
 #, c-format
-msgid "heard you %+03d (%s)"
-msgstr "听到你 %+03d (%s)"
+msgid "heard you %+03d %s"
+msgstr ""
 
 #: src/js8_window.c
 msgid "No stations heard yet"
@@ -12327,6 +12388,10 @@ msgstr ""
 msgid "Split %s"
 msgstr ""
 
+#: src/screen_main.c src/settings_window.cpp
+msgid "Charger"
+msgstr "充电器"
+
 #: src/screen_main.c
 #, c-format
 msgid "%.*s meters, "
@@ -12719,6 +12784,10 @@ msgid " Mute "
 msgstr " 静音 "
 
 #: src/settings_window.cpp
+msgid " Charger Off/On/Shadow "
+msgstr ""
+
+#: src/settings_window.cpp
 msgid " Frequency lock on/off "
 msgstr " 频率锁定 开/关 "
 
@@ -12989,10 +13058,6 @@ msgstr "配对 %i:%02i"
 #: src/settings_window.cpp
 msgid "Pairing (3 min)"
 msgstr "配对 (3 分钟)"
-
-#: src/settings_window.cpp
-msgid "Charger"
-msgstr "充电器"
 
 #: src/settings_window.cpp
 msgid ""
@@ -14247,6 +14312,10 @@ msgstr ""
 " % + V "
 
 #: src/settings_window.cpp
+msgid "Frequency"
+msgstr ""
+
+#: src/settings_window.cpp
 msgid "CW tune and WPM"
 msgstr "CW 调谐和 WPM"
 
@@ -14293,6 +14362,16 @@ msgstr "保留旋钮行"
 #: src/settings_window.cpp
 msgid "Knob press: next control"
 msgstr "按旋钮: 下一控制项"
+
+#: src/settings_window.cpp
+msgid "MFK rings"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid ""
+" Stock \n"
+" Swapped "
+msgstr ""
 
 #: src/settings_window.cpp
 msgid "Decoder text"
@@ -14812,6 +14891,22 @@ msgid "Daily base check"
 msgstr "每日检查基带"
 
 #: src/settings_window.cpp
+msgid "All apps shown"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Hidden apps"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Show all"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "always shown"
+msgstr ""
+
+#: src/settings_window.cpp
 msgid "FIRMWARE"
 msgstr "固件"
 
@@ -14864,6 +14959,26 @@ msgstr "初始值, 学习中"
 #: src/settings_window.cpp
 msgid "Time left"
 msgstr "剩余时间"
+
+#: src/settings_window.cpp
+msgid "STORAGE"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "not known"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "DATA partition"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "System"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Low space warning"
+msgstr ""
 
 #: src/settings_window.cpp
 msgid "Settings. Tabs on the F-keys"
@@ -17093,6 +17208,18 @@ msgid ""
 msgstr ""
 
 #: src/winlink_mail.c
+msgid "After call"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Stay"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Go back"
+msgstr ""
+
+#: src/winlink_mail.c
 msgid "Connection"
 msgstr "连接状态"
 
@@ -17121,8 +17248,12 @@ msgstr ""
 "栏位"
 
 #: src/winlink_mail.c
-msgid "(CONNECT 1:1)"
-msgstr "(连接 1:1)"
+msgid "(CONNECT 1:2)"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "(CONNECT 2:2)"
+msgstr ""
 
 #: src/winlink_mail.c
 msgid "(LINK 1:1)"
@@ -17246,6 +17377,19 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "No other modem on this radio"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x After call:# %s"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "After call: the radio stays on the gateway's frequency, in USB-D"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "After call: the radio goes back to where it was before Set freq"
 msgstr ""
 
 #: src/winlink_mail.c
@@ -17461,6 +17605,15 @@ msgstr "自动同步"
 #. not in the list: a line or a word of a longer text
 msgid "SETTINGS"
 msgstr "设置"
+
+#~ msgid "heard you (%s)"
+#~ msgstr "听到你 (%s)"
+
+#~ msgid "heard you %+03d (%s)"
+#~ msgstr "听到你 %+03d (%s)"
+
+#~ msgid "(CONNECT 1:1)"
+#~ msgstr "(连接 1:1)"
 
 #~ msgid "+ called lately - Connect twice: the radio transmits"
 #~ msgstr "+ 最近呼叫过 - 按两次\"连接\": 电台发射"
