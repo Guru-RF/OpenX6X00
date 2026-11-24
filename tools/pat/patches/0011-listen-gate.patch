@@ -1,0 +1,451 @@
+From f3857ad7a468c3bf5d54336ccf7769701d6a5a45 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Tue, 24 Nov 2026 12:00:00 +0100
+Subject: [PATCH] app: P2P listening only while the radio's APP > Mail has
+ Listen on (OpenX6X00)
+
+The radio may transmit only with someone at it. Pat took its P2P
+listening from the config's listen (the Configure page's "Listen for
+inbound P2P traffic") and --listen, at each start and at each reload,
+which that page's Save makes: ticked, the radio answered any station
+that called it, with nobody there, on whatever frequency it was on. The
+supervisor wrote listen [] at each start of Pat, which a Save and its
+reload undid until the next one.
+
+With OPENX6X00_LISTEN_GATE set (the supervisor, x6100-winlink, sets it
+to /run/winlink/listen), neither is used. Pat listens on the transport
+that file names, ardop or varahf, while the file is fresh, and on
+nothing else: the radio's GUI writes it each second while its APP >
+Mail is open with Listen on, stamped with the time since boot (the
+wall clock may jump when the radio sets its clock), and removes it
+when Listen goes off, the app is closed or another app opens, the
+radio leaves the frequency, and as it starts. A file not stamped for
+3 s is from a GUI that is gone or hangs. Pat looks at it twice a
+second: a listener turned on another way (the interactive mode's
+listen) goes too. Each change is a line in Pat's log, which the
+mailbox's log pane shows. Unset, as anywhere else, Pat listens as
+upstream.
+
+A listener that goes sends the modem LISTEN FALSE (ARDOP) or LISTEN OFF
+(VARA HF), as upstream's; a session that came in before goes on to its
+end.
+
+The Configure page's "Listen for inbound P2P traffic" under ARDOP and
+VARA HF says it is not used on the radio, and where listening is.
+
+With tests (app/listen_gate_test.go: the file, the clock, the
+listeners kept to it).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ app/app.go              |   5 +-
+ app/listen_gate.go      | 157 +++++++++++++++++++++++++++++++++++++
+ app/listen_gate_test.go | 170 ++++++++++++++++++++++++++++++++++++++++
+ web/dist/config.html    |   4 +
+ web/src/config.html     |   4 +
+ 5 files changed, 339 insertions(+), 1 deletion(-)
+ create mode 100644 app/listen_gate.go
+ create mode 100644 app/listen_gate_test.go
+
+diff --git a/app/app.go b/app/app.go
+index 020d305..c5b68ff 100644
+--- a/app/app.go
++++ b/app/app.go
+@@ -305,7 +305,10 @@ func (a *App) Run(ctx context.Context, cmd Command, args []string) {
+ 	}
+ 
+ 	if cmd.LongLived {
+-		if a.options.Listen != "" {
++		// OpenX6X00: on the radio, P2P listening only while its APP > Mail has Listen on (listen_gate.go)
++		if gate := os.Getenv(listenGateEnv); gate != "" {
++			go a.listenGate(ctx, gate)
++		} else if a.options.Listen != "" {
+ 			a.Listen(a.options.Listen)
+ 		}
+ 		if a.config.GPSd.UpdateLocator {
+diff --git a/app/listen_gate.go b/app/listen_gate.go
+new file mode 100644
+index 0000000..6e7ad8a
+--- /dev/null
++++ b/app/listen_gate.go
+@@ -0,0 +1,157 @@
++// Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF (OpenX6X00).
++// Use of this source code is governed by the MIT-license that can be
++// found in the LICENSE file.
++
++package app
++
++import (
++	"context"
++	"log"
++	"os"
++	"sort"
++	"strconv"
++	"strings"
++	"time"
++)
++
++// listenGateEnv names the radio's listen file (OpenX6X00 patch, #357): the supervisor that runs Pat on
++// the radio (x6100-winlink) sets it to /run/winlink/listen. Unset, as anywhere else, Pat listens as
++// upstream.
++const listenGateEnv = "OPENX6X00_LISTEN_GATE"
++
++// listenGateFresh: a file stamped longer ago than this is from a GUI that is gone or hangs; it stamps
++// it each second.
++var listenGateFresh = 3 * time.Second
++
++// listenGateLook: how often the file is read.
++var listenGateLook = 500 * time.Millisecond
++
++// listenGateTransports: the transports of the radio's modems, the only ones the file may name.
++var listenGateTransports = map[string]bool{MethodArdop: true, MethodVaraHF: true}
++
++// readListenGate gives the transport the listen file allows at now (the time since boot), "" for none:
++// no file, one stamped too long ago (or ahead of now), one that names another transport.
++//
++// The radio's GUI writes the file, key=value lines, each second while its APP > Mail is open with
++// Listen on: transport= (ardop or varahf), hz= and call= (for the logs and the radio's pages), up_ms=
++// (CLOCK_BOOTTIME in ms as it wrote it, the clock /proc/uptime reads: the wall clock may jump when the
++// radio sets its clock). It removes the file when Listen goes off, the app is closed or another app
++// opens, the radio leaves the frequency, and as it starts.
++func readListenGate(path string, now time.Duration) string {
++	b, err := os.ReadFile(path)
++	if err != nil {
++		return ""
++	}
++	kv := map[string]string{}
++	for _, line := range strings.Split(string(b), "\n") {
++		if k, v, ok := strings.Cut(strings.TrimSpace(line), "="); ok {
++			kv[k] = v
++		}
++	}
++	ms, err := strconv.ParseInt(kv["up_ms"], 10, 64)
++	if err != nil {
++		return ""
++	}
++	age := now - time.Duration(ms)*time.Millisecond
++	if age < -time.Second || age > listenGateFresh {
++		return ""
++	}
++	if t := kv["transport"]; listenGateTransports[t] {
++		return t
++	}
++	return ""
++}
++
++// uptime is the time since boot, as /proc/uptime gives it.
++func uptime() (time.Duration, error) {
++	b, err := os.ReadFile("/proc/uptime")
++	if err != nil {
++		return 0, err
++	}
++	f := strings.Fields(string(b))
++	if len(f) == 0 {
++		return 0, strconv.ErrSyntax
++	}
++	s, err := strconv.ParseFloat(f[0], 64)
++	if err != nil {
++		return 0, err
++	}
++	return time.Duration(s * float64(time.Second)), nil
++}
++
++// listenGateHub is what the gate turns on and off: the App's listeners.
++type listenGateHub interface {
++	Names() []string // every listener there is, also one that failed and tries again
++	On(transport string)
++	Off(transport string)
++}
++
++// runListenGate keeps the listeners to what the listen file allows until ctx ends: the one it names
++// and no other, none without it. Looked at every listenGateLook: within that a listener goes once the
++// file does, and one turned on another way (the interactive mode's listen) goes too.
++func runListenGate(ctx context.Context, path string, now func() (time.Duration, error), hub listenGateHub) {
++	for {
++		want := ""
++		if t, err := now(); err == nil {
++			want = readListenGate(path, t)
++		}
++		has := false
++		for _, name := range hub.Names() {
++			if name == want {
++				has = true
++			} else {
++				hub.Off(name)
++			}
++		}
++		if want != "" && !has {
++			hub.On(want)
++		}
++		select {
++		case <-ctx.Done():
++			return // the App's Close ends its listeners
++		case <-time.After(listenGateLook):
++		}
++	}
++}
++
++// appListenGate is the App's listener hub as the gate sees it, with a line in Pat's log each time.
++type appListenGate struct{ a *App }
++
++func (g appListenGate) Names() []string { return g.a.listenHub.Names() }
++
++func (g appListenGate) On(t string) {
++	log.Printf("OpenX6X00: P2P listening on %s: APP > Mail's Listen is on, and the radio transmits when a "+
++		"station calls", t)
++	g.a.Listen(t)
++}
++
++func (g appListenGate) Off(t string) {
++	log.Printf("OpenX6X00: P2P listening on %s is off: APP > Mail's Listen went off, the app was closed, or the "+
++		"radio's GUI stopped saying it is on", t)
++	g.a.Unlisten(t)
++}
++
++// listenGate is the radio's P2P listening (OpenX6X00 patch, #357), in place of the config's listen and
++// --listen. The radio may transmit only with someone at it: Pat answers P2P calls only while the
++// radio's APP > Mail is open with Listen on, which its GUI says in the listen file. So the Configure
++// page's "Listen for inbound P2P traffic", which Pat takes at a reload, makes the radio answer nothing
++// by itself, and nothing listens as Pat starts.
++func (a *App) listenGate(ctx context.Context, path string) {
++	if a.options.Listen != "" {
++		log.Printf("OpenX6X00: not listening on %s as the config asks: on this radio Pat answers P2P calls "+
++			"only while APP > Mail has Listen on, with you at the radio", a.options.Listen)
++	}
++	runListenGate(ctx, path, uptime, appListenGate{a})
++}
++
++// Names gives the listeners there are, also those that failed and try again, sorted.
++func (h *ListenerHub) Names() []string {
++	h.mu.Lock()
++	defer h.mu.Unlock()
++	names := make([]string, 0, len(h.listeners))
++	for name := range h.listeners {
++		names = append(names, name)
++	}
++	sort.Strings(names)
++	return names
++}
+diff --git a/app/listen_gate_test.go b/app/listen_gate_test.go
+new file mode 100644
+index 0000000..812585c
+--- /dev/null
++++ b/app/listen_gate_test.go
+@@ -0,0 +1,170 @@
++package app
++
++import (
++	"context"
++	"fmt"
++	"os"
++	"path/filepath"
++	"reflect"
++	"sort"
++	"sync"
++	"testing"
++	"time"
++)
++
++// writeGate writes the listen file as the radio's GUI does, stamped at up (the time since boot)
++func writeGate(t *testing.T, path, transport string, up time.Duration) {
++	t.Helper()
++	text := fmt.Sprintf("transport=%s\nhz=7101500\ncall=N0BBB\nup_ms=%d\n", transport, up.Milliseconds())
++	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
++		t.Fatal(err)
++	}
++}
++
++func TestReadListenGate(t *testing.T) {
++	path := filepath.Join(t.TempDir(), "listen")
++	now := 1000 * time.Second
++	if got := readListenGate(path, now); got != "" {
++		t.Fatalf("no file: %q, want none", got)
++	}
++	for _, c := range []struct {
++		transport string
++		up        time.Duration
++		want      string
++		why       string
++	}{
++		{"ardop", now, "ardop", "fresh"},
++		{"varahf", now - 2*time.Second, "varahf", "two seconds old"},
++		{"ardop", now - 4*time.Second, "", "stamped four seconds ago: the GUI gone or hanging"},
++		{"ardop", now + 5*time.Second, "", "stamped ahead of now"},
++		{"telnet", now, "", "not a transport of the radio's modems"},
++		{"", now, "", "no transport"},
++	} {
++		writeGate(t, path, c.transport, c.up)
++		if got := readListenGate(path, now); got != c.want {
++			t.Errorf("%s: %q, want %q", c.why, got, c.want)
++		}
++	}
++	if err := os.WriteFile(path, []byte("transport=ardop\n"), 0o644); err != nil {
++		t.Fatal(err)
++	}
++	if got := readListenGate(path, now); got != "" {
++		t.Errorf("no stamp: %q, want none", got)
++	}
++}
++
++func TestUptime(t *testing.T) {
++	a, err := uptime()
++	if err != nil {
++		t.Skip("no /proc/uptime here:", err)
++	}
++	time.Sleep(50 * time.Millisecond)
++	b, _ := uptime()
++	if a <= 0 || b < a {
++		t.Errorf("uptime %v then %v", a, b)
++	}
++}
++
++// fakeHub stands in for the App's listeners: what is on, and each change
++type fakeHub struct {
++	mu      sync.Mutex
++	on      map[string]bool
++	changes []string
++}
++
++func (h *fakeHub) Names() []string {
++	h.mu.Lock()
++	defer h.mu.Unlock()
++	var n []string
++	for k := range h.on {
++		n = append(n, k)
++	}
++	sort.Strings(n)
++	return n
++}
++
++func (h *fakeHub) On(t string) {
++	h.mu.Lock()
++	defer h.mu.Unlock()
++	h.on[t] = true
++	h.changes = append(h.changes, "on "+t)
++}
++
++func (h *fakeHub) Off(t string) {
++	h.mu.Lock()
++	defer h.mu.Unlock()
++	delete(h.on, t)
++	h.changes = append(h.changes, "off "+t)
++}
++
++func (h *fakeHub) state() ([]string, []string) {
++	h.mu.Lock()
++	defer h.mu.Unlock()
++	return append([]string(nil), h.changes...), func() []string {
++		var n []string
++		for k := range h.on {
++			n = append(n, k)
++		}
++		sort.Strings(n)
++		return n
++	}()
++}
++
++func TestRunListenGate(t *testing.T) {
++	look := listenGateLook
++	listenGateLook = 10 * time.Millisecond
++	t.Cleanup(func() { listenGateLook = look })
++
++	path := filepath.Join(t.TempDir(), "listen")
++	var mu sync.Mutex
++	clock := 500 * time.Second
++	now := func() (time.Duration, error) { mu.Lock(); defer mu.Unlock(); return clock, nil }
++	advance := func(d time.Duration) { mu.Lock(); clock += d; mu.Unlock() }
++	// What the config's listen or the interactive mode turned on before: gone as the gate starts
++	hub := &fakeHub{on: map[string]bool{"ax25": true}}
++	ctx, cancel := context.WithCancel(context.Background())
++	done := make(chan struct{})
++	go func() { runListenGate(ctx, path, now, hub); close(done) }()
++
++	settle := func(want []string, why string) {
++		t.Helper()
++		end := time.Now().Add(2 * time.Second)
++		for time.Now().Before(end) {
++			if _, on := hub.state(); reflect.DeepEqual(on, want) {
++				return
++			}
++			time.Sleep(5 * time.Millisecond)
++		}
++		_, on := hub.state()
++		t.Fatalf("%s: listening on %v, want %v", why, on, want)
++	}
++
++	settle(nil, "no file: nothing listens, also what was on before")
++	writeGate(t, path, "ardop", clock)
++	settle([]string{"ardop"}, "Listen on with ARDOP")
++	writeGate(t, path, "varahf", clock)
++	settle([]string{"varahf"}, "the file names VARA HF now")
++	advance(4 * time.Second)
++	settle(nil, "the file not stamped again for four seconds (the GUI gone)")
++	writeGate(t, path, "varahf", clock)
++	settle([]string{"varahf"}, "stamped again")
++	hub.On("telnet") // the interactive mode's listen, beside the gate
++	settle([]string{"varahf"}, "another listener turned on beside the gate")
++	if err := os.Remove(path); err != nil {
++		t.Fatal(err)
++	}
++	settle(nil, "the file removed (Listen off, the app closed)")
++
++	cancel()
++	select {
++	case <-done:
++	case <-time.After(time.Second):
++		t.Fatal("still running after its context ended")
++	}
++	changes, _ := hub.state()
++	want := []string{"off ax25", "on ardop", "off ardop", "on varahf", "off varahf", "on varahf", "on telnet",
++		"off telnet", "off varahf"}
++	if !reflect.DeepEqual(changes, want) {
++		t.Errorf("changes %v, want %v", changes, want)
++	}
++}
+diff --git a/web/dist/config.html b/web/dist/config.html
+index b987bae..5f8bd35 100644
+--- a/web/dist/config.html
++++ b/web/dist/config.html
+@@ -175,6 +175,8 @@
+                                   <input type="checkbox" name="listen_methods[]" value="ardop">
+                                   Listen for inbound P2P traffic
+                                 </label>
++                                <small class="form-text text-muted">Not used on this radio: Pat listens only while
++                                  APP &gt; Mail on the radio has Listen on, with you at the radio.</small>
+                               </div>
+                               <div class="form-group">
+                                 <label for="ardop_addr">TNC Address</label>
+@@ -278,6 +280,8 @@
+                                   <input type="checkbox" name="listen_methods[]" value="varahf">
+                                   Listen for inbound P2P traffic
+                                 </label>
++                                <small class="form-text text-muted">Not used on this radio: Pat listens only while
++                                  APP &gt; Mail on the radio has Listen on, with you at the radio.</small>
+                               </div>
+                               <div class="form-group">
+                                 <label for="vara_hf_addr">Modem Address</label>
+diff --git a/web/src/config.html b/web/src/config.html
+index b987bae..5f8bd35 100644
+--- a/web/src/config.html
++++ b/web/src/config.html
+@@ -175,6 +175,8 @@
+                                   <input type="checkbox" name="listen_methods[]" value="ardop">
+                                   Listen for inbound P2P traffic
+                                 </label>
++                                <small class="form-text text-muted">Not used on this radio: Pat listens only while
++                                  APP &gt; Mail on the radio has Listen on, with you at the radio.</small>
+                               </div>
+                               <div class="form-group">
+                                 <label for="ardop_addr">TNC Address</label>
+@@ -278,6 +280,8 @@
+                                   <input type="checkbox" name="listen_methods[]" value="varahf">
+                                   Listen for inbound P2P traffic
+                                 </label>
++                                <small class="form-text text-muted">Not used on this radio: Pat listens only while
++                                  APP &gt; Mail on the radio has Listen on, with you at the radio.</small>
+                               </div>
+                               <div class="form-group">
+                                 <label for="vara_hf_addr">Modem Address</label>
+-- 
+2.56.0
+

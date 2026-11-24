@@ -209,7 +209,10 @@ var renderConnections = function(st) {
   $("#c-modem").text((on && MODEM[st.modem] || "Off") + (speed ? ", " + speed : ""))
     .css("color", on && st.modem === "behind" ? "var(--err)" : "");
   $("#c-modem-n").text((MODEM_NAME[st.modem_choice] || "ARDOP") + " on the radio's audio");
-  $("#c-session").text(on && SESSION[st.session] || "Off");
+  // APP > Mail's Listen on (#357): Pat answers P2P calls, the radio transmits when one comes
+  const listening = on && st.session === "idle" && st.listening;
+  $("#c-session").text(listening ? "Listening for P2P calls" + (st.listen_hz ? " on " + mhz(st.listen_hz) : "") +
+    " (APP > Mail)" : on && SESSION[st.session] || "Off");
   const n = parseInt(st.browsers, 10);
   $("#c-browsers").text(isNaN(n) || !on ? "Pat calling a gateway, or connected to one" : n ?
     "The mailbox is open in " + n + (n > 1 ? " browsers" : " browser") :

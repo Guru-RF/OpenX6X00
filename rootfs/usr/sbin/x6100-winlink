@@ -13,10 +13,11 @@
 #                               the modem when another one was chosen (XARA also when its own settings changed)
 #   x6100-winlink set-password  the Winlink password, read from stdin (the web page): never on a command line
 #   x6100-winlink clear-password  the Winlink password gone: the page's, and the one typed in Pat's own Settings
-#   x6100-winlink status        the state as key=value lines: state, text, pat, ardop, mercury, xara, password, and
-#                               the outcomes kept apart: service, modem, speed (XARA's), session, browsers,
-#                               last_* (the last connection: result, gateway, freq, bandwidths, speed, counts,
-#                               text, next)
+#   x6100-winlink status        the state as key=value lines: state, text, pat, ardop, mercury, xara, password,
+#                               call (the callsign Pat runs as), and the outcomes kept apart: service, modem,
+#                               speed (XARA's), session, browsers, listening and listen_hz (APP > Mail's P2P
+#                               listening), last_* (the last connection: result, gateway, freq, bandwidths, speed,
+#                               counts, text, next, incoming)
 #   x6100-winlink logs          the logs as one text file on stdout, for a bug report (the web page's
 #                               download): every password in them masked
 #   x6100-winlink stop          stop the supervisor and wait for it, the setting kept (S98winlink stop)
@@ -45,7 +46,16 @@
 # 127.0.0.1:8300, at the modem's bandwidth unless a connection asks another. XARA runs at VARA's free speed levels
 # unless vara_licence=1, the user's own word that they hold a VARA HF licence, which nothing here checks: then its
 # `registered` line, and full speed. xara_path_ms=CAPTURE,KEYING,OUT (not on the page) is for measuring XARA's timing
-# on the bench. Pat listens for no P2P call with any modem, and XARA answers none before Pat asks (tools/xara).
+# on the bench. XARA answers no P2P call before Pat asks (tools/xara), nor Mercury, nor ardopcf once Pat set it up.
+#
+# Pat answers P2P calls only while APP > Mail is open on the radio with its Listen on, its operator at the radio
+# (#357): the radio transmits when a station calls. Our Pat (tools/pat, 0011) listens on the transport the GUI's
+# listen file (/run/winlink/listen, src/winlink.c) names, ardop or varahf, while the GUI keeps it fresh, and on
+# nothing else; OPENX6X00_LISTEN_GATE in its environment names that file. The GUI removes the file when Listen goes
+# off, the app is closed or another one opens, the radio leaves the frequency, the screen goes dark, and as it
+# starts; a GUI that hangs stamps it no more and Pat stops within 3 s. Pat's config's listen stays empty, and Pat no
+# longer takes it: its Configure page's "Listen for inbound P2P traffic" does nothing on the radio. A call that came
+# in is a connection as one Pat made (last_*, last_incoming=1).
 # Pat asks its VARA HF modem for a CW ID (CWID ON) as it starts it: XARA then identifies as each session closes and
 # after a call with no answer, whatever the callsign (our patch 0004; XARA alone only with a US one), and at once
 # after a call Pat cancels (0005), Mercury not (1.9.25 takes the command and sends no CW ID).
@@ -121,6 +131,9 @@ XARA_CONF = os.path.join(RUN, "xara.conf")       # XARA's settings (its --config
 EVENT_LOG = os.path.join(RUN, "eventlog.json")   # Pat's --event-log
 RADIO = os.path.join(RUN, "radio")    # the GUI's (src/winlink.c): the radio's state while a modem is on its socket
 RADIO_FRESH = 15                      # s: an older radio file is from a GUI that is gone
+LISTEN = os.path.join(RUN, "listen")  # the GUI's too: APP > Mail's Listen (#357), fresh while the app listens
+LISTEN_ENV = "OPENX6X00_LISTEN_GATE"  # in Pat's environment: that file (tools/pat, 0011)
+LISTEN_FRESH = 3                      # s: Pat listens while the file was stamped this recently (its up_ms)
 NOTE_AGAIN = 60                       # s: the same refusal goes into Pat's log again only after this
 LOG_MAX = 256 * 1024
 PAT = ROOT + "/usr/bin/pat"
@@ -405,6 +418,7 @@ def write_config(want, password):
                 v = cfg[name] = {}
             return v
 
+        # No listen: Pat answers P2P calls only while APP > Mail listens (LISTEN), never from its config
         cfg.update({"mycall": want["mycall"], "locator": want["locator"],
                     "http_addr": f":{HTTP_PORT}", "listen": [], "version_reporting_disabled": True})
         # The gateways of the modem in use in Pat's list too, not only the PUBLIC ones (#324): in a config.json from
@@ -677,6 +691,7 @@ def start_pat(pat, want):
     env = {k: v for k, v in os.environ.items() if not k.startswith(("PAT_", "ARDOP_", "XDG_"))}
     env.update(XDG_CONFIG_HOME=LIB, XDG_DATA_HOME=DATA, XDG_STATE_HOME=STATE)
     env[SWITCH_ENV] = os.path.abspath(__file__)    # our Pat runs `<this> switch ardop|varahf` before it dials
+    env[LISTEN_ENV] = LISTEN                       # and listens only while APP > Mail says so there
     # Pat empties its log as it opens it, a moment after it starts: emptied here first, so that the Watch, which
     # reads it from the start from now on, does not take the last run's lines for new ones meanwhile
     try:
@@ -758,6 +773,7 @@ PAT_TIME_RE = re.compile(r"^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d)(?:\.\d+)? (.*)$")
 ARDOP_STATUS_RE = re.compile(r"\[STATUS: (.*)\]\s*$")
 PAT_QSY_RE = re.compile(r"QSY (ardop|varahf): (.*)$")
 PAT_CONNECTING_RE = re.compile(r"Connecting to (\S+) \((ardop|varahf)\)\.\.\.$")
+PAT_GOT_CONNECT_RE = re.compile(r"Got connect \((ardop|varahf):(\S+)\)$")   # a P2P call answered (APP > Mail)
 XARA_ECHO_RE = re.compile(r"^\s*[\d.]+ < (.*)$")       # a reply XARA sent Pat, as its console echoes it
 # Mercury 1.9.25's warning (datalink_arq/arq.c) for an answer to our call from a station of 1.9.20 to 1.9.24: those
 # still answer a 1.9.25 call, 1.9.25 ignores the answer (the versions do not connect), and Pat's call times out
@@ -823,6 +839,7 @@ class Connection:
         self.sent = self.received = None           # the event log's exchange: the true counts
         self.refused = ""                          # the radio's own "no TX" reason meanwhile (the GUI)
         self.switch = ""                           # why the modem switch for it did not come about: not dialed
+        self.incoming = False                      # a station called us: P2P, APP > Mail listening (#357)
         self.noted = False                         # its outcome is in Pat's log
 
 
@@ -839,6 +856,7 @@ class Outcome:
         self.capped = ("", "")                     # our Pat's bandwidth line, for the next "Connecting"
         self.chosen = "ardop"                      # the modem on the Winlink page
         self.xara_full = None                      # XARA runs registered (full speed), as its REGISTERED line says
+        self.listen_hz = 0                         # Hz, where APP > Mail listens (LISTEN), 0 not: a call's frequency
 
     def _new(self, gateway, at, transport="ardop"):
         self.last = Connection(gateway, at, self.qsy, transport, self.chosen)
@@ -904,6 +922,11 @@ class Outcome:
         q = PAT_CONNECTING_RE.match(text)
         if q:
             self._new(q.group(1), at, q.group(2))
+            return
+        q = PAT_GOT_CONNECT_RE.match(text)
+        if q:                                      # a call answered: Pat exchanges at once, its end as for ours
+            c = self._new(q.group(2), at, q.group(1))
+            c.incoming, c.stage, c.freq = True, "connected", self.listen_hz
             return
         if text.startswith(("ARDOP TNC initialization failed", "vara initialization failed", "Unable to QSY: ")):
             via = "ardop" if text.startswith("ARDOP") else "varahf" if text.startswith("vara") else self.qsy_via
@@ -1023,7 +1046,8 @@ class Outcome:
                 "last_bw": c.bw or "", "last_bw_asked": c.bw_asked, "last_bw_capped": c.bw_capped,
                 "last_speed": c.speed,
                 "last_sent": "" if c.sent is None else c.sent,
-                "last_received": "" if c.received is None else c.received, "last_text": text, "last_next": nxt}
+                "last_received": "" if c.received is None else c.received, "last_text": text, "last_next": nxt,
+                "last_incoming": 1 if c.incoming else ""}
 
 
 def judge(c, chosen="ardop"):
@@ -1045,6 +1069,8 @@ def judge(c, chosen="ardop"):
         if c.refused:
             return "dialing", f"Calling {gw}{on}, but the radio does not transmit: {c.refused}", radio_fix(c.refused)
         return "dialing", f"Calling {gw}{on}" + (" after waiting for a clear channel" if c.busy_wait else ""), ""
+    if c.stage == "connected" and c.incoming:
+        return "connected", f"{gw} called{on}{at}, exchanging mail", ""
     if c.stage == "connected":
         return "connected", f"Connected to {gw}{at}, exchanging mail", "Keep the mailbox open: Pat asks there what it needs"
     if c.stage == "done":
@@ -1057,6 +1083,11 @@ def judge(c, chosen="ardop"):
         return "failed", c.switch, ""
     if low == "pat stopped":
         return "failed", f"Pat stopped during the connection to {gw}", "Connect again once Pat runs again"
+    if c.incoming:
+        if c.refused:
+            return "failed", f"{gw} called, but the radio stopped transmitting: {c.refused}", radio_fix(c.refused)
+        return "failed", f"{gw} called{at}, then the link dropped" + (f" ({c.error})" if c.error else ""), (
+            "What was delivered before it counts; the other station may call again")
     if c.failed_in == "exchange":
         if "context deadline exceeded" in low:
             return "failed", f"Connected to {gw}{at}, then the password prompt timed out (Pat waits a minute)", (
@@ -1121,6 +1152,10 @@ def judge(c, chosen="ardop"):
 def radio_fix(refused):
     """What to do about the radio's own reason not to transmit"""
     r = refused.lower()
+    if "listening frequency" in r:
+        return "Stay on the frequency APP > Mail listens on: turning the dial ends listening"
+    if "listening was just turned off" in r:
+        return "Nothing to do: a call that came in as Listen went off is not answered"
     if " is open" in r:
         return "Close the app on the radio, then connect again"
     if "swr" in r:
@@ -1146,6 +1181,27 @@ def read_radio():
             return dict(line.rstrip("\n").split("=", 1) for line in f if "=" in line)
     except OSError:
         return {}
+
+
+def uptime():
+    """Seconds since boot, the clock the GUI stamps the listen file with (CLOCK_BOOTTIME)"""
+    try:
+        return time.clock_gettime(time.CLOCK_BOOTTIME)
+    except (AttributeError, OSError):
+        with open("/proc/uptime") as f:
+            return float(f.read().split()[0])
+
+
+def read_listen():
+    """APP > Mail's Listen as Pat reads it (tools/pat, 0011): {"transport", "hz", "call", "up_ms"} while the GUI
+    stamped it within LISTEN_FRESH s, else {}"""
+    try:
+        with open(LISTEN) as f:
+            kv = dict(line.rstrip("\n").split("=", 1) for line in f if "=" in line)
+        age = uptime() - int(kv.get("up_ms", "")) / 1000
+    except (OSError, ValueError):
+        return {}
+    return kv if -1 <= age <= LISTEN_FRESH and kv.get("transport") in TRANSPORT_NAMES else {}
 
 
 def radio_written():
@@ -1283,6 +1339,11 @@ class Watch:
         kind its name"""
         o = self.outcome
         o.chosen = kind
+        listen = read_listen()
+        try:
+            o.listen_hz = int(listen.get("hz", "0"))
+        except ValueError:
+            o.listen_hz = 0
         for line in self.pat_log.lines():
             o.pat_line(line)
         # The socket lines of the chosen modem's log only: the one that just stopped says so after the other started
@@ -1320,6 +1381,9 @@ class Watch:
         else:
             keys["session"] = "connected" if st.get("connected") else "dialing" if st.get("dialing") else "idle"
             keys["browsers"] = len(st.get("http_clients") or [])
+            # Pat's own word on its listeners, and where APP > Mail listens: both while it answers calls
+            keys["listening"] = ",".join(str(t) for t in st.get("active_listeners") or [])
+            keys["listen_hz"] = o.listen_hz if keys["listening"] else ""
         if kind == "xara" and o.xara_full is not None:
             keys["speed"] = "full" if o.xara_full else "free"     # XARA's own word, after Pat's MYCALL
         keys.update(o.result())
@@ -1340,7 +1404,8 @@ def report(pat, modem, want, keys, refused=""):
     kind = want.get("modem", "ardop")
     name = MODEM_NAMES[kind]
     st = {"pat": "running" if pat.alive() and pat.answered else "starting" if pat.alive() else "stopped",
-          **{k: "off" for k in MODEMS}, kind: "running" if modem.alive() else "stopped", **keys}
+          **{k: "off" for k in MODEMS}, kind: "running" if modem.alive() else "stopped", "call": want["mycall"],
+          **keys}
     waiting = [p for p in (modem, pat) if not p.alive()]
     if refused:
         say("error", refused, **st)
@@ -1351,6 +1416,8 @@ def report(pat, modem, want, keys, refused=""):
         say("starting", f"Starting Pat and {name}...", **st)
     else:
         call = f"Running as {want['mycall']}" if want["mycall"] else "Running, with no callsign yet"
+        if keys.get("listening") and keys.get("listen_hz"):
+            call += f"; listening for P2P calls on {mhz(keys['listen_hz'])} (APP > Mail)"
         # The modem on the socket, not the socket there: ardopcf and x6x00-mercury try again every second until
         # the GUI listens
         gui = "" if keys.get("modem") in ("ready", "behind") else f"; {name} waits for the radio's audio (the GUI)"
@@ -1662,12 +1729,13 @@ def mask(text, hidden):
 
 
 def cmd_logs():
-    """The Winlink logs as one text file on stdout: the status, the radio file, Pat's log (the mailbox's), what
-    Pat wrote to its output, ardopcf's console, Mercury's log, XARA's settings and log and Pat's event log, each its
-    last LOG_MAX bytes, masked"""
+    """The Winlink logs as one text file on stdout: the status, the radio file, the listen file, Pat's log (the
+    mailbox's), what Pat wrote to its output, ardopcf's console, Mercury's log, XARA's settings and log and Pat's event
+    log, each its last LOG_MAX bytes, masked"""
     hidden = secrets()
     parts = [f"OpenX6X00 Winlink logs, {time.strftime('%Y-%m-%d %H:%M:%S %Z')}\n"]
-    for title, path in (("status", STATUS), ("the radio (the GUI)", RADIO), ("Pat's log", PAT_OWN_LOG),
+    for title, path in (("status", STATUS), ("the radio (the GUI)", RADIO), ("APP > Mail's Listen", LISTEN),
+                        ("Pat's log", PAT_OWN_LOG),
                         ("Pat's output", PAT_LOG), ("ardopcf", ARDOP_LOG), ("Mercury (x6x00-mercury)", MERCURY_LOG),
                         ("XARA's settings", XARA_CONF), ("XARA (xara)", XARA_LOG), ("Pat's event log", EVENT_LOG)):
         try:

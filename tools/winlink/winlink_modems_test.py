@@ -9,7 +9,9 @@
    PROTOCOLMODE takes FEC and ARQ (Pat's); a mode it does not have is a FAULT and leaves the mode as it was.
 2. Mercury through x6x00-mercury, protocol version 2, and Pat v1.0.1's varahf transport, as on the radio: two
    stations, each a winlink_host and a bridge, what one transmits the other hears (with a little noise). Pat B
-   listens; Pat A sends B a message peer to peer. Pat starts the modem (Mercury answers VERSION), connects,
+   listens as on the radio (tools/pat 0011, #357): not at its start, though asked to (--listen, the config's on
+   the radio), only once the GUI's listen file (APP > Mail's Listen on) is there, and no more once that file is
+   stamped no more (the GUI gone). Pat A sends B a message peer to peer. Pat starts the modem (Mercury answers VERSION), connects,
    sends, disconnects, and the message is in B's inbox. The keys' level is Mercury 1.9.21's (x6100-winlink's
    tx_gain_db = -4 under 1.9.25, which alone is 4 dB louder). Then the stop: with a session up, x6x00-mercury has
    Mercury end it on the air first, so the other station's Mercury says DISCONNECTED at once, and it stops within
@@ -46,6 +48,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -312,7 +315,29 @@ def pat_env(tmp, name, call):
     return d
 
 
-def pat_cmd(pat, d, port, call, *args, listen=False):
+class ListenFile:
+    """The GUI's listen file as APP > Mail's Listen keeps it (src/winlink.c, #357): stamped with the time since boot
+    each half second (the GUI's each second) until stop(), then left there, stale, as a GUI that hangs leaves it"""
+
+    def __init__(self, path, transport):
+        self.path, self.transport, self.on = path, transport, True
+        self.thread = threading.Thread(target=self.run, daemon=True)
+        self.thread.start()
+
+    def run(self):
+        while self.on:
+            up = int(time.clock_gettime(time.CLOCK_BOOTTIME) * 1000)
+            with open(self.path + ".tmp", "w") as f:
+                f.write(f"transport={self.transport}\nhz=7101500\ncall={CALL_B}\nup_ms={up}\n")
+            os.replace(self.path + ".tmp", self.path)
+            time.sleep(0.5)
+
+    def stop(self):
+        self.on = False
+        self.thread.join()
+
+
+def pat_cmd(pat, d, port, call, *args, listen=False, gate=None):
     cfg = os.path.join(d, "config", "config.json")
     with open(cfg, "w") as f:
         json.dump({"mycall": call, "locator": "JO21", "version_reporting_disabled": True,
@@ -325,6 +350,8 @@ def pat_cmd(pat, d, port, call, *args, listen=False):
     env = dict(os.environ, XDG_CONFIG_HOME=os.path.join(d, "config"), XDG_DATA_HOME=os.path.join(d, "data"),
                XDG_STATE_HOME=os.path.join(d, "state"), HOME=d,
                HTTPS_PROXY="http://127.0.0.1:9", HTTP_PROXY="http://127.0.0.1:9", NO_PROXY="")
+    if gate:        # as x6100-winlink starts Pat on the radio
+        env["OPENX6X00_LISTEN_GATE"] = gate
     return argv + list(args), env
 
 
@@ -360,11 +387,19 @@ def mercury_test(procs, tmp, mercury, pat):
     version_check(18300)
 
     da, db = pat_env(tmp, "a", CALL_A), pat_env(tmp, "b", CALL_B)
-    # B listens; its stdin stays open, or its interactive prompt would end
-    argv, env = pat_cmd(pat, db, 18310, CALL_B, "interactive", listen=True)
-    pb = procs.start(argv, os.path.join(db, "out.txt"), env, stdin=subprocess.PIPE)
-    check(wait_for(lambda: "Listening for incoming traffic on varahf" in text(os.path.join(db, "out.txt")), 20),
-          "Pat B started Mercury and listens on varahf")
+    # B listens as on the radio (#357): only while the GUI's listen file says APP > Mail's Listen is on. Its --listen
+    # is not taken, and nothing listens before the file is there. Its stdin stays open, or its interactive prompt
+    # would end
+    gate, out_b = os.path.join(db, "listen"), os.path.join(db, "out.txt")
+    argv, env = pat_cmd(pat, db, 18310, CALL_B, "interactive", listen=True, gate=gate)
+    pb = procs.start(argv, out_b, env, stdin=subprocess.PIPE)
+    check(wait_for(lambda: "not listening on varahf as the config asks" in text(out_b), 20),
+          "Pat B, given the radio's listen file, takes no --listen")
+    time.sleep(2)
+    check("Listening for incoming traffic" not in text(out_b), "and listens to nothing while the file is not there")
+    listen = ListenFile(gate, "varahf")
+    check(wait_for(lambda: "Listening for incoming traffic on varahf" in text(out_b), 20),
+          "Pat B started Mercury and listens on varahf once the file is there (APP > Mail's Listen on)")
 
     # A's message to B, peer to peer only
     subject = f"Mercury P2P test {int(time.time())}"
@@ -401,6 +436,11 @@ def mercury_test(procs, tmp, mercury, pat):
     for h, n in ((ha, "A"), (hb, "B")):
         db = peak_db(h)
         check(-7.5 <= db <= -5.5, f"station {n}: its last key peaks at {db:.1f} dBFS, the level of Mercury 1.9.21")
+    # The file stamped no more (the GUI gone or hanging): Pat stops listening by itself, the file 3 s stale
+    listen.stop()
+    t0 = time.time()
+    check(wait_for(lambda: "P2P listening on varahf is off" in text(out_b), 8),
+          f"Pat B stops listening once the file is stale ({time.time() - t0:.1f} s after its last stamp)")
     pb.stdin.close()
     procs.stop(pb)
 
