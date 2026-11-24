@@ -25,9 +25,10 @@
 # The end of stdin (the app closed, or the GUI is gone) closes the connection, and it exits.
 #
 # The Bluetooth mic: a headset's microphone is a PulseAudio source only on its headset profile (HSP/HFP,
-# bluez_source.<address>.headset_head_unit); parec records it at 16 kHz while a message from it is sent, pactl lists
+# bluez_source.<address>.handsfree_head_unit); parec records it at 16 kHz while a message from it is sent, pactl lists
 # the sources. The radio's images keep the headsets on A2DP (btaudio-ctl, /etc/pulse/system.pa.d/btaudio.pa: on the
-# X6100 the headset profile's SCO gives no audio and drops the WiFi), so there it says "no Bluetooth mic".
+# X6100 the headset profile's SCO gives no audio and drops the WiFi), so there it says "no Bluetooth mic", unless
+# Settings > Bluetooth > USB dongle has a headset hands-free on a USB dongle.
 #
 # The account: the web page's Zello page writes it on the DATA partition, never shown again (webserver apps.py):
 #   /mnt/zello/account.conf      user=, password=, issuer= (the Zello developer key's Issuer)

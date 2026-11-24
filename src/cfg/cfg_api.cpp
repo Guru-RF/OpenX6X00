@@ -142,6 +142,7 @@ ParamInt         *cfg_dmr_tg              = nullptr;
 ParamInt         *cfg_field_boot          = nullptr;
 ParamInt         *cfg_field_respot        = nullptr;
 ParamInt         *cfg_voice_msg_gain      = nullptr;
+ParamInt         *cfg_bt_mic_gain         = nullptr;
 ParamInt         *cfg_voice_mode          = nullptr;
 ParamInt         *cfg_voice_lang          = nullptr;
 ParamInt         *cfg_voice_rate          = nullptr;
@@ -402,6 +403,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_field_boot       = &cfg_sm.p_field_boot;
     cfg_field_respot     = &cfg_sm.p_field_respot;
     cfg_voice_msg_gain   = &cfg_sm.p_voice_msg_gain;
+    cfg_bt_mic_gain      = &cfg_sm.p_bt_mic_gain;
     cfg_voice_mode       = &cfg_sm.p_voice_mode;
     cfg_voice_lang       = &cfg_sm.p_voice_lang;
     cfg_voice_rate       = &cfg_sm.p_voice_rate;

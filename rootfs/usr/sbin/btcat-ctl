@@ -1,5 +1,5 @@
 #!/bin/sh
-# btcat-ctl bt on|off | discoverable on|off | apply | status
+# btcat-ctl bt on|off | discoverable on|off | dongle on|off | apply | status
 #
 # "discoverable on" opens a 3-minute pairing window: visible and pairable, and
 # the GUI's agent (bt_dev.c) accepts phones and PCs (Just Works) only while the
@@ -9,6 +9,7 @@ CONF=/mnt/btcat.conf
 WIN=/tmp/btcat-pairing		# while the window is open: its end, in s of uptime (read by the GUI)
 WIN_S=180
 BTCAT_BT=yes
+BTCAT_DONGLE=no
 [ -r /etc/default/btcat ] && . /etc/default/btcat
 [ -r $CONF ] && . $CONF
 
@@ -62,11 +63,25 @@ apply() {
 	[ "$BTCAT_BT" = "yes" ] || bluetoothctl power off
 }
 
+# Settings > Bluetooth > USB dongle (bt-dongle; from OlivLoze's fork, F4OLI): on, a dongle plugged in takes over now,
+# as when it is plugged in (btcat-setup); off, the radio's own Bluetooth back, and the headset backend with it
+dongle() {
+	set_kv BTCAT_DONGLE "$(yn $1)"
+	if [ "$BTCAT_DONGLE" = "yes" ]; then
+		/usr/sbin/bt-dongle dongle && { /usr/sbin/btcat-setup >/tmp/btcat-setup.log 2>&1 </dev/null & }
+	else
+		/usr/sbin/bt-dongle release
+		/usr/sbin/btaudio-ctl sync
+	fi
+}
+
 case "$1" in
 	bt)           set_kv BTCAT_BT "$(yn $2)"; apply;;
+	dongle)       dongle "$2";;
 	discoverable) if [ "$2" = "on" ] && [ "$BTCAT_BT" = "yes" ]; then open_window; else close_window; fi;;
 	apply)        apply;;
 	status)       echo "BTCAT_BT=$BTCAT_BT"
+	              echo "BTCAT_DONGLE=$BTCAT_DONGLE"
 	              if [ -f $WIN ]; then echo "pairing window: $(($(cat $WIN) - $(uptime_s))) s left"; else echo "pairing window: closed"; fi;;
-	*) echo "Usage: $0 {bt on|off|discoverable on|off|apply|status}"; exit 1;;
+	*) echo "Usage: $0 {bt on|off|discoverable on|off|dongle on|off|apply|status}"; exit 1;;
 esac

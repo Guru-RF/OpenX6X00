@@ -14,7 +14,8 @@
  *  The Bluetooth mic: the helper has no sound card, so the GUI records a headset's mic (a bluez_source.* or
  *  bluez_input.* PulseAudio has on the headset's own profile) with parec at 16 kHz while an over from it is sent, and
  *  sends it as the hand mic's would go; pactl tells whether one is there while Talk via says Bluetooth. The radio's
- *  images keep headsets on A2DP (rootfs/usr/sbin/x6100-zello says why), so there it says "No BT mic".
+ *  images keep headsets on A2DP (rootfs/usr/sbin/x6100-zello says why), so there it says "No BT mic", unless
+ *  Settings > Bluetooth > USB dongle has a headset hands-free on a USB dongle (btaudio-ctl).
  *
  *  Its log, without the key or anything secret in it: /mnt/app_logs/svxconnect.txt.
  *

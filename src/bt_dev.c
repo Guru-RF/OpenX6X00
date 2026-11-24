@@ -45,15 +45,24 @@
  *  the agent's AuthorizeService for a device it does not trust; each
  *  connection comes to Profile1.NewConnection as a socket, handed to the
  *  TCI server. Registered again whenever bluetoothd (re)appears.
+ *
+ *  The adapter: hci0, or with Settings > Bluetooth > USB dongle on a USB
+ *  dongle when one is plugged in (bt_pick.h, bt_adapter_sys), whatever
+ *  number the kernel gave it; /usr/sbin/bt-dongle lets the radio's own go
+ *  meanwhile. From OlivLoze's fork (F4OLI, 07a4140f, 3497515f).
  */
 
 #include "bt_dev.h"
+#include "bt_pick.h"
+#include "board.h"
 #include "tci_server.h"
 
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
 
+#include <dirent.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -72,7 +81,6 @@
 #define AGENT_TICK_S    30
 
 #define BLUEZ           "org.bluez"
-#define ADAPTER_PATH    "/org/bluez/hci0"
 #define AGENT_PATH      "/org/x6100/bt_agent"
 #define AGENT_CAP       "NoInputNoOutput"
 #define AGENT_CAP_KBD   "KeyboardDisplay"   /* only while pairing a keyboard */
@@ -84,6 +92,22 @@
 #define PAIR_WIN        "/tmp/btcat-pairing"    /* btcat-ctl: window end, s of uptime */
 #define PAIR_LOG        "/tmp/bt_pair.log"
 #define PAIR_LOG_MAX    65536
+#define BTCAT_CONF      BOARD_DATA "/btcat.conf"    /* btcat-ctl's: BTCAT_DONGLE, Settings' USB dongle */
+#define BT_SYS          "/sys/class/bluetooth"
+#ifdef HOST_BUILD
+/* A PC has no radio chip: the adapters for the screenshots, "hci1 dongle" or "hci0 own" a line (tools/screenshots) */
+#define BT_SYS_FAKE     BOARD_DATA "/bt_adapters.txt"
+#endif
+
+/* The adapter in use (bt_adapter_sys): "/org/bluez/hciN", an interned string swapped whole, so the agent's thread
+ * reads the old one or the new one, never half of either. The worker sets it at each refresh */
+static _Atomic(const char *) adapter_now = "/org/bluez/hci0";
+
+static const char *adapter_path(void) {
+    return atomic_load(&adapter_now);
+}
+
+static atomic_bool dongle_on;   /* Settings > Bluetooth > USB dongle, as btcat.conf has it */
 
 typedef enum {
     CMD_NONE = 0,
@@ -170,9 +194,86 @@ static bool addr_ok(const char *addr) {
     return true;
 }
 
-/* "AA:BB:..." -> "/org/bluez/hci0/dev_AA_BB_..." */
+/* The adapters the kernel has: name and whether it is the radio's own chip, at most max */
+static int hci_list(bt_hci_t *h, int max) {
+    int n = 0;
+
+#ifdef HOST_BUILD
+    FILE *f = fopen(BT_SYS_FAKE, "r");
+    char  name[16], kind[16];
+
+    while (f && n < max && fscanf(f, "%15s %15s", name, kind) == 2) {
+        if (bt_hci_name_ok(name)) {
+            snprintf(h[n].name, sizeof(h[n].name), "%s", name);
+            h[n++].own = strcmp(kind, "own") == 0;
+        }
+    }
+    if (f) fclose(f);
+#else
+    DIR           *d = opendir(BT_SYS);
+    struct dirent *e;
+
+    while (d && n < max && (e = readdir(d)) != NULL) {
+        char    p[300], link[256];
+        ssize_t l;
+
+        if (!bt_hci_name_ok(e->d_name)) {
+            continue;
+        }
+        snprintf(p, sizeof(p), BT_SYS "/%s", e->d_name);
+        l = readlink(p, link, sizeof(link) - 1);
+        link[l > 0 ? l : 0] = 0;
+        snprintf(h[n].name, sizeof(h[n].name), "%s", e->d_name);
+        h[n++].own = bt_hci_own(link);
+    }
+    if (d) closedir(d);
+#endif
+    return n;
+}
+
+bool bt_adapter_sys(char *out, size_t size, bool *dongle) {
+    bt_hci_t h[8];
+    bool     on = atomic_load(&dongle_on);
+    int      i = bt_hci_pick(h, hci_list(h, 8), on);
+
+    if (i < 0) {
+        return false;
+    }
+    if (out) snprintf(out, size, "%s", h[i].name);
+    if (dongle) *dongle = on && !h[i].own;
+    return true;
+}
+
+void bt_dev_dongle_set(bool on) {
+    atomic_store(&dongle_on, BOARD_BT_DONGLE && on);
+}
+
+bool bt_dev_dongle_get(void) {
+    return atomic_load(&dongle_on);
+}
+
+/* BTCAT_DONGLE=yes in btcat.conf (btcat-ctl writes it, its defaults file first) */
+static bool dongle_conf(void) {
+    const char *files[] = { "/etc/default/btcat", BTCAT_CONF };
+    bool        on = false;
+
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++) {
+        FILE *f = fopen(files[i], "r");
+        char  line[128];
+
+        while (f && fgets(line, sizeof(line), f)) {
+            if (strncmp(line, "BTCAT_DONGLE=", 13) == 0) {
+                on = strncmp(line + 13 + (line[13] == '"'), "yes", 3) == 0;
+            }
+        }
+        if (f) fclose(f);
+    }
+    return on;
+}
+
+/* "AA:BB:..." -> "/org/bluez/hci0/dev_AA_BB_..." (the adapter in use) */
 static void dev_path(const char *addr, char *out, size_t out_sz) {
-    snprintf(out, out_sz, ADAPTER_PATH "/dev_%.17s", addr);
+    snprintf(out, out_sz, "%s/dev_%.17s", adapter_path(), addr);
     for (char *p = out; *p; p++) {
         if (*p == ':') *p = '_';
     }
@@ -309,10 +410,10 @@ static bool discovery(bool on, const char *transport) {
 
         g_variant_builder_init(&b, G_VARIANT_TYPE("a{sv}"));
         g_variant_builder_add(&b, "{sv}", "Transport", g_variant_new_string(transport));
-        unref(call(ADAPTER_PATH, "org.bluez.Adapter1", "SetDiscoveryFilter",
+        unref(call(adapter_path(), "org.bluez.Adapter1", "SetDiscoveryFilter",
                    g_variant_new("(a{sv})", &b), NULL, CALL_TIMEOUT_MS, NULL, 0));
     }
-    r = call(ADAPTER_PATH, "org.bluez.Adapter1", on ? "StartDiscovery" : "StopDiscovery", NULL, NULL,
+    r = call(adapter_path(), "org.bluez.Adapter1", on ? "StartDiscovery" : "StopDiscovery", NULL, NULL,
              CALL_TIMEOUT_MS, en, sizeof(en));
     unref(r);
     /* "InProgress": another client's inquiry is running, fine too */
@@ -460,14 +561,30 @@ static void do_refresh(void) {
     GVariantIter *objs;
     const char   *path;
     GVariant     *ifaces;
-    GVariant     *r = managed_objects();
-    bt_adapter_t  ad = { .seen = true, .bluez = r != NULL };
+    GVariant     *r;
+    bt_adapter_t  ad = { .seen = true };
+    char          hci[16];
 
+    /* The adapter in use first: a dongle that took over, or the radio's own back */
+    if (bt_adapter_sys(hci, sizeof(hci), NULL)) {
+        char p[32];
+
+        snprintf(p, sizeof(p), "/org/bluez/%s", hci);
+        if (strcmp(p, adapter_path())) {
+            plog("adapter: %s", p);
+            atomic_store(&adapter_now, g_intern_string(p));
+        }
+    }
+    const char *adp_path = adapter_path();
+    size_t      adp_len  = strlen(adp_path);
+
+    r        = managed_objects();
+    ad.bluez = r != NULL;
     if (r) {
         g_variant_get(r, "(a{oa{sa{sv}}})", &objs);
         while (g_variant_iter_next(objs, "{&o@a{sa{sv}}}", &path, &ifaces)) {
             GVariant   *dev = g_variant_lookup_value(ifaces, "org.bluez.Device1", G_VARIANT_TYPE("a{sv}"));
-            GVariant   *adp = strcmp(path, ADAPTER_PATH) == 0 ?
+            GVariant   *adp = strcmp(path, adp_path) == 0 ?
                               g_variant_lookup_value(ifaces, "org.bluez.Adapter1", G_VARIANT_TYPE("a{sv}")) : NULL;
 
             if (adp) {
@@ -487,7 +604,7 @@ static void do_refresh(void) {
             gboolean    connected = FALSE;
             bt_dev_t    d;
 
-            if (dev && strncmp(path, ADAPTER_PATH "/", strlen(ADAPTER_PATH) + 1) == 0) {
+            if (dev && strncmp(path, adp_path, adp_len) == 0 && path[adp_len] == '/') {
                 g_variant_lookup(dev, "Address", "&s", &addr);
                 g_variant_lookup(dev, "Name", "&s", &name);
                 g_variant_lookup(dev, "Paired", "b", &paired);
@@ -522,8 +639,8 @@ static void do_refresh(void) {
      * pairable again at once, whatever turned them on (the agent tick does
      * it too, every 30 s, with the page closed) */
     if (ad.present && (ad.discoverable || ad.pairable) && !pairing_is_open()) {
-        set_prop(bus(), ADAPTER_PATH, "org.bluez.Adapter1", "Discoverable", false);
-        set_prop(bus(), ADAPTER_PATH, "org.bluez.Adapter1", "Pairable", false);
+        set_prop(bus(), adapter_path(), "org.bluez.Adapter1", "Discoverable", false);
+        set_prop(bus(), adapter_path(), "org.bluez.Adapter1", "Pairable", false);
         ad.discoverable = ad.pairable = false;
         plog("pairing closed: hidden, not pairable");
     }
@@ -684,7 +801,7 @@ static void forget_old_keyboards(const char *name, const char *keep) {
             g_variant_lookup(dev, "Connected", "b", &connected);
             if (a && addr_ok(a) && g_ascii_strcasecmp(a, keep) != 0 && paired && !connected &&
                 n && strcmp(n, name) == 0 && props_input(dev)) {
-                GVariant *rr = call(ADAPTER_PATH, "org.bluez.Adapter1", "RemoveDevice",
+                GVariant *rr = call(adapter_path(), "org.bluez.Adapter1", "RemoveDevice",
                                     g_variant_new("(o)", path), NULL, CALL_TIMEOUT_MS, NULL, 0);
 
                 plog("keyboard: old pairing %s forgotten: %s", a, rr ? "ok" : "failed");
@@ -734,7 +851,7 @@ static void do_pair_connect(const char *addr) {
          * pairing key, and an entry left from Scan says nothing about now:
          * the old entry goes, and Pair() is sent the moment the keyboard
          * shows up again, at its old address or a new one */
-        unref(call(ADAPTER_PATH, "org.bluez.Adapter1", "RemoveDevice", g_variant_new("(o)", path),
+        unref(call(adapter_path(), "org.bluez.Adapter1", "RemoveDevice", g_variant_new("(o)", path),
                    NULL, CALL_TIMEOUT_MS, NULL, 0));
         set_activity("press the keyboard's pairing key");
         plog("keyboard: waiting for \"%s\" to advertise again", name);
@@ -831,7 +948,7 @@ static void do_forget(const char *addr) {
     set_activity("removing...");
     plog("=== forget %s", addr);
     unref(call(path, "org.bluez.Device1", "Disconnect", NULL, NULL, CALL_TIMEOUT_MS, NULL, 0));
-    r = call(ADAPTER_PATH, "org.bluez.Adapter1", "RemoveDevice", g_variant_new("(o)", path), NULL,
+    r = call(adapter_path(), "org.bluez.Adapter1", "RemoveDevice", g_variant_new("(o)", path), NULL,
              CALL_TIMEOUT_MS, NULL, 0);
     plog("RemoveDevice: %s", r ? "ok" : "failed");
     unref(r);
@@ -1030,10 +1147,10 @@ static gboolean agent_tick(gpointer user) {
         agent_register();
     }
     if (!pairing_is_open() &&
-        (get_prop(A.conn, ADAPTER_PATH, "org.bluez.Adapter1", "Discoverable", NULL) ||
-         get_prop(A.conn, ADAPTER_PATH, "org.bluez.Adapter1", "Pairable", NULL))) {
-        set_prop(A.conn, ADAPTER_PATH, "org.bluez.Adapter1", "Discoverable", false);
-        set_prop(A.conn, ADAPTER_PATH, "org.bluez.Adapter1", "Pairable", false);
+        (get_prop(A.conn, adapter_path(), "org.bluez.Adapter1", "Discoverable", NULL) ||
+         get_prop(A.conn, adapter_path(), "org.bluez.Adapter1", "Pairable", NULL))) {
+        set_prop(A.conn, adapter_path(), "org.bluez.Adapter1", "Discoverable", false);
+        set_prop(A.conn, adapter_path(), "org.bluez.Adapter1", "Pairable", false);
         plog("pairing closed: hidden, not pairable");
     }
     return G_SOURCE_CONTINUE;
@@ -1226,6 +1343,7 @@ static void post(cmd_t cmd, const char *addr) {
 void bt_dev_init(void) {
     pthread_t agent;
 
+    bt_dev_dongle_set(dongle_conf());
     pthread_create(&S.thread, NULL, worker, NULL);
     pthread_detach(S.thread);
     pthread_create(&agent, NULL, agent_thread, NULL);

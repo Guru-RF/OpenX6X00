@@ -1,7 +1,7 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  Bluetooth headphones: btaudio-ctl runner and "Mute speaker".
+ *  Bluetooth headphones: btaudio-ctl runner and "Mute speaker", and a headset's mic.
  */
 
 #include "btaudio.h"
@@ -16,6 +16,7 @@
 extern "C" {
 #include "scheduler.h"
 #include "radio.h"
+#include "bt_dev.h"
 #include "lvgl/lvgl.h"
 #include <stdio.h>
 #include <string.h>
@@ -25,6 +26,7 @@ extern "C" {
 #define BTAUDIO_CTL   "/usr/sbin/btaudio-ctl"
 #define BTAUDIO_CONF  BOARD_DATA "/btaudio.conf"
 #define HP_STATE      "/tmp/btaudio-hp"     /* written by btaudio-ctl: headphones connected */
+#define MIC_STATE     "/tmp/btaudio-mic"    /* written by btaudio-ctl: a headset's mic, hands-free on a dongle */
 #define HP_VOL_FILE   BOARD_DATA "/btaudio.hpvol"  /* last headphone volume set with the VOL control */
 #define SAVED_AF_VOL  BOARD_DATA "/btaudio.afvol"  /* AF volume before muting, survives a power off */
 
@@ -176,6 +178,20 @@ bool btaudio_speaker_muted(void) {
 bool btaudio_hp_sink(char *buf, size_t size) {
     if (!btaudio_speaker_muted()) return false;
     FILE *fp = fopen(HP_STATE, "r");
+    if (!fp) return false;
+    bool ok = fgets(buf, size, fp) != NULL;
+    fclose(fp);
+    if (!ok) return false;
+    buf[strcspn(buf, "\n")] = '\0';
+    return buf[0] != '\0';
+}
+
+/* The headset's mic: the source btaudio-ctl names in MIC_STATE, a headset on the hands-free profile on a USB dongle
+ * (from OlivLoze's fork, F4OLI). False without one, and with the USB dongle setting off, whatever the file says. Any
+ * thread */
+bool btaudio_mic_source(char *buf, size_t size) {
+    if (!bt_dev_dongle_get()) return false;
+    FILE *fp = fopen(MIC_STATE, "r");
     if (!fp) return false;
     bool ok = fgets(buf, size, fp) != NULL;
     fclose(fp);

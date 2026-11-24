@@ -116,6 +116,8 @@
 #include "control_owner.h"
 #include "kbd_hyper.h"
 #include "kbd_ptt.h"
+#include "audio.h"
+#include "btaudio.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1034,6 +1036,78 @@ static bool ptt_key(keypad_state_t state) {
     return ok;
 }
 
+/* The PTT key on the radio's side with a headset hands-free on a USB Bluetooth dongle (Settings > Bluetooth > USB
+ * dongle, btaudio-ctl; from OlivLoze's fork, F4OLI): the headset's mic on the air, through the modem as an app's audio
+ * goes (audio_mic_bt_begin), with the screen saying "TX: MIC BT". The hand mic's PTT keys the base with the hand mic as
+ * before, and in CW the key keys the carrier as before. Let go at the release, not at the long press (the key still
+ * held), or when the headset goes away or the modem is let go another way (the SWR protection, the band's end):
+ * mic_tick_cb */
+#define MIC_TICK_MS 100
+
+static bool        mic_tx;
+static lv_timer_t *mic_timer;
+
+static void mic_ptt_end(void) {
+    if (!mic_tx) {
+        return;
+    }
+    mic_tx = false;
+    radio_set_modem(false);
+    audio_mic_bt_end();
+    if (mic_timer) {
+        lv_timer_del(mic_timer);
+        mic_timer = NULL;
+    }
+}
+
+static void mic_tick_cb(lv_timer_t *t) {
+    if (audio_mic_bt_lost()) {
+        mic_ptt_end();
+        msg_update_text_fmt("PTT off: the headset is gone");
+    } else if (!radio_get_modem()) {
+        mic_ptt_end();
+    }
+}
+
+/* The press: true when the headset took it, keyed or not */
+static bool mic_ptt_press(void) {
+    char src[128];
+
+    if (cw_mode() || !btaudio_mic_source(src, sizeof(src))) {
+        return false;
+    }
+    dialog_msg_voice_ptt_pressed();
+    cw_encoder_ptt_pressed();
+    if (mic_tx || radio_get_modem()) {      /* an app on the air (FT8, a voice message): its TX, not cut short */
+        return true;
+    }
+    if (!audio_mic_bt_begin(src)) {
+        msg_update_text_fmt("Headset mic busy");
+        return true;
+    }
+    radio_set_modem(true);
+    if (!radio_get_modem()) {               /* refused where the radio may not transmit, which says why */
+        audio_mic_bt_end();
+        return true;
+    }
+    mic_tx    = true;
+    mic_timer = lv_timer_create(mic_tick_cb, MIC_TICK_MS, NULL);
+    msg_update_text_fmt("TX: MIC BT");
+    return true;
+}
+
+static void side_ptt_key(keypad_state_t state) {
+    if (state == KEYPAD_PRESS) {
+        if (!mic_ptt_press()) {
+            ptt_key(state);
+        }
+    } else if ((state == KEYPAD_RELEASE || state == KEYPAD_LONG_RELEASE) && mic_tx) {
+        mic_ptt_end();
+    } else {
+        ptt_key(state);
+    }
+}
+
 /* A/B, the front key and the H-22's: VFO A/B; long: this VFO copied to the other one. Not while an app holds the
  * VFOs */
 static void ab_key(bool tap, bool hold) {
@@ -1269,7 +1343,7 @@ static void front_key_cb(lv_event_t *e) {
              * radio; a release goes where its press went, so the radio's own press is let go even if the app opened
              * meanwhile (voice_ptt.h) */
             if (!vnet_ptt_key(ev->state)) {
-                ptt_key(ev->state);
+                side_ptt_key(ev->state);
             }
             break;
 

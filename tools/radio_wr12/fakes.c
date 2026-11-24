@@ -26,6 +26,7 @@
 #include "bat_est.h"
 #include "bat_watch.h"
 #include "btaudio.h"
+#include "bt_dev.h"
 #include "cfg/ham_bands.h"
 #include "cfg/tx_ranges.h"
 #include "clock.h"
@@ -859,6 +860,14 @@ bool __wrap_base_guard_log_free(void) {
 }
 
 bool btaudio_speaker_muted(void) {
+    return false;
+}
+
+/* The battery log's Bluetooth column: no adapter here */
+bool bt_adapter_sys(char *out, size_t size, bool *dongle) {
+    (void)out;
+    (void)size;
+    (void)dongle;
     return false;
 }
 

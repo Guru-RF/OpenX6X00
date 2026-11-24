@@ -9,6 +9,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,7 +30,7 @@ typedef struct {
 typedef struct {
     bool seen;          /* a refresh has run */
     bool bluez;         /* bluetoothd answers on D-Bus */
-    bool present;       /* hci0 is there (gone while WiFi has the chip powered down) */
+    bool present;       /* the adapter is there (the radio's own is gone while WiFi has the chip powered down) */
     bool powered;
     bool discoverable;
     bool pairable;
@@ -66,6 +67,16 @@ void bt_dev_activity(char *out, int size);
 
 /* The adapter as the last refresh saw it. */
 void bt_dev_adapter(bt_adapter_t *out);
+
+/* The adapter in use: hci0, or with the USB dongle setting on a dongle when one is plugged in, else the radio's own
+ * (bt_pick.h). Its name ("hci1") and whether it is a dongle, either may be NULL; false while there is none. Any
+ * thread: sysfs only */
+bool bt_adapter_sys(char *out, size_t size, bool *dongle);
+
+/* Settings > Bluetooth > USB dongle (BTCAT_DONGLE in btcat.conf, btcat-ctl dongle on|off): read at bt_dev_init, set
+ * here by the switch. Always off where the board has no dongle (BOARD_BT_DONGLE) */
+void bt_dev_dongle_set(bool on);
+bool bt_dev_dongle_get(void);
 
 /* Seconds left in the pairing window (btcat-ctl's), 0 when closed. */
 int bt_dev_visible_s(void);

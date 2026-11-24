@@ -1,0 +1,93 @@
+#!/bin/sh
+# The Bluetooth adapter in use. With Settings > Bluetooth > USB dongle on (BTCAT_DONGLE=yes in /mnt/btcat.conf,
+# btcat-ctl dongle on|off): a USB dongle when one is plugged in, else the radio's own (its WiFi/BT chip, the adapter on
+# the MUSB host); with it off hci0, as always. The GUI goes by the same rule (src/bt_pick.h). With a dongle in use the
+# radio's own Bluetooth is let go (apply): the GUI (bt_dev.c), btcat and btaudio-ctl all see one adapter, the dongle,
+# whatever number the kernel gave it, and the chip's WiFi no longer shares its antenna with Bluetooth. The dongle is
+# also the only adapter on which a headset goes hands-free (HFP, its mic for the side PTT key, btaudio-ctl): on the
+# chip SCO gives no audio and drops the WiFi. From OlivLoze's fork (F4OLI, 07a4140f and 3497515f).
+#
+#   bt-dongle          its name (hci0, hci1...), nothing while there is none
+#   bt-dongle dongle   true when it is a dongle
+#   bt-dongle apply    with a dongle in use: btusb lets go of the chip's Bluetooth interfaces (its WiFi stays)
+#   bt-dongle removed  udev, an adapter gone (98-bt-dongle.rules): with no dongle left in use, the chip's Bluetooth
+#                      back (btusb bound again), in the background
+#   bt-dongle release  the chip's Bluetooth back now (the setting turned off)
+#
+# A dongle plugged in while the radio runs: the adapter's add runs btcat-setup (bt_start.sh), which applies. Unplugged:
+# the chip's Bluetooth comes back at once, and its add runs btcat-setup in turn. Pairings belong to an adapter: a
+# device paired on the dongle is not paired on the chip, and the other way round.
+#
+# Never on an X6200: where its chip sits has not been looked at (BOARD_BT_DONGLE in src/board.h). BT_DONGLE_SYS,
+# _CONF, _DEFAULT, _DT and _UNBOUND name other places for the host test (tools/bt_dongle).
+
+SYS=${BT_DONGLE_SYS:-/sys}
+CONF=${BT_DONGLE_CONF:-/mnt/btcat.conf}
+DEFAULT=${BT_DONGLE_DEFAULT:-/etc/default/btcat}
+DT=${BT_DONGLE_DT:-/proc/device-tree/compatible}
+UNBOUND=${BT_DONGLE_UNBOUND:-/tmp/bt-dongle.unbound}    # the chip's interfaces apply let go, for removed and release
+
+BTCAT_DONGLE=no
+# shellcheck source=/dev/null
+[ -r "$DEFAULT" ] && . "$DEFAULT"
+# shellcheck source=/dev/null
+[ -r "$CONF" ] && . "$CONF"
+grep -qs "xiegu,x6200" "$DT" && BTCAT_DONGLE=no
+
+internal() { case "$(readlink "$SYS/class/bluetooth/$1")" in *musb-hdrc*) return 0;; esac; return 1; }
+
+name() {
+	if [ "$BTCAT_DONGLE" != yes ]; then
+		[ -e "$SYS/class/bluetooth/hci0" ] && echo hci0
+		return 0
+	fi
+	own=""
+	for d in "$SYS"/class/bluetooth/hci*; do
+		h=${d##*/}
+		case "$h" in *:*|"hci*") continue;; esac
+		if internal "$h"; then own=${own:-$h}; else echo "$h"; return 0; fi
+	done
+	[ -n "$own" ] && echo "$own"
+	return 0
+}
+
+in_use() { h=$(name); [ "$BTCAT_DONGLE" = yes ] && [ -n "$h" ] && ! internal "$h"; }
+
+# The chip's interfaces apply let go, bound to btusb again
+bind_back() {
+	[ -s "$UNBOUND" ] || return 0
+	while read -r i; do
+		echo "$i" > "$SYS/bus/usb/drivers/btusb/bind"
+	done < "$UNBOUND"
+	rm -f "$UNBOUND"
+	logger -t bt-dongle "the radio's own Bluetooth back" 2>/dev/null
+}
+
+case "$1" in
+	"") name;;
+	dongle) in_use;;
+	apply)
+		in_use || exit 0
+		for d in "$SYS"/class/bluetooth/hci*; do
+			o=${d##*/}
+			case "$o" in *:*|"hci*") continue;; esac
+			internal "$o" || continue
+			# .../usb1/1-1/1-1:1.0/bluetooth/hci0: the chip's USB device, its interfaces bound to btusb
+			dev=$(readlink -f "$d/../../..")
+			for i in "$dev"/"${dev##*/}":*; do
+				if [ "$(basename "$(readlink "$i/driver")")" = btusb ]; then
+					echo "${i##*/}" > "$SYS/bus/usb/drivers/btusb/unbind" && echo "${i##*/}" >> "$UNBOUND"
+				fi
+			done
+			echo "bt-dongle: $h (dongle) in use, the radio's own Bluetooth ($o) let go"
+		done;;
+	removed)
+		[ -s "$UNBOUND" ] || exit 0
+		(
+			sleep 1     # the adapter going away may still be listed
+			in_use && exit 0     # another dongle still there
+			bind_back
+		) </dev/null >/dev/null 2>&1 &;;
+	release) bind_back;;
+	*) echo "Usage: $0 [dongle|apply|removed|release]"; exit 1;;
+esac

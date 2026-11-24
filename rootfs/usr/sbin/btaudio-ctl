@@ -1,7 +1,8 @@
 #!/bin/sh
-# Bluetooth headphones (A2DP) for the RX audio. Used by Settings -> Bluetooth
-# (HEADPHONES). Scan, pair, connect and remove are in the GUI (bt_dev.c, BlueZ
-# over D-Bus); this script keeps the audio side.
+# Bluetooth headphones for the RX audio, and a headset's mic for TX on a USB
+# dongle. Used by Settings -> Bluetooth (HEADPHONES). Scan, pair, connect and
+# remove are in the GUI (bt_dev.c, BlueZ over D-Bus); this script keeps the
+# audio side.
 #
 #   btaudio-ctl status                   headphone audio state (tab separated)
 #   btaudio-ctl save                     copy the pairings to /mnt
@@ -10,14 +11,27 @@
 #   btaudio-ctl volume N                 headphone volume, 0..100 %
 #   btaudio-ctl mute on|off              GUI: AF volume to 0 while headphones are connected
 #   btaudio-ctl boot                     from btcat-setup: monitor + autoconnect
-#   btaudio-ctl monitor                  keeps the cards on A2DP and the loopback up
+#   btaudio-ctl monitor                  keeps the cards on their profile and the loopback up
+#   btaudio-ctl sync                     the same once: the headset backend, the profiles, the loopback
 #
-# Only A2DP is used: HFP/HSP (SCO) gives no audio on this radio and drops
-# the WiFi (see also /etc/pulse/system.pa.d/btaudio.pa).
-CONF=/mnt/btaudio.conf
-STATE=/tmp/btaudio-hp
-PIDFILE=/tmp/btaudio-monitor.pid
-LST=/tmp/btaudio-lst
+# A2DP on the radio's own Bluetooth: there HFP/HSP (SCO) gives no audio and
+# drops the WiFi (see also /etc/pulse/system.pa.d/btaudio.pa). On a USB
+# dongle in use (Settings -> Bluetooth -> USB dongle, bt-dongle) PulseAudio
+# gets its headset backend and a headset with a mic goes hands-free (HFP) by
+# itself: its mic is named in $MIC for the GUI, whose side PTT key sends it on
+# the air (audio.c audio_mic_bt_begin), and VOL is its volume as for A2DP
+# headphones. Headphones without a mic stay on A2DP. From OlivLoze's fork
+# (F4OLI, 07a4140f, 3497515f).
+#
+# BTAUDIO_CONF, BTAUDIO_RUN (for /tmp) and BTAUDIO_DONGLE (bt-dongle) name
+# other places for the host test (tools/bt_dongle).
+CONF=${BTAUDIO_CONF:-/mnt/btaudio.conf}
+RUN=${BTAUDIO_RUN:-/tmp}
+DONGLE=${BTAUDIO_DONGLE:-/usr/sbin/bt-dongle}
+STATE=$RUN/btaudio-hp
+MIC=$RUN/btaudio-mic
+PIDFILE=$RUN/btaudio-monitor.pid
+LST=$RUN/btaudio-lst
 SOURCE=alsa_input.platform-sound.stereo-fallback
 BTAUDIO_RX=yes
 BTAUDIO_MUTE=yes
@@ -39,16 +53,49 @@ set_kv() {
 
 yn() { [ "$1" = "on" ] && echo yes || echo no; }
 
-hp_sinks() { pactl list short sinks 2>/dev/null | awk '$2 ~ /^bluez_sink\..*a2dp_sink$/ {print $2}'; }
+hp_sinks() { pactl list short sinks 2>/dev/null | awk '$2 ~ /^bluez_sink\..*(a2dp_sink|handsfree_head_unit)$/ {print $2}'; }
 
-# Never HFP/HSP: put every headphone card that is not on a2dp_sink back on it
+# PulseAudio's headset backend: its own (native: the radio as the hands-free
+# gateway, HSP off) while a dongle is in use, else none (headset=ofono without
+# oFono, as btaudio.pa loads it), so the radio's own chip never offers HFP.
+# The module loaded again drops the Bluetooth cards: the adapter changed then
+# anyway, and boot connects the headphones after it
+headset_backend() {
+	mods=$(pactl list short modules 2>/dev/null) || return 0     # PulseAudio not there (yet): the monitor asks again
+	want=ofono
+	$DONGLE dongle && want=native
+	echo "$mods" | awk '$2 == "module-bluetooth-discover"' | grep -q "headset=$want" && return 0
+	pactl unload-module module-bluetooth-discover 2>/dev/null
+	if [ $want = native ]; then
+		pactl load-module module-bluetooth-discover headset=native enable_native_hsp_hs=false >/dev/null
+	else
+		pactl load-module module-bluetooth-discover headset=ofono >/dev/null
+	fi
+}
+
+# Every headphone card on its profile: hands-free (HFP, the mic) for a headset
+# on a dongle, else A2DP; never HSP. A card with neither (a phone connected for
+# CAT) is left alone
 force_a2dp() {
-	for card in $(pactl list cards 2>/dev/null | awk '
-		$1 == "Name:" {n = $2; a = 0}
+	hfp=no
+	$DONGLE dongle && hfp=yes
+	pactl list cards 2>/dev/null | awk -v hfp=$hfp '
+		$1 == "Name:" {n = $2; a = 0; h = 0}
 		$1 == "a2dp_sink:" {a = 1}
-		$1 == "Active" && $2 == "Profile:" {if (n ~ /^bluez_card\./ && a && $3 != "a2dp_sink") print n}'); do
-		pactl set-card-profile "$card" a2dp_sink
+		$1 == "handsfree_head_unit:" {h = 1}
+		$1 == "Active" && $2 == "Profile:" {
+			if (n !~ /^bluez_card\./ || !a) next
+			want = (hfp == "yes" && h) ? "handsfree_head_unit" : "a2dp_sink"
+			if ($3 != want) print n, want
+		}' | while read -r card want; do
+		pactl set-card-profile "$card" "$want"
 	done
+}
+
+# The headset's mic for the GUI's side PTT key, or none
+apply_mic() {
+	m=$(pactl list short sources 2>/dev/null | awk '$2 ~ /^bluez_source\..*handsfree_head_unit$/ {print $2; exit}')
+	if [ -n "$m" ]; then echo "$m" > $MIC; else rm -f $MIC; fi
 }
 
 apply_rx() {
@@ -68,8 +115,9 @@ apply_rx() {
 			# - latency offset 0 on the bluez sink port: no extra delay is added to
 			#   the reported latency (some setups leave a non-zero offset).
 			# A2DP/SBC encoding and the headphones add their own delay after this.
-			card=bluez_card.${s#bluez_sink.}; card=${card%.a2dp_sink}
+			card=bluez_card.${s#bluez_sink.}; card=${card%.a2dp_sink}; card=${card%.handsfree_head_unit}
 			pactl set-port-latency-offset "$card" headphone-output 0 2>/dev/null
+			pactl set-port-latency-offset "$card" headset-output 0 2>/dev/null
 			# - max_latency_msec / fast_adjust_threshold_msec: every underrun raises
 			#   the loopback latency and it never comes down (seen growing to 2 s);
 			#   cap it at target + 300 ms and drop the excess at once (as openx6100's
@@ -100,7 +148,7 @@ short_lst() {
 	printf '%s\n' $set_lst > $LST
 }
 
-sync_audio() { force_a2dp; short_lst; apply_rx; }
+sync_audio() { headset_backend; force_a2dp; short_lst; apply_rx; apply_mic; }
 
 status() {
 	hp=0; vol=-1
@@ -144,6 +192,7 @@ boot() {
 	# Pairings made while the copy on /mnt could not be written (0.126: this
 	# script was not executable) have no copy: make it once, a new image needs it
 	[ -f /mnt/backups/bluetooth.tgz ] || ! ls /var/lib/bluetooth/*/??:* >/dev/null 2>&1 || save_pairings
+	headset_backend     # before the headphones connect: a dongle that took over, or the radio's own back
 	pid=$(cat $PIDFILE 2>/dev/null)
 	if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
 		monitor </dev/null >/dev/null 2>&1 &
@@ -166,5 +215,6 @@ case "$1" in
 	mute)        set_kv BTAUDIO_MUTE "$(yn "$2")";;
 	boot)        boot;;
 	monitor)     monitor;;
-	*) echo "Usage: $0 {status|save|autoconnect MAC on|off|rx on|off|volume N|mute on|off|boot|monitor}"; exit 1;;
+	sync)        sync_audio;;
+	*) echo "Usage: $0 {status|save|autoconnect MAC on|off|rx on|off|volume N|mute on|off|boot|monitor|sync}"; exit 1;;
 esac

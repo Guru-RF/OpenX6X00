@@ -1381,7 +1381,7 @@ yet, in colour when working:
 |---|---|
 | WiFi | green connected; grey on, no network; dark off |
 | Bluetooth | blue a device connected; grey on, nothing connected; dark off |
-| Note | blue Bluetooth headphones connected (A2DP) |
+| Note | blue Bluetooth headphones connected (A2DP, or hands-free on a [USB dongle](#a-headsets-mic-on-the-air)) |
 | Keyboard | amber a Bluetooth CAT client connected; grey CAT bridge ready |
 | Arrow | green GPS position (fix in the last 10 s); grey GPS on, no fix |
 | DX | green DX cluster connected; grey connecting or retrying; dark stopped |
@@ -2448,9 +2448,9 @@ by itself. The 20 MHz and channel 12 and 13 settings in `x6100-wifi.conf` are
 
 | Card | Options |
 |---|---|
-| ADAPTER | Bluetooth (power), Status, Address, Pairing (3 min) |
+| ADAPTER | Bluetooth (power), Status, Address, USB dongle (X6100), Pairing (3 min) |
 | DEVICES | Scan (headphones and keyboards, 16 s), Activity, the device list |
-| HEADPHONES | RX to headphones, Volume, Mute speaker |
+| HEADPHONES | RX to headphones, Volume, Mute speaker, Mic and Mic gain (X6100) |
 | BLUETOOTH CAT | Clients connected, Port |
 
 - Status: *on* and hidden (paired devices connect, nobody else can pair),
@@ -2459,6 +2459,9 @@ by itself. The 20 MHz and channel 12 and 13 settings in `x6100-wifi.conf` are
   stops it says that too, and the page picks it up again when it is back.
 - Pairing (3 min): the radio is visible and pairable for 3 minutes, the label
   counts down. Outside the window every pairing request is refused.
+- USB dongle, Mic and Mic gain (X6100, off by default): a USB Bluetooth
+  dongle in place of the radio's own, for a headset's mic on the air; see
+  [A headset's mic on the air](#a-headsets-mic-on-the-air).
 - The list: paired devices first, then what Scan found. Tags: *headphones*,
   *keyboard*, *phone*, *CAT* (a PC or other CAT client), *new* (not paired
   yet), *connected*. When a scan moves the devices around, the MFK stays on
@@ -7448,11 +7451,13 @@ pairing and connection in DEVICES, the audio switches in HEADPHONES.
 | Volume | the headphones sink volume |
 | Mute speaker | AF volume and TX monitor 0 while the headphones are connected, back to the previous values when they disconnect. The AF volume does not change the audio sent to the headphones. |
 
-- Only A2DP is used: HFP/HSP (SCO) gives no audio on the X6100 and drops the
-  WiFi, so PulseAudio has no headset backend
-  (`rootfs/etc/pulse/system.pa.d/btaudio.pa`). The same file stops PulseAudio
-  from looping a phone or tablet that connects for CAT (it also appears as an
-  A2DP source) into the radio TX audio.
+- On the radio's own Bluetooth only A2DP is used: HFP/HSP (SCO) gives no
+  audio on the X6100's chip and drops the WiFi, so PulseAudio has no headset
+  backend (`rootfs/etc/pulse/system.pa.d/btaudio.pa`). A headset's mic needs
+  a USB dongle: see [A headset's mic on the air](#a-headsets-mic-on-the-air).
+  The same file stops PulseAudio from looping a phone or tablet that
+  connects for CAT (it also appears as an A2DP source) into the radio TX
+  audio.
 - The headphones get mono audio, like the radio's, with about 0.4 s of delay;
   it can grow to 0.7 s when the link is busy.
 - CW: the headphones get the receiver's audio, which the base cuts while it
@@ -7477,6 +7482,57 @@ pairing and connection in DEVICES, the audio switches in HEADPHONES.
 > weak anyway: for the web configurator and the TCI server a cable works better, a
 > USB Ethernet adapter ([Ethernet](#ethernet)) or a phone on
 > [USB tethering](#usb-tethering).
+
+#### A headset's mic on the air
+
+Where: Settings > Bluetooth > ADAPTER > USB dongle, and HEADPHONES > Mic and
+Mic gain. X6100 only.
+
+With a USB Bluetooth dongle in the radio's USB-A port and USB dongle on, a
+headset with a mic is used hands-free (HFP): you hear the radio in it, and
+the PTT key on the radio's side sends its mic. From OlivLoze's fork (F4OLI).
+
+- USB dongle is off by default: the radio's own Bluetooth, as always,
+  whatever is plugged in. On, a dongle plugged in takes over from the
+  radio's own Bluetooth for everything (headphones, the CAT phone,
+  keyboards), and the chip's Bluetooth is let go (`bt-dongle`), which leaves
+  the chip to its WiFi. Plugged in while the radio runs, the dongle takes
+  over within seconds; unplugged, the radio's own Bluetooth comes back at
+  once (`98-bt-dongle.rules`), and so it does when USB dongle is switched
+  off. The note beside the switch says which one is in use: *the radio's
+  own in use*, *in use, the radio's own off*, or *not plugged in*.
+- Pairings belong to an adapter: pair each device once on the dongle. Those
+  paired on the radio's own stay paired there, for when the dongle is out.
+- A headset with a mic goes hands-free by itself when it connects;
+  headphones without one stay on A2DP. Hands-free audio is 16 kHz (mSBC) at
+  best, voice quality, the RX audio in the headset too.
+- VOL is the headset's volume while it is connected, as for A2DP
+  headphones. It does not change the mic's level on the air.
+- Mic: *hands-free* (the side PTT sends it), or why there is none: *with a
+  USB dongle only*, *no dongle plugged in*, *none: music only (A2DP)* (a
+  headset without a mic), *no headset*.
+- Mic gain, -20 to +10 dB, -6 by default: the headset mic's level on the
+  air, taken as it plays, so it can be changed while on the air. Turn it
+  down if the ALC climbs: on F4OLI's radio a headset at 0 dB drove it to
+  7.6 on a dummy load.
+- The PTT key on the radio's side keys the radio with the headset's mic,
+  sent as an app's audio is (the modem): the screen says `TX: MIC BT`. Let
+  go of the key and the radio is back on receive, after a long hold too. The
+  headset gone while you talk lets go as well (`PTT off: the headset is
+  gone`), and so does the radio let go another way (the SWR protection, the
+  end of the band). A press where the radio may not transmit keys nothing,
+  as for any TX.
+- The hand mic's PTT keys with the hand mic, as before; so does
+  CapsLock+Space on a keyboard. In CW the side key keys the carrier, as
+  before. A press while a voice message plays stops it, as the PTT key does;
+  while an app is on the air (FT8) it keys nothing and the app's
+  transmission goes on.
+- Without a headset hands-free, or with USB dongle off, the side PTT key does
+  what it always did.
+- Tried on F4OLI's radio with a dongle and a headset: clean RX audio and mic,
+  WiFi unharmed, the ALC on a dummy load as above. OpenX6X00's take of it,
+  with the USB dongle switch, has not been on a radio yet. The X6200 has it
+  off: it is not known yet which of its adapters is its own chip.
 
 ### Bluetooth CAT
 
@@ -10569,8 +10625,10 @@ certificate once, or use "Convert on radio".
 
 #### A Bluetooth headset gives no audio for the microphone
 
-Only A2DP (listening) is used: HFP/HSP gives no audio on the X6100 and drops
-the WiFi.
+On the radio's own Bluetooth only A2DP (listening) is used: HFP/HSP gives no
+audio on the X6100's chip and drops the WiFi. With a USB Bluetooth dongle,
+see [A headset's mic on the air](#a-headsets-mic-on-the-air): Settings >
+Bluetooth > HEADPHONES > Mic says why there is none.
 
 #### A PC on Bluetooth has an audio output but no input
 
@@ -10776,7 +10834,8 @@ Example, read frequency: `FE FE A4 E0 03 FD` →
 |---|---|
 | `btcat-ctl bt on\|off` | Bluetooth adapter power (= Settings > Bluetooth > Bluetooth) |
 | `btcat-ctl discoverable on\|off` | Open / close the 3-minute pairing window: visible and pairable, the GUI's agent accepts pairing (= Pairing (3 min)) |
-| `btcat-ctl status` | Print power and the time left in the pairing window |
+| `btcat-ctl dongle on\|off` | A USB dongle in place of the radio's own Bluetooth (= Settings > Bluetooth > USB dongle; X6100) |
+| `btcat-ctl status` | Print power, the USB dongle setting and the time left in the pairing window |
 | `btcat-ctl apply` | Re-apply power from `/mnt/btcat.conf`, close the pairing window |
 | `/etc/init.d/S94btcat start\|stop\|restart` | Start/stop the bridge (set `BTCAT_ENABLE=no` in `/etc/default/btcat` to disable) |
 
@@ -10794,7 +10853,9 @@ its own pairing agent (log in `/tmp/bt_pair.log`).
 | `btaudio-ctl rx on\|off` | RX audio to the headphones (loopback) |
 | `btaudio-ctl volume N` | Headphone volume, 0-100 % |
 | `btaudio-ctl mute on\|off` | AF volume and TX monitor 0 while headphones are connected |
-| `btaudio-ctl boot` / `monitor` | Started by `btcat-setup`: keeps the headphones on A2DP with the loopback up, connects the "Connect at startup" devices |
+| `btaudio-ctl boot` / `monitor` | Started by `btcat-setup`: keeps the headphones on A2DP (a headset with a mic hands-free on a USB dongle) with the loopback up, connects the "Connect at startup" devices |
+| `btaudio-ctl sync` | The same once: PulseAudio's headset backend for the adapter in use, the profiles, the loopback, the headset's mic (`/tmp/btaudio-mic`) |
+| `bt-dongle` | The adapter in use (`hci0`, or a USB dongle's); `bt-dongle dongle` is true while a dongle is in use |
 
 ### Files on /mnt
 
@@ -10808,7 +10869,7 @@ The DATA partition, readable on a PC.
 | `cw_trainer.json` | CW trainer statistics and Calls best score |
 | `tci.conf` | TCI server on/off, port, Clients and Ask before TX |
 | `tci_allowed.conf` | the TCI clients allowed to transmit without asking (Always), one a line: address, name, when allowed, when last seen |
-| `btcat.conf` | Bluetooth power, written by `btcat-ctl` |
+| `btcat.conf` | Bluetooth power and USB dongle, written by `btcat-ctl` |
 | `btaudio.conf` | headphones settings (RX loopback, speaker mute, Connect at startup devices) |
 | `ft_log.adi`, `js8call_log.adi` | FT8/FT4 and JS8 logs (ADIF) |
 | `ft8_udp.conf` | WSJT-X UDP output (FT8/FT4/FT2, and every logged QSO): `enabled=`, `host=`, `port=`, `id=` |
@@ -10863,7 +10924,7 @@ and `login=`. The radio and the web page replace the file whole on each
 change.
 
 Defaults for the Bluetooth bridge are in `/etc/default/btcat`
-(`BTCAT_ENABLE`, `BTCAT_BT`, `BTCAT_ALIAS`); the
+(`BTCAT_ENABLE`, `BTCAT_BT`, `BTCAT_ALIAS`, `BTCAT_DONGLE`); the
 runtime state in `/mnt/btcat.conf` overrides them.
 
 ### Processor speed
