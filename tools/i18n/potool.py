@@ -34,9 +34,10 @@ SKIP_FILES = {'src/i18n.cpp', 'src/i18n.h', 'src/i18n_hook.h', 'src/navtex/dsc.c
               'src/avi_writer.c', 'src/tci_ws.c', 'src/theme.c', 'src/theme.h',   # the themes' names stay theirs
               'src/adif.c'}   # the log file's field names
 
-# a text handed to one of these is not shown
+# a text handed to one of these is not shown; voice_* and say_sel speak, and the voices are English: what they are
+# given is spoken as it is, never through the language (src/voice.cpp)
 SKIP_CALLS = re.compile(
-    r'^(LV_LOG_\w*|f?printf|fputs|puts|perror|syslog|v?dprintf|fopen|freopen|open|openat|popen|system|getenv|setenv|'
+    r'^(voice_\w+|say_sel|LV_LOG_\w*|f?printf|fputs|puts|perror|syslog|v?dprintf|fopen|freopen|open|openat|popen|system|getenv|setenv|'
     r'str(n|case|ncase)?cmp|strn?case|strstr|strcasestr|strchr|strrchr|strspn|strcspn|strtok\w*|s?scanf|sqlite3_\w+|'
     r'cJSON_\w+|json_\w+|vnet_send|\w*_json\w*|remote_\w*send\w*|tci_\w*send\w*|send_\w+|reply\w*|log_\w+|\w+_log|\w+_log_\w*|'
     r'base_guard_log|unlink|rename|remove|mkdir|rmdir|access|stat|lstat|opendir|chdir|exec\w*|spawn\w*|run_cmd\w*|'

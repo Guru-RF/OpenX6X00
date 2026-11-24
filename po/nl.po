@@ -346,11 +346,6 @@ msgid "Decoding Cont %s"
 msgstr "Doorlopend decoderen %s"
 
 #: src/app_sstv.c
-#, c-format
-msgid "Receiving picture, %s"
-msgstr "Ontvangt beeld, %s"
-
-#: src/app_sstv.c
 msgid "SSTV - calling frequencies"
 msgstr "SSTV - aanroepfrequenties"
 
@@ -640,10 +635,6 @@ msgstr "SSTV TX gestopt"
 msgid "SSTV TX failed (%d)"
 msgstr "SSTV TX mislukt (%d)"
 
-#: src/app_window.c
-msgid "Closed"
-msgstr "Gesloten"
-
 #: src/apps_menu.c src/button_bar.cpp src/settings_window.cpp
 msgid "Modes"
 msgstr "Modi"
@@ -774,8 +765,7 @@ msgstr "Webradio"
 msgid "Internet stations"
 msgstr "Internetzenders"
 
-#: src/apps_menu.c src/button_bar.cpp src/dialog_zello.c src/screen_main.c
-#: src/zello.c
+#: src/apps_menu.c src/button_bar.cpp src/screen_main.c src/zello.c
 msgid "Zello"
 msgstr ""
 
@@ -783,7 +773,7 @@ msgstr ""
 msgid "Internet voice"
 msgstr "Spraak via internet"
 
-#: src/apps_menu.c src/button_bar.cpp src/dialog_svx.c src/screen_main.c
+#: src/apps_menu.c src/button_bar.cpp src/screen_main.c
 msgid "SVXConnect"
 msgstr ""
 
@@ -833,26 +823,12 @@ msgid "All settings"
 msgstr "Alle instellingen"
 
 #: src/apps_menu.c
-#, c-format
-msgid "%s, %s, %s, %i of %i"
-msgstr "%s, %s, %s, %i van %i"
-
-#: src/apps_menu.c src/dialog_field.c
-#, c-format
-msgid "%s, %s, %i of %i"
-msgstr "%s, %s, %i van %i"
-
-#: src/apps_menu.c
 msgid "APPS"
 msgstr "APPS"
 
 #: src/apps_menu.c
 msgid "MFK: choose - press: open - APP or ESC: close"
 msgstr "MFK: kiezen - drukken: openen - APP of ESC: sluiten"
-
-#: src/apps_menu.c src/settings_window.cpp
-msgid "Apps"
-msgstr ""
 
 #: src/audio.c
 msgid "X6100 GUI Play"
@@ -1777,11 +1753,6 @@ msgstr "%s pagina %d"
 
 #: src/button_bar.cpp
 #, c-format
-msgid "F%d, not used"
-msgstr "F%d, niet gebruikt"
-
-#: src/button_bar.cpp
-#, c-format
 msgid "%s, unavailable"
 msgstr "%s, niet beschikbaar"
 
@@ -2173,9 +2144,9 @@ msgstr "Nieuw"
 msgid "Edit"
 msgstr "Bewerken"
 
-#: src/cw_messages.c src/dialog_channels.c src/dialog_cw_trainer.c
-#: src/js8_window.c src/recorder_window.c src/settings_window.cpp
-#: src/voice_messages.c src/wefax_window.c src/wifi_window.c src/winlink_mail.c
+#: src/cw_messages.c src/dialog_channels.c src/js8_window.c
+#: src/recorder_window.c src/settings_window.cpp src/voice_messages.c
+#: src/wefax_window.c src/wifi_window.c src/winlink_mail.c
 msgid "Delete"
 msgstr "Wissen"
 
@@ -2447,7 +2418,7 @@ msgstr ""
 msgid "%s%sNo messages yet. F3 adds one"
 msgstr "%s%sNog geen berichten. F3 voegt er een toe"
 
-#: src/cw_messages.c src/dialog_iradio.c src/dialog_modes.c
+#: src/cw_messages.c src/dialog_iradio.c
 #, c-format
 msgid "%s%s%s, %i of %i"
 msgstr "%s%s%s, %i van %i"
@@ -2492,10 +2463,6 @@ msgstr "Druk nog eens op Wissen om het bericht te wissen"
 #: src/cw_messages.c src/js8_window.c
 msgid "Message deleted"
 msgstr "Bericht gewist"
-
-#: src/cw_messages.c
-msgid "CW messages. Small knob: the messages. F2 send, F3 new, F4 edit"
-msgstr "CW-berichten. Kleine knop: de berichten. F2 zenden, F3 nieuw, F4 bewerken"
 
 #: src/cw_parse.c src/field/flog.c
 msgid "NAME"
@@ -3063,35 +3030,8 @@ msgid "Channel opens %s"
 msgstr "Kanaal opent %s"
 
 #: src/dialog_channels.c
-#, c-format
-msgid "Opens %s"
-msgstr "Opent %s"
-
-#: src/dialog_channels.c
 msgid "Channel opens no app"
 msgstr "Kanaal opent geen app"
-
-#: src/dialog_channels.c
-msgid "Opens no app"
-msgstr "Opent geen app"
-
-#: src/dialog_channels.c
-#, c-format
-msgid "Moving %s. Turn the small knob to move it, F5 to drop it there"
-msgstr "%s verplaatsen. Draai aan de kleine knop om het te verschuiven, F5 om het daar neer te zetten"
-
-#: src/dialog_channels.c
-msgid "the channel"
-msgstr "het kanaal"
-
-#: src/dialog_channels.c
-#, c-format
-msgid "Dropped at %d of %d, saved"
-msgstr "Neergezet op %d van %d, opgeslagen"
-
-#: src/dialog_channels.c
-msgid "Not saved: the order is as before"
-msgstr "Niet opgeslagen: de volgorde is als voorheen"
 
 #: src/dialog_channels.c
 msgid "CHANNELS"
@@ -3217,17 +3157,8 @@ msgid " - RX only"
 msgstr " - alleen RX"
 
 #: src/dialog_cluster.c
-#, c-format
-msgid "%s, %s%s%s, spotted by %s, %i of %i"
-msgstr "%s, %s%s%s, gespot door %s, %i van %i"
-
-#: src/dialog_cluster.c
 msgid "MFK: browse - press: tune - VFO: follow"
 msgstr "MFK: bladeren - drukken: afstemmen - VFO: volgen"
-
-#: src/dialog_cluster.c
-msgid "DX cluster. Small knob: the spots, press: tune. F3 tune"
-msgstr "DX-cluster. Kleine knop: de spots, drukken: afstemmen. F3 afstemmen"
 
 #: src/dialog_cluster.c src/radio_controls.cpp
 #, c-format
@@ -3584,16 +3515,6 @@ msgid ". Run complete, score %s"
 msgstr ". Reeks klaar, score %s"
 
 #: src/dialog_cw_trainer.c
-#, c-format
-msgid "Right, %i W P M%s"
-msgstr "Goed, %i W P M%s"
-
-#: src/dialog_cw_trainer.c
-#, c-format
-msgid "Wrong, it was %s, %i W P M%s"
-msgstr "Fout, het was %s, %i W P M%s"
-
-#: src/dialog_cw_trainer.c
 msgid "Start: a new run of 50 callsigns"
 msgstr "Start: een nieuwe reeks van 50 roepnamen"
 
@@ -3725,20 +3646,6 @@ msgid "Del"
 msgstr "Wis"
 
 #: src/dialog_cw_trainer.c
-msgid "OK, done"
-msgstr "OK, klaar"
-
-#: src/dialog_cw_trainer.c
-#, c-format
-msgid "Right, %s. Score %i of %i"
-msgstr "Goed, %s. Score %i van %i"
-
-#: src/dialog_cw_trainer.c
-#, c-format
-msgid "Wrong, sent %s, typed %s. Score %i of %i"
-msgstr "Fout, gezonden %s, getypt %s. Score %i van %i"
-
-#: src/dialog_cw_trainer.c
 #, c-format
 msgid "CW TRAINER - #%06x Practice#"
 msgstr "CW-TRAINER - #%06x Oefenen#"
@@ -3772,11 +3679,6 @@ msgstr "Sein de groep met de paddle. Opnieuw: nog eens horen"
 #: src/dialog_cw_trainer.c
 msgid "Heard: "
 msgstr "Gehoord: "
-
-#: src/dialog_cw_trainer.c
-#, c-format
-msgid "Wrong, sent %s, heard %s"
-msgstr "Fout, gezonden %s, gehoord %s"
 
 #: src/dialog_cw_trainer.c
 msgid "Start: resume. Skip: another group"
@@ -3877,16 +3779,6 @@ msgstr "hotspot"
 msgid "Logging in to the network"
 msgstr "Aanmelden bij het netwerk"
 
-#: src/dialog_dmr.c
-#, c-format
-msgid "Talking: %s, a private call to you"
-msgstr "Spreekt: %s, een privéoproep voor jou"
-
-#: src/dialog_dmr.c
-#, c-format
-msgid "Talking: %s, T G %u"
-msgstr "Spreekt: %s, T G %u"
-
 #: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c
 msgid "Talking now:"
 msgstr "Spreekt nu:"
@@ -3931,10 +3823,6 @@ msgstr "stel eerst je roepnaam in (Instellingen > Algemeen)"
 #: src/dialog_dmr.c
 msgid "talkgroups on the internet, listening only, never on the air"
 msgstr "gespreksgroepen op het internet, alleen luisteren, nooit in de lucht"
-
-#: src/dialog_dmr.c
-msgid "DMR, talkgroups on the internet, listening only. MFK: choose a talkgroup"
-msgstr "DMR, gespreksgroepen op het internet, alleen luisteren. MFK: kies een gespreksgroep"
 
 #: src/dialog_field.c
 msgid "x6100-wavelog sync 2>/dev/null"
@@ -4268,6 +4156,11 @@ msgid ""
 msgstr ""
 "Re-spot\n"
 "Uit"
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s, %s, %i of %i"
+msgstr "%s, %s, %i van %i"
 
 #: src/dialog_field.c
 msgid "FIELD OPERATIONS"
@@ -5050,19 +4943,6 @@ msgid "SYNC"
 msgstr ""
 
 #: src/dialog_freedv.c
-msgid "R A D E sync"
-msgstr ""
-
-#: src/dialog_freedv.c
-msgid "R A D E searching"
-msgstr "R A D E zoekt"
-
-#: src/dialog_freedv.c
-#, c-format
-msgid "Heard %s"
-msgstr "%s gehoord"
-
-#: src/dialog_freedv.c
 #, c-format
 msgid "Bluetooth headphones, TCI / browser (%d)"
 msgstr "Bluetooth-koptelefoon, TCI / browser (%d)"
@@ -5826,11 +5706,6 @@ msgid "Olivia"
 msgstr ""
 
 #: src/dialog_modes.c
-#, c-format
-msgid "%s, %s%s%s, %i of %i"
-msgstr "%s, %s%s%s, %i van %i"
-
-#: src/dialog_modes.c
 msgid "DIGITAL MODES"
 msgstr "DIGITALE MODI"
 
@@ -5841,10 +5716,6 @@ msgstr "laatst gebruikt"
 #: src/dialog_modes.c
 msgid "MFK: choose - press: open - Modes: close"
 msgstr "MFK: kiezen - drukken: openen - Modi: sluiten"
-
-#: src/dialog_modes.c
-msgid "Digital modes"
-msgstr "Digitale modi"
 
 #: src/dialog_olivia.c
 msgid ""
@@ -6085,10 +5956,6 @@ msgid "%s, day %s, night %s"
 msgstr "%s, dag %s, nacht %s"
 
 #: src/dialog_propagation.c
-msgid "Propagation, conditions"
-msgstr "Propagatie, condities"
-
-#: src/dialog_propagation.c
 msgid "PROPAGATION"
 msgstr "PROPAGATIE"
 
@@ -6295,24 +6162,6 @@ msgstr ""
 #: src/dialog_scan.c
 msgid "Scanner: not while transmitting"
 msgstr "Scanner: niet tijdens zenden"
-
-#: src/dialog_scan.c
-#, c-format
-msgid "Busy, %s"
-msgstr "Bezet, %s"
-
-#: src/dialog_scan.c
-msgid "Scanning"
-msgstr "Scannen"
-
-#: src/dialog_scan.c
-#, c-format
-msgid "Paused, %s"
-msgstr "Gepauzeerd, %s"
-
-#: src/dialog_scan.c
-msgid "Scanner stopped"
-msgstr "Scanner gestopt"
 
 #: src/dialog_snake.c
 msgid "Restart"
@@ -7217,18 +7066,8 @@ msgstr "TUNE klaar: limiet %d s"
 
 #: src/ext_tune.c
 #, c-format
-msgid "Tune over, %d second limit%s"
-msgstr "Tune afgelopen, limiet van %d seconden%s"
-
-#: src/ext_tune.c
-#, c-format
 msgid "TUNE stopped%s"
 msgstr "TUNE gestopt%s"
-
-#: src/ext_tune.c
-#, c-format
-msgid "Tune stopped%s%s"
-msgstr "Tune gestopt%s%s"
 
 #: src/ext_tune.c
 msgid "TUNE stopped by the radio"
@@ -7832,7 +7671,7 @@ msgstr ""
 msgid "Sent, "
 msgstr "Gezonden, "
 
-#: src/ft8/decode_list.c src/ft8_window.c
+#: src/ft8/decode_list.c
 msgid ", worked"
 msgstr ", gewerkt"
 
@@ -7844,29 +7683,9 @@ msgstr ", gewerkt op een andere band of modus"
 msgid ", new"
 msgstr ", nieuw"
 
-#: src/ft8/decode_list.c
-#, c-format
-msgid "For you: %s"
-msgstr "Voor jou: %s"
-
-#: src/ft8/decode_list.c
-#, c-format
-msgid "%i C Q, %i other"
-msgstr "%i C Q, %i andere"
-
-#: src/ft8/decode_list.c
-#, c-format
-msgid "%i decoded"
-msgstr "%i gedecodeerd"
-
 #: src/ft8/decode_list.c src/ft8_window.c
 msgid "worked"
 msgstr "gewerkt"
-
-#: src/ft8/decode_list.c
-#, c-format
-msgid "%s, %u of %u"
-msgstr "%s, %u van %u"
 
 #: src/ft8_udp.c
 msgid "239.255.0.0,gateway"
@@ -7892,19 +7711,6 @@ msgstr "Luistert... de gehoorde stations komen hier"
 #: src/ft8_window.c
 msgid "Calling you, "
 msgstr "Roept jou op, "
-
-#: src/ft8_window.c
-#, c-format
-msgid "%s%s%s, %i d B%s%s%s, %i of %i"
-msgstr "%s%s%s, %i d B%s%s%s, %i van %i"
-
-#: src/ft8_window.c
-msgid ", new country"
-msgstr ", nieuw land"
-
-#: src/ft8_window.c src/js8_window.c
-msgid "No stations yet"
-msgstr "Nog geen stations"
 
 #: src/ft8_window.c
 #, c-format
@@ -8039,15 +7845,6 @@ msgid ""
 msgstr ""
 "Weergave:\n"
 "Verkeer"
-
-#: src/ft8_window.c
-#, c-format
-msgid "Tiles, %i station%s. M F K: station by station, press: call it"
-msgstr "Tegels, %i station%s. M F K: station voor station, drukken: oproepen"
-
-#: src/ft8_window.c
-msgid "Traffic, the decode list"
-msgstr "Verkeer, de decodeerlijst"
 
 #: src/ft8_window.c
 msgid "No CQ in Hound mode"
@@ -8382,15 +8179,6 @@ msgstr "geen fix"
 
 #: src/gps_window.c
 #, c-format
-msgid "GPS fix, %s, grid %s"
-msgstr "GPS-fix, %s, locator %s"
-
-#: src/gps_window.c
-msgid "GPS fix lost"
-msgstr "GPS-fix verloren"
-
-#: src/gps_window.c
-#, c-format
 msgid "%ld s ago"
 msgstr "%ld s geleden"
 
@@ -8625,10 +8413,6 @@ msgstr "diensten gestart"
 #: src/gui_main.c
 msgid " fault settings"
 msgstr ""
-
-#: src/gui_main.c
-msgid "Open X 6 X hundred, ready"
-msgstr "Open X 6 X honderd, klaar"
 
 #: src/host/host_panel.c
 #, c-format
@@ -9087,11 +8871,6 @@ msgstr "Luistert naar JS8..."
 
 #: src/js8_window.c
 #, c-format
-msgid "For you, from %s: %s"
-msgstr "Voor jou, van %s: %s"
-
-#: src/js8_window.c
-#, c-format
 msgid "From %s: %s"
 msgstr "Van %s: %s"
 
@@ -9407,11 +9186,6 @@ msgstr ", hoorde je, %+d"
 #: src/js8_window.c
 msgid ", heard you"
 msgstr ", hoorde je"
-
-#: src/js8_window.c
-#, c-format
-msgid "%s%s, %d d B%s, %d of %d"
-msgstr "%s%s, %d d B%s, %d van %d"
 
 #: src/js8_window.c
 msgid ""
@@ -11349,11 +11123,6 @@ msgstr "vanaf %s %s"
 msgid "Weather warning. %s"
 msgstr "Weerwaarschuwing. %s"
 
-#: src/mfk_control.cpp
-#, c-format
-msgid "mfk_update diff %i ctrl %i: [%s]"
-msgstr ""
-
 #: src/mic_keys.c
 msgid "SPCH"
 msgstr ""
@@ -11639,15 +11408,6 @@ msgid "Imported %u QSOs"
 msgstr "%u QSO's geïmporteerd"
 
 #: src/radio.c
-#, c-format
-msgid "Tuner done, S W R %.1f"
-msgstr "Tuner klaar, S W R %.1f"
-
-#: src/radio.c
-msgid "Tuner done"
-msgstr "Tuner klaar"
-
-#: src/radio.c
 msgid "BATTERY HIGH TEMP!"
 msgstr "BATTERIJ TE WARM!"
 
@@ -11697,10 +11457,6 @@ msgstr "basis: basis ALLEEN VOOR TESTS, compressor en CESSB uit, TX-filter 300-3
 #: src/radio.c
 msgid "Speaker always off: Settings > Audio"
 msgstr "Luidspreker altijd uit: Instellingen > Audio"
-
-#: src/radio.c
-msgid "Volume,"
-msgstr ""
 
 #: src/radio.c
 #, c-format
@@ -12128,11 +11884,6 @@ msgstr "Koppelcode: #ffb020 %s#  (2 min)"
 
 #: src/remote_server.c
 #, c-format
-msgid "Pair code: %s. Again: %s. Good for 2 minutes."
-msgstr "Koppelcode: %s. Nog eens: %s. Geldig voor 2 minuten."
-
-#: src/remote_server.c
-#, c-format
 msgid "Pairing paused %d min: three wrong codes. Settings > General > BROWSER REMOTE > Pair code gives one now"
 msgstr "Koppelen %d min gepauzeerd: drie foute codes. Instellingen > Algemeen > BROWSER-BEDIENING > Koppelcode geeft er nu een"
 
@@ -12374,14 +12125,6 @@ msgid ", WiFi address %s"
 msgstr ", WiFi-adres %s"
 
 #: src/screen_main.c
-msgid "Split "
-msgstr ""
-
-#: src/screen_main.c
-msgid ", dial locked"
-msgstr ", afstemming vergrendeld"
-
-#: src/screen_main.c
 #, c-format
 msgid "Split %s"
 msgstr ""
@@ -12394,10 +12137,6 @@ msgstr "Lader"
 #, c-format
 msgid "%.*s meters, "
 msgstr "%.*s meter, "
-
-#: src/screen_main.c
-msgid "Band locked by the app"
-msgstr "Band vergrendeld door de app"
 
 #: src/screen_main.c
 msgid "Snake"
@@ -12414,10 +12153,6 @@ msgstr "Internetradio"
 #: src/screen_main.c
 msgid "RADE needs headphones, TCI or the browser"
 msgstr "RADE vraagt een hoofdtelefoon, TCI of de browser"
-
-#: src/screen_main.c
-msgid "No long press action set"
-msgstr "Geen actie voor lang drukken ingesteld"
 
 #: src/screen_main.c
 msgid "Waterfall"
@@ -12440,22 +12175,9 @@ msgid "Headset mic busy"
 msgstr "Headsetmicro bezet"
 
 #: src/screen_main.c
-msgid "VFO locked by the app"
-msgstr "VFO vergrendeld door de app"
-
-#: src/screen_main.c
 #, c-format
 msgid "Clone VFO %s"
 msgstr "VFO %s kopiëren"
-
-#: src/screen_main.c
-#, c-format
-msgid "VFO %s copied to %s"
-msgstr "VFO %s gekopieerd naar %s"
-
-#: src/screen_main.c
-msgid "Mode locked by the app"
-msgstr "Modus vergrendeld door de app"
 
 #: src/screen_main.c
 msgid "Pre"
@@ -12468,28 +12190,6 @@ msgstr ""
 #: src/screen_main.c
 msgid "Power off"
 msgstr "Uitschakelen"
-
-#: src/screen_main.c
-msgid "V M, not used here"
-msgstr "V M, hier niet gebruikt"
-
-#: src/screen_main.c
-msgid "Not used"
-msgstr "Niet gebruikt"
-
-#: src/screen_main.c
-#, c-format
-msgid "Channel %s, %s"
-msgstr "Kanaal %s, %s"
-
-#: src/screen_main.c
-msgid "No channels"
-msgstr "Geen kanalen"
-
-#: src/screen_main.c
-#, c-format
-msgid "spectrum key %u"
-msgstr ""
 
 #: src/screen_main.c
 msgid "PTT off: CapsLock+Space for on"
@@ -12666,6 +12366,10 @@ msgid "Voice"
 msgstr "Stem"
 
 #: src/settings_window.cpp
+msgid "Apps"
+msgstr ""
+
+#: src/settings_window.cpp
 msgid "Font: this theme has its own"
 msgstr "Lettertype: dit thema heeft een eigen"
 
@@ -12696,14 +12400,6 @@ msgstr "Seconde"
 #: src/settings_window.cpp
 msgid "Timeout (0 off), Brightness"
 msgstr "Time-out (0 uit), helderheid"
-
-#: src/settings_window.cpp
-msgid "Screen dims after, seconds, 0 never"
-msgstr "Scherm dimt na, seconden, 0 nooit"
-
-#: src/settings_window.cpp
-msgid "Brightness, dimmed and normal"
-msgstr "Helderheid, gedimd en normaal"
 
 #: src/settings_window.cpp
 msgid "Buttons brightness"
@@ -14575,11 +14271,6 @@ msgid "Waiting for Tailscale..."
 msgstr "Wachten op Tailscale..."
 
 #: src/settings_window.cpp
-#, c-format
-msgid "Tailscale: %s"
-msgstr ""
-
-#: src/settings_window.cpp
 msgid "Scan with a phone and log in to Tailscale, or open the link on the web page: Remote > Tailscale"
 msgstr "Scan met een telefoon en meld je aan bij Tailscale, of open de link op de webpagina: Remote > Tailscale"
 
@@ -14590,6 +14281,11 @@ msgstr "Scan met een telefoon en sta Funnel toe voor je tailnet in de beheercons
 #: src/settings_window.cpp
 msgid "asks for a new login"
 msgstr "vraagt een nieuwe aanmelding"
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Tailscale: %s"
+msgstr ""
 
 #: src/settings_window.cpp
 msgid "the helper failed"
@@ -14622,10 +14318,6 @@ msgstr " funnel uit"
 #: src/settings_window.cpp
 msgid "press again to log out"
 msgstr "druk nogmaals om af te melden"
-
-#: src/settings_window.cpp
-msgid "Press again to log out"
-msgstr "Druk nogmaals om af te melden"
 
 #: src/settings_window.cpp
 msgid "Logging out..."
@@ -14792,11 +14484,6 @@ msgstr "Installeren: %ld van %ld bestanden"
 #: src/settings_window.cpp
 msgid "Finishing..."
 msgstr "Afronden..."
-
-#: src/settings_window.cpp
-#, c-format
-msgid "Downloaded %d percent"
-msgstr "%d procent gedownload"
 
 #: src/settings_window.cpp
 #, c-format
@@ -15154,16 +14841,6 @@ msgid "SVX LINK"
 msgstr "SVX-LINK"
 
 #: src/swrscan_window.c
-#, c-format
-msgid "%s, nothing measured"
-msgstr "%s, niets gemeten"
-
-#: src/swrscan_window.c
-#, c-format
-msgid "%s, lowest S W R %.1f at %s, highest %.1f at %s"
-msgstr "%s, laagste S W R %.1f op %s, hoogste %.1f op %s"
-
-#: src/swrscan_window.c
 msgid "SWR scan: not while transmitting or tuning"
 msgstr "SWR-scan: niet tijdens zenden of afstemmen"
 
@@ -15394,16 +15071,6 @@ msgid "Hello. This is voice B D L"
 msgstr "Hallo. Dit is stem B D L"
 
 #: src/voice.cpp
-#, c-format
-msgid "speak: %s"
-msgstr ""
-
-#: src/voice.cpp
-#, c-format
-msgid "spoke: %i"
-msgstr ""
-
-#: src/voice.cpp
 msgid "Speech is not on this card image"
 msgstr "Spraak zit niet in deze kaartimage"
 
@@ -15412,75 +15079,17 @@ msgid "Speech: when the screen is off"
 msgstr "Spraak: als het scherm uit is"
 
 #: src/voice.cpp
-msgid "Speech when the screen is off"
-msgstr "Spraak als het scherm uit is"
-
-#: src/voice.cpp
 msgid "Speech: always"
 msgstr "Spraak: altijd"
-
-#: src/voice.cpp
-msgid "Speech always"
-msgstr "Spraak altijd"
 
 #: src/voice.cpp
 msgid "Speech: off"
 msgstr "Spraak: uit"
 
-#: src/voice.cpp
-msgid "Speech off. Hold D F N for speech again"
-msgstr "Spraak uit. Houd D F N ingedrukt voor spraak"
-
-#: src/voice.cpp
-#, c-format
-msgid "refused: recorder %i, on air %i (state %i), voice message rec %i"
-msgstr ""
-
-#: src/voice.cpp
-msgid "refused: screen on, mode screen off only"
-msgstr ""
-
-#: src/voice.cpp
-msgid "refused: speaking, interrupting off"
-msgstr ""
-
-#: src/voice.cpp
-#, c-format
-msgid "say (%u ms): %s"
-msgstr ""
-
-#: src/voice.cpp
-#, c-format
-msgid "%s is %s"
-msgstr ""
-
-#: src/voice.cpp
-#, c-format
-msgid "ctrl: [%s] -> [%s]"
-msgstr ""
-
-#: src/voice.cpp
-msgid "(null)"
-msgstr ""
-
-#: src/voice_focus.c
-msgid "Nothing to read"
-msgstr "Niets voor te lezen"
-
-#: src/voice_focus.c
-#, c-format
-msgid "%s, nothing to read"
-msgstr "%s, niets voor te lezen"
-
 #: src/voice_focus.c
 #, c-format
 msgid "%s%s%d line%s. Small knob: line by line. %s"
 msgstr "%s%s%d regel%s. Kleine knop: regel voor regel. %s"
-
-#: src/voice_focus.c
-#, c-format
-msgid "%s, %d of %d"
-msgstr "%s, %d van %d"
 
 #: src/voice_focus.c
 #, c-format
@@ -15675,14 +15284,6 @@ msgid ""
 "%i s"
 msgstr ""
 
-#: src/voice_messages.c src/winlink_mail.c
-msgid "Listening"
-msgstr "Luistert"
-
-#: src/voice_messages.c src/winlink_mail.c
-msgid "Ready"
-msgstr "Gereed"
-
 #: src/voice_messages.c
 #, c-format
 msgid ""
@@ -15758,21 +15359,6 @@ msgstr "Opname: neem het eerste bericht op"
 
 #: src/voice_messages.c
 #, c-format
-msgid "%i seconds"
-msgstr "%i seconden"
-
-#: src/voice_messages.c
-#, c-format
-msgid "Interval, %i seconds. Turn the small knob to change, F2 to keep"
-msgstr "Interval, %i seconden. Draai aan de kleine knop om te wijzigen, F2 om te bewaren"
-
-#: src/voice_messages.c
-#, c-format
-msgid "Interval kept, %i seconds"
-msgstr "Interval bewaard, %i seconden"
-
-#: src/voice_messages.c
-#, c-format
 msgid "Press Delete again to delete \"%s\""
 msgstr "Druk nogmaals op Wissen om \"%s\" te wissen"
 
@@ -15806,10 +15392,6 @@ msgstr ""
 #, c-format
 msgid "VOICE KEYER (TX) - #%06x %s#"
 msgstr ""
-
-#: src/voice_messages.c
-msgid "Voice keyer. Small knob: the messages, press: listen. F2 record, F3 listen, F4 send, F5 auto call"
-msgstr "Spraak-keyer. Kleine knop: de berichten, drukken: beluisteren. F2 opnemen, F3 beluisteren, F4 zenden, F5 auto-oproep"
 
 #: src/voice_net.c
 msgid "not sent"
@@ -15885,11 +15467,6 @@ msgstr "niet terwijl de radio zendt"
 msgid "no Bluetooth mic connected"
 msgstr "geen Bluetooth-micro verbonden"
 
-#: src/vol_control.cpp
-#, c-format
-msgid "vol_update diff %i ctrl %i: [%s]"
-msgstr ""
-
 #: src/walkie.c
 #, c-format
 msgid "%s%sChannel %d, empty, Store puts the frequency in it"
@@ -15903,15 +15480,6 @@ msgstr "%s%sKanaal %d, %s, %s"
 #: src/walkie.c
 msgid "Memory mode, the tuning knob steps the channels"
 msgstr "Geheugenmodus, de afstemknop stapt door de kanalen"
-
-#: src/walkie.c
-msgid "V F O mode, the tuning knob tunes"
-msgstr "V F O-modus, de afstemknop stemt af"
-
-#: src/walkie.c
-#, c-format
-msgid "Channel %d cleared"
-msgstr "Kanaal %d gewist"
 
 #: src/walkie.c
 msgid "Band +"
@@ -15972,16 +15540,8 @@ msgid "No digital modes in walkie mode"
 msgstr "Geen digitale modi in walkiemodus"
 
 #: src/walkie.c
-msgid "Walkie screen, the F-keys down the left, F1 at the top"
-msgstr "Walkie-scherm, de F-toetsen links onder elkaar, F1 bovenaan"
-
-#: src/walkie.c
 msgid "Hold APP to leave walkie mode"
 msgstr "Houd APP ingedrukt om de walkie-modus te verlaten"
-
-#: src/walkie.c
-msgid "Walkie off"
-msgstr "Walkie uit"
 
 #: src/wavelog_cat.c
 msgid "No such mode"
@@ -16589,15 +16149,6 @@ msgid "Enhanced Open (OWE)"
 msgstr ""
 
 #: src/wifi.cpp
-msgid "WiFi connected"
-msgstr "WiFi verbonden"
-
-#: src/wifi.cpp
-#, c-format
-msgid "WiFi connected, address %s"
-msgstr "WiFi verbonden, adres %s"
-
-#: src/wifi.cpp
 #, c-format
 msgid "Error: Failed to modify connection '%s': %s"
 msgstr "Fout: kon verbinding '%s' niet wijzigen: %s"
@@ -16716,17 +16267,8 @@ msgid "%s%s%s, %s, signal %u percent, %u of %u"
 msgstr "%s%s%s, %s, signaal %u procent, %u van %u"
 
 #: src/wifi_window.c
-#, c-format
-msgid "WiFi. %s. Small knob: the networks. F-keys: connect, scan, password, delete"
-msgstr "WiFi. %s. Kleine knop: de netwerken. F-toetsen: verbinden, scannen, wachtwoord, wissen"
-
-#: src/wifi_window.c
 msgid "Password is required"
 msgstr "Wachtwoord vereist"
-
-#: src/wifi_window.c
-msgid "Password for the network. Turn the small knob for the keys, press it to type, done to finish"
-msgstr "Wachtwoord voor het netwerk. Draai aan de kleine knop voor de toetsen, druk erop om te typen, klaar om af te ronden"
 
 #: src/wifi_window.c
 msgid "Already scanning"
@@ -16767,11 +16309,6 @@ msgstr "Uit: Ethernet verbonden"
 #: src/wifi_window.c
 msgid "Disconnected"
 msgstr "Verbinding verbroken"
-
-#: src/wifi_window.c
-#, c-format
-msgid "WiFi %s"
-msgstr ""
 
 #: src/wifi_window.c
 msgid "Status:"
@@ -17273,10 +16810,6 @@ msgid "Message"
 msgstr "Bericht"
 
 #: src/winlink_mail.c
-msgid "Message. Up, Down or M F K: line by line. R: reply. Escape: back"
-msgstr "Bericht. Omhoog, Omlaag of M F K: regel voor regel. R: antwoorden. Escape: terug"
-
-#: src/winlink_mail.c
 msgid "Receiving"
 msgstr "Ontvangt"
 
@@ -17322,6 +16855,10 @@ msgstr "#%06x %d ongelezen#"
 #, c-format
 msgid "%d to send"
 msgstr "%d te verzenden"
+
+#: src/winlink_mail.c
+msgid "Ready"
+msgstr "Gereed"
 
 #: src/winlink_mail.c
 msgid "Starting"
@@ -17439,6 +16976,10 @@ msgstr "Terug"
 #: src/winlink_mail.c
 msgid "Connection"
 msgstr "Verbinding"
+
+#: src/winlink_mail.c
+msgid "Listening"
+msgstr "Luistert"
 
 #: src/winlink_mail.c
 msgid ""
@@ -17877,6 +17418,346 @@ msgstr "ZELLO-LINK"
 #: src/zello.c
 msgid "not on a channel yet"
 msgstr "nog niet op een kanaal"
+
+#. not in the list: a line or a word of a longer text
+msgid "Receiving picture, %s"
+msgstr "Ontvangt beeld, %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Closed"
+msgstr "Gesloten"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, %s, %s, %i of %i"
+msgstr "%s, %s, %s, %i van %i"
+
+#. not in the list: a line or a word of a longer text
+msgid "F%d, not used"
+msgstr "F%d, niet gebruikt"
+
+#. not in the list: a line or a word of a longer text
+msgid "CW messages. Small knob: the messages. F2 send, F3 new, F4 edit"
+msgstr "CW-berichten. Kleine knop: de berichten. F2 zenden, F3 nieuw, F4 bewerken"
+
+#. not in the list: a line or a word of a longer text
+msgid "Opens %s"
+msgstr "Opent %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Opens no app"
+msgstr "Opent geen app"
+
+#. not in the list: a line or a word of a longer text
+msgid "Moving %s. Turn the small knob to move it, F5 to drop it there"
+msgstr "%s verplaatsen. Draai aan de kleine knop om het te verschuiven, F5 om het daar neer te zetten"
+
+#. not in the list: a line or a word of a longer text
+msgid "the channel"
+msgstr "het kanaal"
+
+#. not in the list: a line or a word of a longer text
+msgid "Dropped at %d of %d, saved"
+msgstr "Neergezet op %d van %d, opgeslagen"
+
+#. not in the list: a line or a word of a longer text
+msgid "Not saved: the order is as before"
+msgstr "Niet opgeslagen: de volgorde is als voorheen"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, %s%s%s, spotted by %s, %i of %i"
+msgstr "%s, %s%s%s, gespot door %s, %i van %i"
+
+#. not in the list: a line or a word of a longer text
+msgid "DX cluster. Small knob: the spots, press: tune. F3 tune"
+msgstr "DX-cluster. Kleine knop: de spots, drukken: afstemmen. F3 afstemmen"
+
+#. not in the list: a line or a word of a longer text
+msgid "Right, %i W P M%s"
+msgstr "Goed, %i W P M%s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Wrong, it was %s, %i W P M%s"
+msgstr "Fout, het was %s, %i W P M%s"
+
+#. not in the list: a line or a word of a longer text
+msgid "OK, done"
+msgstr "OK, klaar"
+
+#. not in the list: a line or a word of a longer text
+msgid "Right, %s. Score %i of %i"
+msgstr "Goed, %s. Score %i van %i"
+
+#. not in the list: a line or a word of a longer text
+msgid "Wrong, sent %s, typed %s. Score %i of %i"
+msgstr "Fout, gezonden %s, getypt %s. Score %i van %i"
+
+#. not in the list: a line or a word of a longer text
+msgid "Wrong, sent %s, heard %s"
+msgstr "Fout, gezonden %s, gehoord %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Talking: %s, a private call to you"
+msgstr "Spreekt: %s, een privéoproep voor jou"
+
+#. not in the list: a line or a word of a longer text
+msgid "Talking: %s, T G %u"
+msgstr "Spreekt: %s, T G %u"
+
+#. not in the list: a line or a word of a longer text
+msgid "DMR, talkgroups on the internet, listening only. MFK: choose a talkgroup"
+msgstr "DMR, gespreksgroepen op het internet, alleen luisteren. MFK: kies een gespreksgroep"
+
+#. not in the list: a line or a word of a longer text
+msgid "R A D E searching"
+msgstr "R A D E zoekt"
+
+#. not in the list: a line or a word of a longer text
+msgid "Heard %s"
+msgstr "%s gehoord"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, %s%s%s, %i of %i"
+msgstr "%s, %s%s%s, %i van %i"
+
+#. not in the list: a line or a word of a longer text
+msgid "Digital modes"
+msgstr "Digitale modi"
+
+#. not in the list: a line or a word of a longer text
+msgid "Propagation, conditions"
+msgstr "Propagatie, condities"
+
+#. not in the list: a line or a word of a longer text
+msgid "Busy, %s"
+msgstr "Bezet, %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Scanning"
+msgstr "Scannen"
+
+#. not in the list: a line or a word of a longer text
+msgid "Paused, %s"
+msgstr "Gepauzeerd, %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Scanner stopped"
+msgstr "Scanner gestopt"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tune over, %d second limit%s"
+msgstr "Tune afgelopen, limiet van %d seconden%s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tune stopped%s%s"
+msgstr "Tune gestopt%s%s"
+
+#. not in the list: a line or a word of a longer text
+msgid "For you: %s"
+msgstr "Voor jou: %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "%i C Q, %i other"
+msgstr "%i C Q, %i andere"
+
+#. not in the list: a line or a word of a longer text
+msgid "%i decoded"
+msgstr "%i gedecodeerd"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, %u of %u"
+msgstr "%s, %u van %u"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s%s%s, %i d B%s%s%s, %i of %i"
+msgstr "%s%s%s, %i d B%s%s%s, %i van %i"
+
+#. not in the list: a line or a word of a longer text
+msgid ", new country"
+msgstr ", nieuw land"
+
+#. not in the list: a line or a word of a longer text
+msgid "No stations yet"
+msgstr "Nog geen stations"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tiles, %i station%s. M F K: station by station, press: call it"
+msgstr "Tegels, %i station%s. M F K: station voor station, drukken: oproepen"
+
+#. not in the list: a line or a word of a longer text
+msgid "Traffic, the decode list"
+msgstr "Verkeer, de decodeerlijst"
+
+#. not in the list: a line or a word of a longer text
+msgid "GPS fix, %s, grid %s"
+msgstr "GPS-fix, %s, locator %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "GPS fix lost"
+msgstr "GPS-fix verloren"
+
+#. not in the list: a line or a word of a longer text
+msgid "Open X 6 X hundred, ready"
+msgstr "Open X 6 X honderd, klaar"
+
+#. not in the list: a line or a word of a longer text
+msgid "For you, from %s: %s"
+msgstr "Voor jou, van %s: %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s%s, %d d B%s, %d of %d"
+msgstr "%s%s, %d d B%s, %d van %d"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tuner done, S W R %.1f"
+msgstr "Tuner klaar, S W R %.1f"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tuner done"
+msgstr "Tuner klaar"
+
+#. not in the list: a line or a word of a longer text
+msgid "Pair code: %s. Again: %s. Good for 2 minutes."
+msgstr "Koppelcode: %s. Nog eens: %s. Geldig voor 2 minuten."
+
+#. not in the list: a line or a word of a longer text
+msgid ", dial locked"
+msgstr ", afstemming vergrendeld"
+
+#. not in the list: a line or a word of a longer text
+msgid "Band locked by the app"
+msgstr "Band vergrendeld door de app"
+
+#. not in the list: a line or a word of a longer text
+msgid "No long press action set"
+msgstr "Geen actie voor lang drukken ingesteld"
+
+#. not in the list: a line or a word of a longer text
+msgid "VFO locked by the app"
+msgstr "VFO vergrendeld door de app"
+
+#. not in the list: a line or a word of a longer text
+msgid "VFO %s copied to %s"
+msgstr "VFO %s gekopieerd naar %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Mode locked by the app"
+msgstr "Modus vergrendeld door de app"
+
+#. not in the list: a line or a word of a longer text
+msgid "V M, not used here"
+msgstr "V M, hier niet gebruikt"
+
+#. not in the list: a line or a word of a longer text
+msgid "Not used"
+msgstr "Niet gebruikt"
+
+#. not in the list: a line or a word of a longer text
+msgid "Channel %s, %s"
+msgstr "Kanaal %s, %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "No channels"
+msgstr "Geen kanalen"
+
+#. not in the list: a line or a word of a longer text
+msgid "Screen dims after, seconds, 0 never"
+msgstr "Scherm dimt na, seconden, 0 nooit"
+
+#. not in the list: a line or a word of a longer text
+msgid "Brightness, dimmed and normal"
+msgstr "Helderheid, gedimd en normaal"
+
+#. not in the list: a line or a word of a longer text
+msgid "Press again to log out"
+msgstr "Druk nogmaals om af te melden"
+
+#. not in the list: a line or a word of a longer text
+msgid "Downloaded %d percent"
+msgstr "%d procent gedownload"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, nothing measured"
+msgstr "%s, niets gemeten"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, lowest S W R %.1f at %s, highest %.1f at %s"
+msgstr "%s, laagste S W R %.1f op %s, hoogste %.1f op %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Speech when the screen is off"
+msgstr "Spraak als het scherm uit is"
+
+#. not in the list: a line or a word of a longer text
+msgid "Speech always"
+msgstr "Spraak altijd"
+
+#. not in the list: a line or a word of a longer text
+msgid "Speech off. Hold D F N for speech again"
+msgstr "Spraak uit. Houd D F N ingedrukt voor spraak"
+
+#. not in the list: a line or a word of a longer text
+msgid "Nothing to read"
+msgstr "Niets voor te lezen"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, nothing to read"
+msgstr "%s, niets voor te lezen"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, %d of %d"
+msgstr "%s, %d van %d"
+
+#. not in the list: a line or a word of a longer text
+msgid "%i seconds"
+msgstr "%i seconden"
+
+#. not in the list: a line or a word of a longer text
+msgid "Interval, %i seconds. Turn the small knob to change, F2 to keep"
+msgstr "Interval, %i seconden. Draai aan de kleine knop om te wijzigen, F2 om te bewaren"
+
+#. not in the list: a line or a word of a longer text
+msgid "Interval kept, %i seconds"
+msgstr "Interval bewaard, %i seconden"
+
+#. not in the list: a line or a word of a longer text
+msgid "Voice keyer. Small knob: the messages, press: listen. F2 record, F3 listen, F4 send, F5 auto call"
+msgstr "Spraak-keyer. Kleine knop: de berichten, drukken: beluisteren. F2 opnemen, F3 beluisteren, F4 zenden, F5 auto-oproep"
+
+#. not in the list: a line or a word of a longer text
+msgid "V F O mode, the tuning knob tunes"
+msgstr "V F O-modus, de afstemknop stemt af"
+
+#. not in the list: a line or a word of a longer text
+msgid "Channel %d cleared"
+msgstr "Kanaal %d gewist"
+
+#. not in the list: a line or a word of a longer text
+msgid "Walkie screen, the F-keys down the left, F1 at the top"
+msgstr "Walkie-scherm, de F-toetsen links onder elkaar, F1 bovenaan"
+
+#. not in the list: a line or a word of a longer text
+msgid "Walkie off"
+msgstr "Walkie uit"
+
+#. not in the list: a line or a word of a longer text
+msgid "WiFi connected"
+msgstr "WiFi verbonden"
+
+#. not in the list: a line or a word of a longer text
+msgid "WiFi connected, address %s"
+msgstr "WiFi verbonden, adres %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "WiFi. %s. Small knob: the networks. F-keys: connect, scan, password, delete"
+msgstr "WiFi. %s. Kleine knop: de netwerken. F-toetsen: verbinden, scannen, wachtwoord, wissen"
+
+#. not in the list: a line or a word of a longer text
+msgid "Password for the network. Turn the small knob for the keys, press it to type, done to finish"
+msgstr "Wachtwoord voor het netwerk. Draai aan de kleine knop voor de toetsen, druk erop om te typen, klaar om af te ronden"
+
+#. not in the list: a line or a word of a longer text
+msgid "Message. Up, Down or M F K: line by line. R: reply. Escape: back"
+msgstr "Bericht. Omhoog, Omlaag of M F K: regel voor regel. R: antwoorden. Escape: terug"
 
 #. not in the list: a line or a word of a longer text
 msgid "next %02d:%02d"

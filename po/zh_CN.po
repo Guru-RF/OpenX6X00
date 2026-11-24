@@ -347,11 +347,6 @@ msgid "Decoding Cont %s"
 msgstr "继续解码 %s"
 
 #: src/app_sstv.c
-#, c-format
-msgid "Receiving picture, %s"
-msgstr "正在接收图片, %s"
-
-#: src/app_sstv.c
 msgid "SSTV - calling frequencies"
 msgstr "SSTV - 呼叫频率"
 
@@ -641,10 +636,6 @@ msgstr "SSTV 发射已中止"
 msgid "SSTV TX failed (%d)"
 msgstr "SSTV 发射失败 (%d)"
 
-#: src/app_window.c
-msgid "Closed"
-msgstr "已关闭"
-
 #: src/apps_menu.c src/button_bar.cpp src/settings_window.cpp
 msgid "Modes"
 msgstr "模式"
@@ -775,8 +766,7 @@ msgstr "网络广播"
 msgid "Internet stations"
 msgstr "互联网电台"
 
-#: src/apps_menu.c src/button_bar.cpp src/dialog_zello.c src/screen_main.c
-#: src/zello.c
+#: src/apps_menu.c src/button_bar.cpp src/screen_main.c src/zello.c
 msgid "Zello"
 msgstr ""
 
@@ -784,7 +774,7 @@ msgstr ""
 msgid "Internet voice"
 msgstr "网络语音"
 
-#: src/apps_menu.c src/button_bar.cpp src/dialog_svx.c src/screen_main.c
+#: src/apps_menu.c src/button_bar.cpp src/screen_main.c
 msgid "SVXConnect"
 msgstr ""
 
@@ -834,26 +824,12 @@ msgid "All settings"
 msgstr "全部设置"
 
 #: src/apps_menu.c
-#, c-format
-msgid "%s, %s, %s, %i of %i"
-msgstr "%s, %s, %s, 第 %i 项, 共 %i 项"
-
-#: src/apps_menu.c src/dialog_field.c
-#, c-format
-msgid "%s, %s, %i of %i"
-msgstr "%s, %s, 第 %i 项, 共 %i 项"
-
-#: src/apps_menu.c
 msgid "APPS"
 msgstr "应用"
 
 #: src/apps_menu.c
 msgid "MFK: choose - press: open - APP or ESC: close"
 msgstr "MFK:选择 - 按下:打开 - APP 或 ESC:关闭"
-
-#: src/apps_menu.c src/settings_window.cpp
-msgid "Apps"
-msgstr "应用"
 
 #: src/audio.c
 msgid "X6100 GUI Play"
@@ -1778,11 +1754,6 @@ msgstr "%s 第 %d 页"
 
 #: src/button_bar.cpp
 #, c-format
-msgid "F%d, not used"
-msgstr "F%d, 未使用"
-
-#: src/button_bar.cpp
-#, c-format
 msgid "%s, unavailable"
 msgstr "%s, 不可用"
 
@@ -2174,9 +2145,9 @@ msgstr "新建"
 msgid "Edit"
 msgstr "编辑"
 
-#: src/cw_messages.c src/dialog_channels.c src/dialog_cw_trainer.c
-#: src/js8_window.c src/recorder_window.c src/settings_window.cpp
-#: src/voice_messages.c src/wefax_window.c src/wifi_window.c src/winlink_mail.c
+#: src/cw_messages.c src/dialog_channels.c src/js8_window.c
+#: src/recorder_window.c src/settings_window.cpp src/voice_messages.c
+#: src/wefax_window.c src/wifi_window.c src/winlink_mail.c
 msgid "Delete"
 msgstr "删除"
 
@@ -2454,7 +2425,7 @@ msgstr ""
 msgid "%s%sNo messages yet. F3 adds one"
 msgstr "%s%s还没有消息. F3 添加"
 
-#: src/cw_messages.c src/dialog_iradio.c src/dialog_modes.c
+#: src/cw_messages.c src/dialog_iradio.c
 #, c-format
 msgid "%s%s%s, %i of %i"
 msgstr "%s%s%s, 第 %i 项, 共 %i 项"
@@ -2499,10 +2470,6 @@ msgstr "再按\"删除\"删除此消息"
 #: src/cw_messages.c src/js8_window.c
 msgid "Message deleted"
 msgstr "消息已删除"
-
-#: src/cw_messages.c
-msgid "CW messages. Small knob: the messages. F2 send, F3 new, F4 edit"
-msgstr "CW 消息. 小旋钮: 选择消息. F2 发送, F3 新建, F4 编辑"
 
 #: src/cw_parse.c src/field/flog.c
 msgid "NAME"
@@ -3070,35 +3037,8 @@ msgid "Channel opens %s"
 msgstr "频道打开 %s"
 
 #: src/dialog_channels.c
-#, c-format
-msgid "Opens %s"
-msgstr "打开 %s"
-
-#: src/dialog_channels.c
 msgid "Channel opens no app"
 msgstr "频道不打开应用"
-
-#: src/dialog_channels.c
-msgid "Opens no app"
-msgstr "不打开应用"
-
-#: src/dialog_channels.c
-#, c-format
-msgid "Moving %s. Turn the small knob to move it, F5 to drop it there"
-msgstr "正在移动 %s. 转动小旋钮移动, F5 放到此处"
-
-#: src/dialog_channels.c
-msgid "the channel"
-msgstr "频道"
-
-#: src/dialog_channels.c
-#, c-format
-msgid "Dropped at %d of %d, saved"
-msgstr "已放到第 %d 个 (共 %d 个), 已保存"
-
-#: src/dialog_channels.c
-msgid "Not saved: the order is as before"
-msgstr "未保存: 顺序保持原样"
 
 #: src/dialog_channels.c
 msgid "CHANNELS"
@@ -3228,17 +3168,8 @@ msgid " - RX only"
 msgstr " - 仅接收"
 
 #: src/dialog_cluster.c
-#, c-format
-msgid "%s, %s%s%s, spotted by %s, %i of %i"
-msgstr "%s, %s%s%s, 报告者 %s, 第 %i 项, 共 %i 项"
-
-#: src/dialog_cluster.c
 msgid "MFK: browse - press: tune - VFO: follow"
 msgstr "MFK: 浏览 - 按下: 调谐 - VFO: 跟随"
-
-#: src/dialog_cluster.c
-msgid "DX cluster. Small knob: the spots, press: tune. F3 tune"
-msgstr "DX 集群. 小旋钮: 选择报告, 按下: 调谐. F3 调谐"
 
 #: src/dialog_cluster.c src/radio_controls.cpp
 #, c-format
@@ -3597,16 +3528,6 @@ msgid ". Run complete, score %s"
 msgstr ". 本轮完成, 得分 %s"
 
 #: src/dialog_cw_trainer.c
-#, c-format
-msgid "Right, %i W P M%s"
-msgstr "正确, %i W P M%s"
-
-#: src/dialog_cw_trainer.c
-#, c-format
-msgid "Wrong, it was %s, %i W P M%s"
-msgstr "错误, 应为 %s, %i W P M%s"
-
-#: src/dialog_cw_trainer.c
 msgid "Start: a new run of 50 callsigns"
 msgstr "开始: 新一轮 50 个呼号"
 
@@ -3738,20 +3659,6 @@ msgid "Del"
 msgstr "删除"
 
 #: src/dialog_cw_trainer.c
-msgid "OK, done"
-msgstr "好, 完成"
-
-#: src/dialog_cw_trainer.c
-#, c-format
-msgid "Right, %s. Score %i of %i"
-msgstr "正确, %s. 得分 %i/%i"
-
-#: src/dialog_cw_trainer.c
-#, c-format
-msgid "Wrong, sent %s, typed %s. Score %i of %i"
-msgstr "错误, 发送的是 %s, 输入的是 %s. 得分 %i/%i"
-
-#: src/dialog_cw_trainer.c
 #, c-format
 msgid "CW TRAINER - #%06x Practice#"
 msgstr "CW 练习 - #%06x 自由练习#"
@@ -3785,11 +3692,6 @@ msgstr "用自动键拍发字组. 重播: 再听一遍"
 #: src/dialog_cw_trainer.c
 msgid "Heard: "
 msgstr "听到: "
-
-#: src/dialog_cw_trainer.c
-#, c-format
-msgid "Wrong, sent %s, heard %s"
-msgstr "错误, 发送的是 %s, 听成了 %s"
 
 #: src/dialog_cw_trainer.c
 msgid "Start: resume. Skip: another group"
@@ -3890,16 +3792,6 @@ msgstr "热点"
 msgid "Logging in to the network"
 msgstr "正在登录网络"
 
-#: src/dialog_dmr.c
-#, c-format
-msgid "Talking: %s, a private call to you"
-msgstr "正在讲话: %s, 给你的私人呼叫"
-
-#: src/dialog_dmr.c
-#, c-format
-msgid "Talking: %s, T G %u"
-msgstr "正在讲话: %s, 通话组 %u"
-
 #: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c
 msgid "Talking now:"
 msgstr "正在讲话:"
@@ -3944,10 +3836,6 @@ msgstr "请先设置呼号 (设置 > 常规)"
 #: src/dialog_dmr.c
 msgid "talkgroups on the internet, listening only, never on the air"
 msgstr "互联网上的通话组, 仅收听, 不经无线发射"
-
-#: src/dialog_dmr.c
-msgid "DMR, talkgroups on the internet, listening only. MFK: choose a talkgroup"
-msgstr "DMR, 互联网上的通话组, 仅收听. MFK: 选择通话组"
 
 #: src/dialog_field.c
 msgid "x6100-wavelog sync 2>/dev/null"
@@ -4309,6 +4197,11 @@ msgid ""
 msgstr ""
 "重复报告\n"
 "关"
+
+#: src/dialog_field.c
+#, c-format
+msgid "%s, %s, %i of %i"
+msgstr "%s, %s, 第 %i 项, 共 %i 项"
 
 #: src/dialog_field.c
 msgid "FIELD OPERATIONS"
@@ -5091,19 +4984,6 @@ msgid "SYNC"
 msgstr "同步"
 
 #: src/dialog_freedv.c
-msgid "R A D E sync"
-msgstr "R A D E 已同步"
-
-#: src/dialog_freedv.c
-msgid "R A D E searching"
-msgstr "R A D E 搜索中"
-
-#: src/dialog_freedv.c
-#, c-format
-msgid "Heard %s"
-msgstr "听到 %s"
-
-#: src/dialog_freedv.c
 #, c-format
 msgid "Bluetooth headphones, TCI / browser (%d)"
 msgstr "蓝牙耳机, TCI / 浏览器 (%d)"
@@ -5871,11 +5751,6 @@ msgid "Olivia"
 msgstr ""
 
 #: src/dialog_modes.c
-#, c-format
-msgid "%s, %s%s%s, %i of %i"
-msgstr "%s, %s%s%s, 第 %i 项, 共 %i 项"
-
-#: src/dialog_modes.c
 msgid "DIGITAL MODES"
 msgstr "数字模式"
 
@@ -5886,10 +5761,6 @@ msgstr "上次使用"
 #: src/dialog_modes.c
 msgid "MFK: choose - press: open - Modes: close"
 msgstr "MFK: 选择 - 按下: 打开 - 模式: 关闭"
-
-#: src/dialog_modes.c
-msgid "Digital modes"
-msgstr "数字模式"
 
 #: src/dialog_olivia.c
 msgid ""
@@ -6134,10 +6005,6 @@ msgid "%s, day %s, night %s"
 msgstr "%s, 白天 %s, 夜间 %s"
 
 #: src/dialog_propagation.c
-msgid "Propagation, conditions"
-msgstr "传播, 条件"
-
-#: src/dialog_propagation.c
 msgid "PROPAGATION"
 msgstr "传播"
 
@@ -6346,24 +6213,6 @@ msgstr ""
 #: src/dialog_scan.c
 msgid "Scanner: not while transmitting"
 msgstr "扫描: 发射时不可用"
-
-#: src/dialog_scan.c
-#, c-format
-msgid "Busy, %s"
-msgstr "有信号, %s"
-
-#: src/dialog_scan.c
-msgid "Scanning"
-msgstr "正在扫描"
-
-#: src/dialog_scan.c
-#, c-format
-msgid "Paused, %s"
-msgstr "已暂停, %s"
-
-#: src/dialog_scan.c
-msgid "Scanner stopped"
-msgstr "扫描已停止"
 
 #: src/dialog_snake.c
 msgid "Restart"
@@ -7270,18 +7119,8 @@ msgstr "TUNE 结束: %d s 上限"
 
 #: src/ext_tune.c
 #, c-format
-msgid "Tune over, %d second limit%s"
-msgstr "调谐结束, %d 秒上限%s"
-
-#: src/ext_tune.c
-#, c-format
 msgid "TUNE stopped%s"
 msgstr "TUNE 已停止%s"
-
-#: src/ext_tune.c
-#, c-format
-msgid "Tune stopped%s%s"
-msgstr "调谐已停止%s%s"
 
 #: src/ext_tune.c
 msgid "TUNE stopped by the radio"
@@ -7885,7 +7724,7 @@ msgstr "时隙 %s"
 msgid "Sent, "
 msgstr "已发送, "
 
-#: src/ft8/decode_list.c src/ft8_window.c
+#: src/ft8/decode_list.c
 msgid ", worked"
 msgstr ", 已通联"
 
@@ -7897,29 +7736,9 @@ msgstr ", 已在其他波段或模式通联"
 msgid ", new"
 msgstr ", 新"
 
-#: src/ft8/decode_list.c
-#, c-format
-msgid "For you: %s"
-msgstr "给你的: %s"
-
-#: src/ft8/decode_list.c
-#, c-format
-msgid "%i C Q, %i other"
-msgstr "%i 个 C Q, %i 个其他"
-
-#: src/ft8/decode_list.c
-#, c-format
-msgid "%i decoded"
-msgstr "已解码 %i 个"
-
 #: src/ft8/decode_list.c src/ft8_window.c
 msgid "worked"
 msgstr "已通联"
-
-#: src/ft8/decode_list.c
-#, c-format
-msgid "%s, %u of %u"
-msgstr "%s, 第 %u 项, 共 %u 项"
 
 #: src/ft8_udp.c
 msgid "239.255.0.0,gateway"
@@ -7945,19 +7764,6 @@ msgstr "正在收听... 听到的电台会显示在这里"
 #: src/ft8_window.c
 msgid "Calling you, "
 msgstr "在呼叫你, "
-
-#: src/ft8_window.c
-#, c-format
-msgid "%s%s%s, %i d B%s%s%s, %i of %i"
-msgstr "%s%s%s, %i d B%s%s%s, 第 %i 项, 共 %i 项"
-
-#: src/ft8_window.c
-msgid ", new country"
-msgstr ", 新国家"
-
-#: src/ft8_window.c src/js8_window.c
-msgid "No stations yet"
-msgstr "还没有电台"
 
 #: src/ft8_window.c
 #, c-format
@@ -8092,15 +7898,6 @@ msgid ""
 msgstr ""
 "视图:\n"
 "通联"
-
-#: src/ft8_window.c
-#, c-format
-msgid "Tiles, %i station%s. M F K: station by station, press: call it"
-msgstr "磁贴, %i 个电台%.0s. M F K: 逐个电台, 按下: 呼叫它"
-
-#: src/ft8_window.c
-msgid "Traffic, the decode list"
-msgstr "通联, 解码列表"
 
 #: src/ft8_window.c
 msgid "No CQ in Hound mode"
@@ -8435,15 +8232,6 @@ msgstr "未定位"
 
 #: src/gps_window.c
 #, c-format
-msgid "GPS fix, %s, grid %s"
-msgstr "GPS 定位, %s, 网格 %s"
-
-#: src/gps_window.c
-msgid "GPS fix lost"
-msgstr "GPS 定位丢失"
-
-#: src/gps_window.c
-#, c-format
 msgid "%ld s ago"
 msgstr "%ld s 前"
 
@@ -8678,10 +8466,6 @@ msgstr "服务已启动"
 #: src/gui_main.c
 msgid " fault settings"
 msgstr ""
-
-#: src/gui_main.c
-msgid "Open X 6 X hundred, ready"
-msgstr "Open X 6 X hundred, 就绪"
 
 #: src/host/host_panel.c
 #, c-format
@@ -9142,11 +8926,6 @@ msgstr "正在收听 JS8..."
 
 #: src/js8_window.c
 #, c-format
-msgid "For you, from %s: %s"
-msgstr "给你的, 来自 %s: %s"
-
-#: src/js8_window.c
-#, c-format
 msgid "From %s: %s"
 msgstr "来自 %s: %s"
 
@@ -9462,11 +9241,6 @@ msgstr ", 听到你, %+d"
 #: src/js8_window.c
 msgid ", heard you"
 msgstr ", 听到你"
-
-#: src/js8_window.c
-#, c-format
-msgid "%s%s, %d d B%s, %d of %d"
-msgstr "%s%s, %d d B%s, 第 %d 项, 共 %d 项"
 
 #: src/js8_window.c
 msgid ""
@@ -11412,11 +11186,6 @@ msgstr "从 %s %s"
 msgid "Weather warning. %s"
 msgstr "天气预警. %s"
 
-#: src/mfk_control.cpp
-#, c-format
-msgid "mfk_update diff %i ctrl %i: [%s]"
-msgstr ""
-
 #: src/mic_keys.c
 msgid "SPCH"
 msgstr ""
@@ -11702,15 +11471,6 @@ msgid "Imported %u QSOs"
 msgstr "已导入 %u 条 QSO"
 
 #: src/radio.c
-#, c-format
-msgid "Tuner done, S W R %.1f"
-msgstr "天调完成, S W R %.1f"
-
-#: src/radio.c
-msgid "Tuner done"
-msgstr "天调完成"
-
-#: src/radio.c
 msgid "BATTERY HIGH TEMP!"
 msgstr "电池温度过高!"
 
@@ -11760,10 +11520,6 @@ msgstr "基带: 仅供测试的基带, 压缩器和 CESSB 关闭, 发射滤波 3
 #: src/radio.c
 msgid "Speaker always off: Settings > Audio"
 msgstr "扬声器始终关闭: 设置 > 音频"
-
-#: src/radio.c
-msgid "Volume,"
-msgstr "音量,"
 
 #: src/radio.c
 #, c-format
@@ -12191,11 +11947,6 @@ msgstr "配对码: #ffb020 %s#  (2 分钟)"
 
 #: src/remote_server.c
 #, c-format
-msgid "Pair code: %s. Again: %s. Good for 2 minutes."
-msgstr "配对码: %s. 再说一遍: %s. 2 分钟内有效."
-
-#: src/remote_server.c
-#, c-format
 msgid "Pairing paused %d min: three wrong codes. Settings > General > BROWSER REMOTE > Pair code gives one now"
 msgstr "配对暂停 %d 分钟: 三次代码错误. 设置 > 常规 > 浏览器远程 > 配对码 可立即获取新码"
 
@@ -12437,14 +12188,6 @@ msgid ", WiFi address %s"
 msgstr ", WiFi 地址 %s"
 
 #: src/screen_main.c
-msgid "Split "
-msgstr "异频 "
-
-#: src/screen_main.c
-msgid ", dial locked"
-msgstr ", 调谐已锁定"
-
-#: src/screen_main.c
 #, c-format
 msgid "Split %s"
 msgstr "异频 %s"
@@ -12457,10 +12200,6 @@ msgstr "充电器"
 #, c-format
 msgid "%.*s meters, "
 msgstr "%.*s 米, "
-
-#: src/screen_main.c
-msgid "Band locked by the app"
-msgstr "波段被应用锁定"
 
 #: src/screen_main.c
 msgid "Snake"
@@ -12477,10 +12216,6 @@ msgstr "网络广播"
 #: src/screen_main.c
 msgid "RADE needs headphones, TCI or the browser"
 msgstr "RADE 需要耳机, TCI 或浏览器"
-
-#: src/screen_main.c
-msgid "No long press action set"
-msgstr "未设置长按功能"
 
 #: src/screen_main.c
 msgid "Waterfall"
@@ -12503,22 +12238,9 @@ msgid "Headset mic busy"
 msgstr "耳麦话筒忙"
 
 #: src/screen_main.c
-msgid "VFO locked by the app"
-msgstr "VFO 被应用锁定"
-
-#: src/screen_main.c
 #, c-format
 msgid "Clone VFO %s"
 msgstr "复制 VFO %s"
-
-#: src/screen_main.c
-#, c-format
-msgid "VFO %s copied to %s"
-msgstr "VFO %s 已复制到 %s"
-
-#: src/screen_main.c
-msgid "Mode locked by the app"
-msgstr "模式被应用锁定"
 
 #: src/screen_main.c
 msgid "Pre"
@@ -12531,28 +12253,6 @@ msgstr "衰减"
 #: src/screen_main.c
 msgid "Power off"
 msgstr "关机"
-
-#: src/screen_main.c
-msgid "V M, not used here"
-msgstr "V M, 此处不可用"
-
-#: src/screen_main.c
-msgid "Not used"
-msgstr "未使用"
-
-#: src/screen_main.c
-#, c-format
-msgid "Channel %s, %s"
-msgstr "频道 %s, %s"
-
-#: src/screen_main.c
-msgid "No channels"
-msgstr "没有频道"
-
-#: src/screen_main.c
-#, c-format
-msgid "spectrum key %u"
-msgstr ""
 
 #: src/screen_main.c
 msgid "PTT off: CapsLock+Space for on"
@@ -12729,6 +12429,10 @@ msgid "Voice"
 msgstr "语音"
 
 #: src/settings_window.cpp
+msgid "Apps"
+msgstr "应用"
+
+#: src/settings_window.cpp
 msgid "Font: this theme has its own"
 msgstr "字体: 此主题自带字体"
 
@@ -12759,14 +12463,6 @@ msgstr "秒"
 #: src/settings_window.cpp
 msgid "Timeout (0 off), Brightness"
 msgstr "超时 (0 为关), 亮度"
-
-#: src/settings_window.cpp
-msgid "Screen dims after, seconds, 0 never"
-msgstr "屏幕变暗时间, 秒, 0 为从不"
-
-#: src/settings_window.cpp
-msgid "Brightness, dimmed and normal"
-msgstr "亮度, 变暗时和正常时"
 
 #: src/settings_window.cpp
 msgid "Buttons brightness"
@@ -14638,11 +14334,6 @@ msgid "Waiting for Tailscale..."
 msgstr "等待 Tailscale..."
 
 #: src/settings_window.cpp
-#, c-format
-msgid "Tailscale: %s"
-msgstr "Tailscale：%s"
-
-#: src/settings_window.cpp
 msgid "Scan with a phone and log in to Tailscale, or open the link on the web page: Remote > Tailscale"
 msgstr "用手机扫码登录 Tailscale, 或在网页上打开链接: Remote > Tailscale"
 
@@ -14653,6 +14344,11 @@ msgstr "用手机扫码, 在 Tailscale 管理控制台中为你的 tailnet 允�
 #: src/settings_window.cpp
 msgid "asks for a new login"
 msgstr "需要重新登录"
+
+#: src/settings_window.cpp
+#, c-format
+msgid "Tailscale: %s"
+msgstr "Tailscale：%s"
 
 #: src/settings_window.cpp
 msgid "the helper failed"
@@ -14684,10 +14380,6 @@ msgstr ""
 
 #: src/settings_window.cpp
 msgid "press again to log out"
-msgstr "再按一次退出登录"
-
-#: src/settings_window.cpp
-msgid "Press again to log out"
 msgstr "再按一次退出登录"
 
 #: src/settings_window.cpp
@@ -14855,11 +14547,6 @@ msgstr "正在安装: %ld / %ld 个文件"
 #: src/settings_window.cpp
 msgid "Finishing..."
 msgstr "正在完成..."
-
-#: src/settings_window.cpp
-#, c-format
-msgid "Downloaded %d percent"
-msgstr "已下载百分之 %d"
 
 #: src/settings_window.cpp
 #, c-format
@@ -15217,16 +14904,6 @@ msgid "SVX LINK"
 msgstr "SVX 链路"
 
 #: src/swrscan_window.c
-#, c-format
-msgid "%s, nothing measured"
-msgstr "%s, 无测量数据"
-
-#: src/swrscan_window.c
-#, c-format
-msgid "%s, lowest S W R %.1f at %s, highest %.1f at %s"
-msgstr "%s, 最低 S W R %.1f 在 %s, 最高 %.1f 在 %s"
-
-#: src/swrscan_window.c
 msgid "SWR scan: not while transmitting or tuning"
 msgstr "驻波扫描: 发射或调谐时不可用"
 
@@ -15459,16 +15136,6 @@ msgid "Hello. This is voice B D L"
 msgstr ""
 
 #: src/voice.cpp
-#, c-format
-msgid "speak: %s"
-msgstr ""
-
-#: src/voice.cpp
-#, c-format
-msgid "spoke: %i"
-msgstr ""
-
-#: src/voice.cpp
 msgid "Speech is not on this card image"
 msgstr "此存储卡镜像不含语音功能"
 
@@ -15477,75 +15144,17 @@ msgid "Speech: when the screen is off"
 msgstr "语音: 熄屏时"
 
 #: src/voice.cpp
-msgid "Speech when the screen is off"
-msgstr "熄屏时语音"
-
-#: src/voice.cpp
 msgid "Speech: always"
 msgstr "语音: 始终"
-
-#: src/voice.cpp
-msgid "Speech always"
-msgstr "语音始终开"
 
 #: src/voice.cpp
 msgid "Speech: off"
 msgstr "语音: 关"
 
-#: src/voice.cpp
-msgid "Speech off. Hold D F N for speech again"
-msgstr "语音已关. 长按 D F N 重新开启语音"
-
-#: src/voice.cpp
-#, c-format
-msgid "refused: recorder %i, on air %i (state %i), voice message rec %i"
-msgstr ""
-
-#: src/voice.cpp
-msgid "refused: screen on, mode screen off only"
-msgstr ""
-
-#: src/voice.cpp
-msgid "refused: speaking, interrupting off"
-msgstr ""
-
-#: src/voice.cpp
-#, c-format
-msgid "say (%u ms): %s"
-msgstr ""
-
-#: src/voice.cpp
-#, c-format
-msgid "%s is %s"
-msgstr "%s 为 %s"
-
-#: src/voice.cpp
-#, c-format
-msgid "ctrl: [%s] -> [%s]"
-msgstr ""
-
-#: src/voice.cpp
-msgid "(null)"
-msgstr ""
-
-#: src/voice_focus.c
-msgid "Nothing to read"
-msgstr "没有可朗读的内容"
-
-#: src/voice_focus.c
-#, c-format
-msgid "%s, nothing to read"
-msgstr "%s, 没有可朗读的内容"
-
 #: src/voice_focus.c
 #, c-format
 msgid "%s%s%d line%s. Small knob: line by line. %s"
 msgstr "%s%s%d 行%.0s. 小旋钮: 逐行. %s"
-
-#: src/voice_focus.c
-#, c-format
-msgid "%s, %d of %d"
-msgstr "%s, 第 %d 项, 共 %d 项"
 
 #: src/voice_focus.c
 #, c-format
@@ -15746,14 +15355,6 @@ msgstr ""
 "间隔\n"
 "%i s"
 
-#: src/voice_messages.c src/winlink_mail.c
-msgid "Listening"
-msgstr "守听中"
-
-#: src/voice_messages.c src/winlink_mail.c
-msgid "Ready"
-msgstr "就绪"
-
 #: src/voice_messages.c
 #, c-format
 msgid ""
@@ -15829,21 +15430,6 @@ msgstr "录制: 录下第一条消息"
 
 #: src/voice_messages.c
 #, c-format
-msgid "%i seconds"
-msgstr "%i 秒"
-
-#: src/voice_messages.c
-#, c-format
-msgid "Interval, %i seconds. Turn the small knob to change, F2 to keep"
-msgstr "间隔, %i 秒. 转动小旋钮修改, F2 保留"
-
-#: src/voice_messages.c
-#, c-format
-msgid "Interval kept, %i seconds"
-msgstr "间隔已保留, %i 秒"
-
-#: src/voice_messages.c
-#, c-format
 msgid "Press Delete again to delete \"%s\""
 msgstr "再按\"删除\"删除 \"%s\""
 
@@ -15877,10 +15463,6 @@ msgstr ""
 #, c-format
 msgid "VOICE KEYER (TX) - #%06x %s#"
 msgstr "语音键控 (发射) - #%06x %s#"
-
-#: src/voice_messages.c
-msgid "Voice keyer. Small knob: the messages, press: listen. F2 record, F3 listen, F4 send, F5 auto call"
-msgstr "语音键控器. 小旋钮: 选择消息, 按下: 试听. F2 录制, F3 试听, F4 发送, F5 自动呼叫"
 
 #: src/voice_net.c
 msgid "not sent"
@@ -15956,11 +15538,6 @@ msgstr "电台发射时不可用"
 msgid "no Bluetooth mic connected"
 msgstr "未连接蓝牙话筒"
 
-#: src/vol_control.cpp
-#, c-format
-msgid "vol_update diff %i ctrl %i: [%s]"
-msgstr ""
-
 #: src/walkie.c
 #, c-format
 msgid "%s%sChannel %d, empty, Store puts the frequency in it"
@@ -15974,15 +15551,6 @@ msgstr "%s%s频道 %d, %s, %s"
 #: src/walkie.c
 msgid "Memory mode, the tuning knob steps the channels"
 msgstr "存储模式, 调谐旋钮切换频道"
-
-#: src/walkie.c
-msgid "V F O mode, the tuning knob tunes"
-msgstr "V F O 模式, 调谐旋钮调频率"
-
-#: src/walkie.c
-#, c-format
-msgid "Channel %d cleared"
-msgstr "频道 %d 已清除"
 
 #: src/walkie.c
 msgid "Band +"
@@ -16043,16 +15611,8 @@ msgid "No digital modes in walkie mode"
 msgstr "对讲模式下无数字模式"
 
 #: src/walkie.c
-msgid "Walkie screen, the F-keys down the left, F1 at the top"
-msgstr "对讲屏幕, F 键在左侧, F1 在最上面"
-
-#: src/walkie.c
 msgid "Hold APP to leave walkie mode"
 msgstr "长按 APP 退出对讲模式"
-
-#: src/walkie.c
-msgid "Walkie off"
-msgstr "对讲已关"
 
 #: src/wavelog_cat.c
 msgid "No such mode"
@@ -16662,15 +16222,6 @@ msgid "Enhanced Open (OWE)"
 msgstr "增强开放 (OWE)"
 
 #: src/wifi.cpp
-msgid "WiFi connected"
-msgstr "WiFi 已连接"
-
-#: src/wifi.cpp
-#, c-format
-msgid "WiFi connected, address %s"
-msgstr "WiFi 已连接, 地址 %s"
-
-#: src/wifi.cpp
 #, c-format
 msgid "Error: Failed to modify connection '%s': %s"
 msgstr "修改连接“%s”失败：%s"
@@ -16789,17 +16340,8 @@ msgid "%s%s%s, %s, signal %u percent, %u of %u"
 msgstr "%s%s%s, %s, 信号百分之 %u, 第 %u 项, 共 %u 项"
 
 #: src/wifi_window.c
-#, c-format
-msgid "WiFi. %s. Small knob: the networks. F-keys: connect, scan, password, delete"
-msgstr "WiFi. %s. 小旋钮: 选择网络. F 键: 连接, 扫描, 密码, 删除"
-
-#: src/wifi_window.c
 msgid "Password is required"
 msgstr "需要密码"
-
-#: src/wifi_window.c
-msgid "Password for the network. Turn the small knob for the keys, press it to type, done to finish"
-msgstr "网络密码. 转动小旋钮选择按键, 按下输入, 按完成键结束"
 
 #: src/wifi_window.c
 msgid "Already scanning"
@@ -16840,11 +16382,6 @@ msgstr "关: 已连接以太网"
 #: src/wifi_window.c
 msgid "Disconnected"
 msgstr "已断开"
-
-#: src/wifi_window.c
-#, c-format
-msgid "WiFi %s"
-msgstr ""
 
 #: src/wifi_window.c
 msgid "Status:"
@@ -17346,10 +16883,6 @@ msgid "Message"
 msgstr "正文"
 
 #: src/winlink_mail.c
-msgid "Message. Up, Down or M F K: line by line. R: reply. Escape: back"
-msgstr "邮件. 上键, 下键或 M F K: 逐行阅读. R: 回复. Escape: 返回"
-
-#: src/winlink_mail.c
 msgid "Receiving"
 msgstr "正在接收"
 
@@ -17395,6 +16928,10 @@ msgstr "#%06x %d 条未读#"
 #, c-format
 msgid "%d to send"
 msgstr "%d 条待发"
+
+#: src/winlink_mail.c
+msgid "Ready"
+msgstr "就绪"
 
 #: src/winlink_mail.c
 msgid "Starting"
@@ -17512,6 +17049,10 @@ msgstr "返回"
 #: src/winlink_mail.c
 msgid "Connection"
 msgstr "连接状态"
+
+#: src/winlink_mail.c
+msgid "Listening"
+msgstr "守听中"
 
 #: src/winlink_mail.c
 msgid ""
@@ -17950,6 +17491,362 @@ msgstr "ZELLO 链路"
 #: src/zello.c
 msgid "not on a channel yet"
 msgstr "尚未进入频道"
+
+#. not in the list: a line or a word of a longer text
+msgid "Receiving picture, %s"
+msgstr "正在接收图片, %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Closed"
+msgstr "已关闭"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, %s, %s, %i of %i"
+msgstr "%s, %s, %s, 第 %i 项, 共 %i 项"
+
+#. not in the list: a line or a word of a longer text
+msgid "F%d, not used"
+msgstr "F%d, 未使用"
+
+#. not in the list: a line or a word of a longer text
+msgid "CW messages. Small knob: the messages. F2 send, F3 new, F4 edit"
+msgstr "CW 消息. 小旋钮: 选择消息. F2 发送, F3 新建, F4 编辑"
+
+#. not in the list: a line or a word of a longer text
+msgid "Opens %s"
+msgstr "打开 %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Opens no app"
+msgstr "不打开应用"
+
+#. not in the list: a line or a word of a longer text
+msgid "Moving %s. Turn the small knob to move it, F5 to drop it there"
+msgstr "正在移动 %s. 转动小旋钮移动, F5 放到此处"
+
+#. not in the list: a line or a word of a longer text
+msgid "the channel"
+msgstr "频道"
+
+#. not in the list: a line or a word of a longer text
+msgid "Dropped at %d of %d, saved"
+msgstr "已放到第 %d 个 (共 %d 个), 已保存"
+
+#. not in the list: a line or a word of a longer text
+msgid "Not saved: the order is as before"
+msgstr "未保存: 顺序保持原样"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, %s%s%s, spotted by %s, %i of %i"
+msgstr "%s, %s%s%s, 报告者 %s, 第 %i 项, 共 %i 项"
+
+#. not in the list: a line or a word of a longer text
+msgid "DX cluster. Small knob: the spots, press: tune. F3 tune"
+msgstr "DX 集群. 小旋钮: 选择报告, 按下: 调谐. F3 调谐"
+
+#. not in the list: a line or a word of a longer text
+msgid "Right, %i W P M%s"
+msgstr "正确, %i W P M%s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Wrong, it was %s, %i W P M%s"
+msgstr "错误, 应为 %s, %i W P M%s"
+
+#. not in the list: a line or a word of a longer text
+msgid "OK, done"
+msgstr "好, 完成"
+
+#. not in the list: a line or a word of a longer text
+msgid "Right, %s. Score %i of %i"
+msgstr "正确, %s. 得分 %i/%i"
+
+#. not in the list: a line or a word of a longer text
+msgid "Wrong, sent %s, typed %s. Score %i of %i"
+msgstr "错误, 发送的是 %s, 输入的是 %s. 得分 %i/%i"
+
+#. not in the list: a line or a word of a longer text
+msgid "Wrong, sent %s, heard %s"
+msgstr "错误, 发送的是 %s, 听成了 %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Talking: %s, a private call to you"
+msgstr "正在讲话: %s, 给你的私人呼叫"
+
+#. not in the list: a line or a word of a longer text
+msgid "Talking: %s, T G %u"
+msgstr "正在讲话: %s, 通话组 %u"
+
+#. not in the list: a line or a word of a longer text
+msgid "DMR, talkgroups on the internet, listening only. MFK: choose a talkgroup"
+msgstr "DMR, 互联网上的通话组, 仅收听. MFK: 选择通话组"
+
+#. not in the list: a line or a word of a longer text
+msgid "R A D E sync"
+msgstr "R A D E 已同步"
+
+#. not in the list: a line or a word of a longer text
+msgid "R A D E searching"
+msgstr "R A D E 搜索中"
+
+#. not in the list: a line or a word of a longer text
+msgid "Heard %s"
+msgstr "听到 %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, %s%s%s, %i of %i"
+msgstr "%s, %s%s%s, 第 %i 项, 共 %i 项"
+
+#. not in the list: a line or a word of a longer text
+msgid "Digital modes"
+msgstr "数字模式"
+
+#. not in the list: a line or a word of a longer text
+msgid "Propagation, conditions"
+msgstr "传播, 条件"
+
+#. not in the list: a line or a word of a longer text
+msgid "Busy, %s"
+msgstr "有信号, %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Scanning"
+msgstr "正在扫描"
+
+#. not in the list: a line or a word of a longer text
+msgid "Paused, %s"
+msgstr "已暂停, %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Scanner stopped"
+msgstr "扫描已停止"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tune over, %d second limit%s"
+msgstr "调谐结束, %d 秒上限%s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tune stopped%s%s"
+msgstr "调谐已停止%s%s"
+
+#. not in the list: a line or a word of a longer text
+msgid "For you: %s"
+msgstr "给你的: %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "%i C Q, %i other"
+msgstr "%i 个 C Q, %i 个其他"
+
+#. not in the list: a line or a word of a longer text
+msgid "%i decoded"
+msgstr "已解码 %i 个"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, %u of %u"
+msgstr "%s, 第 %u 项, 共 %u 项"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s%s%s, %i d B%s%s%s, %i of %i"
+msgstr "%s%s%s, %i d B%s%s%s, 第 %i 项, 共 %i 项"
+
+#. not in the list: a line or a word of a longer text
+msgid ", new country"
+msgstr ", 新国家"
+
+#. not in the list: a line or a word of a longer text
+msgid "No stations yet"
+msgstr "还没有电台"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tiles, %i station%s. M F K: station by station, press: call it"
+msgstr "磁贴, %i 个电台%.0s. M F K: 逐个电台, 按下: 呼叫它"
+
+#. not in the list: a line or a word of a longer text
+msgid "Traffic, the decode list"
+msgstr "通联, 解码列表"
+
+#. not in the list: a line or a word of a longer text
+msgid "GPS fix, %s, grid %s"
+msgstr "GPS 定位, %s, 网格 %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "GPS fix lost"
+msgstr "GPS 定位丢失"
+
+#. not in the list: a line or a word of a longer text
+msgid "Open X 6 X hundred, ready"
+msgstr "Open X 6 X hundred, 就绪"
+
+#. not in the list: a line or a word of a longer text
+msgid "For you, from %s: %s"
+msgstr "给你的, 来自 %s: %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s%s, %d d B%s, %d of %d"
+msgstr "%s%s, %d d B%s, 第 %d 项, 共 %d 项"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tuner done, S W R %.1f"
+msgstr "天调完成, S W R %.1f"
+
+#. not in the list: a line or a word of a longer text
+msgid "Tuner done"
+msgstr "天调完成"
+
+#. not in the list: a line or a word of a longer text
+msgid "Volume,"
+msgstr "音量,"
+
+#. not in the list: a line or a word of a longer text
+msgid "Pair code: %s. Again: %s. Good for 2 minutes."
+msgstr "配对码: %s. 再说一遍: %s. 2 分钟内有效."
+
+#. not in the list: a line or a word of a longer text
+msgid "Split "
+msgstr "异频 "
+
+#. not in the list: a line or a word of a longer text
+msgid ", dial locked"
+msgstr ", 调谐已锁定"
+
+#. not in the list: a line or a word of a longer text
+msgid "Band locked by the app"
+msgstr "波段被应用锁定"
+
+#. not in the list: a line or a word of a longer text
+msgid "No long press action set"
+msgstr "未设置长按功能"
+
+#. not in the list: a line or a word of a longer text
+msgid "VFO locked by the app"
+msgstr "VFO 被应用锁定"
+
+#. not in the list: a line or a word of a longer text
+msgid "VFO %s copied to %s"
+msgstr "VFO %s 已复制到 %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Mode locked by the app"
+msgstr "模式被应用锁定"
+
+#. not in the list: a line or a word of a longer text
+msgid "V M, not used here"
+msgstr "V M, 此处不可用"
+
+#. not in the list: a line or a word of a longer text
+msgid "Not used"
+msgstr "未使用"
+
+#. not in the list: a line or a word of a longer text
+msgid "Channel %s, %s"
+msgstr "频道 %s, %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "No channels"
+msgstr "没有频道"
+
+#. not in the list: a line or a word of a longer text
+msgid "Screen dims after, seconds, 0 never"
+msgstr "屏幕变暗时间, 秒, 0 为从不"
+
+#. not in the list: a line or a word of a longer text
+msgid "Brightness, dimmed and normal"
+msgstr "亮度, 变暗时和正常时"
+
+#. not in the list: a line or a word of a longer text
+msgid "Press again to log out"
+msgstr "再按一次退出登录"
+
+#. not in the list: a line or a word of a longer text
+msgid "Downloaded %d percent"
+msgstr "已下载百分之 %d"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, nothing measured"
+msgstr "%s, 无测量数据"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, lowest S W R %.1f at %s, highest %.1f at %s"
+msgstr "%s, 最低 S W R %.1f 在 %s, 最高 %.1f 在 %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Speech when the screen is off"
+msgstr "熄屏时语音"
+
+#. not in the list: a line or a word of a longer text
+msgid "Speech always"
+msgstr "语音始终开"
+
+#. not in the list: a line or a word of a longer text
+msgid "Speech off. Hold D F N for speech again"
+msgstr "语音已关. 长按 D F N 重新开启语音"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s is %s"
+msgstr "%s 为 %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "Nothing to read"
+msgstr "没有可朗读的内容"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, nothing to read"
+msgstr "%s, 没有可朗读的内容"
+
+#. not in the list: a line or a word of a longer text
+msgid "%s, %d of %d"
+msgstr "%s, 第 %d 项, 共 %d 项"
+
+#. not in the list: a line or a word of a longer text
+msgid "%i seconds"
+msgstr "%i 秒"
+
+#. not in the list: a line or a word of a longer text
+msgid "Interval, %i seconds. Turn the small knob to change, F2 to keep"
+msgstr "间隔, %i 秒. 转动小旋钮修改, F2 保留"
+
+#. not in the list: a line or a word of a longer text
+msgid "Interval kept, %i seconds"
+msgstr "间隔已保留, %i 秒"
+
+#. not in the list: a line or a word of a longer text
+msgid "Voice keyer. Small knob: the messages, press: listen. F2 record, F3 listen, F4 send, F5 auto call"
+msgstr "语音键控器. 小旋钮: 选择消息, 按下: 试听. F2 录制, F3 试听, F4 发送, F5 自动呼叫"
+
+#. not in the list: a line or a word of a longer text
+msgid "V F O mode, the tuning knob tunes"
+msgstr "V F O 模式, 调谐旋钮调频率"
+
+#. not in the list: a line or a word of a longer text
+msgid "Channel %d cleared"
+msgstr "频道 %d 已清除"
+
+#. not in the list: a line or a word of a longer text
+msgid "Walkie screen, the F-keys down the left, F1 at the top"
+msgstr "对讲屏幕, F 键在左侧, F1 在最上面"
+
+#. not in the list: a line or a word of a longer text
+msgid "Walkie off"
+msgstr "对讲已关"
+
+#. not in the list: a line or a word of a longer text
+msgid "WiFi connected"
+msgstr "WiFi 已连接"
+
+#. not in the list: a line or a word of a longer text
+msgid "WiFi connected, address %s"
+msgstr "WiFi 已连接, 地址 %s"
+
+#. not in the list: a line or a word of a longer text
+msgid "WiFi. %s. Small knob: the networks. F-keys: connect, scan, password, delete"
+msgstr "WiFi. %s. 小旋钮: 选择网络. F 键: 连接, 扫描, 密码, 删除"
+
+#. not in the list: a line or a word of a longer text
+msgid "Password for the network. Turn the small knob for the keys, press it to type, done to finish"
+msgstr "网络密码. 转动小旋钮选择按键, 按下输入, 按完成键结束"
+
+#. not in the list: a line or a word of a longer text
+msgid "Message. Up, Down or M F K: line by line. R: reply. Escape: back"
+msgstr "邮件. 上键, 下键或 M F K: 逐行阅读. R: 回复. Escape: 返回"
 
 #. not in the list: a line or a word of a longer text
 msgid "next %02d:%02d"

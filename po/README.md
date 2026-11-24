@@ -56,7 +56,8 @@ The file is looked for beside the `.po` (so a translator's font goes in `/mnt/i1
     python3 -I tools/i18n/potool.py check      the conversions, and how much of each is done
     make -C tools/i18n test                    the GUI's lookup (src/i18n.cpp) and the check
 
-Most code needs nothing: every text handed to LVGL goes through the language (`src/i18n_hook.h`). A text made with
+Most code needs nothing: every text handed to LVGL goes through the language (`src/i18n_hook.h`). What the voice says is not in
+the list: the voices are English, and a text handed to `voice_*()` is spoken as written. A text made with
 `snprintf` before it reaches LVGL is looked up whole, then line by line; a format that should be translated before
 the numbers are in is marked `_("...")`. Code that reads a text back from a widget gets the translation: compare by
 position or by value, not by the shown English (Settings' Theme row takes the name by its place in the list).
