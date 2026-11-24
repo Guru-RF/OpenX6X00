@@ -5,7 +5,8 @@
  *  tiles, four to a row, four rows in sight: more scroll up into them, the row chosen always in
  *  sight. The MFK moves along the tiles, a press opens the one chosen, ESC or the APP key closes
  *  the grid. The button bar keeps the page it had, so the text buttons work as before
- *  underneath. Settings > Display > Icon menus turns the grid off.
+ *  underneath. Settings > Display > Icon menus turns the grid off. The apps hidden in Settings >
+ *  Apps have no tile, the others close up (cfg/apps_list.h, #351).
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -13,6 +14,7 @@
 #include "apps_menu.h"
 
 #include "buttons.h"
+#include "cfg/apps_list.h"
 #include "cfg/cfg_api.h"
 #include "events.h"
 #include "fonts/font_select.h"
@@ -46,47 +48,60 @@ static const struct {
     const char    *name, *sub, *icon;
     open_t         what;
     press_action_t action;
+    app_id_t       id;      /* its name in the hidden apps' setting (cfg/apps_list.h) */
 } apps[] = {
-    {"Modes", "FT8, JS8, PSK, SSTV", "modes", OPEN_APP, ACTION_APP_MODES},
-    {"Cluster", "DX spots", "cluster", OPEN_APP, ACTION_APP_CLUSTER},
-    {"Field Ops", "SOTA, POTA, WWFF", "field", OPEN_APP, ACTION_APP_FIELD},
-    {"Bands", "Band activity", "bands", OPEN_APP, ACTION_APP_BANDS},
-    {"Propagation", "Conditions, beacons", "prop", OPEN_APP, ACTION_APP_PROPAGATION},
-    {"Channels", "Memory channels", "channels", OPEN_APP, ACTION_APP_CHANNELS},
-    {"Scanner", "Stops on activity", "scan", OPEN_APP, ACTION_APP_SCAN},
-    {"SWR Scan", "Sweep, transmits", "swr", OPEN_APP, ACTION_APP_SWRSCAN},
-    {"Recorder", "RX audio", "recorder", OPEN_APP, ACTION_APP_RECORDER},
-    {"CW Trainer", "Learn CW", "trainer", OPEN_APP, ACTION_APP_CWTRAINER},
-    {"CW Keyboard", "CW as you type", "text", OPEN_APP, ACTION_APP_CW_KBD},   /* the keyboard of RTTY, PSK */
-    {"Mail", "Winlink, no phone", "mail", OPEN_APP, ACTION_APP_MAIL},
-    {"GPS / Clock", "Position, time", "gps", OPEN_APP, ACTION_APP_GPS},
-    {"Screen Rec", "Screen and audio", "screenrec", OPEN_SCREEN_REC, 0},
-    {"Walkie", "Portrait screen", "walkie", OPEN_WALKIE, 0},
-    {"Birdie Cal", "Find birdies, antenna off", "birdie", OPEN_APP, ACTION_APP_BIRDIE},
-    {"Web radio", "Internet stations", "iradio", OPEN_APP, ACTION_APP_IRADIO},     /* "Internet radio" is cut in 1bit */
-    {"Zello", "Internet voice", "zello", OPEN_APP, ACTION_APP_ZELLO},
-    {"SVXConnect", "Reflector talkgroups", "svx", OPEN_APP, ACTION_APP_SVX},
-    {"DMR", "Talkgroups, listen only", "dmr", OPEN_APP, ACTION_APP_DMR},
-    {"Flights", "Aircraft around", "flights", OPEN_APP, ACTION_APP_FLIGHTS},
-    {"HF Air Band", "Oceanic routes, VOLMET", "aero", OPEN_APP, ACTION_APP_AERO},
-    {"CB", "27 MHz channels", "cb", OPEN_APP, ACTION_APP_CB},
-    {"Weather", "Forecast, warnings", "meteo", OPEN_APP, ACTION_APP_METEO},
-    {"Settings", "All settings", "settings", OPEN_APP, ACTION_APP_SETTINGS},
+    {"Modes", "FT8, JS8, PSK, SSTV", "modes", OPEN_APP, ACTION_APP_MODES, APPID_MODES},
+    {"Cluster", "DX spots", "cluster", OPEN_APP, ACTION_APP_CLUSTER, APPID_CLUSTER},
+    {"Field Ops", "SOTA, POTA, WWFF", "field", OPEN_APP, ACTION_APP_FIELD, APPID_FIELD},
+    {"Bands", "Band activity", "bands", OPEN_APP, ACTION_APP_BANDS, APPID_BANDS},
+    {"Propagation", "Conditions, beacons", "prop", OPEN_APP, ACTION_APP_PROPAGATION, APPID_PROPAGATION},
+    {"Channels", "Memory channels", "channels", OPEN_APP, ACTION_APP_CHANNELS, APPID_CHANNELS},
+    {"Scanner", "Stops on activity", "scan", OPEN_APP, ACTION_APP_SCAN, APPID_SCAN},
+    {"SWR Scan", "Sweep, transmits", "swr", OPEN_APP, ACTION_APP_SWRSCAN, APPID_SWRSCAN},
+    {"Recorder", "RX audio", "recorder", OPEN_APP, ACTION_APP_RECORDER, APPID_RECORDER},
+    {"CW Trainer", "Learn CW", "trainer", OPEN_APP, ACTION_APP_CWTRAINER, APPID_CWTRAINER},
+    {"CW Keyboard", "CW as you type", "text", OPEN_APP, ACTION_APP_CW_KBD, APPID_CW_KBD},   /* the keyboard of RTTY, PSK */
+    {"Mail", "Winlink, no phone", "mail", OPEN_APP, ACTION_APP_MAIL, APPID_MAIL},
+    {"GPS / Clock", "Position, time", "gps", OPEN_APP, ACTION_APP_GPS, APPID_GPS},
+    {"Screen Rec", "Screen and audio", "screenrec", OPEN_SCREEN_REC, 0, APPID_SCREEN_REC},
+    {"Walkie", "Portrait screen", "walkie", OPEN_WALKIE, 0, APPID_WALKIE},
+    {"Birdie Cal", "Find birdies, antenna off", "birdie", OPEN_APP, ACTION_APP_BIRDIE, APPID_BIRDIE},
+    {"Web radio", "Internet stations", "iradio", OPEN_APP, ACTION_APP_IRADIO, APPID_IRADIO},   /* not "Internet radio": cut in 1bit */
+    {"Zello", "Internet voice", "zello", OPEN_APP, ACTION_APP_ZELLO, APPID_ZELLO},
+    {"SVXConnect", "Reflector talkgroups", "svx", OPEN_APP, ACTION_APP_SVX, APPID_SVX},
+    {"DMR", "Talkgroups, listen only", "dmr", OPEN_APP, ACTION_APP_DMR, APPID_DMR},
+    {"Flights", "Aircraft around", "flights", OPEN_APP, ACTION_APP_FLIGHTS, APPID_FLIGHTS},
+    {"HF Air Band", "Oceanic routes, VOLMET", "aero", OPEN_APP, ACTION_APP_AERO, APPID_AERO},
+    {"CB", "27 MHz channels", "cb", OPEN_APP, ACTION_APP_CB, APPID_CB},
+    {"Weather", "Forecast, warnings", "meteo", OPEN_APP, ACTION_APP_METEO, APPID_METEO},
+    {"Settings", "All settings", "settings", OPEN_APP, ACTION_APP_SETTINGS, APPID_SETTINGS},
 };
 
 #define APPS_N ((int)(sizeof(apps) / sizeof(apps[0])))
-#define ROWS_N ((APPS_N + COLS - 1) / COLS)
-#define ROWS_V (ROWS_N < VIEW_ROWS ? ROWS_N : VIEW_ROWS)
-#define GRID_H (ROWS_V * TILE_H + (ROWS_V - 1) * GAP)
-#define BOX_H  (HEAD_H + GRID_H + HINT_H + PAD)
+/* The grid of n tiles: its rows in sight, the height of its view and of the box. With apps hidden the box is as
+ * low as its rows */
+#define ROWS_V(n) (((n) + COLS - 1) / COLS < VIEW_ROWS ? ((n) + COLS - 1) / COLS : VIEW_ROWS)
+#define GRID_H(n) (ROWS_V(n) * TILE_H + (ROWS_V(n) - 1) * GAP)
+#define BOX_H(n)  (HEAD_H + GRID_H(n) + HINT_H + PAD)
 
-_Static_assert(BOX_Y + BOX_H <= BOARD_DISP_H - BUTTONS_H_MAX, "APP grid overlaps the buttons");
+_Static_assert(BOX_Y + BOX_H(APPS_N) <= BOARD_DISP_H - BUTTONS_H_MAX, "APP grid overlaps the buttons");
+_Static_assert(APPS_N == APPID_COUNT, "an app of the grid is not in cfg/apps_list.h, or the other way round");
 
 static void construct_cb(lv_obj_t *parent);
 static void destruct_cb(void);
 
-static lv_obj_t *tiles[APPS_N];
-static int       sel;
+static lv_obj_t *tiles[APPS_N];   /* the tiles shown, closed up */
+static uint8_t   shown[APPS_N];   /* their apps: places in apps[] */
+static int       shown_n;
+static int       sel;             /* the tile chosen, a place in shown[] */
+static int       sel_app;         /* its app, kept from one opening to the next */
+
+uint32_t apps_menu_hidden(void) {
+    char text[APPS_HIDDEN_LEN];
+
+    param_t_get(cfg_apps_hidden, text, sizeof(text));
+    return apps_hidden_parse(text);
+}
 
 static dialog_t dialog = {
     .run          = false,
@@ -99,7 +114,7 @@ static dialog_t dialog = {
 dialog_t *dialog_apps = &dialog;
 
 static void show_sel(void) {
-    for (int i = 0; i < APPS_N; i++) {
+    for (int i = 0; i < shown_n; i++) {
         bool on = i == sel;
 
         lv_obj_set_style_border_color(tiles[i], on ? TC(sel_border) : TC(panel_border), 0);
@@ -110,14 +125,17 @@ static void show_sel(void) {
         lv_obj_set_style_img_recolor(lv_obj_get_child(tiles[i], 0), on ? TC(sel_text) : TC(accent), 0);
     }
     lv_obj_scroll_to_view(tiles[sel], LV_ANIM_OFF);
+    sel_app = shown[sel];
 }
 
 /* Spoken: the app chosen, what it is, and where in the grid; first: the grid's name before it */
 static void say_sel(const char *first) {
+    int a = shown[sel];
+
     if (first) {
-        voice_say_text_fmt("%s, %s, %s, %i of %i", first, apps[sel].name, apps[sel].sub, sel + 1, APPS_N);
+        voice_say_text_fmt("%s, %s, %s, %i of %i", first, apps[a].name, apps[a].sub, sel + 1, shown_n);
     } else {
-        voice_delay_say_text_fmt("%s, %s, %i of %i", apps[sel].name, apps[sel].sub, sel + 1, APPS_N);
+        voice_delay_say_text_fmt("%s, %s, %i of %i", apps[a].name, apps[a].sub, sel + 1, shown_n);
     }
 }
 
@@ -141,7 +159,7 @@ static void open_async(void *arg) {
 
 static void open_sel(void) {
     /* After this event: what opens closes this grid */
-    lv_async_call(open_async, (void *)(intptr_t)sel);
+    lv_async_call(open_async, (void *)(intptr_t)shown[sel]);
 }
 
 static void key_cb(lv_event_t *e) {
@@ -152,7 +170,7 @@ static void key_cb(lv_event_t *e) {
             say_sel(NULL);
             break;
         case LV_KEY_RIGHT:
-            if (sel < APPS_N - 1) sel++;
+            if (sel < shown_n - 1) sel++;
             show_sel();
             say_sel(NULL);
             break;
@@ -162,7 +180,7 @@ static void key_cb(lv_event_t *e) {
             say_sel(NULL);
             break;
         case LV_KEY_DOWN:
-            if (sel + COLS < APPS_N) sel += COLS;
+            if (sel + COLS < shown_n) sel += COLS;
             show_sel();
             say_sel(NULL);
             break;
@@ -203,10 +221,21 @@ static void construct_cb(lv_obj_t *parent) {
     dialog.btn_page = dialog.prev_page;
     if (dialog.btn_page) buttons_load_page(dialog.btn_page);
 
+    /* The apps not hidden (Settings > Apps), in the grid's order; the one chosen last time when it is still there */
+    uint32_t hidden = apps_menu_hidden();
+
+    shown_n = 0;
+    sel     = 0;
+    for (int i = 0; i < APPS_N; i++) {
+        if (apps_hidden_has(hidden, apps[i].id)) continue;
+        if (i == sel_app) sel = shown_n;
+        shown[shown_n++] = (uint8_t)i;
+    }
+
     lv_obj_t *box = lv_obj_create(parent);
     dialog.obj    = box;
     lv_obj_remove_style_all(box);
-    lv_obj_set_size(box, BOX_W, BOX_H);
+    lv_obj_set_size(box, BOX_W, BOX_H(shown_n));
     lv_obj_set_pos(box, (BOARD_DISP_W - BOX_W) / 2, BOX_Y);
     lv_obj_add_style(box, &popup_style, 0);
     lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
@@ -219,7 +248,7 @@ static void construct_cb(lv_obj_t *parent) {
 
     lv_obj_t *grid = lv_obj_create(box);  /* the tiles' scrolling view */
     lv_obj_remove_style_all(grid);
-    lv_obj_set_size(grid, BOX_W, GRID_H);
+    lv_obj_set_size(grid, BOX_W, GRID_H(shown_n));
     lv_obj_set_pos(grid, 0, HEAD_H);
     lv_obj_set_scroll_dir(grid, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(grid, LV_SCROLLBAR_MODE_AUTO);
@@ -230,7 +259,8 @@ static void construct_cb(lv_obj_t *parent) {
     lv_obj_set_style_bg_opa(grid, LV_OPA_COVER, LV_PART_SCROLLBAR | LV_STATE_SCROLLED);
     lv_obj_set_style_pad_right(grid, 1, LV_PART_SCROLLBAR);
 
-    for (int i = 0; i < APPS_N; i++) {
+    for (int i = 0; i < shown_n; i++) {
+        int       a = shown[i];
         lv_obj_t *t = lv_obj_create(grid);
         tiles[i]    = t;
         lv_obj_remove_style_all(t);
@@ -243,7 +273,7 @@ static void construct_cb(lv_obj_t *parent) {
         lv_obj_add_event_cb(t, tile_click_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
 
         /* child 0 the icon (a label stands in when the file is missing), 1 the name, 2 the line */
-        lv_obj_t *img = theme_icon_img(t, apps[i].icon, ICON, TC(accent));
+        lv_obj_t *img = theme_icon_img(t, apps[a].icon, ICON, TC(accent));
         if (!img) {
             img = lv_label_create(t);
             lv_label_set_text(img, "");
@@ -254,12 +284,12 @@ static void construct_cb(lv_obj_t *parent) {
          * narrow (117 px) and the lines wrap; with one row's height the second was cut off */
         lv_obj_t *name = lv_label_create(t);
         lv_obj_set_style_text_font(name, &sony_22, 0);
-        lv_label_set_text(name, apps[i].name);
+        lv_label_set_text(name, apps[a].name);
         lv_obj_set_pos(name, 10 + ICON + 10, 5);
 
         lv_obj_t *sub = lv_label_create(t);
         lv_obj_set_style_text_font(sub, &sony_16, 0);
-        lv_label_set_text(sub, apps[i].sub);
+        lv_label_set_text(sub, apps[a].sub);
         lv_obj_set_size(sub, TILE_W - ICON - 30, 36);
         lv_label_set_long_mode(sub, LV_LABEL_LONG_DOT);
         lv_obj_set_pos(sub, 10 + ICON + 10, 29);
@@ -269,7 +299,7 @@ static void construct_cb(lv_obj_t *parent) {
     lv_obj_set_style_text_font(hint, &sony_20, 0);
     lv_obj_set_style_text_color(hint, TC(text_dim), 0);
     lv_label_set_text(hint, "MFK: choose - press: open - APP or ESC: close");
-    lv_obj_set_pos(hint, 22, HEAD_H + GRID_H + 4);
+    lv_obj_set_pos(hint, 22, HEAD_H + GRID_H(shown_n) + 4);
 
     lv_obj_update_layout(box);  /* the tiles' places, for scrolling to the one chosen */
     show_sel();

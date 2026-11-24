@@ -296,6 +296,12 @@ closes the grid. Four rows are in sight; the grid scrolls to the rows below
 as the MFK goes there (or by a swipe on the touch screen). "APP > CW Keyboard" in this manual is the tile, or the
 button on APP 3:6.
 
+Apps you do not use can be taken out of both (issue #351): Settings > Apps
+has a switch for each (see [Apps tab](#apps-tab)). The others close up: the
+grid has fewer tiles, the pages fewer apps and, with enough hidden, fewer
+pages, named for what is left (`APP 1:4`). The page numbers in this manual
+are the ones with every app shown.
+
 - Each app has its own button pages, named like `(JS8 1:4)`, as the main
   screen's buttons have theirs (`APP 3:6`, `KEY 1:2`). The first button, the
   page button, goes to the next page; held (1 s, half a second in JS8), it
@@ -1860,7 +1866,7 @@ restart.
 
 APP (page 2) > Settings. The tabs are on three button pages: General, Display,
 Audio, Wireless (page 1); Bluetooth, Keys, Cluster, TX Cal (page 2); Info,
-Walkie, Voice (page 3). The page button, or the APP key pressed again, turns the
+Walkie, Voice, Apps (page 3). The page button, or the APP key pressed again, turns the
 page and opens its first tab. The page button held goes one page back and
 opens that page's first tab.
 
@@ -2698,6 +2704,40 @@ default is twice the room under which a screen recording stops (50 MB).
 The settings of the spoken feedback: see [Speech](#speech). On a card image
 from before speech the first row reads "Speech: Needs a newer card image";
 the settings are kept, nothing is spoken.
+
+### Apps tab
+
+| Card | Options |
+|---|---|
+| APP MENU | Hidden apps: Show all; a switch for each app of the APP menu |
+
+Which apps the APP key shows (issue #351). Every app of the APP grid and of
+the APP button pages has a switch, in the grid's order: Modes, Cluster, Field
+Ops, Bands, Propagation, Channels, Scanner, SWR Scan, Recorder, CW Trainer,
+CW Keyboard, Mail, GPS / Clock, Screen Rec, Walkie, Birdie Cal, Web radio
+(the Internet radio), Zello, SVXConnect, DMR, Flights, HF Air Band, CB and
+Weather. All are on by default.
+
+- A switch off takes its app out of the APP grid and off the APP button
+  pages, at once. The others close up, in the order they had: no empty tile
+  and no empty button in between, and a page fewer when a page's worth is
+  hidden (23 apps on six pages; 19 on five, `APP 1:5` to `APP 5:5`).
+- Only the menus change. A key you gave to the app in Settings > Keys (the
+  long press of a front key, a hand mic key) still opens it, and so does
+  anything else that opens it directly. An app that is running goes on, and
+  so does what it has under way: a recording, a screen recording, Winlink
+  switched on. Screen rec also stays on MFK 3:4, and Walkie Talkie in
+  Settings > General and Settings > Walkie.
+- Modes is one app: off takes the whole Modes menu out of APP (a key set to
+  it still opens it). The modes inside it are not hidden one by one.
+- Settings has no switch and is always shown ("Settings: always shown"), so
+  there is always a way back to this page.
+- Show all turns every switch on again ("All apps shown").
+- What is kept is the list of hidden apps, not of shown ones: an app that a
+  later version adds is shown until you hide it.
+
+The web configurator's Display page has the same switches and Show all in
+its Apps card; a change there shows on the radio at once.
 
 ## Transmitting
 
@@ -7691,6 +7731,7 @@ them.
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX ranges (Ham bands, South Korea, Own list), TX outside ham bands (Settings > TX Cal), and the own list as a text field: Save writes `tx_ranges.conf` and the radio reads it at once, the ranges it took and a line it could not read said under it (see [Amateur bands only](#amateur-bands-only)) |
 | Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom, Tuning steps from, Tuning steps to (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see [Display tab](#display-tab)), CW tune and WPM (Spectrum, Frequency strip; see [CW decoder](#cw-decoder)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
+| Apps | a switch for each app of the radio's APP grid and APP button pages, Show all (see [Apps tab](#apps-tab)) |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate

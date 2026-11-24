@@ -5,6 +5,7 @@
 #include "../wfm_filter.h"
 #include "../boot_cw.h"
 #include "kbd_devices.h"
+#include "apps_list.h"
 
 #include <algorithm>
 #include <chrono>
@@ -1275,6 +1276,13 @@ std::string SettingsManager::boot_text_validate(const std::string &val) {
     char out[BOOT_CW_TEXT_MAX + 1];
 
     boot_cw_clean(val.c_str(), out);
+    return out;
+}
+
+std::string SettingsManager::apps_hidden_validate(const std::string &val) {
+    char out[APPS_HIDDEN_LEN];
+
+    apps_hidden_format(apps_hidden_parse(val.c_str()), out, sizeof(out));
     return out;
 }
 

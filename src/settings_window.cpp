@@ -50,6 +50,8 @@ extern "C" {
     #include "clock.h"
     #include "bat_est.h"
     #include "card_space.h"
+    #include "apps_menu.h"
+    #include "cfg/apps_list.h"
     #include "audio.h"
     #include "smeter.h"
     #include "main.h"
@@ -113,6 +115,7 @@ static uint8_t info_row(uint8_t row, const char *label, const char *val);
 
 static void make_walkie_page();
 static void make_voice_page();
+static void make_apps_page();
 static void wl_row_label(uint8_t row, const char *text);
 static void nn_load(char *out, size_t size);     /* the network name (Wireless) */
 static void ts_update();                         /* Tailscale (Wireless) */
@@ -194,10 +197,11 @@ static button_data_t btn_txcal     = { .type = BTN_TEXT, .label = "TX Cal", .pre
 static button_data_t btn_info      = { .type = BTN_TEXT, .label = "Info", .press = tab_press };
 static button_data_t btn_walkie    = { .type = BTN_TEXT, .label = "Walkie", .press = tab_press };
 static button_data_t btn_voice     = { .type = BTN_TEXT, .label = "Voice", .press = tab_press };
+static button_data_t btn_apps      = { .type = BTN_TEXT, .label = "Apps", .press = tab_press };
 
 static buttons_page_t btn_page   = {{&btn_p1, &btn_general, &btn_display, &btn_audio, &btn_wireless}};
 static buttons_page_t btn_page_2 = {{&btn_p2, &btn_bluetooth, &btn_keys, &btn_cluster, &btn_txcal}};
-static buttons_page_t btn_page_3 = {{&btn_p3, &btn_info, &btn_walkie, &btn_voice}};
+static buttons_page_t btn_page_3 = {{&btn_p3, &btn_info, &btn_walkie, &btn_voice, &btn_apps}};
 static buttons_page_t *btn_pages[] = {&btn_page, &btn_page_2, &btn_page_3};
 
 static dialog_t dialog = {
@@ -229,7 +233,7 @@ static const struct {
     {&btn_bluetooth, make_bluetooth_page, "bluetooth"}, {&btn_keys, make_keys_page, "keys"},
     {&btn_cluster, make_cluster_page, "cluster"},   {&btn_txcal, make_txcal_page, "txcal"},
     {&btn_info, make_info_page, "info"},            {&btn_walkie, make_walkie_page, "walkie"},
-    {&btn_voice, make_voice_page, "audio"},
+    {&btn_voice, make_voice_page, "audio"},         {&btn_apps, make_apps_page, "channels"},
 };
 
 /* Left rail: the tabs of all button pages, numbered, the current one marked */
@@ -5989,6 +5993,53 @@ static uint8_t make_base_update(uint8_t row) {
     return row + 1;
 }
 #endif
+
+/* Apps (#351): the apps of the APP grid and the APP button pages, a switch each. Off takes the app out of both, the
+ * others close up; a key given to it in Keys, a keyboard's key and whatever else opens it work as before, and an
+ * app that runs goes on. What is hidden is kept (cfg/apps_list.h), so an app a later version brings is shown.
+ * Settings has no switch: this page is in it. Show all brings every app back */
+static lv_obj_t *apps_all_btn;
+
+static void apps_page_again(void *arg) {
+    if (!page) {
+        return;
+    }
+    make_apps_page();
+    if (apps_all_btn) lv_group_focus_obj(apps_all_btn);
+}
+
+static void apps_show_cb(lv_event_t *e) {
+    int  id = (int)(intptr_t)lv_event_get_user_data(e);
+    bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+    char text[APPS_HIDDEN_LEN];
+
+    apps_hidden_format(apps_hidden_set(apps_menu_hidden(), id, !on), text, sizeof(text));
+    cfg_sm.p_apps_hidden.set(text);
+}
+
+static void apps_all_cb(lv_event_t *e) {
+    cfg_sm.p_apps_hidden.set("");
+    msg_update_text_fmt("All apps shown");
+    lv_async_call(apps_page_again, NULL);   /* the switches again, not from inside the button's own event */
+}
+
+static void make_apps_page() {
+    uint32_t hidden = apps_menu_hidden();
+    uint8_t  row;
+
+    grid_create();
+    row = card_begin("APP MENU");
+    wl_row_label(row, "Hidden apps");
+    apps_all_btn = wl_button(row++, "Show all", apps_all_cb);
+    lv_obj_add_event_cb(apps_all_btn, ptr_clear_cb, LV_EVENT_DELETE, &apps_all_btn);
+    for (int id = 0; id < APPID_COUNT; id++) {
+        if (!apps_list_can_hide(id)) continue;
+        wl_row_label(row, apps_list_name(id));
+        row_switch(row++, 4, 3, SMALL_3, !apps_hidden_has(hidden, id), apps_show_cb, (void *)(intptr_t)id);
+    }
+    row = info_row(row, "Settings", "always shown");
+    card_end(row);
+}
 
 /* Info: cards and rows as the other tabs, in the same font */
 static void make_info_page() {

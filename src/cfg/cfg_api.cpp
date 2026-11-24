@@ -35,6 +35,7 @@ ParamInt         *cfg_auto_level_enabled  = nullptr;
 ParamFloat       *cfg_auto_level_offset   = nullptr;
 ParamInt         *cfg_knob_info           = nullptr;
 ParamInt         *cfg_buttons_hide        = nullptr;
+ParamText        *cfg_apps_hidden         = nullptr;
 ParamInt         *cfg_knob_press_next     = nullptr;
 ParamInt         *cfg_panel_stripes       = nullptr;
 ParamInt         *cfg_mode_from_plan      = nullptr;
@@ -287,6 +288,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_auto_level_offset  = &cfg_sm.p_auto_level_offset;
     cfg_knob_info        = &cfg_sm.p_knob_info;
     cfg_buttons_hide     = &cfg_sm.p_buttons_hide;
+    cfg_apps_hidden      = &cfg_sm.p_apps_hidden;
     cfg_knob_press_next  = &cfg_sm.p_knob_press_next;
     cfg_panel_stripes    = &cfg_sm.p_panel_stripes;
     cfg_mode_from_plan   = &cfg_sm.p_mode_from_plan;

@@ -163,6 +163,11 @@ class SettingsManager {
     // lines hide after 0 never (the default), 1 3 s, 2 5 s, 3 10 s without a key (screen_main.c)
     Parameter<int32_t> p_buttons_hide{"buttons_hide", 0, 0, 3,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Settings > Apps (live, #351): the apps taken out of the APP grid and the APP button pages, by their names in
+    // apps_list.c with commas between ("zello,dmr"); "" (the default) shows them all. What is hidden, not what is
+    // shown: an app a later version adds is shown
+    Parameter<std::string> p_apps_hidden{"apps_hidden", "", apps_hidden_validate,
+        StorageType::GLOBAL, pending_writes_, {}, &global_params_};
     // Keep knob lines (Settings > Display > INTERFACE, live, #128): with Hide buttons on, the two knob lines stay
     // on the screen, where they are, when the buttons hide (knob_info.cpp). Off (the default): they hide with them
     Parameter<int32_t> p_knob_lines_stay{"knob_lines_stay", false, 0, 1,
@@ -1254,6 +1259,8 @@ class SettingsManager {
     // The boot sound's own text as p_boot_text keeps it (boot_cw_clean). Pure function
     static std::string boot_text_validate(const std::string &val);
     static std::string kbd_dev_volume_validate(const std::string &val);
+    // The hidden apps as p_apps_hidden keeps them: the names apps_list.c knows, in its order. Pure function
+    static std::string apps_hidden_validate(const std::string &val);
 
     // Filter category of a mode (SSB/AM/FM/CW; unknown/default -> SSB).
     enum class FilterMode {
