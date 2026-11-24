@@ -28,6 +28,12 @@ void panel_add_tx_text(const char *text);     /* any thread: text sent (RTTY's T
 void panel_set_info(const char *text);        /* any thread: the line above the panel (CW WPM) */
 void panel_info_place(void);                  /* that line again: the frequency strip took the CW speed or gave it back */
 
+/* The text over the whole screen (#352, screen_main.c's text_full): the panel from y down, h px tall, in front of the
+ * rest of the screen and holding the lines that fit there; false: back in its place among the others, where the
+ * caller's panel_keep_below() puts it again */
+void panel_set_full(bool on, lv_coord_t y, lv_coord_t h);
+bool panel_full(void);
+
 /* The spectrum got taller: the panel starts at y, shorter */
 void panel_keep_below(lv_coord_t y);
 

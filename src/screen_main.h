@@ -53,6 +53,8 @@ bool main_screen_buttons_wake(void);
 /* A window is about to open: the full-screen waterfall (a key given "WF full screen on/off", #302) back to the
  * normal screen, the window on it as ever */
 void main_screen_wf_full_end(void);
+/* The decoder's text over the whole screen (#352) ends: its panel goes (text_panel.cpp) */
+void main_screen_text_full_end(void);
 
 /* Apps and the actions a long press or a hand mic F key can be given */
 void main_screen_start_app(press_action_t app);

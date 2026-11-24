@@ -435,7 +435,7 @@ Out of the box:
 | KEY | none |
 | MSG | RX recorder on/off |
 | DFN | none |
-| DFL | WF full screen on/off: the waterfall over the whole screen, and back (see [Waterfall](#waterfall)). Up to v0.3.13 DFL had none; a radio whose DFL long press was set in Settings > Keys, to None too, keeps what it was set to. The X6100 hand mic's FIL held does DFL's long press |
+| DFL | WF full screen on/off: the waterfall over the whole screen, and back; with the CW decoder's or RTTY's text on the screen, that text over the whole screen too (see [Waterfall](#waterfall)). Up to v0.3.13 DFL had none; a radio whose DFL long press was set in Settings > Keys, to None too, keeps what it was set to. The X6100 hand mic's FIL held does DFL's long press |
 | FST | step down |
 
 A key let go while the radio is busy (a band change, an app closing) is a
@@ -1649,8 +1649,9 @@ are out of sight. Off by default, and not kept over a restart.
   button not seen is never pressed. A tap of GEN, APP, KEY, MSG, DFN, DFL or
   VM brings it back too, with the key's buttons.
 - An app, Settings, the frequency box or any other window opens on the
-  normal screen: full screen ends first. With an app or RTTY open the key
-  says "Full screen: not over an app". Not in walkie mode, which has its own
+  normal screen: full screen ends first. With an app open the key
+  says "Full screen: not over an app"; in RTTY it puts RTTY's text over the
+  whole screen (below). Not in walkie mode, which has its own
   [mini waterfall](#walkie-talkie-mode).
 - On the air the tag turns red and reads TX before the frequency, a red frame
   goes around the screen, and the TX panel (power, SWR, ALC) shows as on the
@@ -1660,6 +1661,39 @@ are out of sight. Off by default, and not kept over a restart.
   The same now when the spectrum's height changes or the spectrum is switched
   on or off, and over a new theme; up to v0.3.13 those started an empty
   waterfall.
+
+Full-screen text (from v0.3.14; issue #352). The decoder's text over the
+whole screen, as the WeFax app shows a chart: the panel that otherwise has
+the lower part of the screen, from under a top line down to the bottom, with
+many more lines of text. For the CW decoder and for RTTY, which share that
+panel.
+
+- On and off: the same key, "WF full screen on/off" (DFL's long press out of
+  the box). With the decoder's text on the screen the key goes on: in CW with
+  the decoder on, first the waterfall, then the text, then the normal screen;
+  in RTTY, where the waterfall is never full screen, the text and back.
+  Without the text on the screen the key is the waterfall's alone, as before.
+- The top line keeps the essentials: at its right the tag with the frequency
+  and the mode, at its left the CW decoder's speed (WPM), also where the
+  frequency strip has it otherwise. RTTY's tuning scope keeps its corner of
+  the panel. The words keep their colours (callsigns, Parse, what RTTY sent).
+- On the air the tag turns red and reads TX before the frequency, and a red
+  frame goes around the screen, as over the full-screen waterfall: the paddle
+  or key in CW, RTTY's macros from a keyboard (CapsLock+1 to 6). The TX panel
+  shows as on the normal screen.
+- The knob tunes, the tag following it, and the
+  keys do what they do under the full-screen waterfall. F1-F5 bring the normal
+  screen back, and that press does nothing more; a tap of GEN, APP, KEY, MSG,
+  DFN, DFL or VM brings it back too, with the key's buttons (GEN in RTTY
+  closes RTTY, as it does on the normal screen). So RTTY's Send...
+  and its macros' buttons are two presses away; a letter typed on a keyboard
+  opens the line to send on the normal screen at once.
+- It ends by itself when the text goes: the decoder switched off, another
+  mode, RTTY closed, an app or a window opening.
+- Text decoded while it is on fills the screen from then on; going back, the
+  newest lines that fit the panel stay.
+- The other text apps (PSK, Olivia, JTTY, NavTex, JS8, FT8) have windows of
+  their own and are as they were.
 
 ### Band plan
 
@@ -4845,7 +4879,9 @@ screen, into the panel over the waterfall, with a tuning scope at the
 panel's right (mark across, space up: two thin ellipses at right angles
 when tuned, the tones' offset under them) and the mark and space as two
 lines on the spectrum. It opens on its last frequency and mode; the ones
-you were on come back when it closes (GEN).
+you were on come back when it closes (GEN). Held DFL puts the text over the
+whole screen, and again brings the normal screen back (see Full-screen text
+under [Waterfall](#waterfall)).
 
 | Page | Buttons |
 |---|---|
@@ -4965,7 +5001,9 @@ Train is for practice: the key, the paddle, the CW messages and the
 In CW mode the decoder buttons are on the CW pages: CW 1:2 has ZAP, CW
 peak, CW peak Q and Log QSO (the [quick QSO log](#quick-qso-log)), CW 2:2 Decoder on/off, Tuner (tuning
 indicator), Dec SNR and Parse. Text and speed (WPM) appear in the panel
-over the waterfall.
+over the waterfall, or over the whole screen: held DFL once for the
+full-screen waterfall, again for the text (see Full-screen text under
+[Waterfall](#waterfall)).
 
 - The receiver comes from gdyuldin x6100_gui 1.0.1: a coherent tone tracker
   that follows the station inside the CW filter, a detector with a noise
