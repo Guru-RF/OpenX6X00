@@ -8,7 +8,8 @@
  *  keyer finds it as /dev/snd/midiC1D0 and its USB device as /sys/dev/char/<its numbers>, both moved into a folder of
  *  the test's (--wrap=glob, --wrap=realpath put the folder before the paths), where a sysfs tree gives it SmartCW's
  *  USB IDs, or another device's. The key is radio_set_morse_key below; the settings and the CW message on the air are
- *  the test's variables (stub_include). The times are real: each case waits for the key with a margin.
+ *  the test's variables (stub_include). The keys the kernel reads back after lost events (EVIOCGKEY) are the test's
+ *  too (--wrap=ioctl). The times are real: each case waits for the key with a margin.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -17,6 +18,7 @@
 
 #include "cfg/cfg_api.h"
 #include "cw_encoder.h"
+#include "evdev_sync.h"
 #include "input_caps.h"
 #include "paddle_keyer.h"
 #include "radio.h"
@@ -306,6 +308,69 @@ static void boot_keyboard(void) {
     check(key_within(false, 200) && key_stays(false, 200), "[ let go: the keyer stops");
 }
 
+/* The keys down as EVIOCGKEY reads them back: the one code, -1 none (--wrap=ioctl) */
+static _Atomic int kernel_code = -1;
+static _Atomic int reads_back;
+
+int __real_ioctl(int fd, unsigned long req, ...);
+
+int __wrap_ioctl(int fd, unsigned long req, ...) {
+    va_list        ap;
+    unsigned long *arg;
+    int            code = atomic_load(&kernel_code);
+
+    va_start(ap, req);
+    arg = va_arg(ap, unsigned long *);
+    va_end(ap);
+    if (_IOC_TYPE(req) != 'E' || _IOC_NR(req) != _IOC_NR(EVIOCGKEY(0))) return __real_ioctl(fd, req, arg);
+    memset(arg, 0, _IOC_SIZE(req));
+    if (code >= 0 && (size_t)code / 8 < _IOC_SIZE(req)) arg[code / (8 * sizeof(long))] |= 1UL << (code % (8 * sizeof(long)));
+    atomic_fetch_add(&reads_back, 1);
+    return (int)_IOC_SIZE(req);
+}
+
+/* What the kernel leaves of a reader's full queue: SYN_DROPPED, the newest event (a key's, or none: code -1), the
+ * SYN_REPORT of its report */
+static void kbd_dropped(int code, int value) {
+    kbd_event(EV_SYN, SYN_DROPPED, 0);
+    if (code >= 0) kbd_event(EV_KEY, code, value);
+    kbd_event(EV_SYN, SYN_REPORT, 0);
+}
+
+/* The keyboard's events lost while the keyer thread was held up (its queue of 64 full): a paddle's release among them
+ * left it held, the keyer sending until it was pressed again, a straight key the carrier */
+static void lost_events(void) {
+    long el;
+
+    printf("Keyboard events lost (SYN_DROPPED)\n");
+    kbd_event(EV_KEY, KEY_LEFTBRACE, 1);
+    el = next_element(400);
+    check(el >= 40 && el <= 90, "[ held: dits (%ld ms)", el);
+    atomic_store(&kernel_code, KEY_LEFTBRACE);
+    kbd_dropped(-1, 0);
+    el = next_element(400);
+    check(el >= 40 && el <= 90 && atomic_load(&reads_back) == 1, "events lost, [ still down: still dits (%ld ms)", el);
+    atomic_store(&kernel_code, KEY_RIGHTBRACE);     /* [ let go and ] pressed while events were lost */
+    kbd_dropped(KEY_RIGHTBRACE, 1);                 /* ]'s press the end of the broken report */
+    check(key_within(false, 200) && key_stays(false, 400) && atomic_load(&reads_back) == 2,
+          "events lost, [ up now: the keyer stops; ] pressed meanwhile no dahs");
+    kbd_event(EV_KEY, KEY_RIGHTBRACE, 0);
+    check(key_stays(false, 200), "]'s release after: nothing");
+    kbd_event(EV_KEY, KEY_LEFTBRACE, 1);
+    el = next_element(400);
+    check(el >= 40 && el <= 90, "[ pressed again: dits as ever (%ld ms)", el);
+    kbd_event(EV_KEY, KEY_LEFTBRACE, 0);
+    check(key_within(false, 200) && key_stays(false, 200), "and let go: stops");
+
+    atomic_store(&cfg_key_mode, radio_key_manual);
+    kbd_event(EV_KEY, KEY_LEFTBRACE, 1);
+    check(key_within(true, 100), "KEY Manual: [ keys the carrier");
+    atomic_store(&kernel_code, -1);
+    kbd_dropped(-1, 0);
+    check(key_within(false, 200) && key_stays(false, 200), "events lost with [ let go among them: the carrier off");
+    atomic_store(&cfg_key_mode, radio_key_auto_left);
+}
+
 static void keyed(void) {
     printf("Keyed notes\n");
     on(65);
@@ -478,6 +543,7 @@ int main(int argc, char **argv) {
     plug("1-1", "1209\n", "ff42\n");
     check(smartcw_within(true, 2000), "SmartCW's MIDI port found by its USB IDs");
     boot_keyboard();
+    lost_events();
     keyed();
     not_cw();
     learn();

@@ -199,6 +199,55 @@ static void button_event(keypad_t *pad, const struct input_event *in) {
     key_event(pad, button_of(in->code), in->value);
 }
 
+/* One key event of the device: as read, or a release lost that the read-back found (resync) */
+static void key_in(keypad_t *pad, const struct input_event *in, lv_indev_data_t *data) {
+    if (in->value)
+        ctl_local_input();   /* a key at the radio: control is the operator's (unless injected) */
+    if (backlight_tick() && in->value && !voice_is_on()) {
+        /* the press woke the screen: that was its job, the radio does not see it */
+    } else if (in->code == VOL_PRESS) {
+        vol_down = in->value != 0;
+        if (in->value == 1) {   /* the press only: let go below, whatever the key does */
+            pad->evdev_key   = vol_press_key();
+            pad->evdev_state = LV_INDEV_STATE_PRESSED;
+        }
+    } else if (in->code == MFK_PRESS) {
+        mfk->pressed = in->value != 0;
+        /* The encoder samples it at its next read: a quick press and release
+         * in the same pass would be lost */
+        data->continue_reading = false;
+    } else {
+        button_event(pad, in);
+    }
+}
+
+struct lost {
+    keypad_t        *pad;
+    lv_indev_data_t *data;
+};
+
+static void lost_release(uint16_t code, void *arg) {
+    struct lost       *l  = arg;
+    struct input_event in = {.type = EV_KEY, .code = code, .value = 0};
+
+    key_in(l->pad, &in, l->data);
+}
+
+/* The kernel's queue of the device's events overflowed (64 of them: the GUI busy a while with keys pressed) and a
+ * release among them may be gone: a band key held that way stepped bands on its own until pressed again, the side
+ * PTT stayed on the air, an F key's long press came, VOL or the MFK stayed down. The keys are read back
+ * (evdev_sync.h): one up now is let go as its release would have, one pressed meanwhile does nothing */
+static void resync(keypad_t *pad, lv_indev_data_t *data) {
+    unsigned long now[EVDEV_SYNC_LONGS];
+    struct lost   l = {pad, data};
+    int           missed;
+
+    evdev_sync_read(pad->fd, now);
+    int released = evdev_sync_keys(&pad->sync, now, lost_release, &l, &missed);
+
+    LV_LOG_USER("Keys: events lost (the GUI busy), %d let go, %d pressed meanwhile left alone", released, missed);
+}
+
 static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     keypad_t          *pad = drv->user_data;
     struct input_event in;
@@ -208,25 +257,17 @@ static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
          * (press, sync, release, sync), 100 ms and more while the screen is busy */
         data->continue_reading = true;
 
-        if (in.type == EV_KEY) {
-            if (in.value)
-                ctl_local_input();   /* a key at the radio: control is the operator's (unless injected) */
-            if (backlight_tick() && in.value && !voice_is_on()) {
-                /* the press woke the screen: that was its job, the radio does not see it */
-            } else if (in.code == VOL_PRESS) {
-                vol_down = in.value != 0;
-                if (in.value == 1) {    /* the press only: let go below, whatever the key does */
-                    pad->evdev_key   = vol_press_key();
-                    pad->evdev_state = LV_INDEV_STATE_PRESSED;
+        switch (evdev_sync_event(&pad->sync, &in)) {
+            case EVDEV_SYNC_TAKE:
+                if (in.type == EV_KEY) {
+                    key_in(pad, &in, data);
                 }
-            } else if (in.code == MFK_PRESS) {
-                mfk->pressed = in.value != 0;
-                /* The encoder samples it at its next read: a quick press and release
-                 * in the same pass would be lost */
-                data->continue_reading = false;
-            } else {
-                button_event(pad, &in);
-            }
+                break;
+            case EVDEV_SYNC_READ:
+                resync(pad, data);
+                break;
+            case EVDEV_SYNC_DROP:
+                break;
         }
     }
     data->key   = pad->evdev_key;

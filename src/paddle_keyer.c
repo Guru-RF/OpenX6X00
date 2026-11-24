@@ -183,6 +183,7 @@ bool smartcw_down(const smartcw_key_t *s) {
 
 #include "cfg/cfg_api.h"
 #include "cw_encoder.h"
+#include "evdev_sync.h"
 #include "input_caps.h"
 #include "radio.h"
 #include "wr12.h"
@@ -220,6 +221,7 @@ static atomic_int  learned = -1;
 static int           fd[FD_N] = {-1, -1, -1, -1, -1};
 static dev_t         fd_rdev[FD_N];   /* what the scan handed over: a new one (unplugged and back) opens again */
 static ino_t         fd_ino[FD_N];
+static evdev_sync_t  fd_sync[FD_N];   /* the input devices' keys down, read back after events were lost */
 static char          ser_name[32];
 static int           ser_last;        /* modem lines as last read */
 static paddle_midi_t midi;
@@ -350,6 +352,7 @@ static void fd_close(int i) {
     if (fd[i] >= 0) close(fd[i]);
     fd[i] = -1;
     left  = right = false;
+    fd_sync[i] = (evdev_sync_t){0};
     if (i == FD_MIDI) {   /* SmartCW unplugged: its key goes up as the thread looks next, at once */
         sc      = (smartcw_key_t){0};
         midi_sc = false;
@@ -369,6 +372,24 @@ static void ser_read(void) {
         if ((m ^ ser_last) & ser_lines[j]) got(PADDLE_SRC_SER, ser_lines[j], m & ser_lines[j]);
     }
     ser_last = m;
+}
+
+static void lost_release(uint16_t code, void *arg) {
+    got(fd_src[*(int *)arg], code, false);
+}
+
+/* The kernel's queue of the device's events overflowed (64 of them: this thread held up a while, a keyboard's
+ * auto-repeat filling it) and a release among them may be gone: the paddle stayed held, the keyer sending dits or
+ * dahs, a straight key (KEY Manual) the carrier, until it was pressed again. The keys are read back (evdev_sync.h):
+ * one up now is let go as its release would have, one pressed meanwhile does nothing */
+static void resync(int i) {
+    unsigned long now[EVDEV_SYNC_LONGS];
+    int           missed;
+
+    evdev_sync_read(fd[i], now);
+    int released = evdev_sync_keys(&fd_sync[i], now, lost_release, &i, &missed);
+
+    LV_LOG_USER("Paddle: events lost, %d let go, %d pressed meanwhile left alone", released, missed);
 }
 
 /* Reads the paddle until the deadline; with none, until something comes (a held paddle looks
@@ -435,7 +456,13 @@ static void wait_until(const struct timespec *deadline) {
                     continue;
                 }
                 while (i != FD_SER && fd[i] >= 0 && read(fd[i], &in, sizeof(in)) == sizeof(in)) {
-                    if (in.type == EV_KEY && in.value != 2) got(fd_src[i], in.code, in.value);   /* 2: auto-repeat */
+                    evdev_sync_use_t use = evdev_sync_event(&fd_sync[i], &in);
+
+                    if (use == EVDEV_SYNC_READ) {
+                        resync(i);
+                    } else if (use == EVDEV_SYNC_TAKE && in.type == EV_KEY && in.value != 2) {
+                        got(fd_src[i], in.code, in.value);   /* 2: auto-repeat */
+                    }
                 }
             }
         }

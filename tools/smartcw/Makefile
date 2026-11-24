@@ -7,7 +7,8 @@
 #   test's: a keyboard there at boot (no settings read before the first scan, its keys the keyer's after it), the key
 #   with SmartCW's notes in each KEY mode, out of CW, during a CW message, with Learn, the paddle notes through the
 #   keyer here (Swap), two sources at once, the SWR protection, unplugged, and another MIDI device by the MIDI map as
-#   before. Real time: each case waits for the key with a margin.
+#   before; the keyboard's events lost (SYN_DROPPED) with a paddle's release among them, the keys read back
+#   (src/evdev_sync.c, EVIOCGKEY the test's by --wrap=ioctl). Real time: each case waits for the key with a margin.
 # - smartcw_proxy_test.py: SmartCW's page on its own port (webserver smartcw.py) against a stand-in SmartCW on
 #   127.0.0.1, the interface it is held to given by the test, and once held to lo by the real SO_BINDTODEVICE: the
 #   configurator's rules, one request a connection, the live events as they come, SmartCW not plugged in or not
@@ -36,14 +37,14 @@ smartcw_key_test: smartcw_key_test.c $(SRC)/paddle_keyer.c $(SRC)/paddle_keyer.h
 
 # Copied first: a quoted #include looks beside the including file before the -I paths, and the shims in stub_include
 # must win over src/ (as in tools/beacon)
-build/src/.copied: $(SRC)/paddle_keyer.c $(SRC)/paddle_keyer.h
+build/src/.copied: $(SRC)/paddle_keyer.c $(SRC)/paddle_keyer.h $(SRC)/evdev_sync.c $(SRC)/evdev_sync.h
 	mkdir -p build/src
 	cp $^ build/src/
 	touch $@
 
 smartcw_thread_test: smartcw_thread_test.c build/src/.copied $(SHIMS)
 	$(CC) $(CFLAGS) -pthread -I build/src -I stub_include -o $@ smartcw_thread_test.c build/src/paddle_keyer.c \
-		-Wl,--wrap=glob,--wrap=realpath
+		build/src/evdev_sync.c -Wl,--wrap=glob,--wrap=realpath,--wrap=ioctl
 
 test: smartcw_key_test smartcw_thread_test
 	rm -rf build/sys build/run build/tmp && mkdir -p build/run build/tmp
