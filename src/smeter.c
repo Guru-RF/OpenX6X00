@@ -7,6 +7,7 @@
  */
 
 #include "smeter.h"
+#include "audio_meter.h"
 #include "tx_meters.h"
 #include "ops_room.h"
 #include "gui_styles.h"
@@ -21,6 +22,7 @@
 #include <math.h>
 #include <stdatomic.h>
 #include <stdio.h>
+#include <unistd.h>
 
 /* The reading in dB, S1 to S9+40, after PRE, ATT and the calibration */
 static float            meter_db = S1;          /* smoothed: the bars and the needle */
@@ -37,6 +39,36 @@ static float            meter_peak = S1;
 static int64_t          peak_ms;                /* when the peak was set */
 static bool             in_tx;        /* TX: no reading from the receiver, framed red */
 static bool             tx_readings;  /* TX with neither the TX panel nor the apps' strip: their readings here (#166) */
+
+/* The Internet radio's station on the box (#360): its level, from the playing thread's pieces as they are heard */
+_Static_assert(AUDIO_METER_S1 == S1 && AUDIO_METER_S9 == S9 && AUDIO_METER_S9_40 == S9_40, "audio_meter.h's S scale");
+#define AUDIO_TICK_MS   50      /* the box drawn 20 times a second while the station plays */
+#define AUDIO_VALUE_MS  250     /* its value 4 times a second: readable */
+
+static atomic_bool        audio_on;       /* any thread: a station plays (meter_audio_begin) */
+static atomic_uint        audio_gen;      /* a new turn at each begin and end: an older turn's levels are dropped */
+static audio_meter_ring_t audio_ring;
+static audio_meter_t      audio_m;        /* the rest: the LVGL thread's */
+static lv_timer_t        *audio_timer;
+static bool               audio_shown;    /* the box shows the station */
+static uint64_t           audio_value_ms;
+
+/* What the box draws, taken at the start of each drawing: the receiver's reading, its peak and noise floor, or the
+ * station's level and peak on the S scale (no noise floor: nothing greyed) */
+static float            draw_db = S1, draw_peak = S1, draw_noise = S_MIN;
+static bool             draw_audio;
+
+static void draw_pick(void) {
+    draw_audio = audio_shown && !in_tx;
+    draw_db    = draw_audio ? audio_meter_to_s(audio_m.bar) : meter_db;
+    draw_peak  = draw_audio ? audio_meter_to_s(audio_m.peak) : meter_peak;
+    draw_noise = draw_audio ? S_MIN : noise_level;
+}
+
+static void audio_value(void);
+
+const meter_mark_t meter_audio_marks[METER_AUDIO_MARKS] = {
+    {S1, "-60"}, {S1 + 24, "-40"}, {S9, "-20"}, {S9_20, "-10"}, {S9_40, "0"}};
 
 /* PRE and ATT shift the reading (by the settings cfg_smeter_pre / cfg_smeter_att, measured or
  * from Settings > TX Cal > S-METER > Measure; the X6200's attenuator figure is the band's, for the
@@ -82,12 +114,18 @@ static int16_t bar_db(int i) {
     return i <= S9_BAR ? S1 + 3 * i : S9 + 5 * (i - S9_BAR);
 }
 
+/* The bar at db, a mark of the scale */
+static int bar_of(int16_t db) {
+    return db <= S9 ? (db - S1) / 3 : S9_BAR + (db - S9) / 5;
+}
+
 static void keep_bool(Subject *subj, void *user_data) {
     *(bool *)user_data = subject_i_get((SubjectInt *)subj);
 }
 
 static void show_value(void *unused) {
     if (in_tx) return;     /* TX: "TX" stays, or the value stays hidden and the TX readings are drawn */
+    if (audio_shown) return;   /* the station's level in its place (audio_value) */
     if (!theme_shape.vision) {
         lv_label_set_text_fmt(db_val_label, "%.1f", meter_db_raw);
     } else if (meter_db_raw < S9 + 1) {   /* 6 dB a unit */
@@ -153,7 +191,7 @@ static lv_color_t bar_color(int16_t db, uint8_t i, uint8_t n) {
     int32_t colors = param_i_get(cfg_smeter_color);
 
     if (colors)     /* every lit bar coloured, also under the noise level (else weak signals stay grey) */
-        return ramp(needle_u(colors == 1 ? db : meter_db));   /* 1 scale, 2 level */
+        return ramp(needle_u(colors == 1 ? db : draw_db));   /* 1 scale, 2 level */
     if (db < S9 && param_i_get(cfg_smeter_bar_color) >= 0)    /* own colour, also under the noise level */
         return bar_own();
     if (theme_shape.meter_gradient) {
@@ -164,7 +202,7 @@ static lv_color_t bar_color(int16_t db, uint8_t i, uint8_t n) {
         uint8_t mix = (db - S9) * 255 / (S9_40 - S9);
         return lv_color_mix(TC(meter_high), TC(meter_low), mix);
     }
-    return db <= noise_level ? TC(text_mute) : TC(meter_bar);
+    return db <= draw_noise ? TC(text_mute) : TC(meter_bar);
 }
 
 /* Needle S-meter (Settings, Display): a dial whose pivot is under the box, so only the top of
@@ -284,7 +322,22 @@ static void lamp_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
 
 static void bars_draw_mono(lv_obj_t *o, lv_draw_ctx_t *draw_ctx);
 
+/* A number of the dial at angle a, its centre off the arc's centre c by rr; the end ones kept inside the box */
+static void needle_label(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx, lv_draw_label_dsc_t *dsc, lv_point_t c, float a,
+                         lv_coord_t rr, const char *txt) {
+    lv_point_t sz, l = needle_pt(c, a, rr);
+    lv_area_t  area;
+
+    lv_txt_get_size(&sz, txt, dsc->font, 0, 0, LV_COORD_MAX, 0);
+    area.x1 = LV_CLAMP(obj->coords.x1 + 2, l.x - sz.x / 2, obj->coords.x2 - 2 - sz.x);
+    area.y1 = l.y - sz.y / 2;
+    area.x2 = area.x1 + sz.x;
+    area.y2 = area.y1 + sz.y;
+    lv_draw_label(draw_ctx, dsc, &area, txt, NULL);
+}
+
 void meter_needle_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
+    draw_pick();                /* the walkie's dial draws without meter_draw_cb */
     if (theme_shape.mono) {     /* the walkie's meter too: no needle in 1bit */
         bars_draw_mono(obj, draw_ctx);
         return;
@@ -305,7 +358,7 @@ void meter_needle_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
     bool                lamp    = param_i_get(cfg_smeter_lamp);         /* amber dial, dark ink, red zone */
     int32_t             colors  = lamp ? 0 : param_i_get(cfg_smeter_color);
     bool                colored = colors != 0;      /* the needle in text; 1 the arc green to red, 2 lit to the level */
-    float               level_u = needle_u(meter_db);
+    float               level_u = needle_u(draw_db);
     lv_color_t          ink     = lamp ? LAMP_INK : TC(text);
     lv_color_t          scale   = lamp ? LAMP_INK : bar_own();
     lv_color_t          high    = lamp ? LAMP_RED : TC(meter_high);
@@ -338,6 +391,7 @@ void meter_needle_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
     label_dsc.font = big ? &sony_32 : &sony_22;
     lv_coord_t lab = big ? 15 : 13;    /* the numbers off the arc */
 
+    /* The ticks, the same for the station's audio: an S unit and 10 dB over S9 are 5 dB of it */
     for (int s = 1; s <= 9; s++) {      /* a tick a S unit, long ones and numbers on the odd */
         float      a   = NEEDLE_A0 + span * needle_u(S1 + (s - 1) * 6);
         bool       big = s % 2;
@@ -346,19 +400,12 @@ void meter_needle_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
         line_dsc.color = colors == 1 ? ramp(needle_u(S1 + (s - 1) * 6)) : scale;
         line_dsc.width = big ? 2 : 1;
         lv_draw_line(draw_ctx, &line_dsc, &p1, &p2);
-        if (big) {
-            char       txt[4];
-            lv_point_t sz, l = needle_pt(c, a, r + lab);
-            lv_area_t  area;
+        if (big && !draw_audio) {
+            char txt[4];
 
             snprintf(txt, sizeof(txt), s == 1 ? "S1" : "%d", s);
-            lv_txt_get_size(&sz, txt, label_dsc.font, 0, 0, LV_COORD_MAX, 0);
-            area.x1 = LV_CLAMP(obj->coords.x1 + 2, l.x - sz.x / 2, obj->coords.x2 - 2 - sz.x);   /* S1, +40 inside the box */
-            area.y1 = l.y - sz.y / 2;
-            area.x2 = area.x1 + sz.x;
-            area.y2 = area.y1 + sz.y;
             label_dsc.color = ink;
-            lv_draw_label(draw_ctx, &label_dsc, &area, txt, NULL);
+            needle_label(obj, draw_ctx, &label_dsc, c, a, r + lab, txt);
         }
     }
     for (int d = 10; d <= 40; d += 10) {
@@ -369,24 +416,24 @@ void meter_needle_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
         line_dsc.color = colors == 1 ? ramp(needle_u(S9 + d)) : high;
         line_dsc.width = big ? 2 : 1;
         lv_draw_line(draw_ctx, &line_dsc, &p1, &p2);
-        if (big) {
-            char       txt[4];
-            lv_point_t sz, l = needle_pt(c, a, r + lab + 1);
-            lv_area_t  area;
+        if (big && !draw_audio) {
+            char txt[4];
 
             snprintf(txt, sizeof(txt), "+%d", d);
-            lv_txt_get_size(&sz, txt, label_dsc.font, 0, 0, LV_COORD_MAX, 0);
-            area.x1 = LV_CLAMP(obj->coords.x1 + 2, l.x - sz.x / 2, obj->coords.x2 - 2 - sz.x);   /* S1, +40 inside the box */
-            area.y1 = l.y - sz.y / 2;
-            area.x2 = area.x1 + sz.x;
-            area.y2 = area.y1 + sz.y;
             label_dsc.color = over;
-            lv_draw_label(draw_ctx, &label_dsc, &area, txt, NULL);
+            needle_label(obj, draw_ctx, &label_dsc, c, a, r + lab + 1, txt);
         }
+    }
+    for (int i = 0; draw_audio && i < METER_AUDIO_MARKS; i++) {
+        bool hot = meter_audio_marks[i].db > S9;
+
+        label_dsc.color = hot ? over : ink;
+        needle_label(obj, draw_ctx, &label_dsc, c, NEEDLE_A0 + span * needle_u(meter_audio_marks[i].db), r + lab + hot,
+                     meter_audio_marks[i].t);
     }
 
     /* The needle, from the pivot to just past the arc */
-    lv_point_t tip = needle_pt(c, NEEDLE_A0 + span * needle_u(meter_db), r + 2);
+    lv_point_t tip = needle_pt(c, NEEDLE_A0 + span * needle_u(draw_db), r + 2);
 
     line_dsc.color       = lamp ? LAMP_RED : TC(tx);   /* red, as on a real meter */
     line_dsc.width       = 4;
@@ -484,6 +531,12 @@ static void deck_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
             snprintf(txt, sizeof(txt), "%d", i * 2);
             label_at(draw_ctx, &dsc, x0 + 58 + i * 35, y0 + 4, txt, false);
         }
+    } else if (draw_audio) {    /* the station's audio: AF on its row, the dB of full scale over it */
+        label_at(draw_ctx, &dsc, x0 + 14, y0 + 17, "AF", true);
+        for (int i = 0; i < METER_AUDIO_MARKS; i++) {
+            dsc.color = meter_audio_marks[i].db > S9 ? TC(meter_over) : TC(text);
+            label_at(draw_ctx, &dsc, x0 + deck_x(meter_audio_marks[i].db), y0 + 4, meter_audio_marks[i].t, false);
+        }
     } else {
         label_at(draw_ctx, &dsc, x0 + 14, y0 + 17, "S", true);
         for (int i = 0; i < 5; i++) label_at(draw_ctx, &dsc, x0 + 58 + i * 24, y0 + 4, s_num[i], false);
@@ -506,7 +559,7 @@ static void deck_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
     }
 
     /* 31 segments to +40: lit to the level, the peak bright */
-    lv_coord_t lvl = deck_x(meter_db), peak = deck_x(meter_peak);
+    lv_coord_t lvl = deck_x(draw_db), peak = deck_x(draw_peak);
     lv_area_t  a = {.y1 = y0 + 27, .y2 = y0 + 33};
 
     lv_draw_rect_dsc_init(&rect);
@@ -539,8 +592,8 @@ static void bars_draw(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
     a.y1 = top + (theme_shape.vision ? 4 : 6);
     a.y2 = top + (theme_shape.vision ? 20 : 43);
     for (int i = 0; i < BARS; i++) {
-        if (meter_peak >= bar_db(i) - 1.5f) peak = i;
-        if (meter_db < bar_db(i) - 1.5f) continue;
+        if (draw_peak >= bar_db(i) - 1.5f) peak = i;
+        if (draw_db < bar_db(i) - 1.5f) continue;
         a.x1 = x0 + i * step - step / 2 + gap / 2;
         a.x2 = a.x1 + step - gap;
         bar.bg_color = bar_color(bar_db(i), i, BARS);
@@ -549,7 +602,7 @@ static void bars_draw(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
 
     /* The peak above the level, bright: its bar colour from S9 (and with a gradient or the
      * S-meter colours), white below */
-    if (peak > 0 && meter_db < bar_db(peak) - 1.5f) {
+    if (peak > 0 && draw_db < bar_db(peak) - 1.5f) {
         bool coloured = bar_db(peak) >= S9 || theme_shape.meter_gradient || param_i_get(cfg_smeter_color);
 
         a.x1 = x0 + peak * step - step / 2 + gap / 2;
@@ -566,7 +619,15 @@ static void bars_draw(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
     scale.font = &sony_22;
     a.y1 = top + (theme_shape.vision ? 21 : 16);
     a.y2 = a.y1 + 18;
-    for (int k = 0; k < (int)(sizeof(scale_text) / sizeof(scale_text[0])); k++) {
+    for (int k = 0; draw_audio && k < METER_AUDIO_MARKS; k++) {
+        lv_txt_get_size(&sz, meter_audio_marks[k].t, scale.font, 0, 0, LV_COORD_MAX, 0);
+        a.x1 = LV_CLAMP(o->coords.x1 + 4, x0 + step * bar_of(meter_audio_marks[k].db) - sz.x / 2,
+                        o->coords.x2 - 4 - sz.x);     /* -60 wider than S1: off the frame */
+        a.x2 = a.x1 + sz.x;
+        scale.color = meter_audio_marks[k].db > S9 ? TC(meter_over) : TC(text);
+        lv_draw_label(draw_ctx, &scale, &a, meter_audio_marks[k].t, NULL);
+    }
+    for (int k = 0; !draw_audio && k < (int)(sizeof(scale_text) / sizeof(scale_text[0])); k++) {
         lv_txt_get_size(&sz, scale_text[k], scale.font, 0, 0, LV_COORD_MAX, 0);
         a.x1 = x0 + step * 4 * k - sz.x / 2;
         a.x2 = a.x1 + sz.x;
@@ -590,12 +651,12 @@ static void bars_draw_mono(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
     int                 peak = 0;
 
     for (int i = 0; i < BARS; i++) {
-        if (meter_peak >= bar_db(i) - 1.5f) peak = i;
+        if (draw_peak >= bar_db(i) - 1.5f) peak = i;
     }
     lv_draw_rect_dsc_init(&seg);
     seg.bg_color = seg.border_color = TC(text);
     for (int i = 0; i < BARS; i++) {
-        bool lit = meter_db >= bar_db(i) - 1.5f;
+        bool lit = draw_db >= bar_db(i) - 1.5f;
 
         a.x1 = x0 + i * step - step / 2 + gap / 2;
         a.x2 = a.x1 + step - gap;
@@ -605,7 +666,7 @@ static void bars_draw_mono(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
             a.y1 = a.y2;                                    /* the ruler */
             seg.bg_opa = LV_OPA_COVER;
             seg.border_width = 0;
-        } else if (lit && i != peak && bar_db(i) <= noise_level) {
+        } else if (lit && i != peak && bar_db(i) <= draw_noise) {
             seg.bg_opa = LV_OPA_TRANSP;                     /* under the noise: hollow */
             seg.border_width = 1;
         } else {
@@ -620,7 +681,14 @@ static void bars_draw_mono(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
     scale.color = TC(text);
     a.y1 = top + 1;
     a.y2 = a.y1 + 18;
-    for (int k = 0; k < (int)(sizeof(scale_text) / sizeof(scale_text[0])); k++) {
+    for (int k = 0; draw_audio && k < METER_AUDIO_MARKS; k++) {
+        lv_txt_get_size(&sz, meter_audio_marks[k].t, scale.font, 0, 0, LV_COORD_MAX, 0);
+        a.x1 = LV_CLAMP(o->coords.x1 + 4, x0 + step * bar_of(meter_audio_marks[k].db) - sz.x / 2,
+                        o->coords.x2 - 4 - sz.x);     /* -60 wider than S1: off the frame */
+        a.x2 = a.x1 + sz.x;
+        lv_draw_label(draw_ctx, &scale, &a, meter_audio_marks[k].t, NULL);
+    }
+    for (int k = 0; !draw_audio && k < (int)(sizeof(scale_text) / sizeof(scale_text[0])); k++) {
         lv_txt_get_size(&sz, scale_text[k], scale.font, 0, 0, LV_COORD_MAX, 0);
         a.x1 = x0 + step * 4 * k - sz.x / 2;
         a.x2 = a.x1 + sz.x;
@@ -645,7 +713,7 @@ static void signal_draw(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
     lv_draw_label_dsc_init(&dsc);
     dsc.font = &sony_20;
     dsc.color = TC(text_head);
-    label_at(draw_ctx, &dsc, x0, y0 + 3, "SIGNAL", true);
+    label_at(draw_ctx, &dsc, x0, y0 + 3, draw_audio ? "AUDIO" : "SIGNAL", true);
 
     /* the frame */
     lv_draw_rect_dsc_init(&rect);
@@ -656,7 +724,7 @@ static void signal_draw(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
     lv_draw_rect(draw_ctx, &rect, &a);
 
     /* segments 3 px wide, 1 px apart, lit to the level */
-    lv_coord_t lvl = in_tx ? 0 : meter_x70(meter_db, w - 4), peak = in_tx ? 0 : meter_x70(meter_peak, w - 4);
+    lv_coord_t lvl = in_tx ? 0 : meter_x70(draw_db, w - 4), peak = in_tx ? 0 : meter_x70(draw_peak, w - 4);
     lv_coord_t s9 = meter_x70(S9, w - 4);
 
     lv_draw_rect_dsc_init(&rect);
@@ -670,7 +738,12 @@ static void signal_draw(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
 
     /* the scale */
     dsc.font = &sony_14;
-    for (int i = 0; i < (int)(sizeof(marks) / sizeof(marks[0])); i++) {
+    for (int i = 0; draw_audio && i < METER_AUDIO_MARKS; i++) {
+        dsc.color = meter_audio_marks[i].db > S9 ? TC(meter_over) : TC(text_dim);
+        label_at(draw_ctx, &dsc, x0 + 2 + meter_x70(meter_audio_marks[i].db, w - 4), y0 + 43, meter_audio_marks[i].t,
+                 false);
+    }
+    for (int i = 0; !draw_audio && i < (int)(sizeof(marks) / sizeof(marks[0])); i++) {
         dsc.color = marks[i].db > S9 ? TC(meter_over) : TC(text_dim);
         label_at(draw_ctx, &dsc, x0 + 2 + meter_x70(marks[i].db, w - 4), y0 + 43, marks[i].t, false);
     }
@@ -680,8 +753,10 @@ static void meter_draw_cb(lv_event_t *e) {
     lv_obj_t      *o = lv_event_get_target(e);
     lv_draw_ctx_t *draw_ctx = lv_event_get_draw_ctx(e);
 
+    draw_pick();
     if (theme_shape.ops_room && !tx_readings) {      /* the TX readings as in any theme */
-        ops_room_meter_draw(o, draw_ctx, in_tx ? S1 : meter_db, in_tx ? S1 : meter_peak, meter_db_raw, in_tx);
+        ops_room_meter_draw(o, draw_ctx, in_tx ? S1 : draw_db, in_tx ? S1 : draw_peak,
+                            draw_audio ? audio_m.bar : meter_db_raw, in_tx, draw_audio);
         if (in_tx) tx_veil(o, draw_ctx);
         return;
     }
@@ -710,6 +785,7 @@ static void radio_cb(lv_event_t *e) {
     in_tx = lv_event_get_code(e) == EVENT_RADIO_TX;
     tx_readings = in_tx && !tx_info_shown();
     if (in_tx) {
+        meter_audio_end();      /* the station stops on any TX (dialog_iradio.c): its level with it */
         meter_db = meter_db_raw = meter_peak = S1;
         if (tx_readings) {
             lv_obj_add_flag(db_val_label, LV_OBJ_FLAG_HIDDEN);
@@ -752,6 +828,7 @@ lv_obj_t *meter_init(lv_obj_t *parent) {
     lv_obj_set_style_text_color(db_val_label, TC(text), 0);
     db_label_place();
     lv_label_set_text(db_val_label, "");
+    if (audio_shown) audio_value();     /* a new theme while the station plays */
 
     /* The S-meter settings change the drawing live */
     subject_subscribe_delayed((Subject *)cfg_smeter_needle, on_needle_change, NULL);
@@ -804,6 +881,7 @@ void meter_update(float db, float beta) {
     meter_db_raw = db;
     meter_seq_n++;
     meter_db = meter_db * beta + db * (1.0f - beta);
+    if (atomic_load(&audio_on)) return;    /* the box shows the station: its own ticks draw it, the reading kept */
     scheduler_put_coalesced(show_value);
     event_send(obj, LV_EVENT_REFRESH, NULL);
 }
@@ -818,4 +896,82 @@ float meter_get_db(void) {
 
 uint32_t meter_seq(void) {
     return meter_seq_n;
+}
+
+/* ---- The Internet radio's station on the box (#360) ---- */
+
+/* Its value, in place of the receiver's dB: "Audio -14 dB" under the bars or the dial; VISION's big type has room
+ * for the word, Codec's title says AUDIO already, Ops Room draws its own (ops_room.c) */
+static void audio_value(void) {
+    int db = (int)lroundf(audio_m.bar);
+
+    if (theme_shape.vision) {
+        lv_label_set_text(db_val_label, "Audio");
+    } else if (theme_shape.codec) {
+        lv_label_set_text_fmt(db_val_label, "%d dB", db);
+    } else {
+        lv_label_set_text_fmt(db_val_label, "Audio %d dB", db);
+    }
+}
+
+/* LVGL thread: the levels come due as they are heard, the bar falls between them */
+static void audio_tick(lv_timer_t *t) {
+    uint64_t      now = get_time();
+    uint32_t      gen = atomic_load(&audio_gen);
+    audio_level_t lvl;
+
+    audio_meter_step(&audio_m, NULL, now);
+    while (audio_meter_take(&audio_ring, now, gen, &lvl)) audio_meter_step(&audio_m, &lvl, now);
+    if (now - audio_value_ms >= AUDIO_VALUE_MS) {
+        audio_value_ms = now;
+        audio_value();
+    }
+    lv_obj_invalidate(obj);
+}
+
+/* LVGL thread: the box as begin and end want it; in TX it stays the TX meter's */
+static void audio_apply(void *unused) {
+    bool on = atomic_load(&audio_on) && !in_tx && obj;
+
+    if (on == audio_shown) return;
+    audio_shown = on;
+    if (on) {
+        audio_meter_reset(&audio_m, get_time());
+        audio_value_ms = get_time();
+        audio_value();
+        audio_timer = lv_timer_create(audio_tick, AUDIO_TICK_MS, NULL);
+    } else {
+        if (audio_timer) lv_timer_del(audio_timer);
+        audio_timer = NULL;
+        show_value(NULL);       /* the receiver's reading at once, not at its next */
+    }
+    if (obj) lv_obj_invalidate(obj);
+}
+
+static void audio_apply_soon(void) {
+    if (scheduler_on_gui_thread()) {
+        audio_apply(NULL);
+    } else {
+        while (!scheduler_put_noargs(audio_apply)) usleep(20000);     /* an end must get through */
+    }
+}
+
+void meter_audio_begin(void) {
+    atomic_fetch_add(&audio_gen, 1);
+    atomic_store(&audio_on, true);
+    audio_apply_soon();
+}
+
+void meter_audio_end(void) {
+    if (!atomic_exchange(&audio_on, false)) return;    /* the end that came first did it */
+    atomic_fetch_add(&audio_gen, 1);
+    audio_apply_soon();
+}
+
+void meter_audio_feed(const int16_t *samples, size_t n, int delay_ms) {
+    if (!atomic_load(&audio_on) || delay_ms < 0 || !n) return;     /* not heard: the bar falls */
+
+    uint32_t gen = atomic_load(&audio_gen);
+
+    audio_meter_put(&audio_ring, get_time() + (uint64_t)LV_MIN(delay_ms, 2000), audio_meter_measure(samples, n), gen);
 }

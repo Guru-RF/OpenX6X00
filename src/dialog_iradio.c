@@ -14,6 +14,9 @@
  *  (audio_listen_cut), and the thread stops on any TX state, the hand mic's and the KEY jack's too. Nothing here
  *  keys the radio.
  *
+ *  While the station plays, the S-meter box shows how loud it is, marked Audio, from the samples the thread writes
+ *  (meter_audio_*, smeter.h): the stream is no signal on the air, and a meter that stood still looked dead (#360).
+ *
  *  From the CX8ANM edition of OpenX6X00 (condoruy, Cóndor Tecnológico): its Internet radio app.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -34,6 +37,7 @@
 #include "msg_box.h"
 #include "radio.h"
 #include "scheduler.h"
+#include "smeter.h"
 #include "styles.h"
 #include "text_popup.h"
 #include "theme.h"
@@ -452,10 +456,17 @@ static void *play_thread(void *arg) {
             }
             if (!started) {
                 audio_listen_open(AUDIO_USER_STATION);    /* its stream and the speaker (or the headphones) */
+                if (keep_playing()) {
+                    meter_audio_begin();    /* the S-meter box shows how loud the station is (#360) */
+                }
                 started = true;
             }
 
             int res = audio_listen_play(AUDIO_USER_STATION, buf.s, have / 2, keep_playing, STALL_MS);
+
+            if (res == 0) {     /* its level when the speaker gets to it: what is written now plays about 0.8 s on */
+                meter_audio_feed(buf.s, have / 2, audio_listen_delay_ms(AUDIO_USER_STATION));
+            }
 
             if (res == -1) {    /* stopped, or a key cut it (audio_listen_cut) */
                 done.why = atomic_load(&play_on) ? END_TX : END_USER;
@@ -472,6 +483,7 @@ static void *play_thread(void *arg) {
         }
         close(fd);
     }
+    meter_audio_end();      /* the receiver's signal on the S-meter again */
     audio_listen_end(AUDIO_USER_STATION);     /* the speaker given back, unless a voice link still has it */
     if (pid > 0) {
         end_child(pid);
@@ -562,9 +574,11 @@ static void play_done_cb(void *arg) {
     }
 }
 
+/* The S-meter shows the receiver again at once: the playing thread may take up to POLL_MS to see the stop */
 static void stop_play(void) {
     pending_on = false;
     atomic_store(&play_on, false);
+    meter_audio_end();
 }
 
 static void start_play(const iradio_station_t *s) {

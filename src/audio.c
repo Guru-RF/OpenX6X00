@@ -735,6 +735,30 @@ int audio_listen_play(audio_user_t u, const int16_t *buf, size_t samples, bool (
     return 0;
 }
 
+/* The stream asked for 800 ms in all (audio_user_open), of which PulseAudio keeps part in the sink and the rest in the
+ * stream's queue, whose room is what is left of it: so what was written last is heard about 800 ms less that room
+ * from now. An estimate, near enough for a meter that follows the music (#360) */
+int audio_listen_delay_ms(audio_user_t u) {
+    int ms = -1;
+
+    if (u >= AUDIO_USERS) {
+        return -1;
+    }
+    pthread_mutex_lock(&owner_lock);
+    pa_stream *s = user_stm[u];
+
+    if (s && !listen_cut[u] && !audio_owner_held(&owner, u)) {
+        pa_threaded_mainloop_lock(mloop);
+        size_t room = pa_stream_writable_size(s);
+
+        pa_threaded_mainloop_unlock(mloop);
+        ms = AUDIO_RATE_MS * 8 - (room == (size_t)-1 ? 0 : (int)(room / 2 * 1000 / AUDIO_PLAY_RATE));
+        ms = LV_CLAMP(0, ms, AUDIO_RATE_MS * 8);
+    }
+    pthread_mutex_unlock(&owner_lock);
+    return ms;
+}
+
 /* Its stream closes: what is still queued goes with it, so a stop is heard at once */
 void audio_listen_end(audio_user_t u) {
     audio_user_close(u);

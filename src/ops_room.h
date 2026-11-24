@@ -32,5 +32,6 @@ void ops_room_init(lv_obj_t *screen);
 
 /* The clock box (clock.c), the S-meter box (smeter.c): drawn over their frames */
 void ops_room_clock_draw(lv_obj_t *o, lv_draw_ctx_t *draw_ctx, const ops_room_clock_t *c);
-/* db, peak: the bar; value: the number over it, as the other themes' label (the reading as read); tx: "TX" there */
-void ops_room_meter_draw(lv_obj_t *o, lv_draw_ctx_t *draw_ctx, float db, float peak, float value, bool tx);
+/* db, peak: the bar; value: the number over it, as the other themes' label (the reading as read); tx: "TX" there;
+ * audio: the Internet radio's station, value its dB of full scale and AUDIO on the scale's marks (smeter.h, #360) */
+void ops_room_meter_draw(lv_obj_t *o, lv_draw_ctx_t *draw_ctx, float db, float peak, float value, bool tx, bool audio);

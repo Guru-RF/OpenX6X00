@@ -85,6 +85,9 @@ bool audio_listen_resume(audio_user_t u, int quiet_ms);
 int audio_listen_play(audio_user_t u, const int16_t *buf, size_t samples, bool (*go_on)(void), int timeout_ms);
 void audio_listen_end(audio_user_t u);
 void audio_listen_cut(void);
+/* After a play: about how many ms from now what it wrote last is heard; -1 when none of it is (no stream, a key cut
+ * it, a voice link holds the speaker). For the S-meter's audio level (smeter.h, #360) */
+int audio_listen_delay_ms(audio_user_t u);
 
 /* Short-delay playback into the codec for the phone's voice, from the playing thread (see audio.c) */
 bool audio_play_lowlat_begin(void);
