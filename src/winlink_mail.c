@@ -14,6 +14,12 @@
  *  page does. Connect's first press puts the radio on the gateway's frequency and sends nothing (winlink_preset(),
  *  src/winlink.c), for the antenna tuner; the second calls.
  *
+ *  Listen (#357, page 3): Pat answers a station's P2P call, the radio transmitting for it, only while this window is
+ *  open with Listen on, its operator at the radio. Off each time the window opens; it ends as the window closes
+ *  (another app opening closes it too), at Listen off, and when the radio leaves the frequency or its mode, the screen
+ *  goes dark, or Winlink or the modem changes (winlink_listen_*(), src/winlink.c, which tells our Pat). Not under the
+ *  screensaver: waiting for a call is minutes without a key, and any TX ends the screensaver at once.
+ *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 
@@ -27,6 +33,7 @@
 
 #include "app_frame.h"
 #include "buttons.h"
+#include "cfg/cfg_api.h"
 #include "cJSON.h"
 #include "events.h"
 #include "keyboard.h"
@@ -67,6 +74,7 @@ extern char **environ;
 #define LOG_LINES     6
 #define POLL_S        15                 /* s between looks at Pat's state in the lists */
 #define POLL_FAST_S   2                  /* while Winlink starts or stops */
+#define POLL_LISTEN_S 5                  /* while listening for P2P calls: a call that came in shows this soon */
 #define CONFIRM_S     5                  /* s a second press has, for Connect and Delete */
 /* s for the modem chosen to be ready: Pat restarts (15 s at most), the other one stops (Mercury with a session still
  * up ends it on the air first, x6100-winlink's MERCURY_TERM_WAIT: 55 s at most), the chosen one starts */
@@ -79,7 +87,7 @@ extern char **environ;
 #define COLOR_HEAD    theme_hex(TC_text_head)
 #define COLOR_DIM     theme_hex(TC_text_dim)
 
-typedef enum { V_LIST, V_READ, V_COMPOSE, V_GATEWAYS, V_SESSION } view_t;
+typedef enum { V_LIST, V_READ, V_COMPOSE, V_GATEWAYS, V_SESSION, V_LISTEN } view_t;
 
 static const char *const boxes[]      = {"in", "out", "sent"};
 static const char *const box_names[]  = {N_("Inbox"), N_("Outbox"), N_("Sent")};
@@ -94,7 +102,7 @@ static void destruct_cb(void);
 static void key_cb(lv_event_t *e);
 static void click_cb(lv_event_t *e);
 
-static buttons_page_t page_list_1, page_list_2;
+static buttons_page_t page_list_1, page_list_2, page_list_3;
 
 static dialog_t dialog = {
     .run          = false,
@@ -190,6 +198,16 @@ static char     prompt_id[48], prompt_kind[32], prompt_msg[220];
 static char     prompt_all[1024], prompt_checked[1024];  /* multi-select: every message, the small ones */
 static bool     prompt_on;
 static bool     prompt_password_open;
+
+/* Listen (#357): P2P calls answered while this window is open with it on. The radio's side is winlink_listen_*() */
+#define LISTEN_SLOW_S 15                 /* s after Listen with no word from Pat that it listens: the page says so */
+static bool     listen_on;           /* pressed, and not ended since */
+static bool     listen_heard;        /* Pat said it listens (its active listeners) since */
+static time_t   listen_since;
+static char     listen_transport[8]; /* the one it was started with: another modem ends it */
+static char     listen_end[160];     /* why it ended, other than Listen off */
+static bool     incoming;            /* a station called: Pat's session under way, not one begun here */
+static char     incoming_call[24];
 
 static void show(void);
 static void refresh(void);
@@ -567,6 +585,63 @@ static void modem_followed(void) {
     }
 }
 
+/* Listen ends: Pat is told at once (the listen file goes), a session that came in goes on. why: what ended it, for
+ * the page and a note on the screen; NULL for Listen off and the window closing */
+static void listen_stop(const char *why) {
+    if (!listen_on) {
+        return;
+    }
+    winlink_listen_stop();
+    listen_on = listen_heard = false;
+    if (why) {
+        /* a short note over any screen, the why on the page and in the status line */
+        snprintf(listen_end, sizeof(listen_end), "%s", why);
+        msg_schedule_text_fmt("Winlink: P2P listening stopped");
+        say("#%06x Listening stopped:# %s", theme_hex(TC_warn), why);
+    } else {
+        listen_end[0] = 0;
+    }
+}
+
+/* The status just read, while listening or after: Pat's word that it listens, a station that called (Pat connected
+ * with no connection begun here: one from the web mailbox tunes the radio, which ends listening first), its end, and
+ * what ends listening here: Winlink off or Pat gone, another modem */
+static void listen_followed(void) {
+    const cJSON *l;
+    bool         heard = false;
+
+    if (!status) {
+        return;
+    }
+    if (incoming && !jbool(status, "connected")) {
+        incoming = false;       /* what came of it: the Listen page's last call, from the supervisor */
+        msg_schedule_text_fmt("Winlink: call from %s ended", incoming_call);
+    } else if (!incoming && listen_on && !sess_on && jbool(status, "connected") && jbool(status, "last_incoming")) {
+        /* the supervisor read Pat's "Got connect": a station called, not a connection from the web mailbox */
+        incoming = true;
+        plain(incoming_call, sizeof(incoming_call), jstr(status, "remote")[0] ? jstr(status, "remote") : "?");
+        msg_schedule_text_fmt("Winlink: a call from %s", incoming_call);
+        if (view == V_LIST) {
+            set_view(V_LISTEN);     /* Abort is there */
+        }
+    }
+    if (!listen_on) {
+        return;
+    }
+    if (!winlink_on() || !pat_up()) {
+        listen_stop(_("Winlink went off, or Pat restarted"));
+        return;
+    }
+    if (strcmp(jstr(status, "transport"), listen_transport)) {
+        listen_stop(_("the modem changed"));
+        return;
+    }
+    cJSON_ArrayForEach(l, cJSON_GetObjectItemCaseSensitive(status, "listening")) {
+        heard |= cJSON_IsString(l) && !strcmp(l->valuestring, listen_transport);
+    }
+    listen_heard = heard;
+}
+
 static void view_done(int rc, cJSON *out) {
     cJSON *st, *ls;
 
@@ -605,11 +680,12 @@ static void view_done(int rc, cJSON *out) {
         cJSON_Delete(ls);
     }
     modem_followed();
+    listen_followed();
     {
         const char *state = jstr(status, "state");
         bool        moving = winlink_on() ? !pat_up() : !strcmp(state, "stopping") || !strcmp(state, "starting");
 
-        next_poll = time(NULL) + (moving || modem_moving ? POLL_FAST_S : POLL_S);
+        next_poll = time(NULL) + (moving || modem_moving ? POLL_FAST_S : listen_on || incoming ? POLL_LISTEN_S : POLL_S);
     }
     if (sess_result_status_at == -1 && status && jstr(status, "last_text")[0] && sess_call[0] &&
         jint(status, "last_time", 0) >= sess_started - 5 && !strncmp(jstr(status, "last_gateway"), sess_call,
@@ -1076,6 +1152,9 @@ static void show_session_lines(void) {
         } else {
             lv_label_set_text(l1, sess_connected ? "Exchanging mail..." : "The radio transmits when Pat calls.");
         }
+    } else if (pat_busy() && incoming) {
+        lv_label_set_text_fmt(l0, "#%06x Connected:# #%06x %s# called", theme_hex(TC_ok), COLOR_HEAD, incoming_call);
+        lv_label_set_text(l1, "A P2P call answered while listening: Pat exchanges mail with it. Abort ends it.");
     } else if (pat_busy()) {
         lv_label_set_text_fmt(l0, "#%06x A connection is under way#", theme_hex(TC_warn));
         lv_label_set_text(l1, "Started from the web mailbox, or before the app was closed: Abort ends it.");
@@ -1097,6 +1176,54 @@ static void show_session_lines(void) {
     (lv_label_set_text)(l2, buf);   /* Pat's and the gateway's words: past the language hook */
 }
 
+
+/* The Listen page (#357): whether the radio answers P2P calls now and where, what that means, the last call */
+static void show_listen(void) {
+    lv_obj_t *l0 = lv_obj_get_child(body, 0), *l1 = lv_obj_get_child(body, 1), *l2 = lv_obj_get_child(body, 2);
+    int32_t   hz = listen_on ? winlink_listen_hz() : cparam_i_get(cfg_fg_freq);
+    char      call[24], t[200];
+
+    plain(call, sizeof(call), status && jstr(status, "call")[0] ? jstr(status, "call") : "?");
+    if (incoming) {         /* also after Listen went off: the session goes on */
+        lv_label_set_text_fmt(l0, "#%06x Connected:# #%06x %s# called on %.1f kHz", theme_hex(TC_ok), COLOR_HEAD,
+                              incoming_call, hz / 1000.0);
+        lv_label_set_text(l1, "Pat exchanges mail with it. Abort ends the connection.");
+    } else if (listen_on && listen_heard) {
+        lv_label_set_text_fmt(l0, "#%06x Listening# for calls to #%06x %s# on %.1f kHz, %s", theme_hex(TC_warn),
+                              COLOR_HEAD, call, hz / 1000.0, modem_name());
+        lv_label_set_text(l1, "The radio transmits when a station calls. Stay with it: Listen off, closing this app, "
+                              "another app, the dial or the mode changed, or the screen dark ends listening.");
+    } else if (listen_on) {
+        lv_label_set_text_fmt(l0, "#%06x Starting to listen# on %.1f kHz, %s...", theme_hex(TC_warn), hz / 1000.0,
+                              modem_name());
+        lv_label_set_text(l1, time(NULL) - listen_since < LISTEN_SLOW_S
+                                  ? "Pat sets the modem up to answer calls."
+                                  : "Pat has not said it listens yet: see its log in the web mailbox. The radio "
+                                    "may still answer a call.");
+    } else {
+        if (listen_end[0]) {
+            plain(t, sizeof(t), listen_end);
+            lv_label_set_text_fmt(l0, "#%06x Listening stopped:# %s", theme_hex(TC_warn), t);
+        } else {
+            lv_label_set_text_fmt(l0, "#%06x Not listening#", COLOR_HEAD);
+        }
+        lv_label_set_text_fmt(l1, "Listen: Pat answers a station that calls %s peer to peer (P2P) on %.1f kHz, %s, "
+                                  "and the radio transmits for it.", call, hz / 1000.0, modem_name());
+    }
+    if (incoming) {
+        lv_label_set_text(l2, "");      /* the last call is this one */
+    } else if (status && jbool(status, "last_incoming") && jstr(status, "last_text")[0]) {
+        plain(t, sizeof(t), jstr(status, "last_text"));
+        lv_label_set_text_fmt(l2, "Last call: %s", t);
+    } else if (!listen_on) {
+        lv_label_set_text(l2, "Only with you at the radio: listening ends as this app closes or another opens, the "
+                              "dial or the mode changes, the screen goes dark, Winlink goes off or the radio "
+                              "restarts. Tune and set the power first: every check of a connection applies.");
+    } else {
+        lv_label_set_text(l2, "");
+    }
+    session_layout();
+}
 
 /* ---- Speech: the window draws its lists and fields itself, so it says them itself ----------------------------------
  * A view as it opens: its name and its help line, then what is chosen in it. The lists: the row chosen, "Unread, from
@@ -1228,7 +1355,8 @@ static void mail_speech(void) {
             if (head[0] && fields[field_i]) field_said(item, sizeof(item));
             break;
 
-        case V_SESSION: {
+        case V_SESSION:
+        case V_LISTEN: {    /* the Listen page's lines as the connection's: its state and what it means as they change */
             lv_obj_t *l0 = lv_obj_get_child(body, 0), *l1 = lv_obj_get_child(body, 1), *l2 = lv_obj_get_child(body, 2);
             char      a[300], b[300];
 
@@ -1312,12 +1440,20 @@ static void show(void) {
         case V_SESSION:
             snprintf(left, sizeof(left), "%s", _("CONNECTION"));
             break;
+        case V_LISTEN:
+            snprintf(left, sizeof(left), "%s", _("LISTEN - P2P"));
+            break;
     }
     lv_label_set_text(frame.head_left, left);
 
     if (sess_on) {
         snprintf(right, sizeof(right), "#%06x %s %s#", theme_hex(sess_connected ? TC_ok : TC_warn),
                  sess_connected ? _("Connected") : _("Calling"), sess_call);
+    } else if (incoming && pat_busy()) {
+        snprintf(right, sizeof(right), "#%06x %s %s#", theme_hex(TC_ok), _("Connected"), incoming_call);
+    } else if (listen_on) {
+        /* in every view: the radio transmits when a station calls */
+        snprintf(right, sizeof(right), _("#%06x Listening %.1f#"), theme_hex(TC_warn), winlink_listen_hz() / 1000.0);
     } else if (status && pat_up()) {
         int unread = jint(status, "unread", 0), out = jint(status, "out", 0);
 
@@ -1377,10 +1513,15 @@ static void show(void) {
     } else if (view == V_SESSION && prompt_on) {
         /* the question's page has no Back, and its Abort is an answer to Pat */
         lv_label_set_text(frame.status, "Pat waits for the answer: a button here, or the web mailbox");
-    } else if (view == V_SESSION && sess_on) {
+    } else if (view == V_SESSION && (sess_on || (incoming && pat_busy()))) {
         lv_label_set_text(frame.status, "Abort ends the connection; Back leaves it running");
+    } else if (view == V_LISTEN && listen_on) {
+        lv_label_set_text_fmt(frame.status, "#%06x The radio transmits when a station calls: stay with it#",
+                              theme_hex(TC_warn));
+    } else if (view == V_LISTEN) {
+        lv_label_set_text(frame.status, "Listen: P2P calls answered while this app is open, with you at the radio");
     } else if (view == V_LIST) {
-        lv_label_set_text(frame.status, keyboard_ready() ? "Enter: read - N: new - C: connect - B: next box"
+        lv_label_set_text(frame.status, keyboard_ready() ? "Enter: read - N: new - C: connect - B: next box - L: listen"
                                                          : "MFK: choose - MFK press: read");
     } else {
         lv_label_set_text(frame.status, "");
@@ -1396,6 +1537,7 @@ static void show(void) {
         case V_LIST:     show_list(); break;
         case V_GATEWAYS: show_gateways(); break;
         case V_SESSION:  show_session(); break;
+        case V_LISTEN:   show_listen(); break;
         default:         break;
     }
     mail_speech();
@@ -1423,6 +1565,8 @@ static void connect_cb(button_data_t *b);
 static void after_cb(button_data_t *b);
 static void abort_cb(button_data_t *b);
 static void prompt_cb(button_data_t *b);
+static void listen_view_cb(button_data_t *b);
+static void listen_onoff_cb(button_data_t *b);
 
 static const char *box_label(void) {
     static char s[64];
@@ -1469,22 +1613,38 @@ static const char *conn_label(void) {
     return sess_on || pat_busy() ? "Connection" : "Connect";
 }
 
-static button_data_t btn_l1      = {.type = BTN_TEXT, .label = "(MAIL 1:2)", .press = button_next_page_cb,
-                                    .hold = button_prev_page_cb, .next = &page_list_2, .prev = &page_list_2};
+/* Listen (#357): page 3 opens its page, which turns it on and off */
+static const char *listen_view_label(void) {
+    return listen_on ? "Listening" : "Listen";
+}
+
+static const char *listen_label(void) {
+    return listen_on ? "Listen:\nOn" : "Listen:\nOff";
+}
+
+static button_data_t btn_l1      = {.type = BTN_TEXT, .label = "(MAIL 1:3)", .press = button_next_page_cb,
+                                    .hold = button_prev_page_cb, .next = &page_list_2, .prev = &page_list_3};
 static button_data_t btn_box     = {.type = BTN_TEXT_FN, .label_fn = box_label, .press = box_cb};
 static button_data_t btn_new     = {.type = BTN_TEXT, .label = "New", .press = new_cb};
 static button_data_t btn_conn    = {.type = BTN_TEXT_FN, .label_fn = conn_label, .press = connect_view_cb};
 static button_data_t btn_close   = {.type = BTN_TEXT, .label = "Close", .press = close_cb};
-static button_data_t btn_l2      = {.type = BTN_TEXT, .label = "(MAIL 2:2)", .press = button_next_page_cb,
-                                    .hold = button_prev_page_cb, .next = &page_list_1, .prev = &page_list_1};
+static button_data_t btn_l2      = {.type = BTN_TEXT, .label = "(MAIL 2:3)", .press = button_next_page_cb,
+                                    .hold = button_prev_page_cb, .next = &page_list_3, .prev = &page_list_1};
 static button_data_t btn_onoff   = {.type = BTN_TEXT_FN, .label_fn = onoff_label, .press = onoff_cb};
 static button_data_t btn_modem   = {.type = BTN_TEXT_FN, .label_fn = modem_label, .press = modem_cb};
 static button_data_t btn_pass    = {.type = BTN_TEXT, .label = "Password", .press = password_cb};
 static button_data_t btn_refresh = {.type = BTN_TEXT, .label = "Refresh", .press = refresh_cb};
 
+static button_data_t btn_l3      = {.type = BTN_TEXT, .label = "(MAIL 3:3)", .press = button_next_page_cb,
+                                    .hold = button_prev_page_cb, .next = &page_list_1, .prev = &page_list_2};
+static button_data_t btn_listen  = {.type = BTN_TEXT_FN, .label_fn = listen_view_label, .press = listen_view_cb};
+static button_data_t btn_close3  = {.type = BTN_TEXT, .label = "Close", .press = close_cb};
+
 static buttons_page_t page_list_1 = {{&btn_l1, &btn_box, &btn_new, &btn_conn, &btn_close}};
-/* Close is on page 1 (and Esc): the five buttons of page 2 are taken */
+/* Close is on pages 1 and 3 (and Esc): the five buttons of page 2 are taken */
 static buttons_page_t page_list_2 = {{&btn_l2, &btn_onoff, &btn_modem, &btn_pass, &btn_refresh}};
+/* Listen on a page of its own, away from the buttons pressed every day: it makes the radio transmit (#357) */
+static buttons_page_t page_list_3 = {{&btn_l3, &btn_listen, NULL, NULL, &btn_close3}};
 
 static button_data_t  btn_rd      = {.type = BTN_TEXT, .label = "(READ 1:1)"};
 static button_data_t  btn_reply   = {.type = BTN_TEXT, .label = "Reply", .press = reply_cb};
@@ -1519,6 +1679,12 @@ static button_data_t  btn_abort   = {.type = BTN_TEXT, .label = "Abort", .press 
 static button_data_t  btn_back3   = {.type = BTN_TEXT, .label = "Back", .press = back_cb};
 static buttons_page_t page_session = {{&btn_sp, NULL, NULL, &btn_abort, &btn_back3}};
 
+static button_data_t  btn_lp      = {.type = BTN_TEXT, .label = "(LISTEN 1:1)"};
+static button_data_t  btn_lonoff  = {.type = BTN_TEXT_FN, .label_fn = listen_label, .press = listen_onoff_cb};
+static button_data_t  btn_labort  = {.type = BTN_TEXT, .label = "Abort", .press = abort_cb};
+static button_data_t  btn_back5   = {.type = BTN_TEXT, .label = "Back", .press = back_cb};
+static buttons_page_t page_listen = {{&btn_lp, &btn_lonoff, NULL, &btn_labort, &btn_back5}};
+
 /* Pat's question: up to three answers; .ctrl is the answer's number */
 static char           prompt_labels[3][24];
 static button_data_t  btn_pq      = {.type = BTN_TEXT, .label = "(PAT ASKS)"};
@@ -1544,13 +1710,14 @@ static void load_page(void) {
     }
     switch (view) {
         case V_LIST:
-            if (cur != &page_list_1 && cur != &page_list_2) {
+            if (cur != &page_list_1 && cur != &page_list_2 && cur != &page_list_3) {
                 buttons_load_page(&page_list_1);
             } else {
                 buttons_refresh(&btn_box);
                 buttons_refresh(&btn_conn);
                 buttons_refresh(&btn_onoff);
                 buttons_refresh(&btn_modem);
+                buttons_refresh(&btn_listen);
             }
             break;
         case V_READ:
@@ -1578,6 +1745,13 @@ static void load_page(void) {
                 buttons_load_page(&page_session);
             }
             buttons_disabled(&btn_abort, !sess_on && !pat_busy());
+            break;
+        case V_LISTEN:
+            if (cur != &page_listen) {
+                buttons_load_page(&page_listen);
+            }
+            buttons_refresh(&btn_lonoff);
+            buttons_disabled(&btn_labort, !pat_busy());
             break;
     }
 }
@@ -1607,6 +1781,7 @@ static void set_view(view_t v) {
             build_read();
             break;
         case V_SESSION:
+        case V_LISTEN:      /* the same three lines */
             build_session();
             break;
         case V_COMPOSE:
@@ -1717,7 +1892,12 @@ static void back_cb(button_data_t *b) {
             return;
         }
     }
-    set_view(V_LIST);
+    if (view == V_LISTEN) {
+        set_view(V_LIST);
+        buttons_load_page(&page_list_3);    /* where Listen was pressed */
+    } else {
+        set_view(V_LIST);
+    }
     refresh();
 }
 
@@ -1962,6 +2142,9 @@ static void onoff_cb(button_data_t *b) {
         say("Wait, still busy");
         return;
     }
+    if (winlink_on()) {
+        listen_stop(_("Winlink went off"));
+    }
     say(winlink_on() ? "Stopping Pat and the modem..." : "Starting Pat and the modem...");
 }
 
@@ -2022,6 +2205,7 @@ static void modem_cb(button_data_t *b) {
         say("Wait, still busy");
         return;
     }
+    listen_stop(_("the modem changed"));      /* Pat restarts with the other one */
     modem_moving = true;
     modem_until  = time(NULL) + MODEM_WAIT_S;
     load_page();
@@ -2555,6 +2739,11 @@ static void connect_cb(button_data_t *b) {
         say("A connection is under way");
         return;
     }
+    if (listen_on) {
+        /* Set freq would move the radio off the frequency listened on, and a call would meet one coming in */
+        say("Listening for P2P calls: Listen off first (MAIL 3:3)");
+        return;
+    }
     plain(call, sizeof(call), jstr(g, "call"));
     if (gw_hz(g)) {
         /* The first press (#322): the radio on the gateway's frequency, nothing sent, for as long as the antenna
@@ -2648,6 +2837,64 @@ static void abort_cb(button_data_t *b) {
     } else if (pat_busy() && !job_start(abort_done, NULL, HELPER, "abort", NULL, NULL)) {
         say("Wait, still busy: Abort again");
     }
+}
+
+/* Listen (#357), page 3 or L: its page, which says what it does before it is turned on */
+static void listen_view_cb(button_data_t *b) {
+    (void)b;
+    if (popup_first()) {
+        return;
+    }
+    set_view(V_LISTEN);
+    refresh();
+}
+
+/* Listen on: the radio, in USB-D on the dial's frequency, answers a station that calls, through the modem Pat runs.
+ * Refused while Winlink or the modem is not ready, a connection is under way, or the radio may not transmit there
+ * (winlink_listen_start); off at once. The timer keeps it (timer_cb) */
+static void listen_onoff_cb(button_data_t *b) {
+    const char *transport;
+    char        why[160], call[24];
+
+    if (popup_first()) {
+        return;
+    }
+    if (listen_on) {
+        listen_stop(NULL);
+        say("Listen off: Pat answers no call");
+        load_page();
+        show();
+        return;
+    }
+    transport = status ? jstr(status, "transport") : "";
+    plain(call, sizeof(call), status ? jstr(status, "call") : "");
+    if (!status) {
+        say("Wait: reading Winlink's state");
+    } else if (!winlink_on()) {
+        say("#%06x Not listening:# Winlink is off, On (page 2) starts it", theme_hex(TC_warn));
+    } else if (!pat_up() || modem_moving) {
+        say("#%06x Not listening:# Pat and the modem are starting, try again in a moment", theme_hex(TC_warn));
+    } else if (pat_busy()) {
+        say("#%06x Not listening:# a connection is under way", theme_hex(TC_warn));
+    } else if (strcmp(transport, "ardop") && strcmp(transport, "varahf")) {
+        say("#%06x Not listening:# %s cannot answer calls on this radio", theme_hex(TC_warn), modem_name());
+    } else if (strcmp(jstr(status, "modem_state"), "running")) {
+        /* Pat's listener would wait for a modem that is not there */
+        say("#%06x Not listening:# %s does not run, the Winlink page says why", theme_hex(TC_warn), modem_name());
+    } else if (!call[0]) {
+        say("#%06x Not listening:# no callsign, set it on the Winlink page", theme_hex(TC_warn));
+    } else if (!winlink_listen_start(transport, call, why, sizeof(why))) {
+        say("#%06x Not listening:# %s", theme_hex(TC_err), why);
+    } else {
+        listen_on    = true;
+        listen_heard = false;
+        listen_since = time(NULL);
+        listen_end[0] = 0;
+        snprintf(listen_transport, sizeof(listen_transport), "%s", transport);
+        next_poll = time(NULL) + POLL_FAST_S;      /* Pat's word that it listens, soon */
+    }
+    load_page();
+    show();
 }
 
 /* ---- Keys -------------------------------------------------------------------------------------------------------- */
@@ -2845,6 +3092,12 @@ static void key_cb(lv_event_t *e) {
                         connect_view_cb(NULL);
                     }
                     break;
+                case 'l':
+                case 'L':
+                    if (view == V_LIST) {
+                        listen_view_cb(NULL);
+                    }
+                    break;
                 default:
                     break;
             }
@@ -2876,6 +3129,7 @@ static void key_cb(lv_event_t *e) {
             }
             break;
         case V_SESSION:
+        case V_LISTEN:
             if (key == LV_KEY_ESC) {
                 back_cb(NULL);
             }
@@ -2909,9 +3163,23 @@ static void timer_cb(lv_timer_t *t) {
     if (sess_result_status_at > 0 && now >= sess_result_status_at) {
         sess_result_status_at = -1;      /* view_done takes the supervisor's last_text */
         refresh();
-    } else if (!job_busy && !osk_open_now && now >= next_poll && (view == V_LIST || view == V_SESSION)) {
+    } else if (!job_busy && !osk_open_now && now >= next_poll &&
+               (view == V_LIST || view == V_SESSION || view == V_LISTEN || listen_on)) {
         next_poll = now + POLL_S;
         refresh();
+    }
+    if (listen_on) {
+        char why[160];
+
+        /* Pat told again that the app is open with Listen on; or it ends here: the dial or the mode changed, the
+         * screen went dark, the radio may no more transmit there */
+        if (!winlink_listen_keep(why, sizeof(why))) {
+            listen_stop(why);
+            load_page();
+            show();
+        } else if (view == V_LISTEN && !listen_heard) {
+            show();     /* "Pat has not said it listens yet" after LISTEN_SLOW_S */
+        }
     }
     if (note[0] && now >= note_until) {
         note[0] = 0;
@@ -2937,6 +3205,10 @@ static void construct_cb(lv_obj_t *parent) {
     confirm_until  = 0;
     next_poll      = 0;
     modem_moving   = false;
+    listen_on      = false;      /* off each time the app opens (#357): the destruct ended it */
+    listen_heard   = false;
+    listen_end[0]  = 0;
+    incoming       = false;
     if (!sess_on) {
         sess_call[0] = sess_result[0] = 0;
         sess_log_n = 0;
@@ -2978,6 +3250,10 @@ static void destruct_cb(void) {
         timer = NULL;
     }
     lv_group_remove_obj(dialog.obj);
+    /* Closed, also by another app opening: nobody looks at it now. A call that came in goes on, as a connection
+     * begun here does; Pat stops listening within a second */
+    listen_stop(NULL);
+    incoming = false;
     tuned_drop();           /* closed after Connect's first press, with no call: the radio back where it was */
     if (sess_in >= 0) {
         close(sess_in);     /* the helper sees its stdin end and goes on to the end of the connection */

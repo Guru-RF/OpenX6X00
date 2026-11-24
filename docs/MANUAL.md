@@ -27,7 +27,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
 - [Wavelog](#wavelog): [live link](#live-link)
-- [Winlink](#winlink): [Mail on the radio](#mail-on-the-radio), [Mercury](#mercury-experimental), [XARA](#xara-experimental)
+- [Winlink](#winlink): [Mail on the radio](#mail-on-the-radio), [Listening for P2P calls](#listening-for-p2p-calls), [Mercury](#mercury-experimental), [XARA](#xara-experimental)
 - [Browser panel](#browser-panel)
 - [Browser remote](#browser-remote)
 - [Browser apps](#browser-apps): [FT8](#ft8-in-the-browser), [JS8](#js8-in-the-browser), [WeFax](#wefax-in-the-browser)
@@ -2196,6 +2196,9 @@ minutes, the screen dark after 30).
   first key only lights it, as before; a knob turned lights it and turns.
 - The POWER key on the screensaver brings the screen back, as any key; on
   the lit screen it turns it dark, as before.
+- APP > Mail's Listen (Winlink P2P calls answered) goes on under the
+  screensaver, and ends when the screen goes dark (see
+  [Listening for P2P calls](#listening-for-p2p-calls)).
 - Under the screensaver the radio works as it does with the screen lit: it
   receives, the apps decode, the cluster comes in, the browser panel and TCI
   get the spectrum and the waterfall. Only the drawing stops: the waterfall,
@@ -8359,9 +8362,13 @@ receive path, Pat's page and its guard, ARDOP's ID frames on the air at 1 W
 (X6200) and its frames at 5 W into a dummy load (X6100). More reports are
 welcome on #18.
 
-Pat's Configure page has "Listen for inbound P2P traffic": the radio turns it
-off again each time Pat starts. Listening would make the radio transmit,
-unattended, on whatever frequency it is on.
+Pat's Configure page has "Listen for inbound P2P traffic": on the radio it
+does nothing, and the page says so under it. Pat answers a station's P2P call
+only while APP > Mail has Listen on, with you at the radio (from v0.3.14; see
+[Listening for P2P calls](#listening-for-p2p-calls)). Listening on its own
+would make the radio transmit, unattended, on whatever frequency it is on. Up
+to v0.3.13 the radio turned the box off each time Pat started and answered no
+call at all.
 
 Pat 1.0.1 (MIT, Martin Hebnes Pedersen LA5NTA) and ardopcf (MIT, Rick Muething,
 John Wiseman, Peter LaRue) come with the firmware: Pat with small changes (its
@@ -8386,7 +8393,7 @@ web mailbox.
   counted at the top right, with the messages waiting to go. The MFK (or Up
   and Down) chooses, a press (or Enter) reads; a message touched is read at
   once. On a keyboard N writes a new message, C connects, B goes to the next
-  box.
+  box, L opens Listen.
 - Reading: Up and Down, the MFK, the space bar or a finger scroll. Reply fills in the
   sender and "Re:" and quotes nothing: over HF every byte takes air time.
   Delete, pressed twice, deletes the message; in the Outbox it is then not
@@ -8463,7 +8470,8 @@ web mailbox.
 - Page 2: Winlink On or Off (as the Winlink page's Enabled; Pat and the
   modem start with the radio from then on), Modem, the Winlink password
   (kept on the radio and never shown, as the Winlink page keeps it; Pat
-  starts again with it) and Refresh. Close is on page 1. The callsign is the
+  starts again with it) and Refresh. Close is on pages 1 and 3; page 3 has
+  Listen (below). The callsign is the
   radio's (Settings > General) unless the Winlink page sets another; the
   bandwidths and the VARA HF licence tick are set on the Winlink page.
 - Modem (from v0.3.14; issues #322, #323) goes through the modems on the
@@ -8488,6 +8496,61 @@ Over SSH, `x6100-winlink-mail` is what the app runs: `status`, `list in`,
 `x6100-winlink modem` says the modem chosen and the ones on the radio, and
 `x6100-winlink modem xara` (or `ardop`, `mercury`) chooses one as the app's
 Modem does.
+
+#### Listening for P2P calls
+
+From v0.3.14 (issue #357). Another station can call your callsign station to
+station (P2P) and exchange mail with the radio directly, with no gateway in
+between, but only while you are at the radio: Pat answers calls only while
+APP > Mail is open with Listen on. When a station calls, the radio
+transmits by itself to answer it, so **stay with the radio while Listen is
+on**, as you would during a connection you made.
+
+- APP > Mail, page 3 (MAIL 3:3), Listen, or L on a keyboard: the Listen page
+  says what it would do ("Pat answers a station that calls N0BBB peer to peer
+  (P2P) on 7101.5 kHz, ARDOP, and the radio transmits for it"). Tune there and
+  set the power first, and run the antenna tuner then if it needs one.
+- Listen: Off/On turns it on. The radio stays where the dial is, in USB-D
+  unless it is in USB already (as for a connection), and Pat listens with
+  the modem chosen (Modem, page 2): ARDOP, or VARA HF with Mercury or XARA.
+  The page says "Listening for calls to N0BBB on 7101.5 kHz, ARDOP", the top
+  right of every page of the app "Listening 7101.5", and the Winlink page's
+  Session row "Listening for P2P calls on 7.101.500 (APP > Mail)".
+- Listen is off each time the app opens. It goes off, and Pat stops
+  listening within a second, when Listen is pressed again, the app closes
+  (Close, Esc, or another app opening), the dial or the mode changes, the
+  screen goes dark (Screen off (min), Screen always off, or POWER), Winlink
+  goes off, the modem changes, Pat restarts, the GUI restarts or the radio
+  shuts down. Set freq and Connect ask for Listen off first. Nothing turns
+  it on at boot. A note says "Winlink: P2P listening stopped" and the page
+  says why ("the radio left 7.101.500 MHz").
+- The screensaver does not end it: waiting for a call is minutes without a
+  key, and the screensaver goes as soon as the radio transmits. LOCK does
+  not end it either: it holds the dial, and so the frequency listened on. A
+  dark screen does: nobody sees what the radio does then.
+- It does not start while the radio may not transmit there: outside the
+  amateur bands, split or a TX shift, XIT or RIT, an SWR hold, a dark screen,
+  an app that holds the radio (FT8 and the like: close it), the radio on the
+  air, the modem not running, or a connection under way. The page says which. Every check of a
+  connection (above) applies to an answer too, with the same power and TX
+  level.
+- A station that calls: a note "Winlink: a call from N0AAA", and the Listen
+  page shows "Connected: N0AAA called on 7101.5 kHz" with Abort, which ends
+  the connection; the top right says "Connected N0AAA". Pat sends what the
+  Outbox has for that station and takes what it sends; the mail shows in the
+  boxes as any other. The Winlink page and the list's status line give the
+  outcome ("N0AAA called on 7.101.500, exchanging mail", then "Done with
+  N0AAA at 500 Hz: 0 sent, 1 received"). A connection that came in goes on
+  when Listen goes off or the app closes, as one you made does: Abort ends
+  it. For 10 seconds after Listen goes off the radio sends nothing that
+  belongs to no connection, so a call that came in just then is not
+  answered.
+- Each modem answers its own kind of call only: ARDOP an ARDOP call, Mercury
+  a Mercury 1.9.25 call (VARA HF stations get no answer from it), XARA a VARA
+  HF call. The other station calls with the modem chosen here.
+- The GUI writes `/run/winlink/listen` each second while it listens, and the
+  radio's Pat listens only while that file is fresh (3 s): a GUI that hangs
+  or stops cannot leave the radio answering calls.
 
 ### Mercury (experimental)
 
@@ -8526,9 +8589,10 @@ Who answers:
   Mercury does not talk to VARA or ARDOP at all. Ask the other station which
   version it runs. A firmware up to v0.3.13 has Mercury 1.9.21, which
   connects to 1.9.20-1.9.24 and not to 1.9.25.
-- Another Mercury station, station to station (P2P). The radio calls; it does
-  not answer calls (P2P listening stays off, as with ARDOP), so the other
-  station listens.
+- Another Mercury station, station to station (P2P). The radio calls; it
+  answers a call only while APP > Mail has Listen on, with you at the radio
+  (from v0.3.14, see [Listening for P2P calls](#listening-for-p2p-calls)).
+  Otherwise the other station listens.
 - The few Winlink RMS gateways that run Mercury behind their VARA driver:
   KO0OOO (its banner gives 7.101.5 MHz) and K7EK-10 were seen in Mercury's
   issues in 2026; K7EK finds 30 m works best and 80 and 40 m poorly. Winlink's
@@ -8656,8 +8720,9 @@ The speed:
 - The VARA HF licence box: tick it only if you hold a VARA HF licence of your
   own. It is your statement; the radio does not check it. Ticked, XARA calls
   as a registered VARA station does, and the link may use every level ("full
-  speed (VARA HF licence ticked)"). The radio always calls (it answers no
-  call, below), so its own setting is the one that counts on its links.
+  speed (VARA HF licence ticked)"). When the radio calls, its own setting is
+  the one that counts on the link; when it answers a call (APP > Mail's
+  Listen, below), the caller's does.
 - XARA's first author shipped his builds without the faster levels, so that
   using them took a build of one's own; NR5P's have them, off until asked
   for. This firmware has them built in, off, behind the box: ticking it is
@@ -8691,11 +8756,12 @@ gives.
   is over, when Pat may have tuned the radio back already; ours with any, a
   European one too, and at once.
 
-The radio calls; it does not answer calls. XARA starts with listening off,
-and on the radio Pat never turns it on (P2P listening stays off, as with
-ARDOP). So a station that calls your callsign over VARA HF gets no answer,
-and the radio does not transmit for it, also with Winlink on and nobody at
-the radio.
+The radio calls, and answers a call only while APP > Mail has Listen on,
+with you at the radio (from v0.3.14, see
+[Listening for P2P calls](#listening-for-p2p-calls)). XARA starts with
+listening off, and Pat turns it on only then. Otherwise a station that calls
+your callsign over VARA HF gets no answer, and the radio does not transmit
+for it, also with Winlink on.
 
 When it does not work:
 

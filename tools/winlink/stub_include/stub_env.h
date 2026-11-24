@@ -1,10 +1,12 @@
 /* Included first in src/winlink.c's host build (-include): its socket path and rigctld port from the environment
  * (WL_SOCK, WL_RIG_PORT), so two of it run side by side. The radio file beside the copied sources, a literal
  * (winlink.c takes its size), from the folder the host runs in (tools/winlink): winlink_proto_test.py reads it, one
- * host at a time; the two stations of winlink_modems_test.py write the same one, nobody reads it there */
+ * host at a time; the two stations of winlink_modems_test.py write the same one, nobody reads it there. So too the
+ * listen file of APP > Mail's Listen (#357), which only WL_LISTEN's steps write */
 #pragma once
 const char *stub_sock(void);
 int         stub_rig_port(void);
 #define WINLINK_ARDOP_SOCK stub_sock()
 #define WINLINK_RIG_PORT   stub_rig_port()
 #define WINLINK_RADIO_FILE "build/radio"
+#define WINLINK_LISTEN_FILE "build/listen"

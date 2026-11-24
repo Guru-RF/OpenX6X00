@@ -43,6 +43,16 @@ extern "C" {
 #endif
 #endif
 
+/* APP > Mail's P2P listening for Pat (#357), key=value lines, fresh only while the app listens: transport=, hz=,
+ * call=, up_ms= (the time since boot as it was written) */
+#ifndef WINLINK_LISTEN_FILE
+#ifdef HOST_BUILD
+#define WINLINK_LISTEN_FILE BOARD_DATA "/run/winlink/listen"
+#else
+#define WINLINK_LISTEN_FILE "/run/winlink/listen"
+#endif
+#endif
+
 /* Pat's hamlib rig: TCP on 127.0.0.1 */
 #ifndef WINLINK_RIG_PORT
 #define WINLINK_RIG_PORT    4532
@@ -74,6 +84,24 @@ void winlink_preset_back(bool after_call);
  * the first press gave it (USB-D), and no later winlink_preset_back() moves it. The next press there is a first one
  * again. Nothing while a way back asked earlier waits for the radio to be off the air */
 void winlink_preset_stay(void);
+
+/* APP > Mail's Listen (#357), the LVGL thread. Pat answers P2P calls only while the app is open with Listen on, with
+ * its operator at the radio: on, the radio listens where it is, in USB-D as for a connection, and Pat is told so
+ * through transport (ardop or varahf); call is for the file's readers. False, and why (n bytes), when a call could
+ * not be answered there: an app holds the radio, on the air, Pat's tune of a connection a moment ago, split, XIT,
+ * RIT, a TX shift, a frequency the radio may not transmit on, no data from the base, an SWR hold there, the mode
+ * held by an app, the screen dark */
+bool winlink_listen_start(const char *transport, const char *call, char *why, size_t n);
+
+/* Each second while on, from the app's timer: Pat is told again. False, listening stopped, and why, when the radio
+ * left the frequency or its mode, or one of the above came since */
+bool winlink_listen_keep(char *why, size_t n);
+
+/* Off at once: Pat stops listening within a second. Nothing when off */
+void winlink_listen_stop(void);
+
+/* The frequency listened on, 0 when off */
+int32_t winlink_listen_hz(void);
 
 #ifdef __cplusplus
 }

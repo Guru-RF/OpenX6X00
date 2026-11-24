@@ -28,6 +28,13 @@
  *  the modem keys before the last one is out goes out in the same key, unless Pat asked a QSY
  *  meanwhile: then it is a key of its own, after the QSY.
  *
+ *  P2P listening (#357) only while APP > Mail is open with Listen on, its operator at the radio: the app calls
+ *  winlink_listen_start() and then winlink_listen_keep() each second, which writes WINLINK_LISTEN_FILE, stamped
+ *  with the time since boot; our Pat (tools/pat, 0011) listens only on the transport that file names while it
+ *  is fresh (3 s). The file goes when Listen goes off, the app is closed, the radio leaves the frequency, the
+ *  screen goes dark, and as the GUI starts. A key while listening goes out only on that frequency, and one the
+ *  modem makes for a call it took as listening ended is not taken (listen_refused).
+ *
  *  The rigctld server, for Pat's hamlib rig on 127.0.0.1:WINLINK_RIG_PORT: one command a line
  *  (CR LF or LF), at most one line back. \get_freq (f), \set_freq (F: tunes as TCI does and sets
  *  USB-D unless the mode is USB or USB-D), \get_ptt (t), \set_ptt (T: answered only, the modem keys
@@ -100,6 +107,7 @@
 #define PENDING_MS      (30 * 1000)     /* a QSY asked on the air is done at the end of it, if within this */
 #define REF_MS          (60 * 1000)     /* Pat's tune or the modem's key this recent: a connection under way */
 #define PRESET_QSY_MS   4000            /* no first press of APP > Mail's Connect this soon after a tune of Pat's */
+#define LISTEN_END_MS   10000           /* after P2P listening ended, keys of no session are refused until this quiet */
 
 typedef struct {
     uint8_t  type;
@@ -175,6 +183,11 @@ static atomic_int    missed_hz;     /* a QSY Pat was told was done and that coul
 static atomic_int    ref_hz;
 static atomic_ullong ref_ms;
 static atomic_ullong pat_tune_ms;   /* Pat's last \set_freq, made or kept for later; 0 none (winlink_preset) */
+/* APP > Mail's P2P listening (#357): set on the LVGL thread, read by the worker */
+static atomic_int    listen_hz;     /* the radio listens for P2P calls there; 0 not */
+static atomic_ullong listen_start_ms;   /* when the last listening began */
+static atomic_ullong listen_end_ms; /* when it ended, or a key was refused since (listen_refused); 0 never */
+static const char *listen_refused(int32_t rx, uint64_t now);
 
 static uint64_t now_ms(void) {
     struct timespec ts;
@@ -619,7 +632,8 @@ static const char *key_mode(void) {
  * The connection's frequency: Pat's last tune (made, or not made: missed_hz), or where the modem keyed, while either
  * is less than REF_MS old; the dial once it is older, so a connection made without a QSY keys where the radio
  * listens. A dial turned, or the other VFO chosen, during a connection keys no more there. Last, where the radio may
- * not transmit (#121), and the base sending no data (#152): the page says why, not only the radio's own note */
+ * not transmit (#121), and the base sending no data (#152): the page says why, not only the radio's own note.
+ * First of all APP > Mail's P2P listening (#357): a call answered only where it listens, and none as it ends */
 static const char *tx_off_freq(void) {
     static char why[96];    /* the worker's */
     char        a[16], b[16];
@@ -641,6 +655,8 @@ static const char *tx_off_freq(void) {
         atomic_compare_exchange_strong(&missed_hz, &missed, 0);    /* there after all */
     }
     now = now_ms();
+    if ((no = listen_refused(rx, now)))
+        return no;      /* before the connection's frequency: a key refused here begins no connection */
     ref = atomic_load(&ref_hz);
     if (!ref || now - atomic_load(&ref_ms) >= REF_MS)
         ref = rx;
@@ -1538,20 +1554,28 @@ static void radio_file_body(char *buf, size_t size, bool modem) {
     pthread_mutex_unlock(&said_lock);
 }
 
-static bool radio_file_write(const char *body) {
-    char dir[sizeof(WINLINK_RADIO_FILE)], tmp[sizeof(WINLINK_RADIO_FILE) + 8];
+/* body into path whole: its readers never see half of it */
+static bool file_write(const char *path, const char *body) {
+    char  dir[256], tmp[264];
+    char *slash;
     FILE *f;
 
-    snprintf(dir, sizeof(dir), "%s", WINLINK_RADIO_FILE);
-    *strrchr(dir, '/') = 0;
-    mkdir(dir, 0755);   /* x6100-winlink makes it too */
-    snprintf(tmp, sizeof(tmp), "%s.tmp", WINLINK_RADIO_FILE);
+    snprintf(dir, sizeof(dir), "%s", path);
+    if ((slash = strrchr(dir, '/'))) {
+        *slash = 0;
+        mkdir(dir, 0755);   /* x6100-winlink makes it too */
+    }
+    snprintf(tmp, sizeof(tmp), "%s.tmp", path);
     if (!(f = fopen(tmp, "w")))
         return false;
     fputs(body, f);
     if (fclose(f) != 0)
         return false;
-    return rename(tmp, WINLINK_RADIO_FILE) == 0;
+    return rename(tmp, path) == 0;
+}
+
+static bool radio_file_write(const char *body) {
+    return file_write(WINLINK_RADIO_FILE, body);
 }
 
 static void *radio_file_thread(void *arg) {
@@ -1576,6 +1600,172 @@ static void *radio_file_thread(void *arg) {
     return NULL;
 }
 
+/* ---- APP > Mail's Listen: P2P calls answered while the app is open (#357) ------------- */
+
+/* The radio may transmit for a P2P call only with someone at it: Pat answers calls only while APP > Mail is open with
+ * Listen on (the owner's rule). The app calls winlink_listen_start() on Listen, then winlink_listen_keep() each
+ * second from its timer, and winlink_listen_stop() when Listen goes off or the app closes. Each keep writes the
+ * listen file with the time since boot (the wall clock may jump as the radio sets its clock); our Pat reads it twice
+ * a second and listens while it is less than 3 s old (tools/pat, 0011). A GUI that hangs or is gone stamps it no
+ * more, and Pat stops listening on its own. Everything here on the LVGL thread, the worker reading listen_hz */
+static char    listen_transport[8];     /* ardop or varahf, Pat's names */
+static char    listen_call[16];
+
+static uint64_t boot_ms(void) {
+    struct timespec ts;
+
+    clock_gettime(CLOCK_BOOTTIME, &ts);
+    return (uint64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+static bool listen_file_write(void) {
+    char body[128];
+
+    snprintf(body, sizeof(body), "transport=%s\nhz=%d\ncall=%s\nup_ms=%llu\n", listen_transport,
+             (int)atomic_load(&listen_hz), listen_call, (unsigned long long)boot_ms());
+    return file_write(WINLINK_LISTEN_FILE, body);
+}
+
+/* Why a call could not be answered on the dial, rx, into why; false: it could. What tx_off_freq and the SWR hold
+ * would refuse the answer for, on the radio's settings now, and what holds the radio */
+static bool listen_issue(int32_t rx, char *why, size_t n) {
+    int32_t xit  = param_i_get(cfg_xit);
+    int     hold = swr_hold_left_s();
+    int32_t trip = atomic_load(&swr_trip_hz);
+
+    if (app_holds_radio(why, n))
+        return true;
+    simplex_issue(why, n, rx, radio_tx_freq() + xit, xit, param_i_get(cfg_rit), param_i_get(cfg_band_tx_shift),
+                  radio_no_data());
+    if (why[0])
+        return true;
+    if (hold && swr_hold_covers(trip, rx)) {
+        char where[32];
+
+        snprintf(why, n, "high SWR %s, the hold ends in %d min", swr_hold_where(where, sizeof(where), trip),
+                 (hold + 59) / 60);
+        return true;
+    }
+    if (backlight_is_dark()) {
+        snprintf(why, n, "the screen is dark");
+        return true;
+    }
+    return false;
+}
+
+bool winlink_listen_start(const char *transport, const char *call, char *why, size_t n) {
+    int32_t  rx   = cparam_i_get(cfg_fg_freq);
+    int32_t  mode = cparam_i_get(cfg_cur_mode);
+    uint64_t pat  = atomic_load(&pat_tune_ms);
+
+    why[0] = 0;
+    if (!transport || (strcmp(transport, "ardop") && strcmp(transport, "varahf"))) {
+        snprintf(why, n, "no modem Pat listens with");
+        return false;
+    }
+    if (on_air() || atomic_load(&keying)) {
+        snprintf(why, n, "the radio is on the air");
+        return false;
+    }
+    if (pat && now_ms() - pat < PRESET_QSY_MS) {
+        snprintf(why, n, "Pat just tuned the radio for a connection, try again in a moment");
+        return false;
+    }
+    if (listen_issue(rx, why, n))
+        return false;
+    /* USB-D as for a connection (Pat's QSY, tune_cb): what the modem's answer goes out in */
+    if (mode != radio_mode_usb && mode != radio_mode_usb_dig) {
+        if (main_screen_mode_locked()) {
+            snprintf(why, n, "the radio is in %s and an app holds the mode", channels_mode_name(mode));
+            return false;
+        }
+        cparam_i_set(cfg_cur_mode, radio_mode_usb_dig);
+        LV_LOG_USER("winlink: %s to USB-D for listening", channels_mode_name(mode));
+    }
+    snprintf(listen_transport, sizeof(listen_transport), "%s", transport);
+    snprintf(listen_call, sizeof(listen_call), "%s", call ? call : "");
+    atomic_store(&listen_start_ms, now_ms());
+    atomic_store(&listen_end_ms, 0);
+    atomic_store(&ref_hz, 0);   /* the last connection's frequency is no more the one a key goes out on */
+    atomic_store(&listen_hz, rx);
+    if (!listen_file_write()) {
+        snprintf(why, n, "%s could not be written", WINLINK_LISTEN_FILE);
+        winlink_listen_stop();
+        return false;
+    }
+    LV_LOG_USER("winlink: listening for P2P calls to %s on %d Hz through %s", listen_call, (int)rx, transport);
+    return true;
+}
+
+bool winlink_listen_keep(char *why, size_t n) {
+    int32_t  hz   = atomic_load(&listen_hz);
+    int32_t  rx   = cparam_i_get(cfg_fg_freq);
+    int32_t  mode = cparam_i_get(cfg_cur_mode);
+    char     a[16];
+
+    why[0] = 0;
+    if (!hz) {
+        snprintf(why, n, "listening is off");
+        return false;
+    }
+    if (rx != hz) {
+        /* Pat's QSY for a connection from the web mailbox, or the dial turned */
+        if (atomic_load(&pat_tune_ms) > atomic_load(&listen_start_ms))
+            snprintf(why, n, "Pat tuned the radio for a connection");
+        else
+            snprintf(why, n, "the radio left %s MHz", mhz(a, sizeof(a), hz));
+    } else if (mode != radio_mode_usb && mode != radio_mode_usb_dig) {
+        snprintf(why, n, "the radio is in %s, not USB-D", channels_mode_name(mode));
+    } else if (!listen_issue(rx, why, n) && !listen_file_write()) {
+        snprintf(why, n, "%s could not be written", WINLINK_LISTEN_FILE);
+    }
+    if (!why[0])
+        return true;
+    LV_LOG_WARN("winlink: P2P listening stopped, %s", why);
+    winlink_listen_stop();
+    return false;
+}
+
+void winlink_listen_stop(void) {
+    if (!atomic_load(&listen_hz))
+        return;
+    unlink(WINLINK_LISTEN_FILE);
+    atomic_store(&listen_end_ms, now_ms());
+    atomic_store(&listen_hz, 0);
+    LV_LOG_USER("winlink: P2P listening off");
+}
+
+int32_t winlink_listen_hz(void) {
+    return atomic_load(&listen_hz);
+}
+
+/* Why the modem's key is not taken for P2P listening; NULL: it is. While listening a call is answered only on the
+ * frequency listened on: a key elsewhere is for a connection of Pat's (it tuned the radio since listening began), or
+ * the dial turned a moment before the app's next look. Once listening ended Pat tells the modem within a second, and
+ * a call the modem took meanwhile is not answered: a key then is refused, unless a session was under way (our key
+ * since listening began, less than REF_MS ago) or Pat tuned since, until the modem has been quiet for LISTEN_END_MS.
+ * Each key refused begins that wait again: the modem goes on answering the call until the caller gives up. The
+ * worker, in tx_off_freq */
+static const char *listen_refused(int32_t rx, uint64_t now) {
+    static char why[80];    /* the worker's */
+    char        a[16];
+    int32_t     hz    = atomic_load(&listen_hz);
+    uint64_t    pat   = atomic_load(&pat_tune_ms);
+    uint64_t    begun = atomic_load(&listen_start_ms);
+    uint64_t    end   = atomic_load(&listen_end_ms);
+
+    if (hz) {
+        if (rx == hz || pat > begun)
+            return NULL;
+        snprintf(why, sizeof(why), "the radio left the listening frequency %s MHz", mhz(a, sizeof(a), hz));
+        return why;
+    }
+    if (!end || now - end >= LISTEN_END_MS || pat > end || (unkey_ms >= begun && now - unkey_ms < REF_MS))
+        return NULL;
+    atomic_store(&listen_end_ms, now);
+    return "P2P listening was just turned off";
+}
+
 /* ---- Public ------------------------------------------------------------------------- */
 
 void winlink_init(void) {
@@ -1590,6 +1780,8 @@ void winlink_init(void) {
 
     for (int i = 0; i < RIG_CLIENTS; i++)
         rig_clients[i].fd = -1;
+    /* Left by a GUI before this one: nothing listens until APP > Mail's Listen is pressed again */
+    unlink(WINLINK_LISTEN_FILE);
 
     if (pthread_create(&th, NULL, ardop_thread, NULL) == 0)
         pthread_detach(th);
