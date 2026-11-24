@@ -2656,6 +2656,9 @@ static void esc_pressed(void)
 static void key_cb(lv_event_t *ev)
 {
     uint32_t key = *(uint32_t *)lv_event_get_param(ev);
+    /* The list's own Down (select_row: following its newest row) is no key of the operator's: it counted as someone
+     * at the radio with each message received, so AUTO never went idle (OlivLoze's fork, 7af04b00) */
+    if (auto_selecting) return;
     user_touch(); /* someone is at the radio */
     bool vol_down = key == KEY_VOL_LEFT_EDIT || key == KEY_VOL_LEFT_SELECT;
     bool vol_up   = key == KEY_VOL_RIGHT_EDIT || key == KEY_VOL_RIGHT_SELECT;
