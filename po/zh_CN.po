@@ -4296,39 +4296,39 @@ msgstr "MFK: 选择, 按下打开.   GEN: 返回电台"
 
 #: src/dialog_field.c
 msgid "Bunker:"
-msgstr ""
+msgstr "掩体："
 
 #: src/dialog_field.c
 msgid "Ruin:"
-msgstr ""
+msgstr "废墟："
 
 #: src/dialog_field.c
 msgid "Ruine:"
-msgstr ""
+msgstr "废墟："
 
 #: src/dialog_field.c
 msgid "Remains:"
-msgstr ""
+msgstr "遗迹："
 
 #: src/dialog_field.c
 msgid "Vestige:"
-msgstr ""
+msgstr "遗迹："
 
 #: src/dialog_field.c
 msgid "Memorial:"
-msgstr ""
+msgstr "纪念物："
 
 #: src/dialog_field.c
 msgid "Memoire:"
-msgstr ""
+msgstr "纪念物："
 
 #: src/dialog_field.c
 msgid "Abandoned:"
-msgstr ""
+msgstr "已废弃："
 
 #: src/dialog_field.c
 msgid "Abandonne:"
-msgstr ""
+msgstr "已废弃："
 
 #: src/dialog_field.c
 msgid "No reference list"
@@ -4443,7 +4443,7 @@ msgstr "呼号"
 
 #: src/dialog_field.c
 msgid "QSOs"
-msgstr ""
+msgstr "通联次数"
 
 #: src/dialog_field.c
 msgid "CQ calls in CW.  Log QSO: call [rst sent [rst rcvd]]"
@@ -4943,7 +4943,7 @@ msgstr "%d 架飞机   %d km"
 
 #: src/dialog_flights.c
 msgid "airplanes.live, adsb.lol (ODbL)"
-msgstr ""
+msgstr "airplanes.live、adsb.lol（ODbL）"
 
 #: src/dialog_flights.c
 msgid "No position: set the QTH locator in Settings > General, or plug in a GPS"
@@ -7316,35 +7316,35 @@ msgstr ""
 
 #: src/field/flog.c
 msgid "BAND"
-msgstr ""
+msgstr "波段"
 
 #: src/field/flog.c
 msgid "FREQ"
-msgstr ""
+msgstr "频率"
 
 #: src/field/flog.c src/mic_keys.c
 msgid "MODE"
-msgstr ""
+msgstr "模式"
 
 #: src/field/flog.c
 msgid "SUBMODE"
-msgstr ""
+msgstr "子模式"
 
 #: src/field/flog.c
 msgid "GRIDSQUARE"
-msgstr ""
+msgstr "网格定位"
 
 #: src/field/flog.c
 msgid "COUNTRY"
-msgstr ""
+msgstr "国家/地区"
 
 #: src/field/flog.c
 msgid "COMMENT"
-msgstr ""
+msgstr "备注"
 
 #: src/field/flog.c
 msgid "OPERATOR"
-msgstr ""
+msgstr "操作员"
 
 #: src/field/flog.c
 msgid "the microSD has an error and is read-only. Restart the radio; if it happens again, back up and rewrite the microSD"
@@ -8297,7 +8297,7 @@ msgstr "未发射: 已进入时隙太久"
 #: src/ft8_window.c
 #, c-format
 msgid "RX %s %s  Hound: %s"
-msgstr ""
+msgstr "接收 %s %s  Hound: %s"
 
 #: src/ft8_window.c
 msgid "Stopped: nothing transmits until TX Call, CQ or a call is pressed"
@@ -8355,7 +8355,7 @@ msgstr "GhostNet %s %d 分钟后开始, %s"
 
 #: src/ghostnet_gui.c
 msgid "GhostNet RTTY: 7.077 MHz, 45.45 baud, 170 Hz"
-msgstr ""
+msgstr "GhostNet RTTY：7.077 MHz，45.45 波特，170 Hz"
 
 #: src/gps_window.c
 msgid "Satellites, fix:"
@@ -11167,11 +11167,11 @@ msgstr "电键模式"
 
 #: src/knob_info.cpp
 msgid "Auto-L"
-msgstr ""
+msgstr "自动(左)"
 
 #: src/knob_info.cpp
 msgid "Auto-R"
-msgstr ""
+msgstr "自动(右)"
 
 #: src/knob_info.cpp
 msgid "Iambic mode"
@@ -11378,11 +11378,11 @@ msgstr ""
 
 #: src/mic_keys.c
 msgid "BAND UP"
-msgstr ""
+msgstr "波段上调"
 
 #: src/mic_keys.c
 msgid "BAND DOWN"
-msgstr ""
+msgstr "波段下调"
 
 #: src/navtex_window.c src/wefax_window.c
 msgid "Save"
@@ -12849,11 +12849,11 @@ msgstr " TUNE 外部天调 开/关 "
 
 #: src/settings_window.cpp
 msgid " APP WeFax "
-msgstr ""
+msgstr " 应用 传真 "
 
 #: src/settings_window.cpp
 msgid " APP NavTex "
-msgstr ""
+msgstr " 应用 NAVTEX "
 
 #: src/settings_window.cpp
 msgid " APP Cluster "
@@ -12897,11 +12897,11 @@ msgstr " APP 网络广播 "
 
 #: src/settings_window.cpp
 msgid " APP Zello "
-msgstr ""
+msgstr " 应用 Zello "
 
 #: src/settings_window.cpp
 msgid " APP SVXConnect "
-msgstr ""
+msgstr " 应用 SVXConnect "
 
 #: src/settings_window.cpp
 msgid " APP Flights "
@@ -13739,7 +13739,7 @@ msgstr "鼠标按键"
 
 #: src/settings_window.cpp
 msgid "SmartCW (MIDI)"
-msgstr ""
+msgstr "SmartCW（MIDI）"
 
 #: src/settings_window.cpp
 msgid "Press DAH"
@@ -14554,7 +14554,7 @@ msgstr "等待 Tailscale..."
 #: src/settings_window.cpp
 #, c-format
 msgid "Tailscale: %s"
-msgstr ""
+msgstr "Tailscale：%s"
 
 #: src/settings_window.cpp
 msgid "Scan with a phone and log in to Tailscale, or open the link on the web page: Remote > Tailscale"
@@ -14920,7 +14920,7 @@ msgstr "项目"
 
 #: src/settings_window.cpp
 msgid "OpenX6X00 by RF.Guru"
-msgstr ""
+msgstr "RF.Guru 出品的 OpenX6X00"
 
 #: src/settings_window.cpp
 msgid "Baseband"
@@ -16497,7 +16497,7 @@ msgstr "隐藏网络: 不支持"
 #: src/wifi.cpp
 #, c-format
 msgid "WiFi: %s"
-msgstr ""
+msgstr "Wi-Fi：%s"
 
 #: src/wifi.cpp
 #, c-format
@@ -16529,22 +16529,22 @@ msgstr ""
 #: src/wifi.cpp
 #, c-format
 msgid "Error: Failed to modify connection '%s': %s"
-msgstr ""
+msgstr "修改连接“%s”失败：%s"
 
 #: src/wifi.cpp
 #, c-format
 msgid "Connection '%s' (%s) successfully modified.\n"
-msgstr ""
+msgstr "连接“%s”（%s）已成功修改。\n"
 
 #: src/wifi.cpp
 #, c-format
 msgid "Error: Failed to delete connection '%s': %s"
-msgstr ""
+msgstr "删除连接“%s”失败：%s"
 
 #: src/wifi.cpp
 #, c-format
 msgid "Connection '%s' (%s) successfully deleted.\n"
-msgstr ""
+msgstr "连接“%s”（%s）已成功删除。\n"
 
 #: src/wifi.cpp
 msgid "handshake failed: password, signal or router security"
@@ -16578,7 +16578,7 @@ msgstr "正在连接 %s... (尝试 %d/%d)"
 #: src/wifi.cpp
 #, c-format
 msgid "WiFi %s: %s"
-msgstr ""
+msgstr "Wi-Fi %s：%s"
 
 #: src/wifi.cpp
 #, c-format
@@ -16762,11 +16762,11 @@ msgstr "Winlink: 未 QSY 到 %s MHz, %s"
 #: src/winlink.c
 #, c-format
 msgid "the radio is in %s, not USB-D%s"
-msgstr "电台处于 %s, 而非 USB-D%s"
+msgstr "电台当前处于 %s 模式，而不是 USB-D%s"
 
 #: src/winlink.c
 msgid " (an app holds the mode)"
-msgstr " (有应用占用了模式)"
+msgstr " （某个应用程序正在占用该模式）"
 
 #: src/winlink.c
 #, c-format
@@ -17487,7 +17487,7 @@ msgstr "已结束"
 #: src/winlink_mail.c
 #, c-format
 msgid "Winlink: %s"
-msgstr ""
+msgstr "Winlink：%s"
 
 #: src/winlink_mail.c
 #, c-format
