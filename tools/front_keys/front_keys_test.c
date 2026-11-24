@@ -11,13 +11,20 @@
  *  - A GUI held up past the hold time with the release already waiting on the device: the release is read first,
  *    the press stays a tap (a band key stepped once, an F key not its long action). Before, the timer made at the
  *    press ran before the read and sent the long press: the tap was lost.
+ *  - The kernel's queue of the device full, events dropped (SYN_DROPPED, then the end of a report): the keys read
+ *    back (EVIOCGKEY, the test's kernel below) let go of what is up now, once, its steps or long press stopped; a
+ *    key pressed meanwhile is no press, nor its release; one held through it stays held; a key pressed on the
+ *    screen is not the device's to let go. Before, the release stayed lost: BAND UP stepped bands on its own, the
+ *    side PTT stayed on the air, and the end of the broken report was taken as a press.
  */
 
 #include "front_keys.h"
 #include "main.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <linux/input.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,6 +41,50 @@ bool backlight_tick() {
 }
 
 void ctl_local_input(void) {}
+
+/* LV_LOG_USER (stub_include/lvgl/lvgl.h): the last line */
+static char logged[256];
+
+void test_log(const char *fmt, ...) {
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsnprintf(logged, sizeof(logged), fmt, ap);
+    va_end(ap);
+}
+
+/* ---- the kernel's keys down, as EVIOCGKEY reads them back (--wrap=ioctl) ---- */
+
+static unsigned long kernel_keys[EVDEV_SYNC_LONGS];
+static bool          kernel_fails;
+static int           reads_back;
+
+int __real_ioctl(int fd, unsigned long req, ...);
+
+int __wrap_ioctl(int fd, unsigned long req, ...) {
+    va_list ap;
+    void   *arg;
+
+    va_start(ap, req);
+    arg = va_arg(ap, void *);
+    va_end(ap);
+    if (_IOC_TYPE(req) != 'E' || _IOC_NR(req) != _IOC_NR(EVIOCGKEY(0))) {
+        return __real_ioctl(fd, req, arg);
+    }
+    reads_back++;
+    if (kernel_fails) {
+        errno = ENODEV;
+        return -1;
+    }
+    size_t n = _IOC_SIZE(req) < sizeof(kernel_keys) ? _IOC_SIZE(req) : sizeof(kernel_keys);
+
+    memcpy(arg, kernel_keys, n);
+    return (int)n;
+}
+
+static void kernel_down(uint16_t code) {
+    kernel_keys[code / (8 * sizeof(long))] |= 1UL << (code % (8 * sizeof(long)));
+}
 
 /* ---- LVGL's timers ---- */
 
@@ -164,7 +215,8 @@ int lv_event_send(lv_obj_t *obj, lv_event_code_t code, void *param) {
     if (code != EVENT_KEYPAD)
         return 0;
     snprintf(got + n, sizeof(got) - n, "%s%s%s@%u", n ? " " : "",
-             ev->key == KEYPAD_BAND_UP ? "" : ev->key == KEYPAD_F1 ? "F1:" : ev->key == KEYPAD_POWER ? "POWER:" : "?:",
+             ev->key == KEYPAD_BAND_UP ? "" : ev->key == KEYPAD_F1 ? "F1:" : ev->key == KEYPAD_POWER ? "POWER:"
+                                         : ev->key == KEYPAD_PTT ? "PTT:" : "?:",
              names[ev->state], now);
     if (ev->key == KEYPAD_BAND_UP && (ev->state == KEYPAD_PRESS || ev->state == KEYPAD_REPEAT))
         now += step_ms;     /* the step's own work, the GUI busy meanwhile */
@@ -183,6 +235,27 @@ static void check(const char *want, const char *what) {
     }
 }
 
+static void check_true(bool ok, const char *what) {
+    cases++;
+    if (!ok) {
+        printf("WRONG %s\n", what);
+        bad++;
+    }
+}
+
+/* The read-back's log line: how many let go, how many pressed meanwhile */
+static void check_log(int released, int missed, const char *what) {
+    char want[256];
+
+    snprintf(want, sizeof(want), "Keys: events lost (the GUI busy), %d let go, %d pressed meanwhile left alone",
+             released, missed);
+    cases++;
+    if (strcmp(logged, want)) {
+        printf("WRONG %s\n  want %s\n  got  %s\n", what, want, logged);
+        bad++;
+    }
+}
+
 /* A fresh start: no key down, no timer but the device's read, the clock at 0 */
 static void start(void) {
     for (int i = n_timers - 1; i >= 0; i--)
@@ -193,6 +266,10 @@ static void start(void) {
     now     = 0;
     step_ms = 0;
     got[0]  = 0;
+    memset(kernel_keys, 0, sizeof(kernel_keys));
+    kernel_fails = false;
+    reads_back   = 0;
+    logged[0]    = 0;
 }
 
 /* keypad_button(): BAND UP tapped, held, stepping slowly; F1 and POWER held, with an app's shorter hold */
@@ -258,6 +335,23 @@ static void key(uint16_t code, int value) {
         printf("FIFO not written\n");
 }
 
+/* One event alone */
+static void ev(uint16_t type, uint16_t code, int value) {
+    struct input_event in = {.type = type, .code = code, .value = value};
+
+    if (write(fifo, &in, sizeof(in)) != sizeof(in))
+        printf("FIFO not written\n");
+}
+
+/* What the kernel leaves of a reader's full queue: SYN_DROPPED, the newest event (here none, or a key's), the
+ * SYN_REPORT of its report. The key events queued after it go at the read-back (EVIOCGKEY drops them) */
+static void dropped(int code, int value) {
+    ev(EV_SYN, SYN_DROPPED, 0);
+    if (code >= 0)
+        ev(EV_KEY, (uint16_t)code, value);
+    ev(EV_SYN, SYN_REPORT, 0);
+}
+
 /* Through the device, the X6100's codes: BAND UP is BTN_TRIGGER_HAPPY6, F1 BTN_TRIGGER_HAPPY13 */
 static void device(void) {
     start();
@@ -293,10 +387,126 @@ static void device(void) {
     check("PRESS@10 REPEAT@900 RELEASE@1010", "BAND UP held through a busy GUI: the repeat when it is free");
 }
 
+/* The kernel's queue full while the GUI was busy: events lost (SYN_DROPPED). The X6100's codes: PTT is
+ * BTN_TRIGGER_HAPPY4, the VOL press BTN_TRIGGER_HAPPY21, the MFK's BTN_TRIGGER_HAPPY27 */
+static void lost(void) {
+    start();
+    key(BTN_TRIGGER_HAPPY6, 1);
+    run_to(10);
+    kernel_down(BTN_TRIGGER_HAPPY13);           /* F1 down now: pressed while events were lost */
+    dropped(BTN_TRIGGER_HAPPY13, 1);            /* its press the end of the broken report */
+    stall_to(2000);
+    run_to(3000);
+    check("PRESS@10 RELEASE@2000",
+          "BAND UP's release lost in a busy GUI: let go at the read-back, no step after; F1 pressed meanwhile no press");
+    check_log(1, 1, "the read-back noted: BAND UP let go, F1 pressed meanwhile left alone");
+    check_true(reads_back == 1, "the keys read back once");
+    key(BTN_TRIGGER_HAPPY13, 0);                /* F1 let go: the release of no press */
+    run_to(3100);
+    key(BTN_TRIGGER_HAPPY13, 1);
+    run_to(3200);
+    key(BTN_TRIGGER_HAPPY13, 0);
+    run_to(3300);
+    check("PRESS@10 RELEASE@2000 F1:PRESS@3110 F1:RELEASE@3210",
+          "F1's release after the read-back: nothing; its next tap as ever");
+
+    start();
+    key(BTN_TRIGGER_HAPPY6, 1);
+    run_to(10);
+    kernel_down(BTN_TRIGGER_HAPPY6);            /* still held: other keys' events were lost */
+    dropped(-1, 0);
+    run_to(600);
+    key(BTN_TRIGGER_HAPPY6, 0);
+    run_to(1500);
+    check("PRESS@10 REPEAT@510 RELEASE@610", "BAND UP held through lost events: still held, let go once when let go");
+    check_log(0, 0, "nothing to let go, nothing pressed meanwhile");
+
+    start();
+    key(BTN_TRIGGER_HAPPY4, 1);                 /* the side PTT */
+    key(BTN_TRIGGER_HAPPY21, 1);                /* VOL */
+    key(BTN_TRIGGER_HAPPY27, 1);                /* the MFK */
+    run_to(50);
+    check_true(keypad_vol_down() && mfk->pressed, "VOL and the MFK down");
+    dropped(-1, 0);                             /* all three let go in what was lost */
+    run_to(1500);
+    check("PTT:PRESS@10 PTT:RELEASE@60", "the side PTT's release lost: let go at the read-back, no long press");
+    check_true(!keypad_vol_down() && !mfk->pressed, "VOL and the MFK let go at the read-back");
+    check_log(3, 0, "PTT, VOL and the MFK let go");
+
+    start();
+    keypad_button(KEYPAD_F1, 1);                /* an F-slot on the screen: no device's key */
+    dropped(-1, 0);
+    run_to(1200);
+    keypad_button(KEYPAD_F1, 0);
+    check("F1:PRESS@0 F1:LONG@1000 F1:LONG_RELEASE@1200", "F1 held on the screen: the device's read-back leaves it");
+
+    start();
+    key(BTN_TRIGGER_HAPPY6, 1);
+    run_to(10);
+    kernel_fails = true;                        /* the device gone: every key up */
+    dropped(-1, 0);
+    run_to(1000);
+    check("PRESS@10 RELEASE@20", "the keys not read back: BAND UP let go, no step after");
+}
+
+/* evdev_sync.c alone: what each event is to the reader, and the read-back */
+static char released[256];
+
+static void note_release(uint16_t code, void *arg) {
+    size_t n = strlen(released);
+
+    (void)arg;
+    snprintf(released + n, sizeof(released) - n, "%s%u", n ? " " : "", code);
+}
+
+static void sync_alone(void) {
+    evdev_sync_t       s = {0};
+    unsigned long      now[EVDEV_SYNC_LONGS] = {0};
+    struct input_event in[] = {
+        {.type = EV_KEY, .code = KEY_POWER, .value = 1}, {.type = EV_SYN, .code = SYN_REPORT},
+        {.type = EV_KEY, .code = BTN_TRIGGER_HAPPY6, .value = 1}, {.type = EV_KEY, .code = KEY_A, .value = 2},
+        {.type = EV_KEY, .code = KEY_CNT, .value = 1}, {.type = EV_SYN, .code = SYN_REPORT},
+        {.type = EV_SYN, .code = SYN_DROPPED}, {.type = EV_KEY, .code = KEY_B, .value = 1},
+        {.type = EV_SYN, .code = SYN_DROPPED}, {.type = EV_MSC, .code = MSC_SCAN, .value = 7},
+        {.type = EV_SYN, .code = SYN_REPORT},
+        {.type = EV_KEY, .code = KEY_B, .value = 0},
+    };
+    const char want[] = "TTTTTTDDDDRT";
+    char       use[sizeof(want)] = "";
+    int        missed = -1, n;
+
+    for (size_t i = 0; i < sizeof(in) / sizeof(in[0]); i++) {
+        evdev_sync_use_t u = evdev_sync_event(&s, &in[i]);
+
+        use[i] = u == EVDEV_SYNC_TAKE ? 'T' : u == EVDEV_SYNC_DROP ? 'D' : 'R';
+    }
+    cases++;
+    if (strcmp(use, want)) {
+        printf("WRONG evdev_sync_event: taken (T), dropped (D), read back (R)\n  want %s\n  got  %s\n", want, use);
+        bad++;
+    }
+    /* Down now: BAND UP and KEY_C (pressed while lost). POWER and A (its auto-repeat was its press) went up */
+    now[BTN_TRIGGER_HAPPY6 / (8 * sizeof(long))] |= 1UL << (BTN_TRIGGER_HAPPY6 % (8 * sizeof(long)));
+    now[KEY_C / (8 * sizeof(long))] |= 1UL << (KEY_C % (8 * sizeof(long)));
+    released[0] = 0;
+    n = evdev_sync_keys(&s, now, note_release, NULL, &missed);
+    snprintf(got, sizeof(got), "%d [%s] %d", n, released, missed);
+    check("2 [30 116] 1", "the read-back: KEY_A (30) and POWER (116) let go in code order, KEY_C pressed meanwhile");
+    released[0] = 0;
+    n = evdev_sync_keys(&s, now, note_release, NULL, NULL);
+    snprintf(got, sizeof(got), "%d [%s]", n, released);
+    check("0 []", "read back again: let go once only, KEY_C still not taken as pressed");
+    memset(now, 0, sizeof(now));
+    n = evdev_sync_keys(&s, now, note_release, NULL, &missed);
+    snprintf(got, sizeof(got), "%d [%s] %d", n, released, missed);
+    check("1 [709] 0", "all up: BAND UP (BTN_TRIGGER_HAPPY6, 709) let go, KEY_C never down here");
+}
+
 int main(void) {
     const char *path = "build/keypad.fifo";
     keypad_t   *pad;
 
+    sync_alone();
     buttons();
     unlink(path);
     if (mkfifo(path, 0600) != 0 || !(pad = keypad_init((char *)path))) {
@@ -305,6 +515,7 @@ int main(void) {
     }
     fifo = pad->fd;     /* O_RDWR: the test writes the events the GUI reads */
     device();
+    lost();
     unlink(path);
     printf("%d cases, %d wrong\n", cases, bad);
     return bad != 0;

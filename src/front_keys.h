@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "evdev_sync.h"
 #include "gui_events.h"
 #include "lvgl/lvgl.h"
 
@@ -21,6 +22,7 @@ typedef struct {
     lv_indev_t    *indev;
     int            evdev_state;     /* the VOL press as LVGL sees it: pressed for one read */
     int            evdev_key;
+    evdev_sync_t   sync;            /* its keys down, read back after events were lost */
 } keypad_t;
 
 /* Opens /dev/input/eventN for the buttons; NULL if it cannot (or for no device name) */

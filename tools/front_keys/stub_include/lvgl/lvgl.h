@@ -53,3 +53,5 @@ lv_obj_t *lv_scr_act(void);
 int       lv_event_send(lv_obj_t *obj, lv_event_code_t code, void *param);
 
 #define LV_LOG_WARN(...) ((void)0)
+void test_log(const char *fmt, ...);   /* front_keys_test.c keeps the last line */
+#define LV_LOG_USER(...) test_log(__VA_ARGS__)
