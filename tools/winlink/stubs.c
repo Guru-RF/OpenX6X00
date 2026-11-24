@@ -23,6 +23,8 @@
  *                 transmission's (a PTT, FT8)
  *    WL_PRESET    set: no modem waited for; APP > Mail's Connect (#322) step by step, a line on stdout each
  *                 (preset_steps), then the end
+ *    WL_LISTEN    set: APP > Mail's Listen (#357) step by step, with a modem of its own on the socket that keys as
+ *                 a call is answered (listen_steps), a line on stdout each, then the end
  *  The receiver has a little noise under what it hears. The player keeps time as the low-latency stream does
  *  (100 ms queued), keys the radio for the whole of it and unkeys once the last sample is out.
  *
@@ -117,6 +119,7 @@ float   cfg_pwr_xvtr_get(void) { return getenv("WL_PWR_XVTR") ? (float)atof(gete
 /* ---- the radio, the screen, the scheduler (the work done at once: no LVGL thread here) ---- */
 
 static atomic_bool   keyed;
+static atomic_uint   plays;         /* transmissions played to their end or stopped, for listen_steps */
 static atomic_uint   swr_trips;
 static atomic_ullong swr_trip_at;
 
@@ -147,6 +150,9 @@ const char *channels_mode_name(int m) {
 }
 
 bool backlight_tick(void) { return true; }
+/* The screen dark (Screen off, POWER): WL_LISTEN's steps set it */
+static atomic_bool dark;
+bool backlight_is_dark(void) { return atomic_load(&dark); }
 
 /* WL_APP: the app open is the text of that file, none while there is no file. Asked from several threads */
 const char *main_screen_digital_app(void) {
@@ -397,6 +403,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
             stopped ? ", stopped" : "");
     played_write(all, played, stopped, hz);
     free(all);
+    atomic_fetch_add(&plays, 1);
     return !stopped;
 }
 
@@ -552,6 +559,248 @@ static int preset_steps(void) {
     return 0;
 }
 
+/* WL_LISTEN: APP > Mail's Listen as the app calls it (#357), a line on stdout for each step: whether it took, the
+ * frequency listened on, the dial and its mode, the listen file as Pat reads it (its transport, and whether it is
+ * fresh: stamped within Pat's 3 s), whether the modem's last key went out (a call answered) and why not */
+static int listen_fd = -1;      /* the modem of these steps, protocol 1 as ardopcf */
+
+/* The listen file: its transport, "none" without one; fresh, stamped less than 3 s ago on the boot clock */
+static void listen_file(char *transport, size_t n, bool *fresh) {
+    char               line[128];
+    unsigned long long up = 0;
+    struct timespec    ts;
+    FILE              *f = fopen(WINLINK_LISTEN_FILE, "r");
+
+    snprintf(transport, n, "none");
+    *fresh = false;
+    if (!f)
+        return;
+    while (fgets(line, sizeof(line), f)) {
+        line[strcspn(line, "\n")] = 0;
+        if (!strncmp(line, "transport=", 10))
+            snprintf(transport, n, "%.15s", line + 10);
+        else if (!strncmp(line, "up_ms=", 6))
+            up = strtoull(line + 6, NULL, 10);
+    }
+    fclose(f);
+    clock_gettime(CLOCK_BOOTTIME, &ts);
+    *fresh = up && (unsigned long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000 - up <= 3000;
+}
+
+static void listen_line(const char *step, bool ok, const char *why, int key) {
+    char transport[16];
+    bool fresh;
+
+    listen_file(transport, sizeof(transport), &fresh);
+    printf("%s ok=%d hz=%d freq=%d mode=%s file=%s fresh=%d key=%d why=%s\n", step, ok, (int)winlink_listen_hz(),
+           (int)freq.v, channels_mode_name(mode.v), transport, fresh, key, why);
+}
+
+/* The radio file's last refusal and its number (radio_file_body); connected, whether it says the modem is */
+static unsigned radio_refused(char *why, size_t n, bool *connected) {
+    char     line[160];
+    unsigned seq = 0;
+    FILE    *f   = fopen(WINLINK_RADIO_FILE, "r");
+
+    why[0]     = 0;
+    *connected = false;
+    if (!f)
+        return 0;
+    while (fgets(line, sizeof(line), f)) {
+        line[strcspn(line, "\n")] = 0;
+        if (!strncmp(line, "refused=", 8))
+            snprintf(why, n, "%s", line + 8);
+        else if (!strncmp(line, "refused_seq=", 12))
+            seq = (unsigned)strtoul(line + 12, NULL, 10);
+        else if (!strcmp(line, "modem=connected"))
+            *connected = true;
+    }
+    fclose(f);
+    return seq;
+}
+
+static void modem_send(uint8_t type, uint8_t arg, const int16_t *s, uint16_t n) {
+    uint8_t buf[4 + 2 * 1200];
+
+    buf[0] = type;
+    buf[1] = arg;
+    memcpy(buf + 2, &n, 2);
+    if (n)
+        memcpy(buf + 4, s, 2 * (size_t)n);
+    send(listen_fd, buf, 4 + 2 * (size_t)n, MSG_NOSIGNAL);
+}
+
+/* A key of the modem's, half a second of a tone: 1 when it went out, 0 when it was refused (why from the radio file,
+ * which says so within a second), -1 when neither came. A moment after the last one, as a modem's turns are: a key
+ * the moment the last one is played out goes into it, as its tail (KEY_ON), and its audio is thrown away */
+static int modem_key(char *why, size_t n) {
+    static int16_t tone[1200];
+    char           said[96];
+    bool           up;
+    unsigned       before = atomic_load(&plays), seq = radio_refused(said, sizeof(said), &up);
+
+    for (int i = 0; i < 1200; i++)
+        tone[i] = (int16_t)(8000 * sin(2 * M_PI * 1000 * i / 12000.0));
+    why[0] = 0;
+    usleep(300000);
+    modem_send('P', 1, NULL, 0);
+    for (int i = 0; i < 5; i++)
+        modem_send('T', 0, tone, 1200);
+    modem_send('P', 0, NULL, 0);
+    for (int ms = 0; ms < 4000; ms += 50) {
+        if (atomic_load(&plays) != before) {
+            usleep(100000);     /* the worker's end of it (unkey_ms) after the player returned */
+            return 1;
+        }
+        if (radio_refused(said, sizeof(said), &up) != seq) {
+            snprintf(why, n, "%s", said);
+            return 0;
+        }
+        usleep(50000);
+    }
+    return -1;
+}
+
+static int listen_steps(void) {
+    struct sockaddr_un a = {.sun_family = AF_UNIX};
+    char               why[96] = "", kwhy[96];
+    const char        *app = getenv("WL_APP");
+    bool               ok;
+    int                k;
+    FILE              *f;
+
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    freq.v = 7101500;
+    mode.v = radio_mode_cw;
+
+    /* Listen pressed in CW: USB-D, the file for Pat, kept fresh by each second's keep */
+    ok = winlink_listen_start("ardop", "N0BBB", why, sizeof(why));
+    listen_line("start", ok, why, -1);
+    usleep(1500000);
+    ok = winlink_listen_keep(why, sizeof(why));
+    listen_line("keep", ok, why, -1);
+    /* The app's timer stops (the GUI hangs): Pat finds the file stale after 3 s */
+    usleep(3600000);
+    listen_line("stale", true, "", -1);
+    ok = winlink_listen_keep(why, sizeof(why));
+    listen_line("kept", ok, why, -1);
+
+    /* What stops it, at the next keep */
+    xit.v = 50;
+    ok    = winlink_listen_keep(why, sizeof(why));
+    listen_line("xit", ok, why, -1);
+    xit.v = 0;
+    ok    = winlink_listen_start("ardop", "N0BBB", why, sizeof(why));
+    freq.v = 7102000;       /* the dial turned */
+    ok     = winlink_listen_keep(why, sizeof(why));
+    listen_line("dial", ok, why, -1);
+    ok     = winlink_listen_start("varahf", "N0BBB", why, sizeof(why));
+    mode.v = radio_mode_cw;
+    ok     = winlink_listen_keep(why, sizeof(why));
+    listen_line("mode", ok, why, -1);
+    ok = winlink_listen_start("varahf", "N0BBB", why, sizeof(why));
+    atomic_store(&dark, true);  /* Screen off's minutes, or POWER */
+    ok = winlink_listen_keep(why, sizeof(why));
+    listen_line("dark", ok, why, -1);
+    ok = winlink_listen_start("varahf", "N0BBB", why, sizeof(why));
+    listen_line("dark-start", ok, why, -1);
+    atomic_store(&dark, false);
+    ok = winlink_listen_start("varahf", "N0BBB", why, sizeof(why));
+    winlink_listen_stop();
+    listen_line("stop", true, "", -1);
+
+    /* What refuses it */
+    rit.v = 100;
+    ok    = winlink_listen_start("ardop", "N0BBB", why, sizeof(why));
+    listen_line("rit", ok, why, -1);
+    rit.v = 0;
+    if (app && (f = fopen(app, "w"))) {
+        fputs("FT8", f);
+        fclose(f);
+        ok = winlink_listen_start("ardop", "N0BBB", why, sizeof(why));
+        listen_line("app", ok, why, -1);
+        unlink(app);
+    }
+    setenv("WL_TX_NO", "outside the band plan", 1);
+    ok = winlink_listen_start("ardop", "N0BBB", why, sizeof(why));
+    listen_line("tx-no", ok, why, -1);
+    unsetenv("WL_TX_NO");
+    setenv("WL_MODE_LOCKED", "1", 1);
+    mode.v = radio_mode_cw;
+    ok     = winlink_listen_start("ardop", "N0BBB", why, sizeof(why));
+    listen_line("locked", ok, why, -1);
+    unsetenv("WL_MODE_LOCKED");
+    ok = winlink_listen_start("telnet", "N0BBB", why, sizeof(why));
+    listen_line("telnet", ok, why, -1);
+    atomic_store(&keyed, true);
+    ok = winlink_listen_start("ardop", "N0BBB", why, sizeof(why));
+    listen_line("air", ok, why, -1);
+    atomic_store(&keyed, false);
+    pat_tunes(7101500, kwhy, sizeof(kwhy));
+    ok = winlink_listen_start("ardop", "N0BBB", why, sizeof(why));
+    listen_line("pat-soon", ok, why, -1);
+    usleep(4100000);
+
+    /* The modem on the socket, and its keys as calls come in. The radio file of a run before goes first: its
+     * refusals are not this one's */
+    unlink(WINLINK_RADIO_FILE);
+    snprintf(a.sun_path, sizeof(a.sun_path), "%s", stub_sock());
+    for (int i = 0; i < 50 && listen_fd < 0; i++) {
+        listen_fd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
+        if (connect(listen_fd, (struct sockaddr *)&a, sizeof(a)) != 0) {
+            close(listen_fd);
+            listen_fd = -1;
+            usleep(100000);
+        }
+    }
+    if (listen_fd < 0)
+        return 1;
+    modem_send('H', 1, NULL, 0);
+    /* until the radio file is this run's, with the modem in it: its refusals are counted from there */
+    for (int ms = 0; ms < 5000; ms += 50) {
+        bool up;
+
+        radio_refused(kwhy, sizeof(kwhy), &up);
+        if (up)
+            break;
+        usleep(50000);
+    }
+    freq.v = 7101500;
+    ok     = winlink_listen_start("ardop", "N0BBB", why, sizeof(why));
+    k      = modem_key(kwhy, sizeof(kwhy));
+    listen_line("answer", ok, kwhy, k);         /* a call answered where it listens */
+    freq.v = 7102000;
+    k      = modem_key(kwhy, sizeof(kwhy));     /* the dial turned, before the app's next keep */
+    listen_line("moved", ok, kwhy, k);
+    freq.v = 7101500;
+    k      = modem_key(kwhy, sizeof(kwhy));
+    winlink_listen_stop();
+    k = modem_key(kwhy, sizeof(kwhy));          /* the session that came in goes on after Listen off */
+    listen_line("session", true, kwhy, k);
+
+    ok = winlink_listen_start("ardop", "N0BBB", why, sizeof(why));
+    winlink_listen_stop();
+    k = modem_key(kwhy, sizeof(kwhy));          /* a call the modem took as listening ended */
+    listen_line("ended", ok, kwhy, k);
+    k = modem_key(kwhy, sizeof(kwhy));          /* and its next try */
+    listen_line("ended-again", ok, kwhy, k);
+    usleep(10500000);
+    k = modem_key(kwhy, sizeof(kwhy));          /* the modem quiet for 10 s: a connection of Pat's keys again */
+    listen_line("quiet", ok, kwhy, k);
+
+    /* Pat tunes for a connection from the web mailbox while the app listens: its keys go out there, and the next keep
+     * ends listening */
+    ok = winlink_listen_start("ardop", "N0BBB", why, sizeof(why));
+    usleep(20000);
+    pat_tunes(10145000, kwhy, sizeof(kwhy));
+    k = modem_key(kwhy, sizeof(kwhy));
+    listen_line("pat-key", ok, kwhy, k);
+    ok = winlink_listen_keep(why, sizeof(why));
+    listen_line("pat-keep", ok, why, -1);
+    close(listen_fd);
+    return 0;
+}
+
 int main(void) {
     setvbuf(stderr, NULL, _IOLBF, 0);
     if (getenv("WL_MODE"))      /* the dial's mode as it starts, radio_mode_t; USB-D otherwise */
@@ -560,6 +809,8 @@ int main(void) {
     winlink_init();
     if (getenv("WL_PRESET"))
         return preset_steps();
+    if (getenv("WL_LISTEN"))
+        return listen_steps();
     for (;;)
         pause();
 }

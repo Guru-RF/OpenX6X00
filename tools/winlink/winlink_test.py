@@ -109,7 +109,7 @@ class Modem(Root):
             cfg = self.pat_config()
             self.assertEqual(cfg["varahf"], {"addr": "127.0.0.1:8300", "bandwidth": bw, "rig": "x6x00",
                                              "ptt_ctrl": False})
-            self.assertEqual(cfg["listen"], [])                     # no P2P call answered
+            self.assertEqual(cfg["listen"], [])                     # Pat listens only while APP > Mail does
             self.assertEqual(cfg["ardop"]["addr"], "127.0.0.1:8515")  # ARDOP's kept for a change back
 
     def test_varahf_merged(self):
@@ -1159,7 +1159,116 @@ class RadioFile(Logs):
         self.assertEqual(self.poll()["modem"], "waiting")
 
 
+class Listening(Logs):
+    """APP > Mail's Listen (#357): the GUI's listen file as our Pat reads it (tools/pat, 0011), Pat's listeners in the
+    status, a call answered as a connection, and the radio's reasons not to answer it"""
+
+    GOT = ("2026/11/24 20:15:01 OpenX6X00: P2P listening on ardop: APP > Mail's Listen is on, and the radio transmits "
+           "when a station calls\n"
+           "2026/11/24 20:15:01 Listening for incoming traffic on ardop...\n"
+           "2026/11/24 20:16:10 Got connect (ardop:N0AAA)\n")
+
+    def listen(self, transport="ardop", hz=7101500, age=0.0, up=None):
+        up_ms = up if up is not None else int((time.clock_gettime(time.CLOCK_BOOTTIME) - age) * 1000)
+        with open(self.wl.LISTEN, "w") as f:
+            f.write(f"transport={transport}\nhz={hz}\ncall=N0BBB\nup_ms={up_ms}\n")
+
+    def test_the_file_as_pat_reads_it(self):
+        self.assertEqual(self.wl.read_listen(), {})                         # none: nothing listens
+        self.listen()
+        self.assertEqual(self.wl.read_listen()["hz"], "7101500")
+        self.listen("varahf", age=2)
+        self.assertEqual(self.wl.read_listen()["transport"], "varahf")
+        for why, kw in (("stamped 5 s ago: the GUI gone or hanging", {"age": 5}),
+                        ("stamped ahead", {"age": -5}), ("not a modem's transport", {"transport": "telnet"}),
+                        ("no stamp", {"up": "x"})):
+            self.listen(**kw)
+            self.assertEqual(self.wl.read_listen(), {}, why)
+
+    def test_listening_in_the_status(self):
+        self.listen()
+        self.pat_status["active_listeners"] = ["ardop"]
+        k = self.poll()
+        self.assertEqual((k["listening"], k["listen_hz"]), ("ardop", 7101500))
+        self.pat_status["active_listeners"] = []                            # Pat no longer listens: neither key
+        k = self.poll()
+        self.assertEqual((k["listening"], k["listen_hz"]), ("", ""))
+
+    def test_the_supervisors_text_says_it(self):
+        self.wl.report(Running(), Running(), dict(WANT), {"modem": "ready", "listening": "ardop",
+                                                           "listen_hz": 7101500})
+        st = self.wl.read_kv(self.wl.STATUS)
+        self.assertEqual(st["text"], "Running as ON6URE; listening for P2P calls on 7.101.500 (APP > Mail)")
+        self.assertEqual(st["call"], "ON6URE")
+        self.wl.report(Running(), Running(), dict(WANT), {"modem": "ready", "listening": "", "listen_hz": ""})
+        self.assertEqual(self.wl.read_kv(self.wl.STATUS)["text"], "Running as ON6URE")
+
+    def test_a_call_answered(self):
+        self.listen()
+        self.pat_status.update(connected=True, active_listeners=["ardop"])
+        k = self.poll(pat=self.GOT)
+        self.assertEqual((k["last_result"], k["last_gateway"], k["last_freq"], k["last_incoming"]),
+                         ("connected", "N0AAA", 7101500, 1))
+        self.assertEqual(k["last_text"], "N0AAA called on 7.101.500, exchanging mail")
+        self.assertEqual(k["last_next"], "")
+        k = self.poll(pat="2026/11/24 20:17:02 Disconnected.\n", ardop=ESTABLISHED.format("N0AAA", 500),
+                      events=[{"what": "exchange", "targetcall": "N0AAA", "success": True, "sent": None,
+                               "received": ["ABCDEF123456"]}])
+        self.assertEqual(k["last_result"], "delivered")
+        self.assertEqual(k["last_text"], "Done with N0AAA at 500 Hz: 0 sent, 1 received")
+        self.assertTrue(self.notes()[-1].endswith("OpenX6X00: Done with N0AAA at 500 Hz: 0 sent, 1 received"))
+
+    def test_a_call_that_dropped(self):
+        self.listen()
+        k = self.poll(pat=self.GOT + "2026/11/24 20:16:40 Exchange failed: unexpected EOF\n")
+        self.assertEqual(k["last_text"], "N0AAA called, then the link dropped (unexpected EOF)")
+        self.assertEqual(k["last_next"], "What was delivered before it counts; the other station may call again")
+
+    def test_a_call_with_no_listening_file_has_no_frequency(self):
+        k = self.poll(pat=self.GOT)
+        self.assertEqual((k["last_freq"], k["last_text"]), ("", "N0AAA called, exchanging mail"))
+
+    def test_the_radios_reasons(self):
+        with open(self.wl.RADIO, "w") as f:
+            f.write(RADIO.format(app="", refused="", seq=0, qsy=0, qsy_why="", qsy_seq=0, swr=0))
+        self.poll()
+        for seq, refused, fix in (
+                (1, "the radio left the listening frequency 7.101.500 MHz",
+                 "Stay on the frequency APP > Mail listens on: turning the dial ends listening"),
+                (2, "P2P listening was just turned off",
+                 "Nothing to do: a call that came in as Listen went off is not answered")):
+            with open(self.wl.RADIO, "w") as f:
+                f.write(RADIO.format(app="", refused=refused, seq=seq, qsy=0, qsy_why="", qsy_seq=0, swr=0))
+            self.poll()
+            self.assertTrue(self.notes()[-1].endswith(f"OpenX6X00: no TX, {refused}. {fix}"), self.notes())
+
+    def test_in_the_logs(self):
+        self.listen()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.wl.cmd_logs()
+        self.assertIn("==== APP > Mail's Listen: /run/winlink/listen\ntransport=ardop\nhz=7101500\n", out.getvalue())
+
+
 class PatStart(Root):
+    def test_pat_listens_only_as_the_gui_says(self):
+        """Our Pat is given the listen file (tools/pat, 0011); the config's listen stays empty, also after Pat's
+        Configure page saved "Listen for inbound P2P traffic" ticked"""
+        os.makedirs(os.path.dirname(self.wl.PAT), exist_ok=True)
+        with open(self.wl.PAT, "w") as f:
+            f.write('#!/bin/sh\necho "$OPENX6X00_LISTEN_GATE" > "$2.gate"\n')
+        os.chmod(self.wl.PAT, 0o755)
+        self.wl.write_config(dict(WANT), "")
+        cfg = self.pat_config()
+        cfg["listen"] = ["ardop", "varahf"]
+        with open(self.wl.PAT_CONFIG, "w") as f:
+            json.dump(cfg, f)
+        pat = self.wl.Program("Pat", self.wl.PAT_LOG)
+        self.wl.start_pat(pat, dict(WANT))
+        pat.proc.wait(10)
+        self.assertEqual(read(self.wl.PAT_OWN_LOG + ".gate").strip(), self.wl.LISTEN)
+        self.assertEqual(self.pat_config()["listen"], [])
+
     def test_pats_log_emptied_before_pat_runs(self):
         """The Watch reads Pat's log from its start once Pat is started: the last run's lines are gone by then"""
         os.makedirs(os.path.dirname(self.wl.PAT), exist_ok=True)
@@ -1729,6 +1838,21 @@ class MailBusy(Root):
         r = subprocess.run([sys.executable, "-I", SUPERVISOR + "-mail", "busy"], env=env, capture_output=True,
                            text=True, timeout=20)
         self.assertEqual((r.returncode, json.loads(r.stdout)), (0, {"busy": True, "why": "a connection is under way"}))
+
+    def test_listening_and_the_caller_in_the_status(self):
+        """APP > Mail's Listen (#357): Pat's listeners, the station of the session under way (one that called us),
+        and the callsign Pat runs as, the radio's own when the page has none (the supervisor's call=)"""
+        with open(self.wl.CONF, "w") as f:
+            f.write("enabled=1\nmycall=\n")
+        with open(self.wl.STATUS, "w") as f:
+            f.write("state=running\ncall=ON6URE\nlast_incoming=1\n")
+        self.pat = {"connected": True, "dialing": False, "active_listeners": ["ardop"], "remote_addr": "ardop:N0AAA"}
+        st = self.mail.cmd_status()
+        self.assertEqual((st["listening"], st["remote"], st["call"], st["last_incoming"]),
+                         (["ardop"], "N0AAA", "ON6URE", True))
+        self.pat = {"connected": False, "dialing": False}
+        st = self.mail.cmd_status()
+        self.assertEqual((st["listening"], st["remote"]), ([], ""))
 
     def test_after_call_in_the_status(self):
         """The app's After call (#336) reads it here: back for no setting and for any other word"""

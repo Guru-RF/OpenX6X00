@@ -7,7 +7,8 @@
  * three bandwidths, the Connections card's Modem row with XARA's speed, and the Station card's rows for the modem
  * chosen (XARA's bandwidth and the VARA HF licence tick box with XARA only). The whole page, its first answer and
  * its refreshes: the Station card's Modem row follows the radio's choice, which Pat's connection through the other
- * transport changes (#296), unless a choice made on the page is not saved yet.
+ * transport changes (#296), unless a choice made on the page is not saved yet. The Session row while APP > Mail
+ * listens for P2P calls (#357).
  * Prints PAGE OK; exits 1 at the first failure. Run from winlink_web_test.py, or `node winlink_page_test.js` */
 'use strict';
 const {page, between} = require('../../docs/audit/repro-2026-10-24/browser-dom.js');
@@ -116,6 +117,22 @@ row = modemRow({modem_choice: 'mercury', speed: 'free'});
 check('Mercury: no speed of its own', row === "Ready, Mercury on the radio's audio", row);
 row = modemRow({state: 'off', modem_choice: 'xara', speed: 'full'});
 check('off: Off', row === "Off, XARA on the radio's audio", row);
+
+function sessionRow(st) {
+  p.ctx.st = Object.assign({state: 'running', service: 'running', session: 'idle', modem: 'ready',
+                            modem_choice: 'ardop'}, st);
+  p.eval('renderConnections(st)');
+  return p.$('#c-session').text();
+}
+row = sessionRow({});
+check('no connection, nothing listens: Idle', row === 'Idle', row);
+row = sessionRow({listening: 'ardop', listen_hz: '7101500'});
+check("APP > Mail's Listen on (#357): listening, and where",
+      row === 'Listening for P2P calls on 7.101.500 (APP > Mail)', row);
+row = sessionRow({session: 'connected', listening: 'ardop', listen_hz: '7101500'});
+check('a call answered: Connected', row === 'Connected', row);
+row = sessionRow({state: 'off', listening: 'ardop'});
+check('off: Off', row === 'Off', row);
 
 p.eval(between(p.script, "// The chosen modem's rows only", '$("#modem").on("change", showModem);'));
 const ROWS = ['#row-bandwidth', '#row-mercury-bandwidth', '#row-xara-bandwidth', '#row-vara-licence'];

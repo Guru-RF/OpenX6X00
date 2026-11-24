@@ -11,7 +11,10 @@ in 10 ms T messages on the wall clock, none ahead of it, the first right after P
 tail, then P 0: played whole. A digital app opened during a key: stopped, the next key
 refused. An SWR trip during a key: the hold on that band and near its frequency, another band keys (#147); one
 counted as a key ends is that key's, one counted seconds later another transmission's, no hold. And the radio
-file the Winlink page reads: Winlink's cap of 7 W, 5 W with the X6200 on its battery.
+file the Winlink page reads: Winlink's cap of 7 W, 5 W with the X6200 on its battery. APP > Mail's Connect, step
+by step (#322), and its Listen (#357): the listen file Pat reads, kept fresh while the app looks each second, gone
+when listening ends, what ends it and what refuses it, a call answered only where it listens, none as it ends, and
+a file a GUI before left behind gone as the GUI starts.
 Prints PROTO OK at the end; exits 1 at the first failure.
 Run from `make` (make test).
 """
@@ -30,6 +33,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 HDR = struct.Struct("=BBH")
 PLAY_RATE = 44100
 RADIO_FILE = os.path.join(HERE, "build", "radio")     # WINLINK_RADIO_FILE in stub_env.h, from HERE
+LISTEN_FILE = os.path.join(HERE, "build", "listen")   # WINLINK_LISTEN_FILE
 
 
 def fail(msg):
@@ -302,6 +306,63 @@ def preset_steps(tmp):
           "Stay: a press there is a first one again, and going back from it is to that frequency")
     check(at("stay-air", "1", 7101500, "0", keyed=0),
           "Stay as the modem's last frame is on the air: still there once it is over")
+
+
+def listen_steps(tmp):
+    """winlink_host with WL_LISTEN: winlink_listen_start(), _keep() and _stop() as APP > Mail's Listen calls them, and a
+    modem of its own on the socket keying as calls come in; a line a step (stubs.c, listen_steps)"""
+    env = dict(os.environ, WL_LISTEN="1", WL_SOCK=os.path.join(tmp, "l.sock"), WL_RIG_PORT="14542",
+               WL_APP=os.path.join(tmp, "l.app"))
+    env.pop("WL_TX_NO", None)
+    p = subprocess.run([os.path.join(HERE, "winlink_host")], env=env, cwd=HERE, stdout=subprocess.PIPE,
+                       stderr=subprocess.DEVNULL, text=True, timeout=120)
+    step = {}
+    for line in p.stdout.splitlines():
+        name, _, rest = line.partition(" ")
+        kv, _, why = rest.partition(" why=")
+        step[name] = dict(f.split("=", 1) for f in kv.split())
+        step[name]["why"] = why
+    check(p.returncode == 0 and len(step) == 25, f"every step ran ({len(step)} lines)")
+
+    def at(name, ok, hz, file, **more):
+        s = step.get(name, {})
+        want = {"ok": ok, "hz": str(hz), "file": file, **{k: str(v) for k, v in more.items()}}
+        return {k: s.get(k) for k in want} == want
+
+    check(at("start", "1", 7101500, "ardop", fresh=1, mode="USB-D"),
+          f"Listen in CW on 7.101.5 MHz: USB-D, and the file says ardop to Pat ({step.get('start')})")
+    check(at("keep", "1", 7101500, "ardop", fresh=1), "each second's look keeps it fresh")
+    check(at("stale", "1", 7101500, "ardop", fresh=0) and at("kept", "1", 7101500, "ardop", fresh=1),
+          "no look for 3.6 s (the GUI hangs): stale, which Pat takes for none; the next look stamps it again")
+    check(at("xit", "0", 0, "none", why="XIT is set (+50 Hz)"), "XIT set while listening: it stops, the file gone")
+    check(at("dial", "0", 0, "none", why="the radio left 7.101.500 MHz"), "the dial turned: it stops")
+    check(at("mode", "0", 0, "none", why="the radio is in CW, not USB-D"), "another mode: it stops")
+    check(at("dark", "0", 0, "none", why="the screen is dark") and at("dark-start", "0", 0, "none"),
+          "the screen dark (Screen off, POWER): it stops, and does not start")
+    check(at("stop", "1", 0, "none"), "Listen off: the file gone at once")
+    check(at("rit", "0", 0, "none", why="RIT is set (+100 Hz)"), "RIT set: not started")
+    check(at("app", "0", 0, "none", why="FT8 is open, close it"), "an app holds the radio: not started")
+    check(at("tx-no", "0", 0, "none", why="7.102.000 MHz: outside the band plan"),
+          "where the radio may not transmit: not started")
+    check(at("locked", "0", 0, "none", mode="CW", why="the radio is in CW and an app holds the mode"),
+          "CW held by an app: not started, the mode kept")
+    check(at("telnet", "0", 0, "none", why="no modem Pat listens with"), "a transport of no modem here: not started")
+    check(at("air", "0", 0, "none", why="the radio is on the air"), "on the air: not started")
+    check(at("pat-soon", "0", 0, "none", why="Pat just tuned the radio for a connection, try again in a moment"),
+          "Pat tuned the radio a moment ago (a connection begins): not started")
+    check(at("answer", "1", 7101500, "ardop", key=1), "a call answered: the key goes out where it listens")
+    check(at("moved", "1", 7101500, "ardop", freq=7102000, key=0,
+             why="the radio left the listening frequency 7.101.500 MHz"),
+          "the dial turned before the app's next look: no key there")
+    check(at("session", "1", 0, "none", key=1), "Listen off during a session that came in: its keys go on")
+    check(at("ended", "1", 0, "none", key=0, why="P2P listening was just turned off")
+          and at("ended-again", "1", 0, "none", key=0, why="P2P listening was just turned off"),
+          "a call the modem took as listening ended, before Pat told it: its keys refused, each try again")
+    check(at("quiet", "1", 0, "none", key=1), "the modem quiet for 10 s: keys go out again")
+    check(at("pat-key", "1", 7101500, "ardop", freq=10145000, key=1)
+          and at("pat-keep", "0", 0, "none", why="Pat tuned the radio for a connection"),
+          "Pat's QSY for a connection from the web mailbox while listening: its key goes out there, and listening "
+          "stops at the app's next look")
 
 
 def main():
@@ -648,6 +709,17 @@ def main():
 
         print("APP > Mail's Connect: the first press tunes and sends nothing, the second calls (#322)")
         preset_steps(tmp)
+
+        print("APP > Mail's Listen: Pat answers P2P calls only while the app listens (#357)")
+        listen_steps(tmp)
+        os.makedirs(os.path.dirname(LISTEN_FILE), exist_ok=True)
+        with open(LISTEN_FILE, "w") as f:
+            f.write("transport=ardop\nhz=7101500\ncall=N0BBB\nup_ms=1\n")
+        host = Host(tmp, "h", rig_port=14543)
+        try:
+            check(not os.path.exists(LISTEN_FILE), "a listen file a GUI before left behind: gone as the GUI starts")
+        finally:
+            host.stop()
     print("PROTO OK")
 
 

@@ -6,7 +6,9 @@
 # only asks it. Plain text only: attachments and forms stay in the web mailbox.
 #
 #   x6100-winlink-mail status            the state for the app, one JSON object: Winlink on, Pat answering,
-#                                        a session under way, the password's place, the mailbox counts
+#                                        a session under way and the station at its other end, Pat listening
+#                                        for P2P calls (APP > Mail's Listen, #357), the callsign Pat runs as, the
+#                                        password's place, the mailbox counts
 #   x6100-winlink-mail list in|out|sent|archive
 #                                        the messages, newest first, without their bodies (a JSON array)
 #   x6100-winlink-mail view BOX          status and list in one: {"status": ..., "list": [...]} (one start of
@@ -683,10 +685,18 @@ def cmd_status(boxes=None):
            "last_text": sup.get("last_text", ""), "last_next": sup.get("last_next", ""),
            "last_result": sup.get("last_result", ""), "last_gateway": sup.get("last_gateway", ""),
            "last_time": int(sup["last_time"]) if sup.get("last_time", "").isdigit() else 0,
-           "pat": False, "connected": False, "dialing": False}
+           "last_incoming": sup.get("last_incoming") == "1",
+           # the callsign Pat runs as: the page's, or the radio's own when that is empty (the supervisor's word)
+           "call": sup.get("call", "") or conf.get("mycall", ""),
+           "pat": False, "connected": False, "dialing": False, "listening": [], "remote": ""}
     st = pat_status() if out["enabled"] else None
     if st is not None:
         out.update({"pat": True, "connected": bool(st.get("connected")), "dialing": bool(st.get("dialing"))})
+        # APP > Mail's Listen (#357): Pat's listeners (ardop, varahf) while it answers P2P calls, and the station at
+        # the other end of the session under way, one that called too ("ardop:N0AAA")
+        out["listening"] = [str(t) for t in st.get("active_listeners") or [] if isinstance(t, str)]
+        if out["connected"] and isinstance(st.get("remote_addr"), str):
+            out["remote"] = one_line(st["remote_addr"].partition(":")[2] or st["remote_addr"], 24)
         for box in ("in", "out"):
             try:
                 msgs = get_json(f"/api/mailbox/{box}")

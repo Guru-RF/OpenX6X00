@@ -31,7 +31,11 @@ are ours.
 - `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags="-s -w -buildid="`:
   one static binary for both radios, about 14.1 MB (v1.0.1 with our patches 0001 to 0010:
   14090364 bytes, SHA-256 `0a13e38e2191d19bdacbbcd0c55bb7554dbd5b34dcaf32b6b548801525bbb992`,
-  the same from a full clone and from a fresh shallow one as `build.sh` makes it, 19 Nov). With
+  the same from a full clone and from a fresh shallow one as `build.sh` makes it, 19 Nov; with
+  0001 to 0011: 14090364 bytes, SHA-256
+  `8ddc0da9e39c9f8ac10329b8624ec75dc2ecaf826d62bbf4d6e7cae870239edf`, built by hand from a
+  checkout of `2ad31e8` with the patches applied and the maps removed as `build.sh` does, with
+  its Go and flags, 24 Nov; not yet from `build.sh` itself). With
   v1.0.0, two builds with Go's build cache wiped in between gave the same SHA-256; with v1.0.1,
   `build.sh` and a build with nothing cached did: a fresh clone in another directory, the Go
   toolchain downloaded again (its SHA-256 checked) and empty module and build caches.
@@ -60,7 +64,7 @@ Each one made with `git format-patch` against `v1.0.1` (0008 against a stand-in,
 apply` takes them in order. On the way from `v1.0.0`: 0001 to 0004 rebased as they were (line
 offsets only); 0005 and 0006 rebased onto v1.0.1's own changes to the same files (below); 0007 is
 new, for a v1.0.1 regression; 0008 is new, for #296; 0009 and 0010 are new, for an Abort that did
-not end a connection (the bench X6100, 19 Nov).
+not end a connection (the bench X6100, 19 Nov); 0011 is new, for #357.
 
 - `0001-http-guard.patch`: a guard around Pat's HTTP handler (`api/guard.go`, wrapped in
   `api.ListenAndServe`). Pat has no login, and a plain GET of `/api/connect` keys the
@@ -264,6 +268,23 @@ not end a connection (the bench X6100, 19 Nov).
   Pat dials; APP > Mail's Abort and the API reach the switch. With tests
   (`app/radio_modem_test.go`: a stand-in switch that waits, one that ignores SIGTERM, and Connect).
   The radio's own: not for upstream.
+- `0011-listen-gate.patch`: P2P listening only while the radio's APP > Mail has Listen on (#357):
+  the radio may transmit only with someone at it. With `OPENX6X00_LISTEN_GATE` set (the
+  supervisor sets it to `/run/winlink/listen`), Pat takes neither the config's `listen` (the
+  Configure page's "Listen for inbound P2P traffic", which a Save and its reload used to turn on
+  until the supervisor wrote `[]` again at Pat's next start) nor `--listen`: it listens on the
+  transport that file names (`ardop` or `varahf`) while the file is fresh, and on nothing else.
+  The GUI writes it each second while Listen is on, stamped with the time since boot
+  (`CLOCK_BOOTTIME`, the clock `/proc/uptime` reads: the wall clock may jump when the radio sets
+  its clock), and removes it when listening ends; one not stamped for 3 s is from a GUI that is
+  gone or hangs. Pat looks at it twice a second, and a listener turned on another way (the
+  interactive mode's `listen`) goes too. Each change is a line in Pat's log ("OpenX6X00: P2P
+  listening on ardop: ..."), and a session that came in goes on to its end. Unset, as anywhere
+  else, Pat listens as upstream. The Configure page's box under ARDOP and VARA HF says it is not
+  used on the radio. With tests (`app/listen_gate_test.go`: the file, its age, the listeners
+  kept to it) and, with a real Mercury, `make modems` (`tools/winlink`: Pat B listens only once
+  the file is there, though given `--listen`, and stops 3 s after its last stamp). The radio's
+  own: not for upstream.
 
 `pat_ui_test.js` (ours, not in a patch) runs Pat's mailbox and configuration pages and their
 scripts from a patched source in jsdom, against a stand-in for Pat's server that answers with such

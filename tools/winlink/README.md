@@ -40,7 +40,19 @@ Pat's QSY finds the radio there and its tune back leaves it there; no first pres
 within 4 s of a tune of Pat's (a connection that begins, also from the web mailbox,
 before Pat says it is dialing); and After call: Stay (#336, `winlink_preset_stay()`):
 the radio left on the gateway's frequency in USB-D, a way back asked later moving
-nothing, also as the modem's last frame is on the air. It prints `PROTO OK`. What Pat
+nothing, also as the modem's last frame is on the air. Then APP > Mail's Listen (#357;
+`WL_LISTEN`, the steps in `stubs.c`): Listen on in CW sets USB-D and writes the listen
+file (`build/listen` here), each keep stamps it again, and with no keep for 3.6 s (a GUI
+that hangs) it is stale as Pat reads it; it stops, the file gone, when XIT is set, the
+dial or the mode changes, or the screen goes dark; it does not start on a dark screen,
+with RIT, with an app open, with no TX there, with an app holding the mode, for a
+transport no modem has, with the radio on the air, or within 4 s of a tune of Pat's. A
+modem's answer to a call keys while listening, on that frequency only; a session that
+came in keys on after Listen off; a key that belongs to no connection is refused for
+10 s after Listen goes off ("P2P listening was just turned off"), each refused one
+starting that wait again, and keys once the modem was quiet that long; Pat's QSY for a
+connection from the web mailbox keys there, and the next keep ends listening. Last, a
+listen file left by a GUI before goes as the GUI starts. It prints `PROTO OK`. What Pat
 itself says of a connection under way is `x6100-winlink-mail busy`, asked by the app
 before that press: in `winlink_test.py` (`MailBusy`, a stand-in for Pat's
 `/api/status`, and the switch lock). The After call setting itself (`after_call=` in
@@ -74,7 +86,10 @@ it, the first time with a download of about 150 MB, then it only gives the path;
   one transmits the other hears with a little noise under it. Mercury takes Pat's
   start-up commands, `CWID ON` too (1.9.21 said `WRONG` to it), and answers `VERSION`
   with the line `VERSION Mercury 1.9.25` (our patch; Pat waits for a `VERSION` line
-  with no timeout). Pat B listens on varahf; Pat A sends B a 1500-byte message peer to
+  with no timeout). Pat B listens on varahf as on the radio (#357): given `--listen`, it
+  listens to nothing until the GUI's listen file is there (a thread stamps it as APP >
+  Mail's Listen does), and stops 3 s after its last stamp (2026-11-24: 3.0 s); Pat A
+  sends B a 1500-byte message peer to
   peer (`varahf:///N0BBB?p2p=true`): connected, sent, disconnected, the message in B's
   inbox, no key stopped by the GUI. Each station's last key peaks between -7.5 and
   -5.5 dBFS as the GUI's player gets it: Mercury 1.9.21's level, which the
@@ -160,7 +175,14 @@ each connection from the logs in `fixtures/`, Pat's own switch of the modem,
 #296, Pat's service codes, all three always with the user's own kept, #324, and
 `x6100-winlink modem`, APP > Mail's Modem, #322 and #323: chosen as the page does,
 refused when the modem is not there, XARA without a callsign, during a switch of
-Pat's), and `winlink_web_test.py`, the web
+Pat's; APP > Mail's Listen, #357, in `Listening`: the listen file as our Pat reads
+it, fresh, stale, ahead or for another transport; Pat's listeners in the status and
+the supervisor's text; a call answered as a connection, "N0AAA called on 7.101.500,
+exchanging mail", its end and a link that dropped; the radio's refusals for
+listening with what to do; the file in the logs; in `PatStart` Pat given the file,
+its config's listen still empty after Pat's Configure page ticked it; in
+`MailBusy` the helper's status with Pat's listeners and the station that called),
+and `winlink_web_test.py`, the web
 configurator's Winlink page and its API, which needs bottle 0.13
 (`PYTHONPATH=<a directory with bottle.py>`; 0.12 does not import on Python 3.13
 and later). Both run with `python3 -B <file>`, and `make` (`make test`) runs them
