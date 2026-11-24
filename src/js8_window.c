@@ -394,6 +394,7 @@ static void      board_move(int step);
 static void      board_press(void);
 static void      unread_seen(const char *call);
 static void      unread_add(const char *call);
+static js8_red_t reds[JS8_RED_N]; /* the cards red for a message to us (js8_logic.h) */
 static void      board_show(bool on);
 static void      table_takes_keys(void);
 static void      keys_leave_main(void);
@@ -963,8 +964,12 @@ static void add_message(const js8_rx_msg_t *in)
     if (!m.partial && ghostnet_traffic(&m))
         ghostnet_log(m.tx ? 'X' : 'R', m.msg_id, m.tx ? params.callsign.x : m.from, m.to, m.snr,
                      cparam_i_get(cfg_fg_freq), m.text);
-    if (!m.partial && !m.tx && m.to_me && m.from[0] &&
-        !(conv_root && !strcasecmp(m.from, conv_call_now()))) unread_add(m.from); /* the card says "1 new" */
+    /* A message, not a heartbeat answered: that one is "heard you -13" on its card, neither "1 new" nor red
+     * (OlivLoze's fork, 55e3bc5c). Read already with its conversation open; on the card selected seen already */
+    if (js8_msg_is_new(&m) && !(conv_root && !strcasecmp(m.from, conv_call_now()))) {
+        unread_add(m.from); /* the card says "1 new" */
+        if (!(board_on && !strcasecmp(m.from, board_sel_call))) js8_red_mark(reds, m.from, now_wall_ms());
+    }
     if (growing >= 0) {
         update_slot(growing, &m);
         conv_refresh(&m);
@@ -1219,8 +1224,8 @@ static void station_fields(const js8_station_t *stn, int64_t now, station_fields
     if (stn->heard_me) {
         char ago[8];
         format_age(now - stn->heard_me_ms, ago, sizeof(ago));
-        if (!stn->has_reported_snr) snprintf(out->heard, sizeof(out->heard), "heard you (%s)", ago);
-        else snprintf(out->heard, sizeof(out->heard), "heard you %+03d (%s)", stn->reported_snr, ago);
+        if (!stn->has_reported_snr) snprintf(out->heard, sizeof(out->heard), "heard you %s", ago);
+        else snprintf(out->heard, sizeof(out->heard), "heard you %+03d %s", stn->reported_snr, ago);
     }
 
     const where_t *w = station_where(stn->call);
@@ -1377,10 +1382,11 @@ static void draw_station_columns(lv_obj_draw_part_dsc_t *d, lv_obj_t *tbl, int16
             continue;
         }
         lv_draw_label_dsc_t style = (c == 2 && st_worked[slot]) ? logged : *d->label_dsc;
-        if (c >= 7) style.font = &sony_20;  /* country, grid, km: the narrower font fits them */
-        if (c >= 7) cell.y1 += 2;
+        /* heard, country, grid, km: the narrower font fits them ("heard you -08 13m" wrapped onto the row under) */
+        if (c >= 6) style.font = &sony_20;
+        if (c >= 6) cell.y1 += 2;
         lv_draw_label(d->draw_ctx, &style, &cell, text[c], NULL);
-        if (c >= 7) cell.y1 -= 2;
+        if (c >= 6) cell.y1 -= 2;
     }
 
     /* Heard sending to @X6100, while we are in it: a small tag at the end of
@@ -2763,7 +2769,7 @@ static void lane_update(void)
         lane_call_t *c = &lane_calls[lane_n++];
         snprintf(c->call, sizeof(c->call), "%s", st[k].call);
         c->hz = st[k].freq_hz;
-        c->me = st[k].heard_me && now - st[k].heard_me_ms < LANE_SHOW_MS;
+        c->me = js8_red_on(reds, st[k].call, now); /* a message to us in the last minute, its card not selected */
     }
     qsort(lane_calls, lane_n, sizeof(lane_calls[0]), lane_by_hz);
     if (lane) lv_obj_invalidate(lane);
@@ -2901,8 +2907,9 @@ static void build_tx_bar(void) {
  * answered, a call), then the others, newest first. A card: flag, call, signal, country and distance, and a
  * tag: messages for us not read yet, "heard you" with their report, else what they sent last (CQ, HB,
  * X6100). The MFK goes from card to card (the station selected for Reply, Query >...), its press opens the
- * conversations on that one. A card that heard us is red for 3 minutes after their answer (JS8_HEARD_FRESH_MS), then
- * plain with its tag in grey. The list stays under it, hidden, and keeps the keys. */
+ * conversations on that one. A card is red for a minute after its station's message to us, or until the MFK
+ * selects it (js8_logic.h's reds); a heartbeat's answer alone does not light it, its tag is grey. The list stays
+ * under it, hidden, and keeps the keys. */
 
 #define BOARD_COLS  3
 #define BOARD_ROWS  3
@@ -3018,7 +3025,7 @@ static void card_show(card_t *c, const js8_station_t *st, bool sel)
     const where_t *w   = station_where(st->call);
     int            n     = unread_of(st->call);
     bool           you   = st->heard_me;
-    bool           fresh = js8_heard_me_fresh(st, now_wall_ms());  /* red for 3 minutes, then a plain card */
+    bool           fresh = js8_red_on(reds, st->call, now_wall_ms());  /* a message to us: a minute, or until seen */
 
     lv_obj_clear_flag(c->box, LV_OBJ_FLAG_HIDDEN);
     lv_obj_set_style_bg_color(c->box, fresh ? TC(row_to_me) : TC(row), LV_PART_MAIN);
@@ -3122,6 +3129,7 @@ static void board_move(int step)
     int k = board_sel >= 0 ? (board_sel + step + board_n) % board_n : 0;
     snprintf(board_sel_call, sizeof(board_sel_call), "%s", board_st[k].call);
     memcpy(sel_call, board_st[k].call, sizeof(sel_call));
+    js8_red_seen(reds, board_st[k].call); /* selected: seen, the red goes */
     selection_move(board_st[k].freq_hz, board_st[k].snr);
     board_update();
     card_say(board_sel >= 0 ? board_sel : k);   /* board_update() sorted the cards again: the one by its call */
@@ -4384,6 +4392,7 @@ static void conv_choose(const char *call)
     if (find_station(conv_call, &st)) selection_move(st.freq_hz, st.snr);
     else show_selection();
     unread_seen(conv_call);
+    js8_red_seen(reds, conv_call); /* its conversation open: seen, as its card selected */
     buttons_refresh(&btn_conv);
 }
 

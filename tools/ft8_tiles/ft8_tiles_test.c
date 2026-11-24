@@ -5,9 +5,10 @@
  *  redesign (OlivLoze's fork), and of the time a slot's rows carry (ftx_slot_start, src/ft8/utils.c).
  *  - A slot's rows and our TX row carry the slot's start, however late its tick came: 07:42:18 and 07:42:46 on a busy
  *    40 m were the slots of 07:42:15 and 07:42:45. FT4's and FT2's slots start on fractions of a second.
- *  - A station that calls us is red (FT8_TAG_CALLS_YOU) for 3 minutes after its call, then plain with "called you";
- *    its RR73 or 73 to us does not make it red again, a new call does, a QSO logged ends it. It stays while red, even
- *    with no new row for 2 minutes; lv_tick going round changes nothing.
+ *  - A station that calls us is red for a minute after its call, or until its tile is selected (seen), then plain;
+ *    its RR73 or 73 to us does not make it red again, a new call does, a QSO logged ends it. For 3 minutes after its
+ *    call it says "calls you" (FT8_TAG_CALLS_YOU), keeps its first place, stays shown under Show: CQ and stays with
+ *    no new row for 2 minutes, red or seen; lv_tick going round changes nothing.
  *  - Show: CQ filters the tiles (and the lane): a station seen in another QSO under Show: All goes at once.
  *  - The tiles' order and tags, the 64 stations kept, the countries of the log.
  */
@@ -67,7 +68,7 @@ static void slot_start(void) {
     check(ftx_slot_start(MIN0 + 60 + 1, 0, 3.75f) == MIN0 + 60, "FT2: the next minute starts a slot");
 }
 
-static void red_three_minutes(void) {
+static void red_a_minute(void) {
     uint32_t    t  = 1000000;
     cell_data_t cq = row(CELL_RX_CQ, "DL1ABC", FTX_MSG_TYPE_CQ, -10, 1200);
     cell_data_t rp = row(CELL_RX_TO_ME, "DL1ABC", FTX_MSG_TYPE_REPORT, -10, 1200);
@@ -83,12 +84,17 @@ static void red_three_minutes(void) {
 
     check(st && ft8_heard_calls_you(st, t) && ft8_heard_tag(st, t) == FT8_TAG_CALLS_YOU, "its call: red");
     check(st && st->has_report && st->report == -12, "its report kept for the tag");
-    check(st && ft8_heard_calls_you(st, t + FT8_CALLS_YOU_MS - 1), "red until 3 minutes after the call");
+    check(FT8_RED_MS == 60000 && FT8_CALLS_YOU_MS == 180000, "red a minute, first 3 minutes");
+    check(st && ft8_heard_calls_you(st, t + FT8_RED_MS - 1), "red until a minute after the call");
+    check(st && !ft8_heard_calls_you(st, t + FT8_RED_MS), "plain a minute after the call");
+    check(st && ft8_heard_called_lately(st, t + FT8_RED_MS) && ft8_heard_tag(st, t + FT8_RED_MS) == FT8_TAG_CALLS_YOU,
+          "plain, it still says: calls you");
     st = find("DL1ABC", true, t + FT8_HEARD_KEEP_MS + 1000);
-    check(st != NULL, "kept past 2 minutes with no new row while red");
+    check(st != NULL, "kept past 2 minutes with no new row, 3 minutes from its call");
     st = find("DL1ABC", true, t + FT8_CALLS_YOU_MS - 1);
-    check(st && !ft8_heard_calls_you(st, t + FT8_CALLS_YOU_MS), "plain 3 minutes after the call");
-    check(find("DL1ABC", true, t + FT8_CALLS_YOU_MS + 1) == NULL, "gone once plain and not heard for 2 minutes");
+    check(st && ft8_heard_called_lately(st, t + FT8_CALLS_YOU_MS - 1) && !ft8_heard_called_lately(st, t + FT8_CALLS_YOU_MS),
+          "called us lately: until 3 minutes after the call");
+    check(find("DL1ABC", true, t + FT8_CALLS_YOU_MS + 1) == NULL, "gone 3 minutes after its call, not heard for 2");
 
     /* its RR73 to us ends the QSO: no new red; a new call does it */
     ft8_heard_clear();
@@ -96,9 +102,12 @@ static void red_three_minutes(void) {
     ft8_heard_add(&rp, t);
     cell_data_t rr = row(CELL_RX_TO_ME, "DL1ABC", FTX_MSG_TYPE_RR73, -9, 1200);
 
+    ft8_heard_add(&rr, t + 50000);
+    st = find("DL1ABC", true, t + FT8_RED_MS);
+    check(st && !ft8_heard_calls_you(st, t + FT8_RED_MS), "an RR73 to us made it red again");
     ft8_heard_add(&rr, t + 170000);
     st = find("DL1ABC", true, t + FT8_CALLS_YOU_MS);
-    check(st && !ft8_heard_calls_you(st, t + FT8_CALLS_YOU_MS), "an RR73 to us made it red again");
+    check(st && !ft8_heard_called_lately(st, t + FT8_CALLS_YOU_MS), "an RR73 to us kept it first for longer");
     check(st && ft8_heard_tag(st, t + FT8_CALLS_YOU_MS) == FT8_TAG_CALLED_YOU, "plain, then: called you");
     cell_data_t r73 = row(CELL_RX_TO_ME, "DL1ABC", FTX_MSG_TYPE_73, -9, 1200);
 
@@ -106,11 +115,12 @@ static void red_three_minutes(void) {
     st = find("DL1ABC", true, t + FT8_CALLS_YOU_MS + 1000);
     check(st && !ft8_heard_calls_you(st, t + FT8_CALLS_YOU_MS + 1000), "a 73 to us made it red again");
 
-    /* a QSO logged ends the red; its next call brings it back */
+    /* a QSO logged ends the red, and "calls you"; its next call brings it back */
     ft8_heard_add(&rp, t + 400000);
     ft8_heard_logged("DL1ABC");
     st = find("DL1ABC", true, t + 401000);
     check(st && !ft8_heard_calls_you(st, t + 401000), "still red after the QSO was logged");
+    check(st && ft8_heard_tag(st, t + 401000) == FT8_TAG_CALLED_YOU, "logged: called you");
     ft8_heard_add(&rp, t + 430000);
     st = find("DL1ABC", true, t + 431000);
     check(st && ft8_heard_calls_you(st, t + 431000), "a call after the logged QSO not red");
@@ -119,9 +129,71 @@ static void red_three_minutes(void) {
     ft8_heard_clear();
     t = 0xffffffffu - 30000;
     ft8_heard_add(&rp, t);
-    st = find("DL1ABC", false, t + 60000);      /* 30 s past the turn */
-    check(st && ft8_heard_calls_you(st, t + 60000), "lv_tick round: no longer red");
+    st = find("DL1ABC", false, t + 45000);      /* 15 s past the turn */
+    check(st && ft8_heard_calls_you(st, t + 45000), "lv_tick round: no longer red");
+    check(st && !ft8_heard_calls_you(st, t + FT8_RED_MS), "lv_tick round: red for more than a minute");
     check(find("DL1ABC", true, t + FT8_CALLS_YOU_MS + 1) == NULL, "lv_tick round: never goes");
+}
+
+/* Seen: the MFK on its tile ends the red at once; red or seen, the station keeps its first place and stays under
+ * Show: CQ for its 3 minutes (OlivLoze's fork, 0d1875b4, b98b7c2c) */
+static void seen_and_first(void) {
+    uint32_t           t   = 7000000;
+    cell_data_t        cq  = row(CELL_RX_CQ, "EA5KDD", FTX_MSG_TYPE_CQ, 9, 800);
+    cell_data_t        me  = row(CELL_RX_TO_ME, "HA7TM", FTX_MSG_TYPE_GRID, -20, 2100);
+    cell_data_t        me2 = row(CELL_RX_TO_ME, "OH2XYZ", FTX_MSG_TYPE_GRID, -15, 1700);
+    const ft8_heard_t *st[FT8_HEARD_MAX];
+
+    ft8_heard_clear();
+    ft8_heard_add(&cq, t);
+    ft8_heard_add(&me, t);
+    check(ft8_heard_calls_you(find("HA7TM", false, t + 1000), t + 1000), "a call to us: red");
+    ft8_heard_seen("HA7TM");
+    check(!ft8_heard_calls_you(find("HA7TM", false, t + 1000), t + 1000), "its tile selected: seen, plain at once");
+    check(ft8_heard_tag(find("HA7TM", false, t + 1000), t + 1000) == FT8_TAG_CALLS_YOU, "seen: it still says calls you");
+    ft8_heard_seen("NOBODY");       /* no such station: nothing happens */
+
+    /* seen, and later with its red over: first all the same, and shown under Show: CQ */
+    for (uint32_t at = 1000; at < FT8_CALLS_YOU_MS; at += 59000) {
+        ft8_heard_add(&cq, t + at);     /* the CQ goes on, far stronger */
+
+        int n = ft8_heard_list(st, FT8_HEARD_MAX, false, t + at);
+
+        check(n == 2 && !strcmp(st[0]->cd.meta.call_de, "HA7TM"), "seen: first and shown under Show: CQ for 3 minutes");
+    }
+    ft8_heard_add(&cq, t + FT8_CALLS_YOU_MS);
+    check(ft8_heard_list(st, FT8_HEARD_MAX, false, t + FT8_CALLS_YOU_MS) == 1 && !strcmp(st[0]->cd.meta.call_de, "EA5KDD"),
+          "3 minutes after its call: off the tiles under Show: CQ");
+
+    /* not seen: red for its minute, then plain and still first */
+    ft8_heard_clear();
+    ft8_heard_add(&cq, t);
+    ft8_heard_add(&me, t);
+    ft8_heard_add(&cq, t + FT8_RED_MS + 1000);
+    check(ft8_heard_list(st, FT8_HEARD_MAX, false, t + FT8_RED_MS + 1000) == 2 && !strcmp(st[0]->cd.meta.call_de, "HA7TM")
+              && !ft8_heard_calls_you(st[0], t + FT8_RED_MS + 1000),
+          "its red over: first all the same");
+
+    /* a new call after seen: red again, until seen again; the newest call first among those that called */
+    ft8_heard_clear();
+    ft8_heard_add(&me, t);
+    ft8_heard_seen("HA7TM");
+    ft8_heard_add(&me2, t + 15000);
+    check(ft8_heard_list(st, FT8_HEARD_MAX, false, t + 16000) == 2 && !strcmp(st[0]->cd.meta.call_de, "OH2XYZ"),
+          "two that called: the newest call first, the seen one second");
+    ft8_heard_add(&me, t + 30000);
+    check(ft8_heard_calls_you(find("HA7TM", false, t + 31000), t + 31000), "its next call: red again");
+    ft8_heard_seen("HA7TM");
+    check(!ft8_heard_calls_you(find("HA7TM", false, t + 31000), t + 31000), "seen again: plain");
+
+    /* logged: no red, as before, and it keeps its place for the 3 minutes */
+    ft8_heard_clear();
+    ft8_heard_add(&cq, t);
+    ft8_heard_add(&me, t);
+    ft8_heard_logged("HA7TM");
+    check(ft8_heard_list(st, FT8_HEARD_MAX, false, t + 1000) == 2 && !strcmp(st[0]->cd.meta.call_de, "HA7TM")
+              && !ft8_heard_calls_you(st[0], t + 1000),
+          "logged: plain, first and shown for its 3 minutes");
 }
 
 static void show_cq(void) {
@@ -141,8 +213,9 @@ static void show_cq(void) {
     check(ft8_heard_list(st, FT8_HEARD_MAX, false, t + 1000) == 2, "Show: CQ: the CQ and the call to us");
     check(!find("G4ABC", false, t + 1000), "Show: CQ: another QSO's station stays on the tiles");
     check(find("G4ABC", true, t + 1000) != NULL, "Show: All again: the station back while heard");
-    check(find("OH2XYZ", false, t + FT8_CALLS_YOU_MS - 1) != NULL, "Show: CQ: the call to us while red");
-    check(!find("OH2XYZ", false, t + FT8_CALLS_YOU_MS + 1), "Show: CQ: the call to us once plain (not a CQ)");
+    check(find("OH2XYZ", false, t + FT8_RED_MS + 1) != NULL, "Show: CQ: the call to us once its red is over");
+    check(find("OH2XYZ", false, t + FT8_CALLS_YOU_MS - 1) != NULL, "Show: CQ: the call to us for 3 minutes");
+    check(!find("OH2XYZ", false, t + FT8_CALLS_YOU_MS + 1), "Show: CQ: the call to us after 3 minutes (not a CQ)");
 
     /* a CQ station gone into a QSO: its last row is no CQ any more */
     cell_data_t cq_then = row(CELL_RX_MSG, "EA5KDD", FTX_MSG_TYPE_GRID, -5, 800);
@@ -242,7 +315,8 @@ static void countries(void) {
 
 int main(void) {
     slot_start();
-    red_three_minutes();
+    red_a_minute();
+    seen_and_first();
     show_cq();
     order_and_tags();
     sixty_four();

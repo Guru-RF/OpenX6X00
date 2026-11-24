@@ -1,5 +1,5 @@
-# Host test of the JS8 board's red card (src/js8/js8_logic.h, js8_heard_me_fresh): a station that heard us is red for
-# 3 minutes after their last answer, then a plain card with "heard you" in grey (F4OLI). `make` builds and runs it.
+# Host test of the JS8 board's red card and "1 new" (src/js8/js8_logic.h, js8_red_*, js8_msg_is_new): red for a minute
+# after a message to us or until selected, a heartbeat's answer neither new nor red (F4OLI). `make` builds and runs it.
 TOP    := ../..
 SRC    := $(TOP)/src
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -I $(SRC)

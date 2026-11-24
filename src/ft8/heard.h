@@ -22,7 +22,8 @@ extern "C" {
 
 #define FT8_HEARD_MAX       64
 #define FT8_HEARD_KEEP_MS   (2 * 60 * 1000)     /* a station goes 2 minutes after its last row... */
-#define FT8_CALLS_YOU_MS    (3 * 60 * 1000)     /* ...one that calls us is red this long after its call, and stays */
+#define FT8_CALLS_YOU_MS    (3 * 60 * 1000)     /* ...one that calls us stays, first, this long after its call... */
+#define FT8_RED_MS          (60 * 1000)         /* ...and is red this long, or until its tile is selected (seen) */
 
 typedef struct {
     cell_data_t cd;             /* its last row: a press calls it as a press on that row does */
@@ -30,13 +31,14 @@ typedef struct {
     uint32_t    called_ms;      /* its last call to us (called) */
     bool        called;         /* it has called us since it was heard first */
     bool        logged;         /* our QSO with it is logged since its last call: no longer red */
+    bool        seen;           /* its tile selected since its last call: no longer red */
     bool        has_report;     /* a call of it gave us a report: report */
     int         report;
 } ft8_heard_t;
 
 /* What a tile says, its colour the window's */
 typedef enum {
-    FT8_TAG_CALLS_YOU,      /* "calls you -12": a call to us in the last 3 minutes, the tile red */
+    FT8_TAG_CALLS_YOU,      /* "calls you -12": a call to us in the last 3 minutes, not logged; the tile red or seen */
     FT8_TAG_NEW,            /* its CQ, from a country not in the log */
     FT8_TAG_CQ,             /* "CQ" ("CQ POTA"): a CQ, not worked */
     FT8_TAG_WORKED,         /* a CQ, worked before (on this band and mode or another) */
@@ -54,17 +56,26 @@ void ft8_heard_add(const cell_data_t *cd, uint32_t now_ms);
 /* The QSO with call is logged: its station's red ends (a new call to us brings it back) */
 void ft8_heard_logged(const char *call);
 
-/* Called us in the last FT8_CALLS_YOU_MS, and not logged since: the red tile, the call red over the waterfall */
+/* The tile of call is selected (the MFK on it, a press): seen, its red ends (a new call to us brings it back) */
+void ft8_heard_seen(const char *call);
+
+/* Called us in the last FT8_RED_MS, not seen and not logged since: the red tile, the call red over the waterfall.
+ * After OlivLoze's fork (F4OLI, 0d1875b4): red for the 3 minutes was long, and stayed on a tile already dealt with */
 bool ft8_heard_calls_you(const ft8_heard_t *st, uint32_t now_ms);
 
-/* On the tiles and over the waterfall: everything with Show: All, the CQs and those calling us with Show: CQ, as the
- * list shows them (a station seen in a QSO under Show: All goes at once when Show turns to CQ) */
+/* Called us in the last FT8_CALLS_YOU_MS, red or not: it keeps its first rank, so its tile does not jump pages as
+ * the red goes, and stays shown under Show: CQ, so selecting it does not take it off the tiles (OlivLoze's fork,
+ * 0d1875b4, b98b7c2c: seen in a QSO on F4OLI's radio) */
+bool ft8_heard_called_lately(const ft8_heard_t *st, uint32_t now_ms);
+
+/* On the tiles and over the waterfall: everything with Show: All, the CQs and those that called us lately with
+ * Show: CQ, as the list shows them (a station seen in a QSO under Show: All goes at once when Show turns to CQ) */
 bool ft8_heard_shown(const ft8_heard_t *st, bool show_all, uint32_t now_ms);
 
-/* The stations shown, at most max, in the tiles' order: those calling us (the newest call first), then the CQs of a
- * country not in the log, the CQs not worked, the CQs worked, the others; the strongest first in each. Those not
- * heard for FT8_HEARD_KEEP_MS go first (one calling us stays while it is red). Pointers into the list, valid until
- * the next add or clear */
+/* The stations shown, at most max, in the tiles' order: those that called us lately (the newest call first), then the
+ * CQs of a country not in the log, the CQs not worked, the CQs worked, the others; the strongest first in each. Those
+ * not heard for FT8_HEARD_KEEP_MS go first (one that called us stays its FT8_CALLS_YOU_MS). Pointers into the list,
+ * valid until the next add or clear */
 int ft8_heard_list(const ft8_heard_t **out, int max, bool show_all, uint32_t now_ms);
 
 ft8_tag_t ft8_heard_tag(const ft8_heard_t *st, uint32_t now_ms);

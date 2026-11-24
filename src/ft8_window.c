@@ -224,6 +224,8 @@ typedef struct {
     uint32_t    win_gen;
 } row_job_t;
 
+static bool      board_on;              /* View: the tiles show, else the traffic (the list); kept while the GUI runs */
+static char      board_sel_call[16];    /* the tile selected, "" none */
 static void lane_update(void);
 static void board_update(void);
 
@@ -236,6 +238,8 @@ static void row_apply(void *arg) {
     if (j->cd.cell_type == CELL_RX_CQ || j->cd.cell_type == CELL_RX_MSG || j->cd.cell_type == CELL_RX_TO_ME) {
         j->cd.new_dxcc = j->cd.cty_prefix[0] && !ft8_worked_has(j->cd.cty_prefix);
         ft8_heard_add(&j->cd, lv_tick_get());
+        /* a call of the station whose tile is selected: seen already, no red */
+        if (board_on && board_sel_call[0] && !strcmp(j->cd.meta.call_de, board_sel_call)) ft8_heard_seen(board_sel_call);
         lane_update();
         board_update();
     }
@@ -269,9 +273,7 @@ static void worked_add_call(const char *call, void *ud) {
 
 static lv_obj_t *lane;
 static lv_obj_t *board;                 /* the tiles, over the hidden list */
-static bool      board_on;              /* View: the tiles show, else the traffic (the list); kept while the GUI runs */
-static char      board_sel_call[16];    /* the tile selected, "" none */
-static lv_timer_t *heard_timer;         /* each second: the red of 3 minutes, the stations of 2 */
+static lv_timer_t *heard_timer;         /* each second: the red of a minute, the stations of 2 */
 
 static lv_coord_t lane_x(float hz) {
     if (filter_high <= filter_low) return 0;
@@ -397,10 +399,10 @@ static void card_show(card_t *c, const ft8_heard_t *st, bool sel) {
     lv_color_t col = TC(text_mute);
 
     switch (ft8_heard_tag(st, now)) {
-        case FT8_TAG_CALLS_YOU:     /* in the text's colour: the tile is red already */
+        case FT8_TAG_CALLS_YOU:     /* in the text's colour: the tile is red already; grey once it is plain */
             if (st->has_report) snprintf(tag, sizeof(tag), _("calls you %+03d"), st->report);
             else snprintf(tag, sizeof(tag), "%s", _("calls you"));
-            col = TC(text);
+            if (fresh) col = TC(text);
             break;
         case FT8_TAG_NEW:
             snprintf(tag, sizeof(tag), "%s", _("NEW"));
@@ -456,7 +458,7 @@ static void tile_say(int k) {
 
     if (!voice_auto_active()) return;
     voice_spell_calls(cd->meta.call_de, call, sizeof(call));
-    if (ft8_heard_calls_you(st, lv_tick_get())) snprintf(what, sizeof(what), "Calling you, ");
+    if (ft8_heard_tag(st, lv_tick_get()) == FT8_TAG_CALLS_YOU) snprintf(what, sizeof(what), "Calling you, ");
     if (cd->country[0] && cd->dist > 0) snprintf(where, sizeof(where), ", %s, %i km", cd->country, cd->dist);
     else if (cd->country[0]) snprintf(where, sizeof(where), ", %s", cd->country);
     voice_delay_say_text_fmt("%s%s%s, %i d B%s%s%s, %i of %i", what, call,
@@ -476,6 +478,7 @@ static void board_move(int step) {
     int k = board_sel >= 0 ? (board_sel + step + board_n) % board_n : 0;
 
     snprintf(board_sel_call, sizeof(board_sel_call), "%s", board_st[k]->cd.meta.call_de);
+    ft8_heard_seen(board_sel_call);     /* selected: seen, the red goes (OlivLoze's fork, 0d1875b4) */
     lv_finder_set_cursor(finder, board_st[k]->cd.meta.freq_hz);
     board_update();
     lane_update();
@@ -513,6 +516,7 @@ static void card_clicked_cb(lv_event_t *e) {
 
     if (k >= board_n) return;
     snprintf(board_sel_call, sizeof(board_sel_call), "%s", board_st[k]->cd.meta.call_de);
+    ft8_heard_seen(board_sel_call);
     board_update();
     lane_update();
     board_call(board_sel >= 0 ? board_sel : k);
@@ -609,7 +613,7 @@ static void build_board(void) {
     lv_obj_add_flag(b, LV_OBJ_FLAG_HIDDEN);
 }
 
-/* Each second: a red tile goes plain 3 minutes after its call, a station 2 minutes after its last row, with no new
+/* Each second: a red tile goes plain a minute after its call, a station 2 minutes after its last row, with no new
  * decode to tell */
 static void heard_timer_cb(lv_timer_t *t) {
     (void)t;
