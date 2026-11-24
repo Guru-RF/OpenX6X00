@@ -864,6 +864,10 @@ msgid "X6100 GUI Network voice"
 msgstr ""
 
 #: src/audio.c
+msgid "X6100 GUI Headset mic"
+msgstr ""
+
+#: src/audio.c
 msgid "X6100 GUI Local"
 msgstr ""
 
@@ -953,6 +957,11 @@ msgstr ""
 
 #: src/bt_dev.c
 #, c-format
+msgid "%s/dev_%.17s"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
 msgid "D-Bus: %s"
 msgstr ""
 
@@ -968,6 +977,11 @@ msgstr "associazione aperta"
 #, c-format
 msgid "Keyboard %s"
 msgstr "Tastiera %s"
+
+#: src/bt_dev.c
+#, c-format
+msgid "adapter: %s"
+msgstr ""
 
 #: src/bt_dev.c
 msgid "Discoverable"
@@ -7686,6 +7700,18 @@ msgstr "Per te"
 
 #: src/ft8_window.c
 msgid ""
+"CQ rows:\n"
+"Filled"
+msgstr ""
+
+#: src/ft8_window.c
+msgid ""
+"CQ rows:\n"
+"Edge"
+msgstr ""
+
+#: src/ft8_window.c
+msgid ""
 "Freq:\n"
 "Preset"
 msgstr ""
@@ -8222,7 +8248,7 @@ msgid ""
 "listening"
 msgstr ""
 
-#: src/gps_window.c src/voice_messages.c
+#: src/gps_window.c src/voice_messages.c src/winlink_mail.c
 msgid "Listen"
 msgstr "Ascolta"
 
@@ -8338,6 +8364,11 @@ msgstr ""
 #: src/info_bar.c
 #, c-format
 msgid "SCOPE ±%dk"
+msgstr ""
+
+#: src/info_bar.c
+#, c-format
+msgid "up=$(hciconfig %s 2>/dev/null | grep -c 'UP RUNNING'); echo $up; [ \"$up\" = 1 ] && { hcitool con 2>/dev/null | grep -c ACL; pactl list sinks short 2>/dev/null | grep -c bluez_sink; }"
 msgstr ""
 
 #: src/input_caps.c
@@ -10855,6 +10886,14 @@ msgstr ""
 msgid "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYPSaaaaaaaceeeeiiiidnooooo/ouuuuypy"
 msgstr ""
 
+#: src/load_stat.c
+msgid "Buffers"
+msgstr ""
+
+#: src/load_stat.c
+msgid "Cached"
+msgstr ""
+
 #: src/main.h
 msgid "OpenX6X00 - v0.3.13"
 msgstr ""
@@ -11188,6 +11227,10 @@ msgstr ""
 #: src/ops_room.c
 msgid "FULL"
 msgstr ""
+
+#: src/ops_room.c src/smeter.c
+msgid "AUDIO"
+msgstr "AUDIO"
 
 #: src/ops_room.c src/smeter.c
 msgid "SIGNAL"
@@ -12052,6 +12095,14 @@ msgid "Not used in this mode"
 msgstr "Non usato in questo modo"
 
 #: src/screen_main.c
+msgid "PTT off: the headset is gone"
+msgstr ""
+
+#: src/screen_main.c
+msgid "Headset mic busy"
+msgstr ""
+
+#: src/screen_main.c
 msgid "VFO locked by the app"
 msgstr ""
 
@@ -12247,7 +12298,7 @@ msgstr "Generale"
 msgid "Display"
 msgstr "Schermo"
 
-#: src/settings_window.cpp
+#: src/settings_window.cpp src/smeter.c
 msgid "Audio"
 msgstr "Audio"
 
@@ -12847,6 +12898,10 @@ msgid "rx off"
 msgstr "rx no"
 
 #: src/settings_window.cpp
+msgid "USB dongle"
+msgstr ""
+
+#: src/settings_window.cpp
 msgid "Headphones, keyboards"
 msgstr "Cuffie, tastiere"
 
@@ -12865,6 +12920,14 @@ msgstr "Muto altoparlante"
 #: src/settings_window.cpp
 msgid "AF 0 while connected"
 msgstr "AF a 0 mentre è connesso"
+
+#: src/settings_window.cpp
+msgid "Mic"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Mic gain"
+msgstr ""
 
 #: src/settings_window.cpp
 msgid "1 viewer"
@@ -14205,6 +14268,38 @@ msgid "visible and pairable"
 msgstr "visibile e associabile"
 
 #: src/settings_window.cpp
+msgid "the radio's own in use"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "in use, the radio's own off"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "not plugged in"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "the side PTT sends it"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "with a USB dongle only"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "no dongle plugged in"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "none: music only (A2DP)"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "no headset"
+msgstr ""
+
+#: src/settings_window.cpp
 msgid "bridge not running"
 msgstr "bridge fermo"
 
@@ -14525,7 +14620,33 @@ msgid "Low space warning"
 msgstr ""
 
 #: src/settings_window.cpp
+msgid "SYSTEM"
+msgstr ""
+
+#: src/settings_window.cpp
+#, c-format
+msgid "%u of %u MB in use"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Memory"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Swap"
+msgstr ""
+
+#: src/settings_window.cpp
+msgid "Load meter"
+msgstr ""
+
+#: src/settings_window.cpp
 msgid "Settings. Tabs on the F-keys"
+msgstr ""
+
+#: src/smeter.c
+#, c-format
+msgid "Audio %d dB"
 msgstr ""
 
 #: src/speech_engine.c
@@ -15130,7 +15251,7 @@ msgid ""
 "%i s"
 msgstr ""
 
-#: src/voice_messages.c
+#: src/voice_messages.c src/winlink_mail.c
 msgid "Listening"
 msgstr ""
 
@@ -16342,6 +16463,46 @@ msgstr "Winlink: nessun TX %s da %d minuti, controlla l'antenna"
 msgid "high SWR %s, the hold ends in %d min"
 msgstr "ROS alto %s, il blocco finisce tra %d min"
 
+#: src/winlink.c
+msgid "the screen is dark"
+msgstr ""
+
+#: src/winlink.c
+msgid "no modem Pat listens with"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "the radio is in %s and an app holds the mode"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "%s could not be written"
+msgstr ""
+
+#: src/winlink.c
+msgid "listening is off"
+msgstr ""
+
+#: src/winlink.c
+msgid "Pat tuned the radio for a connection"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "the radio is in %s, not USB-D"
+msgstr ""
+
+#: src/winlink.c
+#, c-format
+msgid "the radio left the listening frequency %s MHz"
+msgstr ""
+
+#: src/winlink.c
+msgid "P2P listening was just turned off"
+msgstr ""
+
 #: src/winlink_mail.c
 msgid "Outbox"
 msgstr ""
@@ -16383,6 +16544,33 @@ msgstr ""
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Modem: %s is not ready yet:# %s"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Winlink: P2P listening stopped"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Listening stopped:# %s"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Winlink: call from %s ended"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Winlink: a call from %s"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Winlink went off, or Pat restarted"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "the modem changed"
 msgstr ""
 
 #: src/winlink_mail.c
@@ -16524,6 +16712,15 @@ msgstr ""
 
 #: src/winlink_mail.c
 #, c-format
+msgid "#%06x Connected:# #%06x %s# called"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "A P2P call answered while listening: Pat exchanges mail with it. Abort ends it."
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
 msgid "#%06x A connection is under way#"
 msgstr ""
 
@@ -16533,6 +16730,56 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "No connection"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Connected:# #%06x %s# called on %.1f kHz"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Pat exchanges mail with it. Abort ends the connection."
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Listening# for calls to #%06x %s# on %.1f kHz, %s"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "The radio transmits when a station calls. Stay with it: Listen off, closing this app, another app, the dial or the mode changed, or the screen dark ends listening."
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Starting to listen# on %.1f kHz, %s..."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Pat sets the modem up to answer calls."
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Pat has not said it listens yet: see its log in the web mailbox. The radio may still answer a call."
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening#"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Listen: Pat answers a station that calls %s peer to peer (P2P) on %.1f kHz, %s, and the radio transmits for it."
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Last call: %s"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Only with you at the radio: listening ends as this app closes or another opens, the dial or the mode changes, the screen goes dark, Winlink goes off or the radio restarts. Tune and set the power first: every check of a connection applies."
 msgstr ""
 
 #: src/winlink_mail.c
@@ -16599,7 +16846,16 @@ msgid "CONNECTION"
 msgstr ""
 
 #: src/winlink_mail.c
+msgid "LISTEN - P2P"
+msgstr ""
+
+#: src/winlink_mail.c
 msgid "Calling"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Listening %.1f#"
 msgstr ""
 
 #: src/winlink_mail.c
@@ -16665,7 +16921,16 @@ msgid "Abort ends the connection; Back leaves it running"
 msgstr ""
 
 #: src/winlink_mail.c
-msgid "Enter: read - N: new - C: connect - B: next box"
+#, c-format
+msgid "#%06x The radio transmits when a station calls: stay with it#"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Listen: P2P calls answered while this app is open, with you at the radio"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Enter: read - N: new - C: connect - B: next box - L: listen"
 msgstr ""
 
 #: src/winlink_mail.c
@@ -16715,17 +16980,33 @@ msgid "Connection"
 msgstr ""
 
 #: src/winlink_mail.c
-msgid "(MAIL 1:2)"
+msgid ""
+"Listen:\n"
+"On"
 msgstr ""
 
 #: src/winlink_mail.c
-msgid "(MAIL 2:2)"
+msgid ""
+"Listen:\n"
+"Off"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "(MAIL 1:3)"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "(MAIL 2:3)"
 msgstr ""
 
 #. not in the list: a line or a word of a longer text
 #: src/winlink_mail.c
 msgid "Password"
 msgstr "Password"
+
+#: src/winlink_mail.c
+msgid "(MAIL 3:3)"
+msgstr ""
 
 #: src/winlink_mail.c
 msgid "(READ 1:1)"
@@ -16751,6 +17032,10 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "Abort"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "(LISTEN 1:1)"
 msgstr ""
 
 #: src/winlink_mail.c
@@ -16837,6 +17122,10 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "A connection is under way: Abort it first"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Winlink went off"
 msgstr ""
 
 #: src/winlink_mail.c
@@ -16985,6 +17274,10 @@ msgid "A connection is under way"
 msgstr ""
 
 #: src/winlink_mail.c
+msgid "Listening for P2P calls: Listen off first (MAIL 3:3)"
+msgstr ""
+
+#: src/winlink_mail.c
 msgid "Asking Pat that no connection is under way..."
 msgstr ""
 
@@ -17012,6 +17305,45 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "Wait, still busy: Abort again"
+msgstr ""
+
+#: src/winlink_mail.c
+msgid "Listen off: Pat answers no call"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# Winlink is off, On (page 2) starts it"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# Pat and the modem are starting, try again in a moment"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# a connection is under way"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# %s cannot answer calls on this radio"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# %s does not run, the Winlink page says why"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# no callsign, set it on the Winlink page"
+msgstr ""
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# %s"
 msgstr ""
 
 #: src/wr12.c
@@ -19698,9 +20030,6 @@ msgstr "arresto"
 
 #~ msgid "DISPLAY"
 #~ msgstr "DISPLAY"
-
-#~ msgid "AUDIO"
-#~ msgstr "AUDIO"
 
 #~ msgid "WIRELESS"
 #~ msgstr "WIRELESS"

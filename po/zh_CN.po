@@ -349,7 +349,7 @@ msgstr "继续解码 %s"
 #: src/app_sstv.c
 #, c-format
 msgid "Receiving picture, %s"
-msgstr ""
+msgstr "正在接收图片, %s"
 
 #: src/app_sstv.c
 msgid "SSTV - calling frequencies"
@@ -643,7 +643,7 @@ msgstr "SSTV 发射失败 (%d)"
 
 #: src/app_window.c
 msgid "Closed"
-msgstr ""
+msgstr "已关闭"
 
 #: src/apps_menu.c src/button_bar.cpp src/settings_window.cpp
 msgid "Modes"
@@ -836,12 +836,12 @@ msgstr "全部设置"
 #: src/apps_menu.c
 #, c-format
 msgid "%s, %s, %s, %i of %i"
-msgstr ""
+msgstr "%s, %s, %s, 第 %i 项, 共 %i 项"
 
 #: src/apps_menu.c src/dialog_field.c
 #, c-format
 msgid "%s, %s, %i of %i"
-msgstr ""
+msgstr "%s, %s, 第 %i 项, 共 %i 项"
 
 #: src/apps_menu.c
 msgid "APPS"
@@ -853,7 +853,7 @@ msgstr "MFK:选择 - 按下:打开 - APP 或 ESC:关闭"
 
 #: src/apps_menu.c src/settings_window.cpp
 msgid "Apps"
-msgstr ""
+msgstr "应用"
 
 #: src/audio.c
 msgid "X6100 GUI Play"
@@ -865,6 +865,10 @@ msgstr ""
 
 #: src/audio.c
 msgid "X6100 GUI Network voice"
+msgstr ""
+
+#: src/audio.c
+msgid "X6100 GUI Headset mic"
 msgstr ""
 
 #: src/audio.c
@@ -957,6 +961,11 @@ msgstr ""
 
 #: src/bt_dev.c
 #, c-format
+msgid "%s/dev_%.17s"
+msgstr ""
+
+#: src/bt_dev.c
+#, c-format
 msgid "D-Bus: %s"
 msgstr ""
 
@@ -972,6 +981,11 @@ msgstr "配对已开放"
 #, c-format
 msgid "Keyboard %s"
 msgstr "键盘 %s"
+
+#: src/bt_dev.c
+#, c-format
+msgid "adapter: %s"
+msgstr ""
 
 #: src/bt_dev.c
 msgid "Discoverable"
@@ -1751,39 +1765,39 @@ msgstr "反向"
 #: src/button_bar.cpp
 #, c-format
 msgid "%s, page %d of %d"
-msgstr ""
+msgstr "%s, 第 %d 页, 共 %d 页"
 
 #: src/button_bar.cpp
 msgid "Filter page"
-msgstr ""
+msgstr "滤波页"
 
 #: src/button_bar.cpp
 #, c-format
 msgid "%s page %d"
-msgstr ""
+msgstr "%s 第 %d 页"
 
 #: src/button_bar.cpp
 #, c-format
 msgid "F%d, not used"
-msgstr ""
+msgstr "F%d, 未使用"
 
 #: src/button_bar.cpp
 #, c-format
 msgid "%s, unavailable"
-msgstr ""
+msgstr "%s, 不可用"
 
 #: src/button_bar.cpp
 msgid "no long press"
-msgstr ""
+msgstr "无长按功能"
 
 #: src/button_bar.cpp
 msgid "not used"
-msgstr ""
+msgstr "未使用"
 
 #: src/card_space.c
 #, c-format
 msgid "%s free of %s"
-msgstr ""
+msgstr "可用 %s, 共 %s"
 
 #: src/card_space.h
 msgid ""
@@ -1793,6 +1807,11 @@ msgid ""
 " Under 500 MB \n"
 " Under 1 GB "
 msgstr ""
+" 关 \n"
+" 低于 100 MB \n"
+" 低于 250 MB \n"
+" 低于 500 MB \n"
+" 低于 1 GB "
 
 #: src/card_space_notice.c
 #, c-format
@@ -1801,6 +1820,9 @@ msgid ""
 "Delete recordings or pictures\n"
 "on the web Gallery page"
 msgstr ""
+"存储卡快满了: 剩余 %s\n"
+"请在网页的\"图库\"页面\n"
+"删除录音或图片"
 
 #: src/cb.c
 msgid "Europe (CEPT)"
@@ -1892,7 +1914,7 @@ msgstr "未知主题"
 
 #: src/cfg_socket.cpp
 msgid "Unknown app"
-msgstr ""
+msgstr "未知应用"
 
 #: src/cfg_socket.cpp
 msgid "Unknown option"
@@ -1952,7 +1974,7 @@ msgstr "快"
 
 #: src/charger_step.h
 msgid "Shadow"
-msgstr ""
+msgstr "关机充"
 
 #: src/clock.c
 msgid "Time is synchronized with NTP"
@@ -2430,12 +2452,12 @@ msgstr ""
 #: src/cw_messages.c
 #, c-format
 msgid "%s%sNo messages yet. F3 adds one"
-msgstr ""
+msgstr "%s%s还没有消息. F3 添加"
 
 #: src/cw_messages.c src/dialog_iradio.c src/dialog_modes.c
 #, c-format
 msgid "%s%s%s, %i of %i"
-msgstr ""
+msgstr "%s%s%s, 第 %i 项, 共 %i 项"
 
 #: src/cw_messages.c
 msgid "Empty message"
@@ -2480,7 +2502,7 @@ msgstr "消息已删除"
 
 #: src/cw_messages.c
 msgid "CW messages. Small knob: the messages. F2 send, F3 new, F4 edit"
-msgstr ""
+msgstr "CW 消息. 小旋钮: 选择消息. F2 发送, F3 新建, F4 编辑"
 
 #: src/cw_parse.c src/field/flog.c
 msgid "NAME"
@@ -2527,11 +2549,11 @@ msgstr "MFK: 选择 - 按下: 调谐"
 #: src/dialog_aero.c
 #, c-format
 msgid "%s%s%u kilohertz, %s, %s%s%s, %i of %i"
-msgstr ""
+msgstr "%s%s%u 千赫, %s, %s%s%s, 第 %i 项, 共 %i 项"
 
 #: src/dialog_aero.c
 msgid ", on the air: "
-msgstr ""
+msgstr ", 正在播出: "
 
 #: src/dialog_aero.c
 msgid "HF Air Band: not while transmitting"
@@ -2549,7 +2571,7 @@ msgstr "频道未保存"
 #: src/dialog_aero.c
 #, c-format
 msgid "HF Air Band, %s. Small knob: the frequencies, press: tune. F1 area, F3 save, F4 scan"
-msgstr ""
+msgstr "短波航空, %s. 小旋钮: 选择频率, 按下: 调谐. F1 区域, F3 保存, F4 扫描"
 
 #: src/dialog_bands.c
 msgid "(BANDS 1:1)"
@@ -2985,7 +3007,7 @@ msgstr "频道"
 #: src/dialog_cb.c
 #, c-format
 msgid "%s%s%s, %s, %s%s%s, %i of %i"
-msgstr ""
+msgstr "%s%s%s, %s, %s%s%s, 第 %i 项, 共 %i 项"
 
 #: src/dialog_cb.c
 msgid "CB: not while transmitting"
@@ -3005,6 +3027,8 @@ msgid ""
 "Edit\n"
 "hold: App"
 msgstr ""
+"编辑\n"
+"长按: 应用"
 
 #: src/dialog_channels.c
 msgid "Drag"
@@ -3016,12 +3040,12 @@ msgstr "放下"
 
 #: src/dialog_channels.c
 msgid "No channels. F2 adds the current frequency"
-msgstr ""
+msgstr "没有频道. F2 添加当前频率"
 
 #: src/dialog_channels.c
 #, c-format
 msgid "%s%s%s, %s, opens %s"
-msgstr ""
+msgstr "%s%s%s, %s, 打开 %s"
 
 #: src/dialog_channels.c
 msgid "the app holds the frequency"
@@ -3043,38 +3067,38 @@ msgstr "频道名称"
 #: src/dialog_channels.c
 #, c-format
 msgid "Channel opens %s"
-msgstr ""
+msgstr "频道打开 %s"
 
 #: src/dialog_channels.c
 #, c-format
 msgid "Opens %s"
-msgstr ""
+msgstr "打开 %s"
 
 #: src/dialog_channels.c
 msgid "Channel opens no app"
-msgstr ""
+msgstr "频道不打开应用"
 
 #: src/dialog_channels.c
 msgid "Opens no app"
-msgstr ""
+msgstr "不打开应用"
 
 #: src/dialog_channels.c
 #, c-format
 msgid "Moving %s. Turn the small knob to move it, F5 to drop it there"
-msgstr ""
+msgstr "正在移动 %s. 转动小旋钮移动, F5 放到此处"
 
 #: src/dialog_channels.c
 msgid "the channel"
-msgstr ""
+msgstr "频道"
 
 #: src/dialog_channels.c
 #, c-format
 msgid "Dropped at %d of %d, saved"
-msgstr ""
+msgstr "已放到第 %d 个 (共 %d 个), 已保存"
 
 #: src/dialog_channels.c
 msgid "Not saved: the order is as before"
-msgstr ""
+msgstr "未保存: 顺序保持原样"
 
 #: src/dialog_channels.c
 msgid "CHANNELS"
@@ -3206,7 +3230,7 @@ msgstr " - 仅接收"
 #: src/dialog_cluster.c
 #, c-format
 msgid "%s, %s%s%s, spotted by %s, %i of %i"
-msgstr ""
+msgstr "%s, %s%s%s, 报告者 %s, 第 %i 项, 共 %i 项"
 
 #: src/dialog_cluster.c
 msgid "MFK: browse - press: tune - VFO: follow"
@@ -3214,7 +3238,7 @@ msgstr "MFK: 浏览 - 按下: 调谐 - VFO: 跟随"
 
 #: src/dialog_cluster.c
 msgid "DX cluster. Small knob: the spots, press: tune. F3 tune"
-msgstr ""
+msgstr "DX 集群. 小旋钮: 选择报告, 按下: 调谐. F3 调谐"
 
 #: src/dialog_cluster.c src/radio_controls.cpp
 #, c-format
@@ -3521,7 +3545,7 @@ msgstr ""
 #: src/dialog_cw_trainer.c
 #, c-format
 msgid "%sunknown"
-msgstr ""
+msgstr "%s未知"
 
 #: src/dialog_cw_trainer.c
 #, c-format
@@ -3570,17 +3594,17 @@ msgstr ""
 #: src/dialog_cw_trainer.c
 #, c-format
 msgid ". Run complete, score %s"
-msgstr ""
+msgstr ". 本轮完成, 得分 %s"
 
 #: src/dialog_cw_trainer.c
 #, c-format
 msgid "Right, %i W P M%s"
-msgstr ""
+msgstr "正确, %i W P M%s"
 
 #: src/dialog_cw_trainer.c
 #, c-format
 msgid "Wrong, it was %s, %i W P M%s"
-msgstr ""
+msgstr "错误, 应为 %s, %i W P M%s"
 
 #: src/dialog_cw_trainer.c
 msgid "Start: a new run of 50 callsigns"
@@ -3715,17 +3739,17 @@ msgstr "删除"
 
 #: src/dialog_cw_trainer.c
 msgid "OK, done"
-msgstr ""
+msgstr "好, 完成"
 
 #: src/dialog_cw_trainer.c
 #, c-format
 msgid "Right, %s. Score %i of %i"
-msgstr ""
+msgstr "正确, %s. 得分 %i/%i"
 
 #: src/dialog_cw_trainer.c
 #, c-format
 msgid "Wrong, sent %s, typed %s. Score %i of %i"
-msgstr ""
+msgstr "错误, 发送的是 %s, 输入的是 %s. 得分 %i/%i"
 
 #: src/dialog_cw_trainer.c
 #, c-format
@@ -3765,7 +3789,7 @@ msgstr "听到: "
 #: src/dialog_cw_trainer.c
 #, c-format
 msgid "Wrong, sent %s, heard %s"
-msgstr ""
+msgstr "错误, 发送的是 %s, 听成了 %s"
 
 #: src/dialog_cw_trainer.c
 msgid "Start: resume. Skip: another group"
@@ -3832,7 +3856,7 @@ msgstr "服务器的通话组"
 
 #: src/dialog_dmr.c
 msgid ", listening"
-msgstr ""
+msgstr ", 正在收听"
 
 #: src/dialog_dmr.c
 msgid "Heard"
@@ -3869,12 +3893,12 @@ msgstr "正在登录网络"
 #: src/dialog_dmr.c
 #, c-format
 msgid "Talking: %s, a private call to you"
-msgstr ""
+msgstr "正在讲话: %s, 给你的私人呼叫"
 
 #: src/dialog_dmr.c
 #, c-format
 msgid "Talking: %s, T G %u"
-msgstr ""
+msgstr "正在讲话: %s, 通话组 %u"
 
 #: src/dialog_dmr.c src/dialog_svx.c src/dialog_zello.c
 msgid "Talking now:"
@@ -3898,16 +3922,16 @@ msgstr "地图"
 
 #: src/dialog_dmr.c
 msgid "its callsign is not known yet"
-msgstr ""
+msgstr "其呼号尚不知道"
 
 #: src/dialog_dmr.c
 #, c-format
 msgid "%d stations heard in the last 24 hours, each in its callsign's country"
-msgstr ""
+msgstr "过去 24 小时听到 %d 个电台, 各显示在其呼号所属的国家"
 
 #: src/dialog_dmr.c
 msgid "No station heard in the last 24 hours: the ones the app hears come here"
-msgstr ""
+msgstr "过去 24 小时未听到电台: 听到的电台会显示在这里"
 
 #: src/dialog_dmr.c
 msgid "set it up on the radio's web page first (DMR)"
@@ -3923,7 +3947,7 @@ msgstr "互联网上的通话组, 仅收听, 不经无线发射"
 
 #: src/dialog_dmr.c
 msgid "DMR, talkgroups on the internet, listening only. MFK: choose a talkgroup"
-msgstr ""
+msgstr "DMR, 互联网上的通话组, 仅收听. MFK: 选择通话组"
 
 #: src/dialog_field.c
 msgid "x6100-wavelog sync 2>/dev/null"
@@ -4141,7 +4165,7 @@ msgstr "此处 (%s)"
 #: src/dialog_field.c src/dialog_flights.c
 #, c-format
 msgid ", %i of %i"
-msgstr ""
+msgstr ", 第 %i 项, 共 %i 项"
 
 #: src/dialog_field.c
 msgid "FIELD OPS"
@@ -4891,19 +4915,19 @@ msgstr "地面"
 
 #: src/dialog_flights.c
 msgid "near, on the ground"
-msgstr ""
+msgstr "附近, 在地面"
 
 #: src/dialog_flights.c
 msgid "near and low, descending"
-msgstr ""
+msgstr "近且低, 正在下降"
 
 #: src/dialog_flights.c
 msgid "near and low, climbing"
-msgstr ""
+msgstr "近且低, 正在爬升"
 
 #: src/dialog_flights.c
 msgid "near and low"
-msgstr ""
+msgstr "近且低"
 
 #: src/dialog_flights.c
 msgid "No aircraft in range just now: only those a volunteer's receiver nearby picks up are there"
@@ -4934,7 +4958,7 @@ msgstr "网格"
 
 #: src/dialog_flights.c
 msgid "Air band: near and low ringed"
-msgstr ""
+msgstr "航空波段: 近且低的飞机已圈出"
 
 #: src/dialog_flights.c
 #, c-format
@@ -4964,7 +4988,7 @@ msgstr "更新于"
 #: src/dialog_flights.c
 #, c-format
 msgid ", %d kilometers %s"
-msgstr ""
+msgstr ", %d 公里 %s"
 
 #: src/dialog_flights.c src/dialog_meteo.c
 msgid "No answer from the helper"
@@ -5068,16 +5092,16 @@ msgstr "同步"
 
 #: src/dialog_freedv.c
 msgid "R A D E sync"
-msgstr ""
+msgstr "R A D E 已同步"
 
 #: src/dialog_freedv.c
 msgid "R A D E searching"
-msgstr ""
+msgstr "R A D E 搜索中"
 
 #: src/dialog_freedv.c
 #, c-format
 msgid "Heard %s"
-msgstr ""
+msgstr "听到 %s"
 
 #: src/dialog_freedv.c
 #, c-format
@@ -5804,7 +5828,7 @@ msgstr "通知开: 每 30 分钟查询一次预警"
 #: src/dialog_meteo.c
 #, c-format
 msgid "Weather, %s"
-msgstr ""
+msgstr "天气, %s"
 
 #: src/dialog_meteo.c
 msgid "No position: plug in a GPS, or set the QTH locator or the country in Settings > General > STATION"
@@ -5849,7 +5873,7 @@ msgstr ""
 #: src/dialog_modes.c
 #, c-format
 msgid "%s, %s%s%s, %i of %i"
-msgstr ""
+msgstr "%s, %s%s%s, 第 %i 项, 共 %i 项"
 
 #: src/dialog_modes.c
 msgid "DIGITAL MODES"
@@ -5865,7 +5889,7 @@ msgstr "MFK: 选择 - 按下: 打开 - 模式: 关闭"
 
 #: src/dialog_modes.c
 msgid "Digital modes"
-msgstr ""
+msgstr "数字模式"
 
 #: src/dialog_olivia.c
 msgid ""
@@ -6107,11 +6131,11 @@ msgstr ": 尚未收听"
 #: src/dialog_propagation.c
 #, c-format
 msgid "%s, day %s, night %s"
-msgstr ""
+msgstr "%s, 白天 %s, 夜间 %s"
 
 #: src/dialog_propagation.c
 msgid "Propagation, conditions"
-msgstr ""
+msgstr "传播, 条件"
 
 #: src/dialog_propagation.c
 msgid "PROPAGATION"
@@ -6326,20 +6350,20 @@ msgstr "扫描: 发射时不可用"
 #: src/dialog_scan.c
 #, c-format
 msgid "Busy, %s"
-msgstr ""
+msgstr "有信号, %s"
 
 #: src/dialog_scan.c
 msgid "Scanning"
-msgstr ""
+msgstr "正在扫描"
 
 #: src/dialog_scan.c
 #, c-format
 msgid "Paused, %s"
-msgstr ""
+msgstr "已暂停, %s"
 
 #: src/dialog_scan.c
 msgid "Scanner stopped"
-msgstr ""
+msgstr "扫描已停止"
 
 #: src/dialog_snake.c
 msgid "Restart"
@@ -6519,6 +6543,8 @@ msgid ""
 "Tone:\n"
 "Off"
 msgstr ""
+"亚音:\n"
+"关"
 
 #: src/dialog_svx.c src/dialog_zello.c
 #, c-format
@@ -6526,6 +6552,8 @@ msgid ""
 "Tone:\n"
 "%d.%d Hz"
 msgstr ""
+"亚音:\n"
+"%d.%d Hz"
 
 #: src/dialog_svx.c
 #, c-format
@@ -6774,7 +6802,7 @@ msgstr "WSPR: %d 条报告%.0s"
 #: src/dialog_wspr.c
 #, c-format
 msgid "WSPR, %d spot%s:"
-msgstr ""
+msgstr "WSPR, %d 条报告%.0s:"
 
 #: src/dialog_wspr.c
 msgid "Use"
@@ -7233,7 +7261,7 @@ msgstr ": ATU 已开"
 #: src/ext_tune.c
 #, c-format
 msgid ", %.1f watts, S W R %.1f"
-msgstr ""
+msgstr ", %.1f 瓦, S W R %.1f"
 
 #: src/ext_tune.c
 #, c-format
@@ -7243,7 +7271,7 @@ msgstr "TUNE 结束: %d s 上限"
 #: src/ext_tune.c
 #, c-format
 msgid "Tune over, %d second limit%s"
-msgstr ""
+msgstr "调谐结束, %d 秒上限%s"
 
 #: src/ext_tune.c
 #, c-format
@@ -7253,7 +7281,7 @@ msgstr "TUNE 已停止%s"
 #: src/ext_tune.c
 #, c-format
 msgid "Tune stopped%s%s"
-msgstr ""
+msgstr "调谐已停止%s%s"
 
 #: src/ext_tune.c
 msgid "TUNE stopped by the radio"
@@ -7530,7 +7558,7 @@ msgstr "键盘可用: 输入一些内容试试"
 #: src/first_start.c
 #, c-format
 msgid ". %i keyboard%s found"
-msgstr ""
+msgstr ". 找到 %i 个键盘%.0s"
 
 #: src/first_start.c src/meteo.c
 msgid "Typed"
@@ -7787,24 +7815,24 @@ msgstr "首次启动"
 #: src/first_start.c
 #, c-format
 msgid "First start, step %i of %i, %s"
-msgstr ""
+msgstr "首次启动, 第 %i 步, 共 %i 步, %s"
 
 #: src/first_start.c
 #, c-format
 msgid "%s%s%s%s%s%sF4 skip, F5 %s"
-msgstr ""
+msgstr "%s%s%s%s%s%sF4 跳过, F5 %s"
 
 #: src/first_start.c
 msgid "F1 back, "
-msgstr ""
+msgstr "F1 返回, "
 
 #: src/first_start.c
 msgid "F3 locator, "
-msgstr ""
+msgstr "F3 网格, "
 
 #: src/first_start.c
 msgid "F5 done"
-msgstr ""
+msgstr "F5 完成"
 
 #: src/first_start.c
 msgid ""
@@ -7833,12 +7861,12 @@ msgstr "频率 (MHz)"
 #: src/freq_list.c
 #, c-format
 msgid "%s%s%s, %s, %s%s%s%s%s, %i of %i"
-msgstr ""
+msgstr "%s%s%s, %s, %s%s%s%s%s, 第 %i 项, 共 %i 项"
 
 #: src/freq_list.c
 #, c-format
 msgid "%s, frequency list. Small knob: choose, press: tune"
-msgstr ""
+msgstr "%s, 频率列表. 小旋钮: 选择, 按下: 调谐"
 
 #: src/freq_strip.c src/remote_server.c
 msgid "LOCK"
@@ -7851,38 +7879,38 @@ msgstr "等待同步"
 #: src/ft8/decode_list.c
 #, c-format
 msgid "Slot %s"
-msgstr ""
+msgstr "时隙 %s"
 
 #: src/ft8/decode_list.c
 msgid "Sent, "
-msgstr ""
+msgstr "已发送, "
 
 #: src/ft8/decode_list.c src/ft8_window.c
 msgid ", worked"
-msgstr ""
+msgstr ", 已通联"
 
 #: src/ft8/decode_list.c
 msgid ", worked on another band or mode"
-msgstr ""
+msgstr ", 已在其他波段或模式通联"
 
 #: src/ft8/decode_list.c
 msgid ", new"
-msgstr ""
+msgstr ", 新"
 
 #: src/ft8/decode_list.c
 #, c-format
 msgid "For you: %s"
-msgstr ""
+msgstr "给你的: %s"
 
 #: src/ft8/decode_list.c
 #, c-format
 msgid "%i C Q, %i other"
-msgstr ""
+msgstr "%i 个 C Q, %i 个其他"
 
 #: src/ft8/decode_list.c
 #, c-format
 msgid "%i decoded"
-msgstr ""
+msgstr "已解码 %i 个"
 
 #: src/ft8/decode_list.c src/ft8_window.c
 msgid "worked"
@@ -7891,7 +7919,7 @@ msgstr "已通联"
 #: src/ft8/decode_list.c
 #, c-format
 msgid "%s, %u of %u"
-msgstr ""
+msgstr "%s, 第 %u 项, 共 %u 项"
 
 #: src/ft8_udp.c
 msgid "239.255.0.0,gateway"
@@ -7916,20 +7944,20 @@ msgstr "正在收听... 听到的电台会显示在这里"
 
 #: src/ft8_window.c
 msgid "Calling you, "
-msgstr ""
+msgstr "在呼叫你, "
 
 #: src/ft8_window.c
 #, c-format
 msgid "%s%s%s, %i d B%s%s%s, %i of %i"
-msgstr ""
+msgstr "%s%s%s, %i d B%s%s%s, 第 %i 项, 共 %i 项"
 
 #: src/ft8_window.c
 msgid ", new country"
-msgstr ""
+msgstr ", 新国家"
 
 #: src/ft8_window.c src/js8_window.c
 msgid "No stations yet"
-msgstr ""
+msgstr "还没有电台"
 
 #: src/ft8_window.c
 #, c-format
@@ -7982,6 +8010,22 @@ msgstr "保持频率"
 #: src/ft8_window.c
 msgid "For you"
 msgstr "给你的"
+
+#: src/ft8_window.c
+msgid ""
+"CQ rows:\n"
+"Filled"
+msgstr ""
+"CQ 行:\n"
+"填充"
+
+#: src/ft8_window.c
+msgid ""
+"CQ rows:\n"
+"Edge"
+msgstr ""
+"CQ 行:\n"
+"边框"
 
 #: src/ft8_window.c
 msgid ""
@@ -8052,11 +8096,11 @@ msgstr ""
 #: src/ft8_window.c
 #, c-format
 msgid "Tiles, %i station%s. M F K: station by station, press: call it"
-msgstr ""
+msgstr "磁贴, %i 个电台%.0s. M F K: 逐个电台, 按下: 呼叫它"
 
 #: src/ft8_window.c
 msgid "Traffic, the decode list"
-msgstr ""
+msgstr "通联, 解码列表"
 
 #: src/ft8_window.c
 msgid "No CQ in Hound mode"
@@ -8392,11 +8436,11 @@ msgstr "未定位"
 #: src/gps_window.c
 #, c-format
 msgid "GPS fix, %s, grid %s"
-msgstr ""
+msgstr "GPS 定位, %s, 网格 %s"
 
 #: src/gps_window.c
 msgid "GPS fix lost"
-msgstr ""
+msgstr "GPS 定位丢失"
 
 #: src/gps_window.c
 #, c-format
@@ -8537,7 +8581,7 @@ msgstr ""
 "停止\n"
 "收听"
 
-#: src/gps_window.c src/voice_messages.c
+#: src/gps_window.c src/voice_messages.c src/winlink_mail.c
 msgid "Listen"
 msgstr "试听"
 
@@ -8637,7 +8681,7 @@ msgstr ""
 
 #: src/gui_main.c
 msgid "Open X 6 X hundred, ready"
-msgstr ""
+msgstr "Open X 6 X hundred, 就绪"
 
 #: src/host/host_panel.c
 #, c-format
@@ -8666,6 +8710,11 @@ msgstr "频谱 ±%d.%dk"
 #, c-format
 msgid "SCOPE ±%dk"
 msgstr "频谱 ±%dk"
+
+#: src/info_bar.c
+#, c-format
+msgid "up=$(hciconfig %s 2>/dev/null | grep -c 'UP RUNNING'); echo $up; [ \"$up\" = 1 ] && { hcitool con 2>/dev/null | grep -c ACL; pactl list sinks short 2>/dev/null | grep -c bluez_sink; }"
+msgstr ""
 
 #: src/input_caps.c
 #, c-format
@@ -9094,12 +9143,12 @@ msgstr "正在收听 JS8..."
 #: src/js8_window.c
 #, c-format
 msgid "For you, from %s: %s"
-msgstr ""
+msgstr "给你的, 来自 %s: %s"
 
 #: src/js8_window.c
 #, c-format
 msgid "From %s: %s"
-msgstr ""
+msgstr "来自 %s: %s"
 
 #: src/js8_window.c
 msgid "In your language already"
@@ -9121,12 +9170,12 @@ msgstr "MyMemory 未返回翻译"
 #: src/js8_window.c
 #, c-format
 msgid "heard you %s"
-msgstr ""
+msgstr "听到你 %s"
 
 #: src/js8_window.c
 #, c-format
 msgid "heard you %+03d %s"
-msgstr ""
+msgstr "听到你 %+03d %s"
 
 #: src/js8_window.c
 msgid "No stations heard yet"
@@ -9403,21 +9452,21 @@ msgstr "正在收听... 听到的电台会显示在这里. HB 告诉他们你在
 #: src/js8_window.c
 #, c-format
 msgid ", %d new message%s"
-msgstr ""
+msgstr ", %d 条新消息%.0s"
 
 #: src/js8_window.c
 #, c-format
 msgid ", heard you, %+d"
-msgstr ""
+msgstr ", 听到你, %+d"
 
 #: src/js8_window.c
 msgid ", heard you"
-msgstr ""
+msgstr ", 听到你"
 
 #: src/js8_window.c
 #, c-format
 msgid "%s%s, %d d B%s, %d of %d"
-msgstr ""
+msgstr "%s%s, %d d B%s, 第 %d 项, 共 %d 项"
 
 #: src/js8_window.c
 msgid ""
@@ -11229,6 +11278,14 @@ msgstr ""
 msgid "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYPSaaaaaaaceeeeiiiidnooooo/ouuuuypy"
 msgstr ""
 
+#: src/load_stat.c
+msgid "Buffers"
+msgstr ""
+
+#: src/load_stat.c
+msgid "Cached"
+msgstr ""
+
 #: src/main.h
 msgid "OpenX6X00 - v0.3.13"
 msgstr ""
@@ -11476,7 +11533,7 @@ msgstr "常规"
 #: src/navtex_window.c
 #, c-format
 msgid "D S C call, %s"
-msgstr ""
+msgstr "D S C 呼叫, %s"
 
 #: src/navtex_window.c
 msgid "DSC 100 Bd / 170 Hz   MFK: scroll   Freq.: channels"
@@ -11568,6 +11625,10 @@ msgid "FULL"
 msgstr "已充满"
 
 #: src/ops_room.c src/smeter.c
+msgid "AUDIO"
+msgstr "音频"
+
+#: src/ops_room.c src/smeter.c
 msgid "SIGNAL"
 msgstr "信号"
 
@@ -11643,11 +11704,11 @@ msgstr "已导入 %u 条 QSO"
 #: src/radio.c
 #, c-format
 msgid "Tuner done, S W R %.1f"
-msgstr ""
+msgstr "天调完成, S W R %.1f"
 
 #: src/radio.c
 msgid "Tuner done"
-msgstr ""
+msgstr "天调完成"
 
 #: src/radio.c
 msgid "BATTERY HIGH TEMP!"
@@ -11702,7 +11763,7 @@ msgstr "扬声器始终关闭: 设置 > 音频"
 
 #: src/radio.c
 msgid "Volume,"
-msgstr ""
+msgstr "音量,"
 
 #: src/radio.c
 #, c-format
@@ -12131,7 +12192,7 @@ msgstr "配对码: #ffb020 %s#  (2 分钟)"
 #: src/remote_server.c
 #, c-format
 msgid "Pair code: %s. Again: %s. Good for 2 minutes."
-msgstr ""
+msgstr "配对码: %s. 再说一遍: %s. 2 分钟内有效."
 
 #: src/remote_server.c
 #, c-format
@@ -12354,39 +12415,39 @@ msgstr "已存入存储 %i"
 #: src/screen_main.c
 #, c-format
 msgid "F-keys: %s"
-msgstr ""
+msgstr "F 键: %s"
 
 #: src/screen_main.c
 #, c-format
 msgid ", battery %u percent%s"
-msgstr ""
+msgstr ", 电量百分之 %u%s"
 
 #: src/screen_main.c
 msgid ", charging"
-msgstr ""
+msgstr ", 正在充电"
 
 #: src/screen_main.c
 #, c-format
 msgid ", %.*s meters"
-msgstr ""
+msgstr ", %.*s 米"
 
 #: src/screen_main.c
 #, c-format
 msgid ", WiFi address %s"
-msgstr ""
+msgstr ", WiFi 地址 %s"
 
 #: src/screen_main.c
 msgid "Split "
-msgstr ""
+msgstr "异频 "
 
 #: src/screen_main.c
 msgid ", dial locked"
-msgstr ""
+msgstr ", 调谐已锁定"
 
 #: src/screen_main.c
 #, c-format
 msgid "Split %s"
-msgstr ""
+msgstr "异频 %s"
 
 #: src/screen_main.c src/settings_window.cpp
 msgid "Charger"
@@ -12395,11 +12456,11 @@ msgstr "充电器"
 #: src/screen_main.c
 #, c-format
 msgid "%.*s meters, "
-msgstr ""
+msgstr "%.*s 米, "
 
 #: src/screen_main.c
 msgid "Band locked by the app"
-msgstr ""
+msgstr "波段被应用锁定"
 
 #: src/screen_main.c
 msgid "Snake"
@@ -12419,7 +12480,7 @@ msgstr "RADE 需要耳机, TCI 或浏览器"
 
 #: src/screen_main.c
 msgid "No long press action set"
-msgstr ""
+msgstr "未设置长按功能"
 
 #: src/screen_main.c
 msgid "Waterfall"
@@ -12434,8 +12495,16 @@ msgid "Not used in this mode"
 msgstr "此模式下不使用"
 
 #: src/screen_main.c
+msgid "PTT off: the headset is gone"
+msgstr "PTT 关: 耳麦已断开"
+
+#: src/screen_main.c
+msgid "Headset mic busy"
+msgstr "耳麦话筒忙"
+
+#: src/screen_main.c
 msgid "VFO locked by the app"
-msgstr ""
+msgstr "VFO 被应用锁定"
 
 #: src/screen_main.c
 #, c-format
@@ -12445,11 +12514,11 @@ msgstr "复制 VFO %s"
 #: src/screen_main.c
 #, c-format
 msgid "VFO %s copied to %s"
-msgstr ""
+msgstr "VFO %s 已复制到 %s"
 
 #: src/screen_main.c
 msgid "Mode locked by the app"
-msgstr ""
+msgstr "模式被应用锁定"
 
 #: src/screen_main.c
 msgid "Pre"
@@ -12465,20 +12534,20 @@ msgstr "关机"
 
 #: src/screen_main.c
 msgid "V M, not used here"
-msgstr ""
+msgstr "V M, 此处不可用"
 
 #: src/screen_main.c
 msgid "Not used"
-msgstr ""
+msgstr "未使用"
 
 #: src/screen_main.c
 #, c-format
 msgid "Channel %s, %s"
-msgstr ""
+msgstr "频道 %s, %s"
 
 #: src/screen_main.c
 msgid "No channels"
-msgstr ""
+msgstr "没有频道"
 
 #: src/screen_main.c
 #, c-format
@@ -12515,7 +12584,7 @@ msgstr "PTT 关: 键盘已断开"
 
 #: src/screen_main.c
 msgid "Full screen: not over an app"
-msgstr ""
+msgstr "全屏: 有应用打开时不可用"
 
 #: src/screen_main.c
 #, c-format
@@ -12588,20 +12657,20 @@ msgstr "仅供测试, 未在电台上验证"
 #: src/settings_window.cpp
 #, c-format
 msgid "%s, page %d of 3:"
-msgstr ""
+msgstr "%s, 第 %d 页, 共 3 页:"
 
 #: src/settings_window.cpp
 #, c-format
 msgid ". F1 more tabs. %s tab"
-msgstr ""
+msgstr ". F1 更多标签页. %s 标签页"
 
 #: src/settings_window.cpp
 msgid ". F1 more tabs"
-msgstr ""
+msgstr ". F1 更多标签页"
 
 #: src/settings_window.cpp
 msgid "Settings tabs"
-msgstr ""
+msgstr "设置标签页"
 
 #: src/settings_window.cpp
 msgid ""
@@ -12635,7 +12704,7 @@ msgstr "常规"
 msgid "Display"
 msgstr "显示"
 
-#: src/settings_window.cpp
+#: src/settings_window.cpp src/smeter.c
 msgid "Audio"
 msgstr "音频"
 
@@ -12657,7 +12726,7 @@ msgstr "信息"
 
 #: src/settings_window.cpp
 msgid "Voice"
-msgstr ""
+msgstr "语音"
 
 #: src/settings_window.cpp
 msgid "Font: this theme has its own"
@@ -12669,23 +12738,23 @@ msgstr "调谐步进 从, 到"
 
 #: src/settings_window.cpp
 msgid "Month"
-msgstr ""
+msgstr "月份"
 
 #: src/settings_window.cpp
 msgid "Year"
-msgstr ""
+msgstr "年份"
 
 #: src/settings_window.cpp
 msgid "Hour"
-msgstr ""
+msgstr "小时"
 
 #: src/settings_window.cpp
 msgid "Minute"
-msgstr ""
+msgstr "分钟"
 
 #: src/settings_window.cpp
 msgid "Second"
-msgstr ""
+msgstr "秒"
 
 #: src/settings_window.cpp
 msgid "Timeout (0 off), Brightness"
@@ -12693,11 +12762,11 @@ msgstr "超时 (0 为关), 亮度"
 
 #: src/settings_window.cpp
 msgid "Screen dims after, seconds, 0 never"
-msgstr ""
+msgstr "屏幕变暗时间, 秒, 0 为从不"
 
 #: src/settings_window.cpp
 msgid "Brightness, dimmed and normal"
-msgstr ""
+msgstr "亮度, 变暗时和正常时"
 
 #: src/settings_window.cpp
 msgid "Buttons brightness"
@@ -12785,7 +12854,7 @@ msgstr " 静音 "
 
 #: src/settings_window.cpp
 msgid " Charger Off/On/Shadow "
-msgstr ""
+msgstr " 充电器 关/开/关机充 "
 
 #: src/settings_window.cpp
 msgid " Frequency lock on/off "
@@ -12793,7 +12862,7 @@ msgstr " 频率锁定 开/关 "
 
 #: src/settings_window.cpp
 msgid " Speech mode "
-msgstr ""
+msgstr " 语音模式 "
 
 #: src/settings_window.cpp
 msgid " Step up "
@@ -12813,7 +12882,7 @@ msgstr " 3D 瀑布 开/关 "
 
 #: src/settings_window.cpp
 msgid " WF full screen on/off "
-msgstr ""
+msgstr " 瀑布全屏 开/关 "
 
 #: src/settings_window.cpp
 msgid " CW decoder on/off "
@@ -13119,11 +13188,11 @@ msgstr ""
 #: src/settings_window.cpp
 #, c-format
 msgid "%s%s%s%s%s, %i of %i"
-msgstr ""
+msgstr "%s%s%s%s%s, 第 %i 项, 共 %i 项"
 
 #: src/settings_window.cpp
 msgid ", menu, "
-msgstr ""
+msgstr ", 菜单, "
 
 #: src/settings_window.cpp
 #, c-format
@@ -13133,20 +13202,20 @@ msgstr "MFK:选择 - 按下:确认 - %s:关闭"
 #: src/settings_window.cpp
 #, c-format
 msgid ", address %s"
-msgstr ""
+msgstr ", 地址 %s"
 
 #: src/settings_window.cpp
 #, c-format
 msgid "%s%s%s%s, %s, signal %u percent, %i of %i"
-msgstr ""
+msgstr "%s%s%s%s, %s, 信号百分之 %u, 第 %i 项, 共 %i 项"
 
 #: src/settings_window.cpp src/wifi_window.c
 msgid ", connected"
-msgstr ""
+msgstr ", 已连接"
 
 #: src/settings_window.cpp src/wifi_window.c
 msgid ", saved"
-msgstr ""
+msgstr ", 已保存"
 
 #: src/settings_window.cpp
 msgid "Ethernet in use"
@@ -13168,7 +13237,7 @@ msgstr "WPA 密码为 8 到 63 个字符"
 #: src/settings_window.cpp
 #, c-format
 msgid "Password for %s. Small knob: the keys, press: type, done: finish"
-msgstr ""
+msgstr "%s 的密码. 小旋钮: 选择按键, 按下: 输入, 完成键: 结束"
 
 #: src/settings_window.cpp src/wifi_window.c
 msgid " Password"
@@ -13205,15 +13274,15 @@ msgstr "未连接"
 #: src/settings_window.cpp
 #, c-format
 msgid "%s, %s%s, %i of %i"
-msgstr ""
+msgstr "%s, %s%s, 第 %i 项, 共 %i 项"
 
 #: src/settings_window.cpp
 msgid "new, press to pair"
-msgstr ""
+msgstr "新设备, 按下配对"
 
 #: src/settings_window.cpp
 msgid ", not connected"
-msgstr ""
+msgstr ", 未连接"
 
 #: src/settings_window.cpp
 msgid "no headphones or keyboards found"
@@ -13248,6 +13317,10 @@ msgid "rx off"
 msgstr ""
 
 #: src/settings_window.cpp
+msgid "USB dongle"
+msgstr "USB 适配器"
+
+#: src/settings_window.cpp
 msgid "Headphones, keyboards"
 msgstr "耳机, 键盘"
 
@@ -13266,6 +13339,14 @@ msgstr "扬声器静音"
 #: src/settings_window.cpp
 msgid "AF 0 while connected"
 msgstr "连接时音量为 0"
+
+#: src/settings_window.cpp
+msgid "Mic"
+msgstr "话筒"
+
+#: src/settings_window.cpp
+msgid "Mic gain"
+msgstr "话筒增益"
 
 #: src/settings_window.cpp
 msgid "1 viewer"
@@ -13648,23 +13729,23 @@ msgstr "麦克风"
 
 #: src/settings_window.cpp
 msgid "Mini waterfall"
-msgstr ""
+msgstr "迷你瀑布"
 
 #: src/settings_window.cpp
 msgid "VOICE"
-msgstr ""
+msgstr "语音"
 
 #: src/settings_window.cpp src/speech_engine.c
 msgid "Speech"
-msgstr ""
+msgstr "语音"
 
 #: src/settings_window.cpp
 msgid "Needs a newer card image"
-msgstr ""
+msgstr "需要更新的存储卡镜像"
 
 #: src/settings_window.cpp
 msgid "Voice mode"
-msgstr ""
+msgstr "语音模式"
 
 #: src/settings_window.cpp
 msgid ""
@@ -13672,34 +13753,37 @@ msgid ""
 "Screen off only\n"
 "Always"
 msgstr ""
+"关\n"
+"仅熄屏时\n"
+"始终"
 
 #: src/settings_window.cpp
 msgid "Pitch"
-msgstr ""
+msgstr "音高"
 
 #: src/settings_window.cpp
 msgid "VOICE BEHAVIOUR"
-msgstr ""
+msgstr "语音行为"
 
 #: src/settings_window.cpp
 msgid "New speech interrupts"
-msgstr ""
+msgstr "新语音可打断"
 
 #: src/settings_window.cpp
 msgid "Read decoded text"
-msgstr ""
+msgstr "朗读解码文本"
 
 #: src/settings_window.cpp
 msgid "Interrupt delay"
-msgstr ""
+msgstr "打断延迟"
 
 #: src/settings_window.cpp
 msgid "Tuning delay"
-msgstr ""
+msgstr "调谐延迟"
 
 #: src/settings_window.cpp
 msgid "Name repeats"
-msgstr ""
+msgstr "名称重复"
 
 #: src/settings_window.cpp
 msgid "zxcvbnm,./"
@@ -14313,7 +14397,7 @@ msgstr ""
 
 #: src/settings_window.cpp
 msgid "Frequency"
-msgstr ""
+msgstr "频率"
 
 #: src/settings_window.cpp
 msgid "CW tune and WPM"
@@ -14365,13 +14449,15 @@ msgstr "按旋钮: 下一控制项"
 
 #: src/settings_window.cpp
 msgid "MFK rings"
-msgstr ""
+msgstr "MFK 内外环"
 
 #: src/settings_window.cpp
 msgid ""
 " Stock \n"
 " Swapped "
 msgstr ""
+" 原厂 \n"
+" 互换 "
 
 #: src/settings_window.cpp
 msgid "Decoder text"
@@ -14602,7 +14688,7 @@ msgstr "再按一次退出登录"
 
 #: src/settings_window.cpp
 msgid "Press again to log out"
-msgstr ""
+msgstr "再按一次退出登录"
 
 #: src/settings_window.cpp
 msgid "Logging out..."
@@ -14659,6 +14745,38 @@ msgstr "WiFi/BT 芯片已关闭 (无线)"
 #: src/settings_window.cpp
 msgid "visible and pairable"
 msgstr "可见且可配对"
+
+#: src/settings_window.cpp
+msgid "the radio's own in use"
+msgstr "正在使用电台自带的"
+
+#: src/settings_window.cpp
+msgid "in use, the radio's own off"
+msgstr "使用中, 电台自带的已关"
+
+#: src/settings_window.cpp
+msgid "not plugged in"
+msgstr "未插入"
+
+#: src/settings_window.cpp
+msgid "the side PTT sends it"
+msgstr "按侧面 PTT 时发送"
+
+#: src/settings_window.cpp
+msgid "with a USB dongle only"
+msgstr "仅限 USB 适配器"
+
+#: src/settings_window.cpp
+msgid "no dongle plugged in"
+msgstr "未插入适配器"
+
+#: src/settings_window.cpp
+msgid "none: music only (A2DP)"
+msgstr "无: 仅音乐 (A2DP)"
+
+#: src/settings_window.cpp
+msgid "no headset"
+msgstr "无耳麦"
 
 #: src/settings_window.cpp
 msgid "bridge not running"
@@ -14741,7 +14859,7 @@ msgstr "正在完成..."
 #: src/settings_window.cpp
 #, c-format
 msgid "Downloaded %d percent"
-msgstr ""
+msgstr "已下载百分之 %d"
 
 #: src/settings_window.cpp
 #, c-format
@@ -14892,19 +15010,19 @@ msgstr "每日检查基带"
 
 #: src/settings_window.cpp
 msgid "All apps shown"
-msgstr ""
+msgstr "已显示全部应用"
 
 #: src/settings_window.cpp
 msgid "Hidden apps"
-msgstr ""
+msgstr "隐藏的应用"
 
 #: src/settings_window.cpp
 msgid "Show all"
-msgstr ""
+msgstr "全部显示"
 
 #: src/settings_window.cpp
 msgid "always shown"
-msgstr ""
+msgstr "始终显示"
 
 #: src/settings_window.cpp
 msgid "FIRMWARE"
@@ -14962,27 +15080,53 @@ msgstr "剩余时间"
 
 #: src/settings_window.cpp
 msgid "STORAGE"
-msgstr ""
+msgstr "存储空间"
 
 #: src/settings_window.cpp
 msgid "not known"
-msgstr ""
+msgstr "未知"
 
 #: src/settings_window.cpp
 msgid "DATA partition"
-msgstr ""
+msgstr "DATA 分区"
 
 #: src/settings_window.cpp
 msgid "System"
-msgstr ""
+msgstr "系统"
 
 #: src/settings_window.cpp
 msgid "Low space warning"
-msgstr ""
+msgstr "空间不足警告"
+
+#: src/settings_window.cpp
+msgid "SYSTEM"
+msgstr "系统"
+
+#: src/settings_window.cpp
+#, c-format
+msgid "%u of %u MB in use"
+msgstr "已用 %u / %u MB"
+
+#: src/settings_window.cpp
+msgid "Memory"
+msgstr "内存"
+
+#: src/settings_window.cpp
+msgid "Swap"
+msgstr "交换分区"
+
+#: src/settings_window.cpp
+msgid "Load meter"
+msgstr "负载表"
 
 #: src/settings_window.cpp
 msgid "Settings. Tabs on the F-keys"
-msgstr ""
+msgstr "设置. 标签页在 F 键上"
+
+#: src/smeter.c
+#, c-format
+msgid "Audio %d dB"
+msgstr "音频 %d dB"
 
 #: src/speech_engine.c
 msgid "OpenX6X00 Speech"
@@ -15075,12 +15219,12 @@ msgstr "SVX 链路"
 #: src/swrscan_window.c
 #, c-format
 msgid "%s, nothing measured"
-msgstr ""
+msgstr "%s, 无测量数据"
 
 #: src/swrscan_window.c
 #, c-format
 msgid "%s, lowest S W R %.1f at %s, highest %.1f at %s"
-msgstr ""
+msgstr "%s, 最低 S W R %.1f 在 %s, 最高 %.1f 在 %s"
 
 #: src/swrscan_window.c
 msgid "SWR scan: not while transmitting or tuning"
@@ -15284,7 +15428,7 @@ msgstr "发射 0 W: 电平 %.0f dB, 线路输入 %u"
 
 #: src/voice.cpp
 msgid "SLT (En, female)"
-msgstr ""
+msgstr "SLT (英, 女)"
 
 #: src/voice.cpp
 msgid "Hello. This is voice S L T"
@@ -15292,7 +15436,7 @@ msgstr ""
 
 #: src/voice.cpp
 msgid "Alan (En, male)"
-msgstr ""
+msgstr "Alan (英, 男)"
 
 #: src/voice.cpp
 msgid "Hello. This is voice Alan"
@@ -15300,7 +15444,7 @@ msgstr ""
 
 #: src/voice.cpp
 msgid "CLB (En, female)"
-msgstr ""
+msgstr "CLB (英, 女)"
 
 #: src/voice.cpp
 msgid "Hello. This is voice C L B"
@@ -15308,7 +15452,7 @@ msgstr ""
 
 #: src/voice.cpp
 msgid "BDL (En, male)"
-msgstr ""
+msgstr "BDL (英, 男)"
 
 #: src/voice.cpp
 msgid "Hello. This is voice B D L"
@@ -15326,31 +15470,31 @@ msgstr ""
 
 #: src/voice.cpp
 msgid "Speech is not on this card image"
-msgstr ""
+msgstr "此存储卡镜像不含语音功能"
 
 #: src/voice.cpp
 msgid "Speech: when the screen is off"
-msgstr ""
+msgstr "语音: 熄屏时"
 
 #: src/voice.cpp
 msgid "Speech when the screen is off"
-msgstr ""
+msgstr "熄屏时语音"
 
 #: src/voice.cpp
 msgid "Speech: always"
-msgstr ""
+msgstr "语音: 始终"
 
 #: src/voice.cpp
 msgid "Speech always"
-msgstr ""
+msgstr "语音始终开"
 
 #: src/voice.cpp
 msgid "Speech: off"
-msgstr ""
+msgstr "语音: 关"
 
 #: src/voice.cpp
 msgid "Speech off. Hold D F N for speech again"
-msgstr ""
+msgstr "语音已关. 长按 D F N 重新开启语音"
 
 #: src/voice.cpp
 #, c-format
@@ -15373,7 +15517,7 @@ msgstr ""
 #: src/voice.cpp
 #, c-format
 msgid "%s is %s"
-msgstr ""
+msgstr "%s 为 %s"
 
 #: src/voice.cpp
 #, c-format
@@ -15386,117 +15530,117 @@ msgstr ""
 
 #: src/voice_focus.c
 msgid "Nothing to read"
-msgstr ""
+msgstr "没有可朗读的内容"
 
 #: src/voice_focus.c
 #, c-format
 msgid "%s, nothing to read"
-msgstr ""
+msgstr "%s, 没有可朗读的内容"
 
 #: src/voice_focus.c
 #, c-format
 msgid "%s%s%d line%s. Small knob: line by line. %s"
-msgstr ""
+msgstr "%s%s%d 行%.0s. 小旋钮: 逐行. %s"
 
 #: src/voice_focus.c
 #, c-format
 msgid "%s, %d of %d"
-msgstr ""
+msgstr "%s, 第 %d 项, 共 %d 项"
 
 #: src/voice_focus.c
 #, c-format
 msgid "%d of %d"
-msgstr ""
+msgstr "第 %d 项, 共 %d 项"
 
 #: src/voice_focus.c
 msgid "hide keyboard"
-msgstr ""
+msgstr "隐藏键盘"
 
 #: src/voice_focus.c
 msgid "cursor left"
-msgstr ""
+msgstr "光标左移"
 
 #: src/voice_focus.c
 msgid "cursor right"
-msgstr ""
+msgstr "光标右移"
 
 #: src/voice_focus.c
 msgid "numbers and symbols"
-msgstr ""
+msgstr "数字和符号"
 
 #: src/voice_focus.c
 msgid "lower case"
-msgstr ""
+msgstr "小写"
 
 #: src/voice_focus.c
 msgid "upper case"
-msgstr ""
+msgstr "大写"
 
 #: src/voice_focus.c
 msgid "left paren"
-msgstr ""
+msgstr "左括号"
 
 #: src/voice_focus.c
 msgid "right paren"
-msgstr ""
+msgstr "右括号"
 
 #: src/voice_focus.c
 msgid "question mark"
-msgstr ""
+msgstr "问号"
 
 #: src/voice_focus.c
 msgid "less than"
-msgstr ""
+msgstr "小于号"
 
 #: src/voice_focus.c
 msgid "greater than"
-msgstr ""
+msgstr "大于号"
 
 #: src/voice_focus.c
 msgid "left bracket"
-msgstr ""
+msgstr "左方括号"
 
 #: src/voice_focus.c
 msgid "right bracket"
-msgstr ""
+msgstr "右方括号"
 
 #: src/voice_focus.c
 msgid "left brace"
-msgstr ""
+msgstr "左花括号"
 
 #: src/voice_focus.c
 msgid "right brace"
-msgstr ""
+msgstr "右花括号"
 
 #: src/voice_focus.c
 msgid "back tick"
-msgstr ""
+msgstr "反引号"
 
 #: src/voice_focus.c
 msgid "plus minus"
-msgstr ""
+msgstr "正负号"
 
 #: src/voice_focus.c
 msgid "not checked"
-msgstr ""
+msgstr "未勾选"
 
 #: src/voice_focus.c
 #, c-format
 msgid ", %u of %u"
-msgstr ""
+msgstr ", 第 %u 项, 共 %u 项"
 
 #: src/voice_focus.c
 msgid "hidden text"
-msgstr ""
+msgstr "隐藏文本"
 
 #: src/voice_focus.c
 #, c-format
 msgid "%u of %u"
-msgstr ""
+msgstr "第 %u 项, 共 %u 项"
 
 #: src/voice_focus.c
 msgid "edit text"
-msgstr ""
+msgstr "编辑框"
 
 #: src/voice_link.c
 msgid "Net"
@@ -15543,12 +15687,12 @@ msgstr "RF>%s: 业余波段外, 请检查你的执照"
 #: src/voice_messages.c
 #, c-format
 msgid "%s%sNo messages yet. F2 records one"
-msgstr ""
+msgstr "%s%s还没有消息. F2 录制一条"
 
 #: src/voice_messages.c
 #, c-format
 msgid "%s%s%s, %.1f seconds, %i of %i"
-msgstr ""
+msgstr "%s%s%s, %.1f 秒, 第 %i 项, 共 %i 项"
 
 #: src/voice_messages.c
 msgid "No messages yet: press Rec"
@@ -15602,9 +15746,9 @@ msgstr ""
 "间隔\n"
 "%i s"
 
-#: src/voice_messages.c
+#: src/voice_messages.c src/winlink_mail.c
 msgid "Listening"
-msgstr ""
+msgstr "守听中"
 
 #: src/voice_messages.c src/winlink_mail.c
 msgid "Ready"
@@ -15686,17 +15830,17 @@ msgstr "录制: 录下第一条消息"
 #: src/voice_messages.c
 #, c-format
 msgid "%i seconds"
-msgstr ""
+msgstr "%i 秒"
 
 #: src/voice_messages.c
 #, c-format
 msgid "Interval, %i seconds. Turn the small knob to change, F2 to keep"
-msgstr ""
+msgstr "间隔, %i 秒. 转动小旋钮修改, F2 保留"
 
 #: src/voice_messages.c
 #, c-format
 msgid "Interval kept, %i seconds"
-msgstr ""
+msgstr "间隔已保留, %i 秒"
 
 #: src/voice_messages.c
 #, c-format
@@ -15736,7 +15880,7 @@ msgstr "语音键控 (发射) - #%06x %s#"
 
 #: src/voice_messages.c
 msgid "Voice keyer. Small knob: the messages, press: listen. F2 record, F3 listen, F4 send, F5 auto call"
-msgstr ""
+msgstr "语音键控器. 小旋钮: 选择消息, 按下: 试听. F2 录制, F3 试听, F4 发送, F5 自动呼叫"
 
 #: src/voice_net.c
 msgid "not sent"
@@ -15820,25 +15964,25 @@ msgstr ""
 #: src/walkie.c
 #, c-format
 msgid "%s%sChannel %d, empty, Store puts the frequency in it"
-msgstr ""
+msgstr "%s%s频道 %d, 空, 按\"存储\"存入频率"
 
 #: src/walkie.c
 #, c-format
 msgid "%s%sChannel %d, %s, %s"
-msgstr ""
+msgstr "%s%s频道 %d, %s, %s"
 
 #: src/walkie.c
 msgid "Memory mode, the tuning knob steps the channels"
-msgstr ""
+msgstr "存储模式, 调谐旋钮切换频道"
 
 #: src/walkie.c
 msgid "V F O mode, the tuning knob tunes"
-msgstr ""
+msgstr "V F O 模式, 调谐旋钮调频率"
 
 #: src/walkie.c
 #, c-format
 msgid "Channel %d cleared"
-msgstr ""
+msgstr "频道 %d 已清除"
 
 #: src/walkie.c
 msgid "Band +"
@@ -15900,15 +16044,15 @@ msgstr "对讲模式下无数字模式"
 
 #: src/walkie.c
 msgid "Walkie screen, the F-keys down the left, F1 at the top"
-msgstr ""
+msgstr "对讲屏幕, F 键在左侧, F1 在最上面"
 
 #: src/walkie.c
 msgid "Hold APP to leave walkie mode"
-msgstr ""
+msgstr "长按 APP 退出对讲模式"
 
 #: src/walkie.c
 msgid "Walkie off"
-msgstr ""
+msgstr "对讲已关"
 
 #: src/wavelog_cat.c
 msgid "No such mode"
@@ -16519,12 +16663,12 @@ msgstr "增强开放 (OWE)"
 
 #: src/wifi.cpp
 msgid "WiFi connected"
-msgstr ""
+msgstr "WiFi 已连接"
 
 #: src/wifi.cpp
 #, c-format
 msgid "WiFi connected, address %s"
-msgstr ""
+msgstr "WiFi 已连接, 地址 %s"
 
 #: src/wifi.cpp
 #, c-format
@@ -16628,26 +16772,26 @@ msgstr "NetworkManager 未运行"
 
 #: src/wifi_window.c
 msgid "No networks found yet"
-msgstr ""
+msgstr "尚未找到网络"
 
 #: src/wifi_window.c
 msgid "WiFi is off"
-msgstr ""
+msgstr "WiFi 已关"
 
 #: src/wifi_window.c
 #, c-format
 msgid "%s%s%s, %s, %u of %u"
-msgstr ""
+msgstr "%s%s%s, %s, 第 %u 项, 共 %u 项"
 
 #: src/wifi_window.c
 #, c-format
 msgid "%s%s%s, %s, signal %u percent, %u of %u"
-msgstr ""
+msgstr "%s%s%s, %s, 信号百分之 %u, 第 %u 项, 共 %u 项"
 
 #: src/wifi_window.c
 #, c-format
 msgid "WiFi. %s. Small knob: the networks. F-keys: connect, scan, password, delete"
-msgstr ""
+msgstr "WiFi. %s. 小旋钮: 选择网络. F 键: 连接, 扫描, 密码, 删除"
 
 #: src/wifi_window.c
 msgid "Password is required"
@@ -16655,7 +16799,7 @@ msgstr "需要密码"
 
 #: src/wifi_window.c
 msgid "Password for the network. Turn the small knob for the keys, press it to type, done to finish"
-msgstr ""
+msgstr "网络密码. 转动小旋钮选择按键, 按下输入, 按完成键结束"
 
 #: src/wifi_window.c
 msgid "Already scanning"
@@ -16808,11 +16952,11 @@ msgstr "电台忙, 请重试"
 
 #: src/winlink.c
 msgid "Pat just tuned the radio for a connection, try again in a moment"
-msgstr ""
+msgstr "Pat 刚为连接调谐了电台, 请稍后重试"
 
 #: src/winlink.c
 msgid "the radio did not tune there"
-msgstr ""
+msgstr "电台未调谐到那里"
 
 #: src/winlink.c
 #, c-format
@@ -16841,6 +16985,46 @@ msgstr "Winlink: 禁止发射 (%s) %d 分钟, 请检查天线"
 msgid "high SWR %s, the hold ends in %d min"
 msgstr "驻波比过高 (%s), %d 分钟后解除"
 
+#: src/winlink.c
+msgid "the screen is dark"
+msgstr "屏幕已熄灭"
+
+#: src/winlink.c
+msgid "no modem Pat listens with"
+msgstr "没有 Pat 可用来守听的调制解调器"
+
+#: src/winlink.c
+#, c-format
+msgid "the radio is in %s and an app holds the mode"
+msgstr "电台处于 %s, 且有应用锁定了模式"
+
+#: src/winlink.c
+#, c-format
+msgid "%s could not be written"
+msgstr "无法写入 %s"
+
+#: src/winlink.c
+msgid "listening is off"
+msgstr "守听已关"
+
+#: src/winlink.c
+msgid "Pat tuned the radio for a connection"
+msgstr "Pat 已为连接调谐电台"
+
+#: src/winlink.c
+#, c-format
+msgid "the radio is in %s, not USB-D"
+msgstr "电台处于 %s, 不是 USB-D"
+
+#: src/winlink.c
+#, c-format
+msgid "the radio left the listening frequency %s MHz"
+msgstr "电台已离开守听频率 %s MHz"
+
+#: src/winlink.c
+msgid "P2P listening was just turned off"
+msgstr "P2P 守听刚被关闭"
+
 #: src/winlink_mail.c
 msgid "Outbox"
 msgstr "发件箱"
@@ -16862,27 +17046,54 @@ msgstr "#%06x %s:# 无应答"
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Modem:# now %s, chosen elsewhere meanwhile"
-msgstr ""
+msgstr "#%06x 调制解调器:# 现为 %s, 期间已在别处选择"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "Modem: %s, it starts with Winlink On"
-msgstr ""
+msgstr "调制解调器: %s, 随\"Winlink 开\"启动"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Modem: %s is ready#"
-msgstr ""
+msgstr "#%06x 调制解调器: %s 已就绪#"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Modem: %s did not start:# %s"
-msgstr ""
+msgstr "#%06x 调制解调器: %s 未能启动:# %s"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Modem: %s is not ready yet:# %s"
-msgstr ""
+msgstr "#%06x 调制解调器: %s 尚未就绪:# %s"
+
+#: src/winlink_mail.c
+msgid "Winlink: P2P listening stopped"
+msgstr "Winlink: P2P 守听已停止"
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Listening stopped:# %s"
+msgstr "#%06x 守听已停止:# %s"
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Winlink: call from %s ended"
+msgstr "Winlink: 来自 %s 的呼叫已结束"
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Winlink: a call from %s"
+msgstr "Winlink: 来自 %s 的呼叫"
+
+#: src/winlink_mail.c
+msgid "Winlink went off, or Pat restarted"
+msgstr "Winlink 已关, 或 Pat 已重启"
+
+#: src/winlink_mail.c
+msgid "the modem changed"
+msgstr "调制解调器已更换"
 
 #: src/winlink_mail.c
 msgid "Reading the mailbox..."
@@ -17029,6 +17240,15 @@ msgstr "Pat 呼叫时电台会发射."
 
 #: src/winlink_mail.c
 #, c-format
+msgid "#%06x Connected:# #%06x %s# called"
+msgstr "#%06x 已连接:# #%06x %s# 呼入"
+
+#: src/winlink_mail.c
+msgid "A P2P call answered while listening: Pat exchanges mail with it. Abort ends it."
+msgstr "守听时应答了一个 P2P 呼叫: Pat 正与其交换邮件. 按\"中止\"结束."
+
+#: src/winlink_mail.c
+#, c-format
 msgid "#%06x A connection is under way#"
 msgstr "#%06x 连接正在进行#"
 
@@ -17042,50 +17262,100 @@ msgstr "无连接"
 
 #: src/winlink_mail.c
 #, c-format
+msgid "#%06x Connected:# #%06x %s# called on %.1f kHz"
+msgstr "#%06x 已连接:# #%06x %s# 在 %.1f kHz 呼入"
+
+#: src/winlink_mail.c
+msgid "Pat exchanges mail with it. Abort ends the connection."
+msgstr "Pat 正与其交换邮件. 按\"中止\"结束连接."
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Listening# for calls to #%06x %s# on %.1f kHz, %s"
+msgstr "#%06x 正在守听# 对 #%06x %s# 的呼叫, %.1f kHz, %s"
+
+#: src/winlink_mail.c
+msgid "The radio transmits when a station calls. Stay with it: Listen off, closing this app, another app, the dial or the mode changed, or the screen dark ends listening."
+msgstr "有电台呼叫时本机会发射. 请守在电台旁: 关闭守听, 关闭本应用, 打开其他应用, 改变频率或模式, 或屏幕熄灭, 都会结束守听."
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Starting to listen# on %.1f kHz, %s..."
+msgstr "#%06x 开始守听# %.1f kHz, %s..."
+
+#: src/winlink_mail.c
+msgid "Pat sets the modem up to answer calls."
+msgstr "Pat 正在设置调制解调器以应答呼叫."
+
+#: src/winlink_mail.c
+msgid "Pat has not said it listens yet: see its log in the web mailbox. The radio may still answer a call."
+msgstr "Pat 尚未确认在守听: 请在网页邮箱中查看其日志. 电台仍可能应答呼叫."
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening#"
+msgstr "#%06x 未守听#"
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Listen: Pat answers a station that calls %s peer to peer (P2P) on %.1f kHz, %s, and the radio transmits for it."
+msgstr "守听: 有电台点对点 (P2P) 呼叫 %s 时 Pat 应答, 频率 %.1f kHz, %s, 电台会为此发射."
+
+#: src/winlink_mail.c
+#, c-format
+msgid "Last call: %s"
+msgstr "上次呼叫: %s"
+
+#: src/winlink_mail.c
+msgid "Only with you at the radio: listening ends as this app closes or another opens, the dial or the mode changes, the screen goes dark, Winlink goes off or the radio restarts. Tune and set the power first: every check of a connection applies."
+msgstr "仅限你守在电台旁时使用: 关闭本应用或打开其他应用, 改变频率或模式, 屏幕熄灭, Winlink 关闭或电台重启时, 守听都会结束. 请先调谐并设置功率: 连接时的各项检查同样适用."
+
+#: src/winlink_mail.c
+#, c-format
 msgid "%s%s %s, %s%s, %s, %d of %d"
-msgstr ""
+msgstr "%s%s %s, %s%s, %s, 第 %d 项, 共 %d 项"
 
 #: src/winlink_mail.c
 msgid "Unread, "
-msgstr ""
+msgstr "未读, "
 
 #: src/winlink_mail.c
 msgid "no subject"
-msgstr ""
+msgstr "无主题"
 
 #: src/winlink_mail.c
 msgid ", with attachments"
-msgstr ""
+msgstr ", 有附件"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "%s, %.1f kilohertz, %d kilometres, %s%s, %d of %d"
-msgstr ""
+msgstr "%s, %.1f 千赫, %d 公里, %s%s, 第 %d 项, 共 %d 项"
 
 #: src/winlink_mail.c
 msgid ", called lately"
-msgstr ""
+msgstr ", 最近呼叫过"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "%s, %.1f kilohertz, %s%s, %d of %d"
-msgstr ""
+msgstr "%s, %.1f 千赫, %s%s, 第 %d 项, 共 %d 项"
 
 #: src/winlink_mail.c
 msgid "Message"
-msgstr ""
+msgstr "正文"
 
 #: src/winlink_mail.c
 msgid "Message. Up, Down or M F K: line by line. R: reply. Escape: back"
-msgstr ""
+msgstr "邮件. 上键, 下键或 M F K: 逐行阅读. R: 回复. Escape: 返回"
 
 #: src/winlink_mail.c
 msgid "Receiving"
-msgstr ""
+msgstr "正在接收"
 
 #: src/winlink_mail.c
 msgid "Sending"
-msgstr ""
+msgstr "正在发送"
 
 #: src/winlink_mail.c
 msgid "WINLINK MAIL"
@@ -17104,8 +17374,17 @@ msgid "CONNECTION"
 msgstr "连接状态"
 
 #: src/winlink_mail.c
+msgid "LISTEN - P2P"
+msgstr "守听 - P2P"
+
+#: src/winlink_mail.c
 msgid "Calling"
 msgstr "正在呼叫"
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Listening %.1f#"
+msgstr "#%06x 守听 %.1f#"
 
 #: src/winlink_mail.c
 #, c-format
@@ -17128,7 +17407,7 @@ msgstr "Winlink 关"
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Modem: switching to %s...# %s"
-msgstr ""
+msgstr "#%06x 调制解调器: 正在切换到 %s...# %s"
 
 #: src/winlink_mail.c
 #, c-format
@@ -17155,11 +17434,11 @@ msgstr "上 / 下键或 MFK: 滚动 - R: 回复 - Esc: 返回"
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x On %.1f kHz for %s, nothing sent: tune the antenna now if needed - Connect calls, the radio transmits#"
-msgstr ""
+msgstr "#%06x 已在 %.1f kHz (%s), 未发射: 如需要请现在调谐天线 - 按\"连接\"呼叫, 电台会发射#"
 
 #: src/winlink_mail.c
 msgid "+ called lately - Set freq: the radio goes there, nothing sent - then Connect calls"
-msgstr ""
+msgstr "+ 最近呼叫过 - 设置频率: 电台转到该频率, 不发射 - 然后按\"连接\"呼叫"
 
 #: src/winlink_mail.c
 msgid "Pat waits for the answer: a button here, or the web mailbox"
@@ -17170,8 +17449,17 @@ msgid "Abort ends the connection; Back leaves it running"
 msgstr "\"中止\"结束连接; \"返回\"让它继续运行"
 
 #: src/winlink_mail.c
-msgid "Enter: read - N: new - C: connect - B: next box"
-msgstr "Enter: 阅读 - N: 新建 - C: 连接 - B: 下一个邮箱"
+#, c-format
+msgid "#%06x The radio transmits when a station calls: stay with it#"
+msgstr "#%06x 有电台呼叫时本机会发射: 请守在电台旁#"
+
+#: src/winlink_mail.c
+msgid "Listen: P2P calls answered while this app is open, with you at the radio"
+msgstr "守听: 本应用打开且你在电台旁时, 应答 P2P 呼叫"
+
+#: src/winlink_mail.c
+msgid "Enter: read - N: new - C: connect - B: next box - L: listen"
+msgstr "Enter: 阅读 - N: 新建 - C: 连接 - B: 下一邮箱 - L: 守听"
 
 #: src/winlink_mail.c
 msgid "MFK: choose - MFK press: read"
@@ -17199,41 +17487,63 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "Modem"
-msgstr ""
+msgstr "调制解调器"
 
 #: src/winlink_mail.c
 msgid ""
 "Set\n"
 "freq"
 msgstr ""
+"设置\n"
+"频率"
 
 #: src/winlink_mail.c
 msgid "After call"
-msgstr ""
+msgstr "呼叫后"
 
 #: src/winlink_mail.c
 msgid "Stay"
-msgstr ""
+msgstr "停留"
 
 #: src/winlink_mail.c
 msgid "Go back"
-msgstr ""
+msgstr "返回"
 
 #: src/winlink_mail.c
 msgid "Connection"
 msgstr "连接状态"
 
 #: src/winlink_mail.c
-msgid "(MAIL 1:2)"
-msgstr "(邮件 1:2)"
+msgid ""
+"Listen:\n"
+"On"
+msgstr ""
+"守听:\n"
+"开"
 
 #: src/winlink_mail.c
-msgid "(MAIL 2:2)"
-msgstr "(邮件 2:2)"
+msgid ""
+"Listen:\n"
+"Off"
+msgstr ""
+"守听:\n"
+"关"
+
+#: src/winlink_mail.c
+msgid "(MAIL 1:3)"
+msgstr "(邮件 1:3)"
+
+#: src/winlink_mail.c
+msgid "(MAIL 2:3)"
+msgstr "(邮件 2:3)"
 
 #: src/winlink_mail.c
 msgid "Password"
 msgstr "密码"
+
+#: src/winlink_mail.c
+msgid "(MAIL 3:3)"
+msgstr "(邮件 3:3)"
 
 #: src/winlink_mail.c
 msgid "(READ 1:1)"
@@ -17249,11 +17559,11 @@ msgstr ""
 
 #: src/winlink_mail.c
 msgid "(CONNECT 1:2)"
-msgstr ""
+msgstr "(连接 1:2)"
 
 #: src/winlink_mail.c
 msgid "(CONNECT 2:2)"
-msgstr ""
+msgstr "(连接 2:2)"
 
 #: src/winlink_mail.c
 msgid "(LINK 1:1)"
@@ -17262,6 +17572,10 @@ msgstr "(链路 1:1)"
 #: src/winlink_mail.c
 msgid "Abort"
 msgstr "中止"
+
+#: src/winlink_mail.c
+msgid "(LISTEN 1:1)"
+msgstr "(守听 1:1)"
 
 #: src/winlink_mail.c
 msgid "(PAT ASKS)"
@@ -17350,6 +17664,10 @@ msgid "A connection is under way: Abort it first"
 msgstr "连接正在进行: 请先中止"
 
 #: src/winlink_mail.c
+msgid "Winlink went off"
+msgstr "Winlink 已关"
+
+#: src/winlink_mail.c
 msgid "Stopping Pat and the modem..."
 msgstr "正在停止 Pat 和调制解调器..."
 
@@ -17360,37 +17678,37 @@ msgstr "正在启动 Pat 和调制解调器..."
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Modem:# %s"
-msgstr ""
+msgstr "#%06x 调制解调器:# %s"
 
 #: src/winlink_mail.c
 msgid "not changed"
-msgstr ""
+msgstr "未更改"
 
 #: src/winlink_mail.c
 msgid "A connection is under way: the modem after it"
-msgstr ""
+msgstr "连接正在进行: 结束后再换调制解调器"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "Wait: switching to %s"
-msgstr ""
+msgstr "请稍候: 正在切换到 %s"
 
 #: src/winlink_mail.c
 msgid "No other modem on this radio"
-msgstr ""
+msgstr "本机没有其他调制解调器"
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x After call:# %s"
-msgstr ""
+msgstr "#%06x 呼叫后:# %s"
 
 #: src/winlink_mail.c
 msgid "After call: the radio stays on the gateway's frequency, in USB-D"
-msgstr ""
+msgstr "呼叫后: 电台停留在网关的频率, USB-D 模式"
 
 #: src/winlink_mail.c
 msgid "After call: the radio goes back to where it was before Set freq"
-msgstr ""
+msgstr "呼叫后: 电台回到\"设置频率\"之前的位置"
 
 #: src/winlink_mail.c
 msgid "Password set: Pat starts again with it"
@@ -17492,24 +17810,28 @@ msgstr "Winlink：%s"
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Not on %.1f kHz:# %s"
-msgstr ""
+msgstr "#%06x 未转到 %.1f kHz:# %s"
 
 #: src/winlink_mail.c
 msgid "a connection is under way"
-msgstr ""
+msgstr "连接正在进行"
 
 #: src/winlink_mail.c
 msgid "A connection is under way"
 msgstr "连接正在进行"
 
 #: src/winlink_mail.c
+msgid "Listening for P2P calls: Listen off first (MAIL 3:3)"
+msgstr "正在守听 P2P 呼叫: 请先关闭守听 (邮件 3:3)"
+
+#: src/winlink_mail.c
 msgid "Asking Pat that no connection is under way..."
-msgstr ""
+msgstr "正在向 Pat 确认没有连接在进行..."
 
 #: src/winlink_mail.c
 #, c-format
 msgid "#%06x Connect to %s: press again, the radio transmits where it is#"
-msgstr ""
+msgstr "#%06x 连接 %s: 再按一次, 电台在当前频率发射#"
 
 #: src/winlink_mail.c
 #, c-format
@@ -17531,6 +17853,45 @@ msgstr "正在结束连接 (再按\"中止\": 立即结束)"
 #: src/winlink_mail.c
 msgid "Wait, still busy: Abort again"
 msgstr "请稍候, 仍在处理: 再按\"中止\""
+
+#: src/winlink_mail.c
+msgid "Listen off: Pat answers no call"
+msgstr "守听关: Pat 不应答任何呼叫"
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# Winlink is off, On (page 2) starts it"
+msgstr "#%06x 未守听:# Winlink 已关, 按\"开\" (第 2 页) 启动"
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# Pat and the modem are starting, try again in a moment"
+msgstr "#%06x 未守听:# Pat 和调制解调器正在启动, 请稍后重试"
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# a connection is under way"
+msgstr "#%06x 未守听:# 连接正在进行"
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# %s cannot answer calls on this radio"
+msgstr "#%06x 未守听:# %s 在本机上无法应答呼叫"
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# %s does not run, the Winlink page says why"
+msgstr "#%06x 未守听:# %s 未运行, 原因见 Winlink 页面"
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# no callsign, set it on the Winlink page"
+msgstr "#%06x 未守听:# 无呼号, 请在 Winlink 页面设置"
+
+#: src/winlink_mail.c
+#, c-format
+msgid "#%06x Not listening:# %s"
+msgstr "#%06x 未守听:# %s"
 
 #: src/wr12.c
 msgid "ERROR"
@@ -17605,6 +17966,15 @@ msgstr "自动同步"
 #. not in the list: a line or a word of a longer text
 msgid "SETTINGS"
 msgstr "设置"
+
+#~ msgid "Enter: read - N: new - C: connect - B: next box"
+#~ msgstr "Enter: 阅读 - N: 新建 - C: 连接 - B: 下一个邮箱"
+
+#~ msgid "(MAIL 1:2)"
+#~ msgstr "(邮件 1:2)"
+
+#~ msgid "(MAIL 2:2)"
+#~ msgstr "(邮件 2:2)"
 
 #~ msgid "heard you (%s)"
 #~ msgstr "听到你 (%s)"
