@@ -601,8 +601,8 @@ minute marker and ntpd's own word, JS8's board of stations (red for a minute
 after a message, or until selected; a heartbeat's answer neither red nor new; AUTO going idle while the list
 follows its new rows), its lane over the waterfall and its conversations with their
 way back, FT8's tiles (red for a minute or until selected, a station that called first and shown for 3 minutes), the calls over its waterfall, its list by slot with the
-CQs standing out and its buttons by task, and the browser's Apps pages, which
-open their app on the radio:
+CQs standing out and its buttons by task, a Bluetooth headset's mic on the air through a USB dongle with the
+side PTT key, and the browser's Apps pages, which open their app on the radio:
 FT8, JS8 with its chat and WeFax, their waterfalls, maps, flags and countries; Chris Lawson (cjlawson02) the spectrum's dB without powf and log10f,
 the paddle keyer's start after the settings, the 3D waterfall drawn on a
 thread of its own and its picture without planes drawn in columns and turned
