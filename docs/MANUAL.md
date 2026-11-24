@@ -2022,6 +2022,27 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 
   No callsign set: nothing is shown (Black Metal and Total Black: the
   locator alone).
+- Frequency (14.074.000 by default, from v0.3.14; issue #344): how the
+  main screen writes a frequency. 14.074.000 has a point after the MHz and
+  after the kHz, as before; 14.074000 is one decimal number in MHz, as
+  logging programs, spotting sites and band plans write it. It changes at
+  once:
+  - the frequency in the frequency strip, both frequencies of a split, and
+    in Black Metal and Total Black the big frequency with its smaller 10 Hz
+    digits (14.074 with 00 after it) and the other VFO at the top right;
+  - the line under the digit the tuning step changes stays under that same
+    digit;
+  - the tag over the full-screen waterfall, the big frequency in the middle
+    of the screen (the Freq popup of Popups Freq/Info/TX), the line over the
+    TX meters, the walkie screen, and Amber Trey's two displays (one point,
+    after the MHz);
+  - the VFO's own line in the cluster column, the DX Cluster window and the
+    frequency lists.
+
+  Not changed: the frequencies an app or a list writes for something other
+  than the VFO (channels, spots, the Field Ops and SWR scan lines, Winlink),
+  the frequency scale under the spectrum (kHz only), and the spoken
+  frequency.
 - CW tune and WPM (Spectrum by default, from v0.3.14; issue #308): where
   the CW Tuner's bars and the decoder's speed are in CW and CW-R. Spectrum
   keeps them over the spectrum or the waterfall, as before. Frequency strip
@@ -7675,7 +7696,7 @@ them.
 | Backlight | Brightness, Brightness when idle (greyed with Idle after Off), Idle after (Off, 5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver); Panel stripes fix (see [Panel stripes fix](#panel-stripes-fix)) |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX ranges (Ham bands, South Korea, Own list), TX outside ham bands (Settings > TX Cal), and the own list as a text field: Save writes `tx_ranges.conf` and the radio reads it at once, the ranges it took and a line it could not read said under it (see [Amateur bands only](#amateur-bands-only)) |
-| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom, Tuning steps from, Tuning steps to (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see [Display tab](#display-tab)), CW tune and WPM (Spectrum, Frequency strip; see [CW decoder](#cw-decoder)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
+| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom, Tuning steps from, Tuning steps to (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Callsign (see [Display tab](#display-tab)), Frequency (14.074.000, 14.074000; see [Display tab](#display-tab)), CW tune and WPM (Spectrum, Frequency strip; see [CW decoder](#cw-decoder)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate

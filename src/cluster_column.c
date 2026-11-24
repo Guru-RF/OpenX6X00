@@ -3,6 +3,7 @@
  */
 
 #include "cluster_column.h"
+#include "freq_strip.h"
 
 #include "cluster/client.h"
 #include "cfg/cfg_api.h"
@@ -233,7 +234,7 @@ static void redraw(void) {
         } else if (idx == m) {
             char buf[32];
 
-            snprintf(buf, sizeof buf, "%d.%03d.%02d", vfo / 1000000, (vfo / 1000) % 1000, (vfo % 1000) / 10);
+            snprintf(buf, sizeof buf, "%d.%03d%s%02d", vfo / 1000000, (vfo / 1000) % 1000, freq_strip_dot(), (vfo % 1000) / 10);
             lv_label_set_text(r->freq, buf);
             lv_obj_set_style_text_font(r->freq, NF(22), 0);     /* the row may have had a 2 m spot's */
             lv_obj_set_style_pad_top(r->freq, 0, 0);

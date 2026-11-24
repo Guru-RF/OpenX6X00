@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include <string.h>
 
-/* The character of text ("%i.%03i.%03i", the first frequency of a split) that a tuning step
+/* The character of text ("14.074.000" or "14.074000", #344; the first frequency of a split) that a tuning step
  * changes, -1 if none; *big when the step is 2-9 of that digit (a full mark), 1 a half one.
  * The digit and mark size as Dyuldin's upstream freq_info.cpp fg_freq_post_draw_event_cb() */
 int freq_strip_step_char(const char *text, int32_t step, bool *big) {
@@ -27,7 +27,13 @@ int freq_strip_step_char(const char *text, int32_t step, bool *big) {
     }
     *big = step > 1;
 
-    int pos = (int)strcspn(text, " ") - 1 - digit - digit / 3;   /* a dot every 3 digits */
+    int pos = (int)strcspn(text, " ") - 1;   /* the Hz units */
+
+    for (; digit > 0 && pos > 0; digit--) {  /* that many digits to the left, over the dots: one or two of them */
+        pos--;
+        if (text[pos] == '.') pos--;
+    }
+    if (digit) return -1;
 
     return pos >= 0 && text[pos] >= '0' && text[pos] <= '9' ? pos : -1;
 }
@@ -95,6 +101,12 @@ static char      note[64];
 static int32_t   note_freq;
 static int32_t   tx_offset = -1;
 
+/* The point between the kHz and the Hz of a frequency on the main screen: Settings > Display > MAIN SCREEN >
+ * Frequency, "14.074.000" (the default) or "14.074000" (#344) */
+const char *freq_strip_dot(void) {
+    return param_i_get(cfg_freq_one_dot) ? "" : ".";
+}
+
 /* The step marker, under the digit (in the label's own box, so it is redrawn with the text) */
 static void step_mark_draw_cb(lv_event_t *e) {
     lv_obj_t   *label = lv_event_get_target(e);
@@ -102,7 +114,7 @@ static void step_mark_draw_cb(lv_event_t *e) {
     char        full[48];
     bool        big;
 
-    if (theme_shape.deck) {   /* "14.100" and ".00": the digit is in one of them, the units are not shown */
+    if (theme_shape.deck) {   /* "14.100" and ".00" (or "00"): the digit is in one of them, the units are not shown */
         snprintf(full, sizeof(full), "%s%s0", text, lv_label_get_text(freq_small));
         text = full;
     }
@@ -457,8 +469,9 @@ static void call_cb(Subject *subj, void *user_data) {
 static void update_cb(Subject *subj, void *user_data) {
     (void)subj;
     (void)user_data;
-    uint16_t mhz, khz, hz;
-    int32_t  f = cparam_i_get(cfg_fg_freq);
+    uint16_t    mhz, khz, hz;
+    int32_t     f = cparam_i_get(cfg_fg_freq);
+    const char *dot = freq_strip_dot();
 
     bc_lookup(f);
 
@@ -474,21 +487,21 @@ static void update_cb(Subject *subj, void *user_data) {
         if (shift) snprintf(tail, sizeof(tail), "  #%06x %s#", theme_hex(blocked ? TC_err : TC_info), shift);
         split_freq(cparam_i_get(cfg_bg_freq), &mhz2, &khz2, &hz2);
         lv_label_set_text_fmt(freq_label, "%i.%03i", mhz, khz);
-        lv_label_set_text_fmt(freq_small, ".%02i", hz / 10);
-        lv_label_set_text_fmt(other_label, "#%06x %s#  #%06x %i.%03i.%02i#%s", theme_hex(TC_text), b ? "A" : "B",
-                              theme_hex(blocked ? TC_err : TC_text_dim), mhz2, khz2, hz2 / 10, tail);
+        lv_label_set_text_fmt(freq_small, "%s%02i", dot, hz / 10);
+        lv_label_set_text_fmt(other_label, "#%06x %s#  #%06x %i.%03i%s%02i#%s", theme_hex(TC_text), b ? "A" : "B",
+                              theme_hex(blocked ? TC_err : TC_text_dim), mhz2, khz2, dot, hz2 / 10, tail);
         lv_label_set_text(vfo_badge, b ? "B" : "A");
         lv_label_set_text_fmt(band_label, "#%06x %s#", theme_hex(TC_accent), app);   /* the open app only */
     } else if (param_i_get(cfg_band_split)) {
         uint16_t mhz2, khz2, hz2;
         split_freq(cparam_i_get(cfg_bg_freq), &mhz2, &khz2, &hz2);
         if (theme_shape.mono) lv_obj_set_style_text_font(freq_label, &sony_36, 0);   /* both fit, 23 cells */
-        lv_label_set_text_fmt(freq_label, "%i.%03i.%03i / %i.%03i.%03i", mhz, khz, hz, mhz2, khz2, hz2);
+        lv_label_set_text_fmt(freq_label, "%i.%03i%s%03i / %i.%03i%s%03i", mhz, khz, dot, hz, mhz2, khz2, dot, hz2);
     } else {
         extern const lv_font_t pixel_freq_40;
 
         if (theme_shape.mono) lv_obj_set_style_text_font(freq_label, &pixel_freq_40, 0);
-        lv_label_set_text_fmt(freq_label, "%i.%03i.%03i", mhz, khz, hz);
+        lv_label_set_text_fmt(freq_label, "%i.%03i%s%03i", mhz, khz, dot, hz);
     }
     /* An open app: the band (a broadcast has nothing to do with the digital apps) */
     const char *band = note[0] && f == note_freq ? note : bc[0] && !app[0] ? bc : cluster_band_name(cluster_band_of(f));
@@ -761,6 +774,7 @@ lv_obj_t *freq_strip_init(lv_obj_t *parent) {
     subject_subscribe_delayed((Subject *)cfg_tx_ranges_read, update_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_cur_mode, update_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_broadcast_name, bc_setting_cb, NULL);
+    subject_subscribe_delayed((Subject *)cfg_freq_one_dot, update_cb, NULL);        /* the second point (#344) */
     subject_subscribe_delayed((Subject *)cfg_mode_freq_step, step_change_cb, NULL);
     lv_obj_add_event_cb(freq_label, step_mark_draw_cb, LV_EVENT_DRAW_POST, NULL);
     lock_create(right);

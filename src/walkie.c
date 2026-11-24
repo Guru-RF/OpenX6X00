@@ -9,6 +9,7 @@
  */
 
 #include "walkie.h"
+#include "freq_strip.h"
 #include "voice.h"
 #include "board.h"
 
@@ -490,7 +491,7 @@ static void update_cb(lv_timer_t *t) {
     set_text(chan_label, buf);
 
     split_freq(cparam_i_get(cfg_fg_freq), &mhz, &khz, &hz);
-    snprintf(buf, sizeof(buf), "%i.%03i.%03i", mhz, khz, hz);
+    snprintf(buf, sizeof(buf), "%i.%03i%s%03i", mhz, khz, freq_strip_dot(), hz);
     freq_set(buf);
 
     /* No repeater offset or tone in this firmware: split is the TX on the other VFO. LOCK: the user's frequency
@@ -499,7 +500,8 @@ static void update_cb(lv_timer_t *t) {
 
     if (param_i_get(cfg_band_split)) {
         split_freq(cparam_i_get(cfg_bg_freq), &mhz, &khz, &hz);
-        snprintf(buf, sizeof(buf), "%s - SPLIT %i.%03i.%03i%s", info_params_mode_label_get(), mhz, khz, hz, lock);
+        snprintf(buf, sizeof(buf), "%s - SPLIT %i.%03i%s%03i%s", info_params_mode_label_get(), mhz, khz, freq_strip_dot(),
+                 hz, lock);
     } else {
         snprintf(buf, sizeof(buf), "%s%s", info_params_mode_label_get(), lock);
     }

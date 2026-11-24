@@ -7,6 +7,7 @@
  */
 
 #include "dialog_cluster.h"
+#include "freq_strip.h"
 
 #include "cluster/client.h"
 #include "cluster/spots.h"
@@ -468,9 +469,9 @@ static void update_header(void) {
     int32_t vfo = cparam_i_get(cfg_fg_freq);
     lv_label_set_text_fmt(head_left, "CLUSTER #%06x %s# - %s", theme_hex(TC_text), server,
                           params.callsign.x[0] ? params.callsign.x : "no callsign");
-    lv_label_set_text_fmt(head_mid, "#%06x %s# - VFO #%06x %d.%03d.%02d#", theme_hex(TC_text),
+    lv_label_set_text_fmt(head_mid, "#%06x %s# - VFO #%06x %d.%03d%s%02d#", theme_hex(TC_text),
                           showing_all() ? "All" : cluster_band_name(vfo_band()), theme_hex(TC_text), vfo / 1000000,
-                          (vfo / 1000) % 1000, (vfo % 1000) / 10);
+                          (vfo / 1000) % 1000, freq_strip_dot(), (vfo % 1000) / 10);
     bool conf_filtered = flt && (flt->modes != CLUSTER_FM_ALL || flt->max_age || flt->skip[0] || flt->spotter_dxcc[0]);
     if (view_mode || conf_filtered) {
         static const char *const names[] = {"Filtered", "CW only", "SSB only", "", "DIG only"};
@@ -676,7 +677,8 @@ static void table_draw_end_cb(lv_event_t *e) {
         lv_area_t area = *dsc->draw_area;
         area.y2        = area.y1 + 1;
         lv_draw_rect(dsc->draw_ctx, &line, &area);
-        snprintf(text, sizeof(text), "> %d.%03d.%02d  VFO", vfo / 1000000, (vfo / 1000) % 1000, (vfo % 1000) / 10);
+        snprintf(text, sizeof(text), "> %d.%03d%s%02d  VFO", vfo / 1000000, (vfo / 1000) % 1000, freq_strip_dot(),
+                 (vfo % 1000) / 10);
         draw_text(dsc, FONT_MAIN, 8, WIDTH - 8, lv_color_hex(COLOR_VFO), LV_TEXT_ALIGN_LEFT, text);
         return;
     }

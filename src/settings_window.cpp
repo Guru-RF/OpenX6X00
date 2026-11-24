@@ -4737,6 +4737,8 @@ static void make_display_page() {
     row = make_param_choice(row, "Power display", " % + time \n Volts \n Alternate \n % + V ", cfg_sm.p_power_display);
     /* The callsign of General > STATION small on the main screen (main_call.h) and on the boot logo (#292) */
     row = make_param_switch(row, "Callsign", cfg_sm.p_callsign_show);
+    /* The frequency on the main screen with a point after the kHz too, or as one decimal number (#344) */
+    row = make_param_choice(row, "Frequency", " 14.074.000 \n 14.074000 ", cfg_sm.p_freq_one_dot);
     /* In CW the CW Tuner's bars and the decoder's WPM over the spectrum, or in the frequency strip between the band
      * and the frequency (freq_strip.c, #308). Four columns: "Frequency strip" ran over the arrow at three */
     wl_row_label(row, "CW tune and WPM");

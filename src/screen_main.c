@@ -2032,7 +2032,7 @@ static void on_freq_change(Subject *subj, void *user_data) {
     }
     split_freq(shown_freq(), &mhz, &khz, &hz);
     if (mhz < 100) {
-        msg_tiny_set_text_fmt("%i.%03i.%03i", mhz, khz, hz);
+        msg_tiny_set_text_fmt("%i.%03i%s%03i", mhz, khz, freq_strip_dot(), hz);
     } else {
         msg_tiny_set_text_fmt("%i.%03i", mhz, khz);    /* VHF and up: no Hz */
     }
@@ -2200,7 +2200,8 @@ static void wf_tag_update(void) {
         return;
     }
     split_freq(shown_freq(), &mhz, &khz, &hz);
-    lv_label_set_text_fmt(wf_tag, "%s%i.%03i.%03i %s", on_air ? "TX " : "", mhz, khz, hz, info_params_mode_label_get());
+    lv_label_set_text_fmt(wf_tag, "%s%i.%03i%s%03i %s", on_air ? "TX " : "", mhz, khz, freq_strip_dot(), hz,
+                          info_params_mode_label_get());
     lv_obj_set_style_bg_color(wf_tag, on_air ? TC(tx_bg) : TC(chip), 0);
     lv_obj_set_style_border_color(wf_tag, on_air ? TC(tx) : TC(bar_border), 0);
     lv_obj_set_style_border_width(wf_tag_box, on_air ? 4 : 0, 0);
@@ -2414,6 +2415,7 @@ static void build(void) {
     subject_subscribe_delayed((Subject*)cfg_bg_freq, on_wf_tag_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_band_split, on_wf_tag_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_cur_mode, on_wf_tag_change, NULL);
+    subject_subscribe_delayed((Subject*)cfg_freq_one_dot, on_wf_tag_change, NULL);     /* 14.074000 (#344) */
 
     /* The order counts: these run in it when several change at once */
     subject_subscribe_delayed((Subject*)freq_lock, on_freq_change, NULL);
