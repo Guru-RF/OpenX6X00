@@ -141,7 +141,8 @@ The authoritative list, with the value of each built-in theme, is
   `tune_good`, `bp_cw`, `bp_dig`, `bp_ssb`, `bp_bcn`, `bp_out`, `bp_text`, `finder_band`, `finder_cursor`
 - Categories: `pill_hp`, `pill_cat`, `pill_cat_text`, `pill_kbd`, `pill_kbd_text` (Bluetooth devices), `age_mid`,
   `age_old` (cluster spots), `row_alert`, `row_alert_text`, `row_heard`, `row_tx`, `row_to_me`, `row_cq`,
-  `row_group`, `row_sel_bar` (JS8), `ft8_cq`, `ft8_cq_worked`, `ft8_cq_same`, `ft8_to_me`, `ft8_tx` (FT8)
+  `row_group`, `row_sel_bar` (JS8), `ft8_cq`, `ft8_cq_worked`, `ft8_cq_same`, `ft8_to_me`, `ft8_tx` (FT8; the three
+  `ft8_cq` ones are the CQ rows' green with FT8's CQ rows: Filled)
 - Screensaver: `saver_bg` (its ground, black in every built-in theme), `saver` (the Matrix rain's trail, fading into
   the ground at its end), `saver_head` (the head of each column)
 

@@ -440,6 +440,10 @@ class SettingsManager {
     /* "For you": the callers pinned under the list (off: the list only) */
     Parameter<int32_t> p_ft8_foryou{"ft8_foryou", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    /* CQ rows (page 5, #359): 0 Edge, F4OLI's plain CQ rows with a green edge (the default since v0.3.13); 1 Filled,
+     * the green CQ rows of v0.3.12 (ft8/row_look.h) */
+    Parameter<int32_t> p_ft8_cq_rows{"ft8_cq_rows", 0, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     /* Auto Sync (Settings > GPS / Clock): the clock set from the decodes' DT when neither NTP nor the GPS keeps it (ft8/time_sync.h);
      * off by default */
     Parameter<int32_t> p_ft8_auto_sync{"ft8_auto_sync", false, 0, 1,
