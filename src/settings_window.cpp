@@ -867,6 +867,7 @@ static const key_action_t front_actions[] = {
     {" RX recorder on/off ", ACTION_RECORDER},
     {" Screen rec on/off ", ACTION_SCREEN_REC},
     {" Mute ", ACTION_MUTE},
+    {" Charger Off/On/Shadow ", ACTION_CHARGER},    /* General > CONTROLS > Charger to its next state (#276) */
     {" Frequency lock on/off ", ACTION_FREQ_LOCK},
     {" Speech mode ", ACTION_VOICE_MODE},
     {" Step up ", ACTION_STEP_UP},
@@ -922,6 +923,7 @@ static const key_action_t mic_actions[] = {
     {" RX recorder on/off ", ACTION_RECORDER},
     {" Screen rec on/off ", ACTION_SCREEN_REC},
     {" Mute ", ACTION_MUTE},
+    {" Charger Off/On/Shadow ", ACTION_CHARGER},
     {" Step up ", ACTION_STEP_UP},
     {" Step down ", ACTION_STEP_DOWN},
     {" Frequency lock on/off ", ACTION_FREQ_LOCK},

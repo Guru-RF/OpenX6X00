@@ -49,6 +49,7 @@
 #include "freq_entry.h"
 #include "cw_messages.h"
 #include "cw_encoder.h"
+#include "charger_step.h"
 #include "dial_lock.h"
 #include "dialog_cw_kbd.h"
 #include "winlink_mail.h"
@@ -550,6 +551,20 @@ static void say_state(const char *what, const char *state) {
     msg_update_text_fmt("#%06x %s: %s", theme_hex(TC_text), what, state);
 }
 
+/* Settings > General > CONTROLS > Charger to its next state, Off, On, Shadow and round, as that row does it: the
+ * setting, and the base told at once (charger_step.h, #276) */
+_Static_assert(ACTION_CHARGER == 24, "the actions' values are in users' settings: appended, never renumbered");
+_Static_assert(RADIO_CHARGER_OFF == CHARGER_STEP_OFF && RADIO_CHARGER_ON == CHARGER_STEP_ON &&
+               RADIO_CHARGER_SHADOW == CHARGER_STEP_SHADOW, "charger_step.h steps radio_charger_t's states");
+
+static void charger_step(void) {
+    int next = charger_step_next(params.charger.x);
+
+    params_uint8_set(&params.charger, next);
+    radio_set_charger(charger_step_charges(next));
+    say_state("Charger", charger_step_name(next));
+}
+
 static bool toggle_atu(void) {
     bool on = !param_i_get(cfg_atu_enabled);
 
@@ -809,6 +824,7 @@ void main_screen_action(press_action_t action) {
         case ACTION_ATU_TUNE:       radio_start_atu(); break;   /* as a long press of the ATU key */
         case ACTION_EXT_TUNE:       ext_tune_toggle(); break;   /* an external tuner's: started, or stopped */
         case ACTION_FREQ_LOCK:      say_lock(toggle_freq_lock()); break;
+        case ACTION_CHARGER:        charger_step(); break;
         case ACTION_VOICE_MODE:     voice_change_mode(); break;
 
         case ACTION_NR_TOGGLE:      say_state("NR", toggle_param(cfg_nr) ? "On" : "Off"); break;
