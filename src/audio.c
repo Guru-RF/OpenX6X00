@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <math.h>
+#include <stdatomic.h>
 
 #include <pulse/pulseaudio.h>
 #include <pulse/rtclock.h>
@@ -416,6 +417,123 @@ void audio_play_lowlat_end(void) {
     pa_stream_unref(bt_stm);
     pa_threaded_mainloop_unlock(mloop);
     bt_stm = NULL;
+}
+
+/* A headset's mic on the air (the side PTT key with a headset hands-free on a USB dongle, screen_main.c; from
+ * OlivLoze's fork, F4OLI): recorded from its source and written into the codec as it comes, both streams driven by the
+ * mainloop (mic_read_cb), with as little queued as the TCI's voice (audio_play_lowlat_begin). The base sends the
+ * codec's audio while the modem is keyed. One at a time */
+#define MIC_PIECE   32768   /* bytes a write at most: audio_gain_db counts its samples in 16 bits */
+
+static pa_stream    *mic_rec;
+static pa_stream    *mic_play;
+static atomic_bool   mic_lost;      /* the headset went away under it: the PTT key lets go (screen_main.c) */
+
+static void mic_read_cb(pa_stream *s, size_t nbytes, void *udata) {
+    const void *buf = NULL;
+    void       *out = NULL;
+    size_t      n;
+
+    if (pa_stream_peek(s, &buf, &nbytes) < 0 || nbytes == 0) {
+        return;
+    }
+    n = LV_MIN(LV_MIN(mic_play ? pa_stream_writable_size(mic_play) : 0, nbytes), MIC_PIECE) & ~(size_t)1;
+    /* A hole (no buffer) or no room: dropped, the voice stays on time. Settings > Bluetooth > Mic gain read at each
+     * block: it changes on the air */
+    if (buf && n && pa_stream_begin_write(mic_play, &out, &n) == 0 && out) {
+        n &= ~(size_t)1;
+        audio_gain_db((int16_t *)buf, n / 2, param_i_get(cfg_bt_mic_gain), out);
+        pa_stream_write(mic_play, out, n, NULL, 0, PA_SEEK_RELATIVE);
+    }
+    pa_stream_drop(s);
+}
+
+static void mic_state_cb(pa_stream *s, void *userdata) {
+    pa_stream_state_t st = pa_stream_get_state(s);
+
+    if (st == PA_STREAM_FAILED || st == PA_STREAM_TERMINATED) {
+        atomic_store(&mic_lost, true);
+    }
+    pa_threaded_mainloop_signal(mloop, 0);
+}
+
+/* With the mainloop locked */
+static void mic_close(void) {
+    if (mic_rec) {
+        pa_stream_set_read_callback(mic_rec, NULL, NULL);
+        pa_stream_set_state_callback(mic_rec, NULL, NULL);
+        pa_stream_disconnect(mic_rec);
+        pa_stream_unref(mic_rec);
+        mic_rec = NULL;
+    }
+    if (mic_play) {
+        pa_stream_disconnect(mic_play);
+        pa_stream_unref(mic_play);
+        mic_play = NULL;
+    }
+}
+
+/* The record stream on the headset's source, ready, as stream_open readies a playback: its wait has an end too.
+ * With the mainloop locked */
+static bool mic_rec_open(const char *source) {
+    pa_sample_spec    spec = { .format = PA_SAMPLE_S16NE, .rate = AUDIO_PLAY_RATE, .channels = 1 };
+    pa_buffer_attr    attr;
+    pa_stream_state_t st = PA_STREAM_FAILED;
+    bool              late = false;
+    pa_time_event     *limit;
+
+    memset(&attr, 0xff, sizeof(attr));
+    attr.fragsize = pa_usec_to_bytes(10 * PA_USEC_PER_MSEC, &spec);
+    mic_rec = pa_stream_new(ctx, "X6100 GUI Headset mic", &spec, NULL);
+    pa_stream_set_state_callback(mic_rec, mic_state_cb, NULL);
+    pa_stream_set_read_callback(mic_rec, mic_read_cb, NULL);
+    limit = pa_context_rttime_new(ctx, pa_rtclock_now() + STREAM_OPEN_LIMIT_US, stream_open_late, &late);
+    /* DONT_MOVE: the headset gone, the stream ends, never another source on the air */
+    if (pa_stream_connect_record(mic_rec, source, &attr, PA_STREAM_ADJUST_LATENCY | PA_STREAM_DONT_MOVE) == 0) {
+        while ((st = pa_stream_get_state(mic_rec)) == PA_STREAM_CREATING && !late) {
+            pa_threaded_mainloop_wait(mloop);
+        }
+    }
+    if (limit) {
+        mlapi->time_free(limit);
+    }
+    if (st != PA_STREAM_READY) {
+        LV_LOG_ERROR("Headset mic %s: %s", source, late ? "not ready in time" : "failed");
+    }
+    return st == PA_STREAM_READY;
+}
+
+bool audio_mic_bt_begin(const char *source) {
+    pa_sample_spec spec = { .format = PA_SAMPLE_S16NE, .rate = AUDIO_PLAY_RATE, .channels = 1 };
+    pa_buffer_attr attr;
+    bool           ok = false;
+
+    memset(&attr, 0xff, sizeof(attr));
+    attr.tlength = pa_usec_to_bytes(100 * PA_USEC_PER_MSEC, &spec);
+    attr.prebuf  = pa_usec_to_bytes(60 * PA_USEC_PER_MSEC, &spec);
+    attr.minreq  = pa_usec_to_bytes(10 * PA_USEC_PER_MSEC, &spec);
+
+    pa_threaded_mainloop_lock(mloop);
+    if (!mic_rec && !mic_play) {
+        atomic_store(&mic_lost, false);
+        mic_play = stream_open("X6100 GUI Headset mic", play_device, &attr);
+        ok = mic_play && mic_rec_open(source);
+        if (!ok) {
+            mic_close();
+        }
+    }
+    pa_threaded_mainloop_unlock(mloop);
+    return ok;
+}
+
+void audio_mic_bt_end(void) {
+    pa_threaded_mainloop_lock(mloop);
+    mic_close();
+    pa_threaded_mainloop_unlock(mloop);
+}
+
+bool audio_mic_bt_lost(void) {
+    return atomic_load(&mic_lost);
 }
 
 /* audio_play without waiting: writes what fits and drops the rest, false when nothing fitted.

@@ -1563,6 +1563,9 @@ static struct {
     lv_obj_t             *rx;
     lv_obj_t             *vol;
     lv_obj_t             *mute;
+    lv_obj_t             *dongle_note;  /* USB dongle: in use or not (bt-dongle) */
+    lv_obj_t             *mic_pill;     /* a headset's mic, hands-free on the dongle (btaudio-ctl) */
+    lv_obj_t             *mic;
     wl_row_t              rows[BT_ROWS];
     std::vector<bt_dev_t> devs;
     std::vector<bt_dev_t> found;    /* not paired, seen since the last Scan */
@@ -2623,6 +2626,30 @@ static void bt_mute_cb(lv_event_t *e) {
     btaudio_mute_set(lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED));
 }
 
+#if BOARD_BT_DONGLE
+/* USB dongle (from OlivLoze's fork, F4OLI): a USB Bluetooth dongle in place of the radio's own, on which a headset's
+ * mic goes on the air with the side PTT key. btcat-ctl keeps it (BTCAT_DONGLE) and hands over: bt-dongle lets the
+ * radio's own go for a dongle plugged in, or takes it back */
+static void bt_dongle_cb(lv_event_t *e) {
+    bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+
+    bt_dev_dongle_set(on);
+    btcat_run("dongle", on);
+    bt_dev_refresh();
+}
+
+static uint8_t make_bt_dongle(uint8_t row) {
+    wl_row_label(row, "USB dongle");
+    bt_switch_cell(row, 1, bt_dev_dongle_get(), bt_dongle_cb);
+    bt.dongle_note = wl_note(row);
+    return row + 1;
+}
+
+/* The headset mic's level on the air, read by audio.c at each block: it changes while on the air, and can be set
+ * before a headset is there */
+static param_slider_t bt_mic_gain_slider = {&cfg_sm.p_bt_mic_gain, -20, 10, 1, "%i dB"};
+#endif
+
 static uint8_t make_bt_devices(uint8_t row) {
     lv_obj_t *obj;
 
@@ -2655,6 +2682,8 @@ static uint8_t make_bt_devices(uint8_t row) {
     return row + 1;
 }
 
+static lv_obj_t * bt_value_row(uint8_t row, const char *label, lv_obj_t **pill);
+
 static uint8_t make_headphones(uint8_t row) {
     lv_obj_t *obj;
 
@@ -2676,6 +2705,19 @@ static uint8_t make_headphones(uint8_t row) {
     bt.mute = bt_switch_cell(row, 1, btaudio_mute_get(), bt_mute_cb);
     lv_label_set_text(wl_note(row), "AF 0 while connected");
     row++;
+
+#if BOARD_BT_DONGLE
+    bt.mic = bt_value_row(row++, "Mic", &bt.mic_pill);
+
+    wl_row_label(row, "Mic gain");
+    obj = lv_obj_create(grid);
+    lv_obj_set_size(obj, SMALL_6, ROW_H);
+    lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_START, 1, 6, LV_GRID_ALIGN_CENTER, row, 1);
+    lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_align(param_slider(obj, SMALL_4, &bt_mic_gain_slider), LV_ALIGN_LEFT_MID, 10, 0);
+    row++;
+#endif
     return row;
 }
 
@@ -3088,6 +3130,7 @@ static void wl_timer_cb(lv_timer_t *t) {
 static void bt_forget_objs() {
     bt.pill = bt.state = bt.addr = bt.cat = NULL;
     bt.scan_btn = bt.scan_note = bt.rx = bt.vol = bt.mute = NULL;
+    bt.dongle_note = bt.mic_pill = bt.mic = NULL;
 }
 
 static void wl_delete_cb(lv_event_t *e) {
@@ -5408,6 +5451,28 @@ static void bt_adapter_update() {
     }
     lv_label_set_text(bt.state, text);
     lv_label_set_text(bt.addr, a.present && a.addr[0] ? a.addr : "-");
+
+#if BOARD_BT_DONGLE
+    bool dongle = false;
+    bool in_use = bt_adapter_sys(NULL, 0, &dongle) && dongle;
+    char src[128];
+
+    if (bt.dongle_note) {
+        lv_label_set_text(bt.dongle_note, !bt_dev_dongle_get() ? "the radio's own in use" :
+                                          in_use ? "in use, the radio's own off" : "not plugged in");
+    }
+    /* The mic: hands-free on the dongle (btaudio-ctl names it); else why there is none */
+    if (bt.mic && btaudio_mic_source(src, sizeof(src))) {
+        wl_pill(bt.mic_pill, "hands-free", theme_hex(TC_ok_bg), theme_hex(TC_ok));
+        lv_label_set_text(bt.mic, "the side PTT sends it");
+    } else if (bt.mic) {
+        bool hp = access("/tmp/btaudio-hp", F_OK) == 0;
+
+        wl_pill(bt.mic_pill, NULL, 0, 0);
+        lv_label_set_text(bt.mic, !bt_dev_dongle_get() ? "with a USB dongle only" :
+                                  !in_use ? "no dongle plugged in" : hp ? "none: music only (A2DP)" : "no headset");
+    }
+#endif
 }
 
 /* btcat writes the number of its clients while it runs */
@@ -5475,6 +5540,9 @@ static void make_bluetooth_page() {
     row = make_bt_power(row);
     bt.state = bt_value_row(row++, "Status", &bt.pill);
     bt.addr = bt_value_row(row++, "Address", NULL);
+#if BOARD_BT_DONGLE
+    row = make_bt_dongle(row);
+#endif
     row = make_bt_pairing(row);
     card_end(row);
 

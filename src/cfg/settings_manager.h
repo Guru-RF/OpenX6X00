@@ -535,6 +535,11 @@ class SettingsManager {
     // Voice messages (the Field Ops voice CQ too): playback level, dB
     Parameter<int32_t> p_voice_msg_gain{"voice_msg_gain", 0, -20, 10,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // A headset's mic on the air, hands-free on a USB Bluetooth dongle (Settings > Bluetooth > Mic gain), dB: -6, as
+    // OlivLoze's fork has it, where 0 dB drove the ALC to 7.6 on F4OLI's dummy load (24/11/2026). No migration: a
+    // missing row is the default
+    Parameter<int32_t> p_bt_mic_gain{"bt_mic_gain", -6, -20, 10,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // Spoken feedback (voice.cpp, Settings > Voice). The same names in the database as Jimr9's speech builds.
     // Mode: 0 Off (the default: nothing is loaded, nothing runs), 1 only while the screen is dark, 2 Always.

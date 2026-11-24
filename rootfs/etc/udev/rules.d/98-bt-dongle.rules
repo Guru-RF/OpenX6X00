@@ -1,0 +1,5 @@
+# A Bluetooth adapter gone (a USB dongle unplugged): the radio's own Bluetooth back if bt-dongle let it go for the
+# dongle; nothing else without that. The adapter's own device only (DEVTYPE "host"), not its connections
+# (hciN:handle, DEVTYPE "link"). Its add is 99-bluetooth-spp.rules' (bt_start.sh: btcat-setup, which hands over to a
+# dongle). From OlivLoze's fork (F4OLI, 3497515f).
+SUBSYSTEM=="bluetooth", KERNEL=="hci*", ENV{DEVTYPE}=="host", ACTION=="remove", RUN+="/usr/sbin/bt-dongle removed"

@@ -128,6 +128,18 @@
 #define BOARD_BAT_LAST      63
 #endif
 
+/* A USB Bluetooth dongle in place of the radio's own Bluetooth, for a headset's mic on the air (Settings > Bluetooth >
+ * USB dongle: src/bt_pick.h, /usr/sbin/bt-dongle). The radio's own is told from a dongle by its USB host: on the
+ * X6100 its WiFi/BT chip is the adapter on the MUSB host (musb-hdrc in its sysfs path, F4OLI's radio), a dongle in
+ * the USB-A port any other. Nobody has looked where the X6200's chip sits: taken for a dongle, it would carry a
+ * headset on the hands-free profile, whose SCO link on the X6100's chip gives no audio and drops the WiFi. Off there
+ * until a bench X6200 shows it (readlink /sys/class/bluetooth/hci0 with WiFi on); bt-dongle says the same */
+#ifdef BOARD_X6200
+#define BOARD_BT_DONGLE     0
+#else
+#define BOARD_BT_DONGLE     1
+#endif
+
 #ifdef HOST_BUILD
 /* The GUI on a PC (cmake -DHOST_BUILD=ON): an SDL window for the panel, the stub radio, and the
  * front keys and knobs as FIFOs under the data directory that host/host_panel.c writes the PC's

@@ -176,6 +176,7 @@ extern ParamInt *cfg_dmr_tg;         // p_dmr_tg
 extern ParamInt *cfg_field_boot;     // p_field_boot
 extern ParamInt *cfg_field_respot;   // p_field_respot
 extern ParamInt *cfg_voice_msg_gain; // p_voice_msg_gain
+extern ParamInt *cfg_bt_mic_gain;    // p_bt_mic_gain
 // Spoken feedback (voice.cpp)
 extern ParamInt *cfg_voice_mode;     // p_voice_mode: 0 Off, 1 screen dark, 2 Always
 extern ParamInt *cfg_voice_lang;     // p_voice_lang: voice_item[]

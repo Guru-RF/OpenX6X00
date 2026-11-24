@@ -6,21 +6,32 @@ BTCAT_ALIAS="X6100"
 [ -r /etc/default/btcat ] && . /etc/default/btcat
 [ -r /mnt/btcat.conf ] && . /mnt/btcat.conf
 
-for i in $(seq 1 30); do hciconfig hci0 >/dev/null 2>&1 && break; sleep 1; done
+for i in $(seq 1 30); do [ -n "$(/usr/sbin/bt-dongle)" ] && break; sleep 1; done
+# Settings > Bluetooth > USB dongle on and a dongle plugged in: it replaces the radio's own Bluetooth (bt-dongle;
+# OlivLoze's fork, F4OLI). The chip's comes up late (its USB host starts after the dongle's): it is let go once it is
+# there, before bluetoothd hands it out as an adapter. With the chip powered off (WiFi off) that is 30 s waited for
+# nothing; it is let go when it comes, its add runs this again
+if /usr/sbin/bt-dongle dongle; then
+	for i in $(seq 1 30); do
+		for h in /sys/class/bluetooth/hci*; do case "$(readlink "$h")" in *musb-hdrc*) break 2;; esac; done
+		sleep 1
+	done
+	/usr/sbin/bt-dongle apply
+fi
 # The WiFi/BT chip can reset on its own (it drops off USB and comes back): bluetoothd
 # sometimes exits with it and nothing started it again ("Bluetooth service not running")
 pidof bluetoothd >/dev/null || /etc/init.d/S40bluetoothd start
 for i in $(seq 1 15); do [ -S /var/run/sdp ] && break; sleep 1; done
-# bluetoothd registers hci0 a moment after the kernel: before that every
+# bluetoothd registers the adapter a moment after the kernel: before that every
 # bluetoothctl call below fails with "No default controller available"
 for i in $(seq 1 15); do bluetoothctl list 2>/dev/null | grep -q Controller && break; sleep 1; done
 
 bluetoothctl system-alias "$BTCAT_ALIAS"
-# Once per bluetoothd: it is re-run on every new hci0 and each add stacks another record
+# Once per bluetoothd: it is re-run on every new adapter and each add stacks another record
 sdptool browse local 2>/dev/null | grep -q "Serial Port" || sdptool add --channel=1 SP
 
 /usr/sbin/btcat-ctl apply
-# headphones: keep A2DP + RX loopback, connect the "Connect at startup" ones
+# headphones: their profile (A2DP, hands-free on a dongle) + RX loopback, connect the "Connect at startup" ones
 /usr/sbin/btaudio-ctl boot &
 touch /tmp/btcat-setup.done
 echo "btcat-setup done"

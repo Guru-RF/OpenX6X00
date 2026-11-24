@@ -32,6 +32,10 @@ bool btaudio_speaker_muted(void);
 /* Headphone sink name for local playback while the speaker is silenced. */
 bool btaudio_hp_sink(char *buf, size_t size);
 
+/* A headset's mic, hands-free on a USB Bluetooth dongle: its PulseAudio source, for the side PTT key
+ * (screen_main.c). */
+bool btaudio_mic_source(char *buf, size_t size);
+
 #ifdef __cplusplus
 }
 #endif

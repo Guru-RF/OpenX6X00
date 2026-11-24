@@ -41,6 +41,7 @@
 #include "tx_player.h"
 #include "cw.h"
 #include "btaudio.h"
+#include "bt_dev.h"
 #include "pubsub_ids.h"
 #include "scheduler.h"
 #include "front_keys.h"
@@ -2522,7 +2523,7 @@ static void battery_log(const hw_pack_t *p, bool volts_ext) {
         .charging = p->charging,
         .tx_s = tx_s, .tx_w = tx_s > 0 ? tx_ws / tx_s : 0, .bl = backlight_level(),
         .wifi = wifi_get_status() != WIFI_OFF,
-        .bt = access("/sys/class/bluetooth/hci0", F_OK) == 0,
+        .bt = bt_adapter_sys(NULL, 0, NULL),     /* hci0, or a USB dongle that took over */
         .hp = access("/tmp/btaudio-hp", F_OK) == 0,
     };
     bool chg, approx;
