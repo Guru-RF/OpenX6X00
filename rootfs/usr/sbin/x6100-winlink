@@ -28,11 +28,16 @@
 #                               APP > Mail's Modem (#322, #323): the modem chosen, as the web page's Modem and Save
 #                               (Pat restarts, the modem that runs stops, that one starts); without a name, the
 #                               choice. One JSON object on stdout, {"error": ...} and exit status 1 when it is not
-#   x6100-winlink run           the supervisor itself, started by the commands above
+#   x6100-winlink after [back|stay]
+#                               APP > Mail's After call (#336): what the radio does after a connection from its
+#                               gateway list, after_call= in the settings (back when it is not there: to where the
+#                               radio was; stay: left on the gateway's frequency). The GUI's to act on: nothing
+#                               restarts. One JSON object on stdout, {"after_call": ...}, or {"error": ...} and 1
+#   x6100-winlink run          the supervisor itself, started by the commands above
 #
 # The settings are in /mnt/winlink.conf (enabled=0|1, mycall=, locator=, bandwidth=200|500|1000|2000,
 # modem=ardop|mercury|xara, mercury_bandwidth=500|2300|2750, xara_bandwidth=500|2300|2750, vara_licence=0|1,
-# varahf_modem=mercury|xara), written by the web page; an empty callsign or locator is the radio's own (Settings >
+# varahf_modem=mercury|xara, after_call=back|stay), written by the web page; an empty callsign or locator is the radio's own (Settings >
 # General: callsign and QTH). The bandwidth is the widest ARDOP may use: our Pat lowers a gateway list's wider bw= to
 # it (tools/pat, 0003).
 # modem=mercury runs Mercury in place of ardopcf, with its settings in /run/winlink/mercury.ini; modem=xara runs XARA,
@@ -1922,10 +1927,33 @@ def cmd_modem(args):
     return 0
 
 
+AFTER_CALL = ("back", "stay")       # after_call=, back the default (as the web page's and x6100-winlink-mail's)
+
+
+def cmd_after(args):
+    """APP > Mail's After call (#336): `after` says the choice, `after back|stay` makes it, the other settings
+    kept. One JSON object on stdout: {"after_call": "back"|"stay"}, or {"error": ...} and exit status 1"""
+    try:
+        if len(args) > 1 or args and args[0] not in AFTER_CALL:
+            raise Fail("usage: x6100-winlink after [back|stay]")
+        if args:
+            with conf_lock():
+                conf = read_conf()
+                if conf.get("after_call", AFTER_CALL[0]) != args[0]:
+                    write_conf({**conf, "after_call": args[0]})
+        now = read_conf().get("after_call")
+    except (Fail, OSError) as e:
+        print(json.dumps({"error": str(e)}))
+        return 1
+    print(json.dumps({"after_call": now if now in AFTER_CALL else AFTER_CALL[0]}))
+    return 0
+
+
 def main(argv):
     cmds = {"on": cmd_on, "off": cmd_off, "apply": cmd_apply, "set-password": cmd_set_password,
             "clear-password": cmd_clear_password, "status": cmd_status, "logs": cmd_logs, "stop": cmd_stop,
-            "switch": lambda: cmd_switch(argv[1:]), "modem": lambda: cmd_modem(argv[1:]), "run": run}
+            "switch": lambda: cmd_switch(argv[1:]), "modem": lambda: cmd_modem(argv[1:]),
+            "after": lambda: cmd_after(argv[1:]), "run": run}
     if argv and argv[0] not in cmds:
         print("usage: x6100-winlink [" + "|".join(cmds) + "]", file=sys.stderr)
         return 1

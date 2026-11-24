@@ -38,10 +38,15 @@ open, a frequency the radio cannot tune, the radio on the air; the way back to w
 the radio was, also once the modem's last frame is out; and the second press, where
 Pat's QSY finds the radio there and its tune back leaves it there; no first press
 within 4 s of a tune of Pat's (a connection that begins, also from the web mailbox,
-before Pat says it is dialing). It prints `PROTO OK`. What Pat itself says of a
-connection under way is `x6100-winlink-mail busy`, asked by the app before that
-press: in `winlink_test.py` (`MailBusy`, a stand-in for Pat's `/api/status`, and the
-switch lock).
+before Pat says it is dialing); and After call: Stay (#336, `winlink_preset_stay()`):
+the radio left on the gateway's frequency in USB-D, a way back asked later moving
+nothing, also as the modem's last frame is on the air. It prints `PROTO OK`. What Pat
+itself says of a connection under way is `x6100-winlink-mail busy`, asked by the app
+before that press: in `winlink_test.py` (`MailBusy`, a stand-in for Pat's
+`/api/status`, and the switch lock). The After call setting itself (`after_call=` in
+`/mnt/winlink.conf`): `x6100-winlink after` and the helper's status in
+`winlink_test.py` (`AfterCall`, `MailBusy`), the Winlink page's in
+`winlink_web_test.py` (`AfterCall`).
 
 `make modems` runs `winlink_modems_test.py` with the real modems, in a network
 namespace of its own with loopback only (`unshare -rn`), so Pat reaches nothing

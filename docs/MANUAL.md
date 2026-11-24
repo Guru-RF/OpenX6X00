@@ -6290,9 +6290,24 @@ APP Channels, or the V/M key of the hand mic.
   while an app holds the frequency or the mode (FT8, WSPR, SSTV on the
   air...): "Channel not tuned" says which, and the window stays. Up to
   v0.3.11 LOCK refused it too ("dial locked", issue #111).
+- A channel can name an app that opens with it (from v0.3.14; issue #346):
+  RTTY, WeFax, NAVTEX or SSTV, the apps a broadcast is listened to in. The
+  row shows it after the name, in the accent colour (RTTY, WEFAX, NAVTEX,
+  SSTV). A press on such a channel opens the app first and then tunes the
+  channel in it (frequency, mode, AGC, PRE, ATT), so the app is on the
+  channel and not where it was last used. Closing the app brings the radio
+  back to where it was before the recall, as for an app opened by hand, and
+  the app remembers the channel's frequency as its last. The app is set
+  with Edit held (it goes through none, RTTY, WEFAX, NAVTEX, SSTV; saved at
+  once) or with Opens on the Memories page. The channels a new radio starts
+  with whose names begin with RTTY, WEFAX or NAVTEX have theirs; a list from
+  before v0.3.14 is left as it is, its channels only tune until you give
+  them an app. The hand mic's UP and DOWN and the Scanner never open an app:
+  they tune. A channel with no app is recalled as before.
 - Close closes it. Add stores the current VFO (frequency, mode, AGC, PRE, ATT)
-  as a new channel at the end of the list. Delete removes the channel under
-  the cursor. Edit renames it (the keyboard opens, "Channel name").
+  as a new channel at the end of the list, with no app. Delete removes the
+  channel under the cursor. Edit renames it (the keyboard opens, "Channel
+  name"); held, it sets the app.
 - Drag picks the channel up and the button becomes Drop: the MFK carries the
   channel up and down, Drop saves the new order.
 - Hand mic: V/M opens the window (not over WeFax, NavTex, SSTV, JS8, PSK,
@@ -6345,6 +6360,16 @@ APP Channels, or the V/M key of the hand mic.
   those ranges or with a fraction of a hertz), and so do the entry's other
   keys. A changed name or frequency has to fit. Undo of a delete puts the
   entry back as the file had it, at its place.
+- In `channels.json` the app is the entry's `"app"` (`"RTTY"`, `"WEFAX"`,
+  `"NAVTEX"` or `"SSTV"`), the one key that may be missing: no key, no app.
+  An `"app"` that is not a text of 1 to 11 bytes is read as no app and the
+  channel kept; a word this version does not know is kept in the file,
+  shown on the page as "not in this version", and opens nothing. A version
+  before v0.3.14 reads a file with the key as any other and its channels
+  only tune; a change made in that version's CHANNELS window (Add, Delete,
+  Edit, Drop) writes the list without the key, so the apps are gone after
+  it, while that version's Memories page keeps the key. After a Rollback,
+  set them again once back on the newer version.
 - A channel whose name starts with WEFAX also shows in the WeFax app's Freq.
   list ([SSTV, WeFax and NavTex](#sstv-wefax-and-navtex)). Its frequency is
   the dial, 1.5 kHz below the fax station's: 7793.5 kHz for a station on
@@ -7569,7 +7594,7 @@ The menu has General and six groups:
 | | WeFax | the radio's WeFax app: the chart live as it comes in, open and close, RX Auto or Cont, Auto Plan, Save now, Clear, the stations, the last charts (see [WeFax in the browser](#wefax-in-the-browser)) |
 | Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
 | | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies, and your own for PSK, Olivia and JTTY in the place of their built-in ones; a card shows what the band keys of those three step through, with the band plan ([Frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty)); WSPR band hopping: Hop and each band's Off, RX or RX+TX, set live (see [Band hopping](#band-hopping)) |
-| | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)), on the frequencies the radio tunes |
+| | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)), on the frequencies the radio tunes; Opens: the app a channel opens when recalled (RTTY, WeFax, NAVTEX, SSTV) |
 | Operating | Cluster | DX cluster servers, filters and alerts (writes `/mnt/cluster.conf`) |
 | | Field Ops | QRZ Logbook profiles (three callsigns with their API keys, the active one), HOTA key, WWFF key, update the reference lists, download the activation logs |
 | | Wavelog | every logged QSO to your Wavelog: URL, API key, station profile (one, or Automatic by the radio's callsign), connection test, Send now; the live link: Show the radio in Wavelog, Radio name, Tune from Wavelog, the radio's address for Wavelog, Wavelog in the browser (writes `/mnt/field/wavelog.conf`, see [Wavelog](#wavelog) and [live link](#live-link)) |
@@ -7844,6 +7869,9 @@ Setting it up:
      Hz) and VARA HF licence, off by default: tick it only if you hold a
      VARA HF licence of your own. The radio does not check it; off, XARA runs
      VARA's free speed levels.
+   - After a call from the radio: Go back (the default) or Stay on the
+     gateway's frequency, for connections made from APP > Mail's gateway
+     list (see [Mail on the radio](#mail-on-the-radio), After call).
 3. Switch Enabled on. Status says "Running as ON6URE" once Pat and the modem
    run. From then on they start with the radio, also after a new card image.
    The Before you connect card shows the radio as Winlink will use it, once
@@ -8261,7 +8289,17 @@ web mailbox.
   between stays where you put it. After Set freq you can also connect from
   the web mailbox: the radio is then left on the gateway's frequency, where
   Pat found it. The mode stays USB-D, as after any
-  Winlink connection. A gateway with no frequency in Pat's list is called
+  Winlink connection.
+- After call (the list's second button page, CONNECT 2:2; or After a call
+  from the radio on the Winlink page; issue #336) says what the radio does
+  once that connection is over. Go back, the default, is the above. Stay:
+  the radio is left on the gateway's frequency, in USB-D, after the
+  connection, and also when you leave the list or close the app after Set
+  freq without calling; the frequency it was on before is not brought back,
+  the VFO simply stays where the gateway was. The next press on that gateway
+  is a Set freq again, which moves nothing. It is for connections from this
+  list only: one from the web mailbox ends as Pat ends it.
+- A gateway with no frequency in Pat's list is called
   where the radio is: Connect, twice within 5 seconds. Up to v0.3.13 the
   radio changed frequency only as it began to transmit.
 - The Connection page shows Calling or Connected, the progress of each

@@ -262,7 +262,7 @@ def preset_steps(tmp):
         kv, _, why = rest.partition(" why=")
         step[name] = dict(f.split("=", 1) for f in kv.split())
         step[name]["why"] = why
-    check(p.returncode == 0 and len(step) == 19, f"every step ran ({len(step)} lines)")
+    check(p.returncode == 0 and len(step) == 24, f"every step ran ({len(step)} lines)")
 
     def at(name, ok, freq, there, **more):
         s = step.get(name, {})
@@ -295,6 +295,13 @@ def preset_steps(tmp):
     check(at("web", "1", 7101500, "0", why="RPRT 0"),
           "a connection from the web mailbox on that frequency after the first press: the radio is left to it")
     check(at("air-first", "0", 14105000, "0", why="the radio is on the air"), "on the air: no first press")
+    check(at("stay", "1", 7101500, "0", mode="USB-D", keyed=0) and at("stay-back", "1", 7101500, "0", mode="USB-D"),
+          f"After call: Stay (#336): the radio is left on the gateway's 7.101.5 MHz in USB-D, and a way back asked "
+          f"later moves nothing ({step.get('stay')}, {step.get('stay-back')})")
+    check(at("stay-again", "1", 7101500, "1") and at("stay-home", "1", 7101500, "0"),
+          "Stay: a press there is a first one again, and going back from it is to that frequency")
+    check(at("stay-air", "1", 7101500, "0", keyed=0),
+          "Stay as the modem's last frame is on the air: still there once it is over")
 
 
 def main():

@@ -16,6 +16,7 @@
 
 #define CHANNELS_MAX        100
 #define CHANNEL_NAME_MAX    32
+#define CHANNEL_APP_MAX     12
 
 typedef struct {
     char            name[CHANNEL_NAME_MAX];
@@ -24,6 +25,9 @@ typedef struct {
     radio_agc_t     agc;
     bool            pre;
     bool            att;
+    /* The app a recall from the CHANNELS window opens before it tunes (#346): "RTTY", "WEFAX", "NAVTEX" or "SSTV",
+     * "" none. A word this version does not know (a later one's) is kept and written back, and opens nothing */
+    char            app[CHANNEL_APP_MAX];
 } channel_t;
 
 /* All the calls below that write the file return false when that fails, with the list in
@@ -46,7 +50,14 @@ bool channels_add_current(void);                    /* the current settings, no 
 bool channels_add_named(const char *name);
 bool channels_delete(uint16_t i);                   /* the ones after it move up; saved */
 bool channels_set_name(uint16_t i, const char *name);   /* saved */
+bool channels_set_app(uint16_t i, const char *app);     /* saved; "" or NULL: no app */
 bool channels_move(uint16_t i, uint16_t to);        /* memory only: the dialog saves on Drop */
+
+/* The apps a channel may open, as the file's "app" has them: the i-th (NULL past the last), whether this version
+ * knows one, and the one after it going round ("" after the last, the first after "" or an unknown one) */
+const char *channels_app_id(uint8_t i);
+bool channels_app_known(const char *app);
+const char *channels_app_next(const char *app);
 
 /* Mode and AGC as written in the file ("USB-D", "SLOW"), and back */
 const char *channels_mode_name(radio_mode_t mode);

@@ -9,7 +9,9 @@ WEBSERVER=<a webserver/src> tests another web server (make v038: v0.3.8's, which
 
 The GUI's rules for an entry of channels.json (parse_entry in src/channel_list.c) are written out here once more,
 in gui_keeps(), as the radio reads the file: the page has to show what the radio shows, and leave in the file what
-it does not show. The presets are the GUI's own, read from src/channel_list.c.
+it does not show. The presets are the GUI's own, read from src/channel_list.c. A channel's "app" (#346), the app a
+recall on the radio opens: read as the GUI reads it, chosen and taken away on the page, kept in a file an older page
+or a later version wrote, and the presets' own.
 """
 import inspect
 import io
@@ -57,13 +59,16 @@ def gui_presets():
     """The channels a new radio starts with, from src/channel_list.c"""
     with open(os.path.join(TOP, "src", "channel_list.c")) as f:
         block = f.read().split("presets[] = {", 1)[1].split("};", 1)[0]
-    found = re.findall(r'\{\s*"([^"]*)",\s*(\d+),\s*radio_mode_(\w+),\s*radio_agc_(\w+)\s*\}', block)
-    assert len(found) >= 10, "the presets of src/channel_list.c not found"
-    return [ch(n, int(f), MODES[m], a.upper()) for n, f, m, a in found]
+    found = re.findall(r'\{\s*"([^"]*)",\s*(\d+),\s*radio_mode_(\w+),\s*radio_agc_(\w+)'
+                       r'(?:,\s*\.app\s*=\s*"(\w+)")?\s*\}', block)
+    assert len(found) >= 10 and len(found) == block.count("{"), "the presets of src/channel_list.c not found"
+    return [ch(n, int(f), MODES[m], a.upper(), app=app) for n, f, m, a, app in found]
 
 
-def ch(name, freq, mode="USB", agc="AUTO", pre=False, att=False):
-    return {"name": name, "frequency": freq, "mode": mode, "agc": agc, "pre": pre, "att": att}
+def ch(name, freq, mode="USB", agc="AUTO", pre=False, att=False, app=""):
+    """app: the app the channel opens (#346); the key is there only for one that has an app"""
+    c = {"name": name, "frequency": freq, "mode": mode, "agc": agc, "pre": pre, "att": att}
+    return {**c, "app": app} if app else c
 
 
 def first_wins(pairs):
@@ -95,7 +100,9 @@ def gui_keeps(x):
     if not 0 < f <= 0xFFFFFFFF or x.get("mode") not in MODES.values() or x.get("agc") not in AGCS:
         return None
     name = x["name"].encode("utf-8", "surrogateescape")[:31].decode("utf-8", "surrogateescape")
-    return ch(name, int(f), x["mode"], x["agc"], x["pre"], x["att"])
+    # "app": a string of 1 to 11 bytes (CHANNEL_APP_MAX), whatever it says; anything else is no app, the channel kept
+    app = x.get("app") if isinstance(x.get("app"), str) and 0 < len(x["app"].encode()) <= 11 else ""
+    return ch(name, int(f), x["mode"], x["agc"], x["pre"], x["att"], app)
 
 
 # Entries the GUI keeps that v0.3.8's page could not show: above 56 MHz, below 0.1 MHz, names outside its 31
@@ -308,7 +315,7 @@ class Memories(unittest.TestCase):
         for i in (0, 7, len(places) - 1):
             before = meaning(self.read())
             new = ch(f"EDITED {i}", 10_000_000 + i, "AM", "SLOW", True, True)
-            r = self.done(self.put(i, new))
+            r = self.done(self.put(i, {**new, "app": ""}))      # every field of the row, the app taken away too
             self.assertEqual(r["channels"][i], new)
             before[places[i]] = json.dumps(new)
             self.assertEqual(meaning(self.read()), before)
@@ -695,6 +702,114 @@ class Memories(unittest.TestCase):
             self.assertEqual(code, 200)
             self.assertIn(b"const TUNE_MHZ = [0.1, " + top + b"];", page)
             self.assertNotIn(b"max='56'", page)
+
+    # The app a channel opens (#346)
+
+    def test_presets_open_their_app(self):
+        """The GUI's own presets: the RTTY, WEFAX and NAVTEX ones name their app, the others none"""
+        presets = gui_presets()
+        for c in presets:
+            want = next((a for a in ("RTTY", "WEFAX", "NAVTEX") if c["name"].startswith(a + " ")), None)
+            self.assertEqual(c.get("app"), want, c["name"])
+        self.assertEqual(len([c for c in presets if "app" in c]), 14)
+        self.assertEqual({c["app"] for c in presets if "app" in c}, {"RTTY", "WEFAX", "NAVTEX"})
+        self.assertTrue(set(apps.CHANNEL_APPS) >= {"RTTY", "WEFAX", "NAVTEX"})
+
+    def test_app_read_as_the_gui_reads_it(self):
+        """No key: no app, and the answer has no "app" either (a file from before it reads as it did). A word the
+        page does not know, of a later version, is shown as it is; what is no string of 1 to 11 bytes is no app,
+        and the channel stays"""
+        entries = [ch("PLAIN", 7_074_000), ch("RTTY DWD", 4_582_200, "USB-D", app="RTTY"),
+                   ch("LATER", 7_040_000, app="HELL"), {**ch("EMPTY", 7_050_000), "app": ""},
+                   {**ch("NUMBER", 7_060_000), "app": 5}, {**ch("NULL", 7_070_000), "app": None},
+                   {**ch("LONG", 7_080_000), "app": "TWELVE BYTES"}, ch("ELEVEN", 7_090_000, app="ELEVEN BYTE"),
+                   {**ch("NUL", 7_100_000), "app": "RTTY\0more"}, {**ch("LIST", 7_110_000), "app": ["RTTY"]}]
+        self.write(entries)
+        got = self.channels()
+        self.assertEqual([c["name"] for c in got], [e["name"] for e in entries])       # none left out
+        self.assertEqual([c.get("app") for c in got],
+                         [None, "RTTY", "HELL", None, None, None, None, "ELEVEN BYTE", "RTTY", None])
+        self.assertEqual(got[:8], [gui_keeps(e) for e in entries[:8]])
+
+    def test_app_chosen_and_taken_away(self):
+        self.write([ch("DDK2", 4_582_200, "USB-D"), ch("OTHER", 7_074_000)])
+        r = self.done(self.put(0, ch("DDK2", 4_582_200, "USB-D", app="RTTY")))
+        self.assertEqual(r["channels"], [ch("DDK2", 4_582_200, "USB-D", app="RTTY"), ch("OTHER", 7_074_000)])
+        self.assertEqual(json.loads(self.read())["channels"][0]["app"], "RTTY")
+        self.assertNotIn("app", json.loads(self.read())["channels"][1])
+        # another field saved with the app as shown: it stays
+        self.done(self.put(0, {**ch("DDK2 NEW", 4_582_200, "USB-D"), "app": "RTTY"}))
+        self.assertEqual(self.channels()[0], ch("DDK2 NEW", 4_582_200, "USB-D", app="RTTY"))
+        # every app of the list, then none: the key goes from the file
+        for app in apps.CHANNEL_APPS:
+            self.done(self.put(0, {**ch("DDK2 NEW", 4_582_200, "USB-D"), "app": app}))
+            self.assertEqual(self.channels()[0].get("app"), app)
+        self.done(self.put(0, {**ch("DDK2 NEW", 4_582_200, "USB-D"), "app": ""}))
+        self.assertEqual(self.channels()[0], ch("DDK2 NEW", 4_582_200, "USB-D"))
+        self.assertNotIn("app", json.loads(self.read())["channels"][0])
+
+    def test_app_of_a_new_channel(self):
+        self.write([])
+        self.ok("POST", "/api/channels", ch("NAVTEX MF", 518_000, "USB-D", app="NAVTEX"))
+        self.ok("POST", "/api/channels", {**ch("PLAIN", 7_074_000), "app": ""})
+        self.ok("POST", "/api/channels", ch("OLD PAGE", 7_080_000))             # a page from before it: no key
+        self.assertEqual(json.loads(self.read())["channels"],
+                         [ch("NAVTEX MF", 518_000, "USB-D", app="NAVTEX"), ch("PLAIN", 7_074_000),
+                          ch("OLD PAGE", 7_080_000)])
+
+    def test_app_refused(self):
+        self.write([ch("DDK2", 4_582_200, "USB-D")])
+        before = self.read()
+        for bad in ("FT8", "rtty", "RTTY ", 5, None, True, ["RTTY"], "TWELVE BYTES"):
+            for code, r in (self.put(0, {**ch("DDK2", 4_582_200, "USB-D"), "app": bad}),
+                            self.req("POST", "/api/channels", {**ch("NEW", 7_074_000), "app": bad})):
+                self.assertEqual((code, r.get("msg")), (400, "Invalid app: RTTY, WEFAX, NAVTEX, SSTV or none"), bad)
+        self.assertEqual(self.read(), before)
+
+    def test_app_kept_by_a_page_that_does_not_send_it(self):
+        """A page from before the key, still open in a browser: its Save sends no "app" and "was" without one. A
+        channel with no app is changed as before; one with an app is no longer the channel that page showed (409),
+        and nothing is lost"""
+        self.write([ch("PLAIN", 7_074_000), ch("DDK2", 4_582_200, "USB-D", app="RTTY")])
+        self.done(self.put(0, ch("PLAIN 2", 7_074_000)))
+        code, r = self.req("PUT", "/api/channels/1", {**ch("DDK2 X", 4_582_200, "USB-D"),
+                                                      "was": ch("DDK2", 4_582_200, "USB-D")})
+        self.assertEqual(code, 409, r)
+        # the new page, the app left as shown: another field changes and the app stays as the file has it
+        self.done(self.put(1, {**ch("DDK2", 4_582_200, "USB-D", "SLOW"), "app": "RTTY"}))
+        self.assertEqual(self.channels(), [ch("PLAIN 2", 7_074_000), ch("DDK2", 4_582_200, "USB-D", "SLOW", app="RTTY")])
+
+    def test_app_of_a_later_version_kept(self):
+        """An app this page does not know: shown as it is, kept by a Save that leaves it, by a move and by a
+        delete and its undo; taken away or replaced when the page says so"""
+        later = ch("HELL NET", 3_580_000, app="HELL")
+        junk = {**ch("JUNK", 7_030_000), "app": 5}                # no app to the GUI: the page leaves the key alone
+        self.write([later, junk, ch("PLAIN", 7_074_000)])
+        self.done(self.put(0, {**later, "agc": "FAST"}))
+        self.done(self.put(1, {**ch("JUNK", 7_030_000, "CW"), "app": ""}))
+        doc = json.loads(self.read())["channels"]
+        self.assertEqual((doc[0]["app"], doc[0]["agc"], doc[1]["app"], doc[1]["mode"]), ("HELL", "FAST", 5, "CW"))
+        self.done(self.move(0, 1))
+        r = self.done(self.delete(1))
+        self.ok("POST", "/api/channels/restore", r["deleted"])
+        self.assertEqual(self.channels()[1], {**later, "agc": "FAST"})
+        self.done(self.put(1, {**later, "agc": "FAST", "app": "RTTY"}))
+        self.assertEqual(self.channels()[1]["app"], "RTTY")
+
+    def test_app_on_the_page(self):
+        page = self.req("GET", "/memories")[1].decode()
+        self.assertIn('<th>ATT</th><th>Opens</th><th></th></tr>', page)
+        self.assertIn('const APPS = [["", "No app"], ["RTTY", "RTTY"], ["WEFAX", "WeFax"], ["NAVTEX", "NAVTEX"], '
+                      '["SSTV", "SSTV"]];', page)
+        self.assertEqual([a for a in re.findall(r'\["(\w+)", "\w+"\]', page.split("const APPS = ", 1)[1]
+                                                .split(";", 1)[0])], list(apps.CHANNEL_APPS))
+        self.assertIn('d.app = row.find(".app").val();', page)
+
+    def test_mem_slots_take_no_app(self):
+        """A MEM slot has no app: one sent with it is saved as a slot, the key not looked at"""
+        code, r = self.req("PUT", "/api/memories/1", {**ch("", 7_074_000), "app": "RTTY"})
+        self.assertEqual(code, 200, r)
+        self.assertNotIn("app", json.dumps(r))
 
     def test_mem_slots(self):
         """A MEM slot the radio saved on FM broadcast or the airband can be saved on the page too (X6200); the

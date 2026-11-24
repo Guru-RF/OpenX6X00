@@ -86,6 +86,10 @@
     <div class="dp-lbl"><label for="vara_licence"><b>VARA HF licence</b></label><span>Tick only if you hold a VARA HF licence of your own; the radio does not check it. Off: VARA's free speed levels (1 to 4). On: XARA calls as a registered VARA station does, and the link may use every speed level</span></div>
     <div class="dp-ctl"><label class="sw" title="VARA HF licence"><input id="vara_licence" type="checkbox" role="switch" aria-label="VARA HF licence"><i></i></label></div>
   </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="after_call"><b>After a call from the radio</b></label><span>APP → Mail's gateway list puts the radio on the gateway's frequency in USB-D (Set freq) before it calls. Go back: once the connection is over, or the list is left with no call, the radio returns to where it was. Stay: it is left on the gateway's frequency, in USB-D. The same choice as After call on the list's second button page; a connection from Pat's mailbox in the browser always goes back</span></div>
+    <div class="dp-ctl"><select id="after_call"><option value="back">Go back</option><option value="stay">Stay on the gateway's frequency</option></select></div>
+  </div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
     <div class="actions" style="margin-top:0">
       <button type="submit" class="primary">Save</button>
@@ -278,6 +282,7 @@ var render = function(st) {
   $("#mercury_bandwidth").val(String(st.mercury_bandwidth || 2300));
   $("#xara_bandwidth").val(String(st.xara_bandwidth || 2300));
   $("#vara_licence").prop("checked", !!st.vara_licence);
+  $("#after_call").val(st.after_call || "back");
   showModem();
   form.reset();
 }
@@ -325,7 +330,7 @@ $("#conf").on("submit", function(e) {
         bandwidth: parseInt($("#bandwidth").val(), 10), modem_choice: $("#modem").val(),
         mercury_bandwidth: parseInt($("#mercury_bandwidth").val(), 10),
         xara_bandwidth: parseInt($("#xara_bandwidth").val(), 10), vara_licence: $("#vara_licence").prop("checked"),
-        password: $("#password").val()},
+        after_call: $("#after_call").val(), password: $("#password").val()},
        function(r) { render(r); showStatus("#status", r.enabled ? "Saved: Pat restarts with it" : "Saved"); });
 });
 

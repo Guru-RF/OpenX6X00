@@ -1208,6 +1208,13 @@ void winlink_preset_back(bool after_call) {
     preset_back_cb(&hz);
 }
 
+void winlink_preset_stay(void) {
+    if (!preset_hz || atomic_load(&preset_waits))
+        return;
+    LV_LOG_USER("winlink: the radio stays on the gateway's %d Hz", (int)preset_hz);
+    preset_hz = 0;
+}
+
 /* The answer to one line into reply, "" for none. False: the client says goodbye */
 static bool rig_answer(const char *line, char *reply, size_t size) {
     double arg = 0;
