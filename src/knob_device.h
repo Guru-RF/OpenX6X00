@@ -19,6 +19,9 @@ typedef struct {
     uint16_t       left[3];
     uint16_t       right[3];
     uint8_t        state;           /* vol_state_t */
+    bool           mfk_step;        /* the X6200's ring that steps the MFK's control: read by mfk_rings_read() */
+    int32_t        pending;         /* what is still to send of the last read */
+    bool           key_down;        /* the last key sent was down */
     lv_indev_drv_t indev_drv;
     lv_indev_t    *indev;
 } rotary_t;

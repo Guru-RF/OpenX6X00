@@ -896,6 +896,10 @@ static bool knob_emit(const char *name, int n) {
     if (n > 50) n = 50;
     if (n < -50) n = -50;
     ctl_injected();
+    if (fd == dev_mfk && mfk_rings_swapped()) {     /* MFK rings: Swapped (#354): that device steps the control now */
+        mfk_rings_inject(n);
+        return true;
+    }
     for (int i = 0; i < abs(n); i++)
         emit(fd, EV_REL, axis, n > 0 ? dir : -dir);
     return true;

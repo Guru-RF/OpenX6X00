@@ -12,6 +12,7 @@
 
 #include "gui_wake.h"
 #include "knob_device.h"
+#include "mfk_device.h"
 #include "perf_hud.h"
 
 #include "screen_light.h"
@@ -26,22 +27,25 @@
 #include <time.h>
 #include <unistd.h>
 
-/* VOL: what is still to send of the last read, and whether the last key sent was down */
-static int32_t pending;
-static bool    key_down;
-
+/* VOL, and the X6200's ring that steps the MFK's control (mfk_rings.h). What is still to send of the last read and
+ * whether the last key sent was down are each knob's own (rotary_t): as two statics of this file, with both knobs
+ * turned at once the steps left of one went out as the other's keys */
 static void vol_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     rotary_t *knob = drv->user_data;
 
-    if (pending == 0) {
+    if (knob->pending == 0 && !knob->key_down) {
         struct input_event in;
         int32_t            sum = 0;
         bool               turned = false;
 
-        while (read(knob->fd, &in, sizeof(in)) > 0) {
-            if (in.type == EV_REL) {
-                sum += in.value;
-                turned = true;
+        if (knob->mfk_step) {
+            sum = mfk_rings_read(MFK_ROLE_STEP, &turned);
+        } else {
+            while (read(knob->fd, &in, sizeof(in)) > 0) {
+                if (in.type == EV_REL) {
+                    sum += in.value;
+                    turned = true;
+                }
             }
         }
         if (turned) {
@@ -49,22 +53,22 @@ static void vol_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
 
             ctl_local_input();
             if (!woke) {
-                pending                = sum;
+                knob->pending          = sum;
                 data->continue_reading = true;
             }
         }
-    } else if (key_down) {
+    } else if (knob->key_down) {
         data->state            = LV_INDEV_STATE_RELEASED;
         data->continue_reading = true;
     } else {
-        int32_t step = pending > 0 ? 1 : -1;     /* positive counts are turns to the left */
+        int32_t step = knob->pending > 0 ? 1 : -1;     /* positive counts are turns to the left */
 
-        pending -= step;
+        knob->pending -= step;
         data->state            = LV_INDEV_STATE_PRESSED;
         data->key              = step > 0 ? knob->left[knob->state] : knob->right[knob->state];
         data->continue_reading = true;
     }
-    key_down = data->state == LV_INDEV_STATE_PRESSED;
+    knob->key_down = data->state == LV_INDEV_STATE_PRESSED;
 }
 
 rotary_t *rotary_init(char *dev_name) {

@@ -117,6 +117,9 @@ static const struct {
     {"buttons_hide", &cfg_sm.p_buttons_hide, 0, 3},     /* live: screen_main.c follows it */
     {"knob_lines_stay", &cfg_sm.p_knob_lines_stay, 0, 1},   /* live: knob_info.cpp follows it */
     {"knob_press_next", &cfg_sm.p_knob_press_next, 0, 1},   /* live: screen_main.c reads it at each press */
+#ifdef BOARD_X6200
+    {"mfk_rings", &cfg_sm.p_mfk_rings, 0, 1},           /* live: mfk_device.c reads it; the X6100 has one ring, no row */
+#endif
     {"panel_stripes", &cfg_sm.p_panel_stripes, 0, 1},   /* live: panel_stripes.c follows it */
     {"walkie", &cfg_sm.p_walkie, 0, 1},                 /* live: walkie.c follows it */
     {"walkie_wf", &cfg_sm.p_walkie_wf, 0, 1},           /* live: walkie.c looks at it ten times a second (#302) */

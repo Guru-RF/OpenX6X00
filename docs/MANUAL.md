@@ -340,6 +340,16 @@ line, unless Keep knob lines is on).
 - X6200: the MFK has an inner ring. The inner ring chooses the MFK's control,
   the next one or the one before on its list, and the outer ring changes its
   value, with no press. The X6100's MFK has no inner ring: it uses the press.
+- X6200, MFK rings (Settings > Display > INTERFACE, Stock by default; also on
+  the web configurator's Display page): which of the lower knob's two rings
+  is which. Stock, as the maker's firmware: the outer ring is the MFK, it
+  changes the value while the value is lit and chooses the control while the
+  name is lit, and it walks the items of apps, lists, menus and Settings; the
+  inner ring steps the MFK's control on the main screen and does nothing
+  elsewhere. Swapped: the inner ring is the MFK and the outer ring steps the
+  control. It changes at once, without a restart, and the MFK of the Remote
+  and Panel pages stays the MFK in both. The X6100 has no such row
+  (issue #354).
 - A keyboard (USB or Bluetooth) on the main screen: the left and right
   arrows turn the MFK and Enter is its press (while the CW line is open,
   Enter sends it); { and } choose VOL's control, [ and ] turn it (in CW

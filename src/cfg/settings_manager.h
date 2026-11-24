@@ -172,6 +172,11 @@ class SettingsManager {
     // knob_press.h). Off (the default): a press switches between changing the value and choosing the control
     Parameter<int32_t> p_knob_press_next{"knob_press_next", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // MFK rings (Settings > Display > INTERFACE, the X6200 only, live, #354): 0 Stock (the default), the lower knob's
+    // outer ring is the MFK and its inner ring steps the MFK's control; 1 Swapped, the other way round (mfk_rings.h,
+    // mfk_device.c reads it at each read). The X6100's MFK has one ring: no row there, and the value is not looked at
+    Parameter<int32_t> p_mfk_rings{"mfk_rings", 0, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Panel stripes fix (Settings > Display > BACKLIGHT, live, #239): the display engine's gamma table sends 8..31
     // out as 32 in each colour, for panels that stripe in those dark values (panel_stripes.c, tcon_gamma.h). Off
     // (the default): the table off, the colours as they are
