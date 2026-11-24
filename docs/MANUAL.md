@@ -4036,6 +4036,18 @@ Write... (words for them; MSG first puts them in their Inbox) and Close Chat;
 F1, F5 or ESC go back to the board (Heartbeat is on its page 1). The lane and
 the TX line stay above it.
 
+From v0.3.14 the small texts of the board and the conversations are one font
+size larger, and in the theme's colour for secondary text where they were in
+its greyed one (issue #345): a card's country and distance (on a red card in
+the callsign's colour), the line over the waterfall and the last heartbeat at
+the right of the TX line, a conversation's line on its station, the last
+words and the times in the list of stations (in the selected row's own text
+colour), the times beside the messages and the line on the way back. As many
+cards and rows as before; a card's country and distance have the room up to
+its tag, and the rows of the list of stations are as tall as the list lets
+them be. VISION, whose type is larger already, keeps its sizes and takes the
+colours.
+
 The message window (Reply, Send..., Write...): Enter sends. ESC, the MFK
 held (with a keyboard), the on-screen keyboard's keyboard key, or the same
 button again closes it without sending; what you typed is kept ("Not sent:
