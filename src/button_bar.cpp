@@ -19,6 +19,7 @@
 #include "knob_info.h"
 #include "cfg/settings_manager.h"
 #include "cfg/encoder_defaults.h"
+#include "cfg/apps_list.h"
 
 #include <algorithm>
 #include <cstdarg>
@@ -36,6 +37,7 @@ extern "C" {
 #include "control_owner.h"
 #include "screen_light.h"
 #include "rtty_send.h"
+#include "apps_menu.h"
 }
 #include "voice.h"
 
@@ -472,9 +474,31 @@ buttons_group_t buttons_group_dfn = {&page_dfn_1, &page_dfn_2, &page_dfn_3};
 buttons_group_t buttons_group_dfl = {&page_dfl};
 buttons_group_t buttons_group_vm = {&page_mem_1, &page_mem_2};
 
+/* The APP pages as they come, four apps to a page in this order. Settings > Apps hides apps (cfg/apps_list.h, #351):
+ * app_pages_fill() then puts the ones left on the pages in the same order, closed up, on as many pages as they need */
 static const struct {
+    button_data_t *btn;
+    app_id_t       id;
+} app_btns[] = {
+    {&btn_modes, APPID_MODES},       {&btn_cluster, APPID_CLUSTER},       {&btn_swr, APPID_SWRSCAN},
+    {&btn_rec, APPID_RECORDER},      {&btn_settings, APPID_SETTINGS},     {&btn_cwt, APPID_CWTRAINER},
+    {&btn_field, APPID_FIELD},       {&btn_chans, APPID_CHANNELS},        {&btn_bands, APPID_BANDS},
+    {&btn_gps, APPID_GPS},           {&btn_screen_rec, APPID_SCREEN_REC}, {&btn_cwkbd, APPID_CW_KBD},
+    {&btn_prop, APPID_PROPAGATION},  {&btn_scan, APPID_SCAN},             {&btn_iradio, APPID_IRADIO},
+    {&btn_zello, APPID_ZELLO},       {&btn_svx, APPID_SVX},               {&btn_flights, APPID_FLIGHTS},
+    {&btn_aero, APPID_AERO},         {&btn_cb, APPID_CB},                 {&btn_meteo, APPID_METEO},
+    {&btn_mail, APPID_MAIL},         {&btn_dmr, APPID_DMR},
+};
+
+#define APP_BTNS  ARRAY_SIZE(app_btns)
+#define APP_PAGES ARRAY_SIZE(buttons_group_app)
+
+static_assert(APP_PAGES * APPS_PER_PAGE >= APP_BTNS, "an APP page more is needed");
+static_assert(BUTTONS == APPS_PER_PAGE + 1, "an APP page is its page button and APPS_PER_PAGE apps");
+
+static struct {
     buttons_page_t **pages;
-    size_t           n;
+    size_t           n;     /* the APP group's: the pages in use (app_pages_fill()) */
 } groups[] = {
     {buttons_group_gen, ARRAY_SIZE(buttons_group_gen)}, {buttons_group_app, ARRAY_SIZE(buttons_group_app)},
     {buttons_group_key, ARRAY_SIZE(buttons_group_key)}, {buttons_group_dfn, ARRAY_SIZE(buttons_group_dfn)},
@@ -655,9 +679,61 @@ static void knob_binds_cb(Subject *subj, void *user_data) {
     for (disp_btn_t &s : slots) slot_refresh(&s);
 }
 
+/* The APP pages from the apps that are not hidden (#351): four to a page in the pages' order, the page buttons
+ * named "(APP 2:5)" for as many pages as that takes and linked in a ring of those. A page past the last one in use
+ * is the last one over again, its page button on to the first: a window that opened from such a page and comes
+ * back to it (dialog.prev_page) finds apps there, not an empty bar */
+static char app_page_names[APP_PAGES][16];
+
+static size_t app_pages_fill() {
+    uint8_t  order[APP_BTNS], left[APP_BTNS];
+    uint32_t out = apps_menu_hidden();      /* the apps taken out */
+
+    for (size_t i = 0; i < APP_BTNS; i++) order[i] = (uint8_t)app_btns[i].id;
+
+    size_t pages = (size_t)apps_pages(apps_shown(order, APP_BTNS, out, left), APPS_PER_PAGE);
+
+    for (size_t p = 0; p < APP_PAGES; p++) {
+        buttons_page_t *page  = buttons_group_app[p];
+        button_data_t  *first = page->items[0];
+        size_t          from  = p < pages ? p : pages - 1;
+
+        for (int i = 0; i < APPS_PER_PAGE; i++) {
+            int id = apps_page_app(order, APP_BTNS, out, APPS_PER_PAGE, (int)p, i);
+
+            page->items[i + 1] = NULL;
+            for (size_t b = 0; id >= 0 && b < APP_BTNS; b++) {
+                if (app_btns[b].id == id) page->items[i + 1] = app_btns[b].btn;
+            }
+        }
+        snprintf(app_page_names[p], sizeof(app_page_names[p]), "(APP %d:%d)", (int)from + 1, (int)pages);
+        first->label = app_page_names[p];
+        first->next  = buttons_group_app[(from + 1) % pages];
+        first->prev  = buttons_group_app[(from + pages - 1) % pages];
+    }
+    for (auto &g : groups) {
+        if (g.pages == buttons_group_app) g.n = pages;
+    }
+    return pages;
+}
+
+/* Settings > Apps, or the web page, hid or showed an app: the pages again, and when one of them is on the bar now,
+ * the page at its place, or the last one when there are fewer */
+static void apps_hidden_cb(Subject *subj, void *user_data) {
+    size_t at = APP_PAGES;
+
+    for (size_t p = 0; p < APP_PAGES; p++) {
+        if (cur_page == buttons_group_app[p]) at = p;
+    }
+    size_t n = app_pages_fill();
+
+    if (at < APP_PAGES) buttons_load_page(buttons_group_app[at < n ? at : n - 1]);
+}
+
 void buttons_init(lv_obj_t *parent) {
     /* No auto notch where the base has none (X6100 boards before revision 3) */
     if (!(radio_caps() & HW_CAP_DNF_AUTO)) page_dfn_1.items[4] = NULL;
+    app_pages_fill();   /* the APP pages without the hidden apps, before their ring is linked */
 
     for (const auto &g : groups) {
         for (size_t i = 0; i < g.n; i++) {
@@ -671,6 +747,10 @@ void buttons_init(lv_obj_t *parent) {
     for (int i = 0; i < BUTTONS; i++) make_slot(&slots[i], parent, i * BTN_WIDTH, (uint8_t)i);
     hidden = false;     /* made shown (a theme change), the knob lines too (knobs_init()) */
     cfg_sm.p_encoder_bind.subscribe_delayed_and_notify(knob_binds_cb, NULL);
+    static bool apps_followed;      /* once: this runs again at a theme change */
+
+    if (!apps_followed) cfg_sm.p_apps_hidden.subscribe_delayed(apps_hidden_cb, NULL);
+    apps_followed = true;
 }
 
 void buttons_hide(bool hide) {

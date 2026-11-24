@@ -65,6 +65,7 @@ extern ParamInt         *cfg_auto_level_enabled; // p_auto_level_enabled
 extern ParamFloat       *cfg_auto_level_offset;  // p_auto_level_offset
 extern ParamInt         *cfg_knob_info;          // p_knob_info
 extern ParamInt         *cfg_buttons_hide;       // p_buttons_hide
+extern ParamText        *cfg_apps_hidden;        // p_apps_hidden
 extern ParamInt         *cfg_knob_press_next;    // p_knob_press_next
 extern ParamInt         *cfg_mfk_rings;          // p_mfk_rings
 extern ParamInt         *cfg_panel_stripes;      // p_panel_stripes
@@ -250,6 +251,7 @@ extern ParamFloat *cfg_cessb_power_up;       // p_cessb_power_up
 // Text log of the keyboard modes
 extern ParamInt   *cfg_textlog;              // p_textlog
 extern ParamInt   *cfg_textlog_mb;           // p_textlog_mb
+extern ParamInt   *cfg_card_space_warn;      // p_card_space_warn
 
 // The first-start guide had
 extern ParamInt   *cfg_first_start_done;     // p_first_start_done

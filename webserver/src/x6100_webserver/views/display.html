@@ -372,6 +372,46 @@ var ownList = function() {
   return box;
 }
 
+/* The apps of the radio's APP menu (Settings → Apps, #351): D.apps is [name in the setting, name, 1 hidden] for each
+ * app that can be hidden, as the radio has them, so an app a later version brings is here without a change. A switch
+ * each, on for shown; Show all brings every one back */
+var appsHidden = function() {
+  const n = D.apps.filter(function(a) { return a[2]; }).length;
+  return n ? n + " hidden" : "None hidden";
+}
+
+var appsCard = function() {
+  const card = $("<section class='dp-card' id='apps'>");
+  card.append($("<div class='dp-head'>").append($("<div class='dp-ico' aria-hidden='true'>").html(ICONS.layers),
+    $("<div>").append($("<h3>").text("Apps"), $("<p>").text("The apps in the radio's APP grid and on its APP button pages"))));
+  const count = $("<span>").text(appsHidden());
+  const all = $("<button type='button'>").text("Show all").on("click", function() {
+    rowState("apps_show_all", "saving");
+    send({name: "apps_show_all", val: 1}, function() {
+      D.apps.forEach(function(a) { a[2] = 0; $("#opt-app-" + a[0]).prop("checked", true); });
+      count.text(appsHidden());
+      rowState("apps_show_all", "applied");
+    }, function(msg) { rowState("apps_show_all", "failed", msg); });
+  });
+  card.append($("<div class='dp-row'>").attr("id", "row-apps_show_all").append(
+    $("<div class='dp-lbl'>").append($("<b>").text("Hidden apps"), count,
+      $("<span>").text("Off takes an app out of the APP grid and the APP pages, the others close up. A key given to it in Settings → Keys still opens it, and an app that is running goes on. Settings is always shown.")),
+    $("<div class='dp-ctl'>").append(all)));
+  D.apps.forEach(function(a) {
+    const row = "app-" + a[0], box = $("<label class='sw'>").attr("title", a[1]);
+    $("<input type='checkbox' role='switch'>").attr({id: "opt-" + row, "aria-label": a[1]}).prop("checked", !a[2])
+      .on("change", function() {
+        const el = this, hide = el.checked ? 0 : 1;
+        rowState(row, "saving");
+        send({name: "app_hide", app: a[0], val: hide}, function() { a[2] = hide; count.text(appsHidden()); rowState(row, "applied"); },
+             function(msg) { el.checked = !a[2]; rowState(row, "failed", msg); });
+      }).appendTo(box);
+    card.append($("<div class='dp-row'>").attr("id", "row-" + row).append(
+      $("<div class='dp-lbl'>").append($("<b>").text(a[1])), $("<div class='dp-ctl'>").append(box.append("<i></i>"))));
+  });
+  return card;
+}
+
 var render = function() {
   const cards = $("#cards").empty();
   CARDS.forEach(function(c) {
@@ -390,6 +430,7 @@ var render = function() {
     if (c[4] === "ranges" && "tx_ranges" in D) card.append(ownList());
     cards.append(card);
   });
+  if (Array.isArray(D.apps) && D.apps.length) cards.append(appsCard());
   refresh();
   showStatus("Read from the radio");
 }

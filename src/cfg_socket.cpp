@@ -6,6 +6,9 @@
  *  The web configurator's local socket: one JSON object per line, one request per connection.
  *    {"cmd":"disp_get"}                               -> {"t":"disp", option: value..., "theme":name, "themes":[...]}
  *    {"cmd":"disp_set","text":name,"val":v}           -> {"t":"ok"} or {"t":"err","err":"..."}; "theme":name for the theme
+ *    {"cmd":"disp_set","text":"app_hide","app":key,"val":0|1}   an app out of the APP menus or back (Settings > Apps,
+ *                                                        #351; disp_get's "apps":[[key,name,hidden]...]), and
+ *    {"cmd":"disp_set","text":"apps_show_all","val":1}   all of them back
  *    {"cmd":"eth_get"}                                -> {"t":"eth", ...}
  *    {"cmd":"eth_set","dhcp":0|1,"ip":..,"mask":..,"gw":..,"dns":..}
  *    {"cmd":"band_use","lo":hz,"hi":hz}               -> {"t":"band_use","use":0|1|2} (none, receive, transmit)
@@ -36,6 +39,7 @@
 
 #include "cfg/settings_manager.h"
 #include "cfg/settings_manager_api.h"
+#include "cfg/apps_list.h"
 #include "wifi.h"
 
 #include <cstdio>
@@ -229,6 +233,15 @@ static void disp_apply(void *arg) {
         params_uint8_set(&params.screen_saver_speed, d->val);
     } else if (!strcmp(d->name, "bright_buttons")) {
         backlight_set_buttons((buttons_light_t)d->val);
+    } else if (!strcmp(d->name, "app_hide")) {
+        /* as Settings > Apps (#351): the APP grid and the APP pages follow it */
+        char text[APPS_HIDDEN_LEN];
+
+        apps_hidden_format(apps_hidden_set(apps_hidden_parse(cfg_sm.p_apps_hidden.get().c_str()),
+                                           apps_list_find(d->text), d->val != 0), text, sizeof(text));
+        cfg_sm.p_apps_hidden.set(text);
+    } else if (!strcmp(d->name, "apps_show_all")) {
+        cfg_sm.p_apps_hidden.set("");
     } else if (!strcmp(d->name, "theme")) {
         /* as Settings: saved and applied live */
         params_str_set(&params.theme_name, d->text);
@@ -263,6 +276,16 @@ static const char *disp_set(cJSON *req, disp_set_t *d) {
     }
     int32_t min = 0, max = 1;
     bool    known = false;
+    if (!strcmp(d->name, "app_hide")) {
+        cJSON *a = cJSON_GetObjectItemCaseSensitive(req, "app");
+
+        if (!cJSON_IsString(a) || !apps_list_can_hide(apps_list_find(a->valuestring)))
+            return "Unknown app";       /* Settings too: never hidden */
+        snprintf(d->text, sizeof(d->text), "%s", a->valuestring);
+        known = true;
+    }
+    if (!strcmp(d->name, "apps_show_all"))
+        min = 1, known = true;
     for (auto &o : disp_ints)
         if (!strcmp(d->name, o.name)) {
             min = o.min, max = o.max, known = true;
@@ -303,6 +326,32 @@ static int tx_own_fields(char *buf, size_t size) {
                     st.count, st.bad, st.first_bad, st.missing ? 1 : 0);
 }
 
+/* LVGL thread, the socket's thread waiting: the hidden apps' set (a text setting is not read from another thread) */
+static void apps_hidden_cb(void *arg) {
+    *(uint32_t *)arg = apps_hidden_parse(cfg_sm.p_apps_hidden.get().c_str());
+}
+
+/* ',"apps":[["modes","Modes",0],...]': the apps that can be hidden, in the APP grid's order, 1 for a hidden one.
+ * Nothing when it would not fit whole or the GUI thread does not answer: the page then shows no Apps card */
+static int apps_fields(char *buf, size_t size) {
+    uint32_t hidden = 0;
+    size_t   need = 16;
+    int      l;
+
+    for (int id = 0; id < APPID_COUNT; id++)
+        if (apps_list_can_hide(id))
+            need += strlen(apps_list_key(id)) + strlen(apps_list_name(id)) + 10;
+    if (need >= size || !scheduler_call(apps_hidden_cb, &hidden))
+        return 0;
+    l = snprintf(buf, size, ",\"apps\":[");
+    for (int id = 0, n = 0; id < APPID_COUNT; id++)
+        if (apps_list_can_hide(id))
+            l += snprintf(buf + l, size - l, "%s[\"%s\",\"%s\",%d]", n++ ? "," : "", apps_list_key(id),
+                          apps_list_name(id), apps_hidden_has(hidden, id) ? 1 : 0);
+    l += snprintf(buf + l, size - l, "]");
+    return l;
+}
+
 static int disp_get(char *buf, size_t size) {
     int  l = snprintf(buf, size, "{\"t\":\"disp\"");
     char names[32][32];
@@ -329,6 +378,8 @@ static int disp_get(char *buf, size_t size) {
     l += snprintf(buf + l, size - l, ",\"band_region_now\":%d,\"band_region_auto\":%d,\"band_region_how\":\"%s\","
                   "\"band_region_at\":\"%s\"", band_plan_now(), region, how, at);
     l += tx_own_fields(buf + l, size - l);
+    if (l < (int)size - 4)
+        l += apps_fields(buf + l, size - l - 4);    /* room for the end kept */
     l += snprintf(buf + l, size - l, "}\n");
     return l;
 }

@@ -399,6 +399,24 @@ class DisplayPage(unittest.TestCase):
         wf = cards[cards.index('["wf", "Spectrum and waterfall"'):cards.index('["layers", ')]
         self.assertIn('["walkie_wf", "Walkie mini waterfall", ', wf)
 
+    def test_apps_card_and_the_radio_agree(self):
+        """The Apps card (#351) is made from the radio's own list (disp_get's "apps": no list of apps in the page),
+        and what its switches and Show all send are options the GUI's socket takes; the web server passes the app's
+        name on"""
+        page = open(os.path.join(TOP, "webserver", "src", "x6100_webserver", "views", "display.html")).read()
+        sock = source("cfg_socket.cpp")
+        server = open(os.path.join(TOP, "webserver", "src", "x6100_webserver", "apps.py")).read()
+        self.assertIn('send({name: "app_hide", app: a[0], val: hide}', page)
+        self.assertIn('send({name: "apps_show_all", val: 1}', page)
+        self.assertIn("D.apps.forEach(", page)
+        self.assertNotIn('"zello"', page)
+        for name in ("app_hide", "apps_show_all"):
+            self.assertIn('!strcmp(d->name, "%s")' % name, sock[sock.index("static void disp_apply("):], name)
+            self.assertIn('!strcmp(d->name, "%s")' % name, sock[sock.index("static const char *disp_set("):], name)
+        self.assertIn('",\\"apps\\":["', sock)
+        self.assertIn('cJSON_GetObjectItemCaseSensitive(req, "app")', sock)
+        self.assertIn('cmd["app"] = data["app"]', server)
+
 
 class RemoteWords(unittest.TestCase):
     def test_watching_before_the_apps_commands(self):

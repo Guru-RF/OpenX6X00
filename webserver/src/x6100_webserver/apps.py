@@ -2996,6 +2996,10 @@ def display_set():
             return api_error(400, "Invalid theme")
         cmd["theme"] = data["theme"]
     else:
+        if data["name"] == "app_hide":      # an app out of the radio's APP menus or back (#351), by its name
+            if not isinstance(data.get("app"), str) or not re.fullmatch(r"[a-z0-9]{1,23}", data["app"]):
+                return api_error(400, "Invalid app")
+            cmd["app"] = data["app"]
         val = data.get("val")
         if not isinstance(val, int) or isinstance(val, bool):
             return api_error(400, "Invalid value")
