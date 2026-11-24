@@ -211,6 +211,11 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_freq_step_hi{"freq_step_hi", FREQ_STEPS_N - 1, 0, FREQ_STEPS_N - 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // The user's frequency lock (FST held, LOCK, the Panel's LOCK, a key given Frequency lock), kept across a
+    // restart (#342): screen_main.c writes it with each change of the user's lock and starts with it. No row in
+    // Settings. An app's hold of the dial is never in it (dial_lock.h)
+    Parameter<int32_t> p_dial_lock{"dial_lock", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Birdies (birdie.c): 0 nothing, 1 marked on the waterfall, 2 marked and notched in the passband
     Parameter<int32_t> p_birdie_marks{"birdie_marks", 1, 0, 2,
         StorageType::GLOBAL, pending_writes_, &global_params_};

@@ -49,6 +49,7 @@
 #include "freq_entry.h"
 #include "cw_messages.h"
 #include "cw_encoder.h"
+#include "dial_lock.h"
 #include "dialog_cw_kbd.h"
 #include "winlink_mail.h"
 #include "voice_messages.h"
@@ -153,9 +154,10 @@ static void wf_tag_update(void);
 /* What an open app keeps the keys from changing. The frequency lock is a subject: the scale
  * greys out with it. It is on while either holds it: the user's lock (LOCK, SPCH, Scroll Lock, the Panel's LOCK,
  * a key given Frequency lock in Settings > Keys), shown by LOCK in the frequency strip, or an open app's hold, which
- * ends with the app and leaves the user's lock as it was */
+ * ends with the app and leaves the user's lock as it was. The user's lock is kept across a restart, an app's hold
+ * never (dial_lock.h, #342) */
 static SubjectInt   *freq_lock;
-static bool         user_lock, app_lock;
+static dial_lock_t  dial;
 static bool         band_lock, mode_lock, ab_lock;
 static press_action_t last_app;     /* the app opened last: a digital one while radio_digi_cap() */
 
@@ -174,18 +176,22 @@ static bool cw_mode(void) {
 
 /* The scale and the frequency strip follow the subject */
 static void freq_lock_update(void) {
-    subject_i_set(freq_lock, user_lock || app_lock);
-    freq_strip_set_lock(user_lock);
+    subject_i_set(freq_lock, dial_lock_on(&dial));
+    freq_strip_set_lock(dial.user);
 }
 
+/* The user's lock, and the setting that brings it back at the next start: written here only, so with the user's
+ * lock alone */
 static void set_user_lock(bool lock) {
-    user_lock = lock;
+    dial.user = lock;
+    if (param_i_get(cfg_dial_lock) != dial_lock_saved(&dial))
+        param_i_set(cfg_dial_lock, dial_lock_saved(&dial));
     freq_lock_update();
 }
 
 static bool toggle_freq_lock(void) {
-    set_user_lock(!user_lock);
-    return user_lock;
+    set_user_lock(!dial.user);
+    return dial.user;
 }
 
 static void say_lock(bool on) {
@@ -1959,7 +1965,7 @@ void main_screen_chord(int action) {
 
 /* An app's hold */
 void main_screen_lock_freq(bool lock) {
-    app_lock = lock;
+    dial.app = lock;
     freq_lock_update();
 }
 
@@ -1969,11 +1975,11 @@ void main_screen_user_lock_freq(bool lock) {
 }
 
 bool main_screen_freq_user_locked(void) {
-    return user_lock;
+    return dial.user;
 }
 
 bool main_screen_freq_app_locked(void) {
-    return app_lock;
+    return dial.app;
 }
 
 void main_screen_lock_band(bool lock) {
@@ -2307,7 +2313,10 @@ lv_obj_t * main_screen() {
     channels_load();    /* creates channels.json with the defaults when missing */
     lv_timer_create(channels_poll_cb, 2000, NULL);
 
-    freq_lock = subject_i_create(false);
+    /* The user's lock as the radio was switched off with it (#342): LOCK in the frequency strip from the start */
+    dial_lock_start(&dial, param_i_get(cfg_dial_lock));
+    freq_lock = subject_i_create(dial_lock_on(&dial));
+    freq_strip_set_lock(dial.user);
     obj = lv_obj_create(NULL);
 
     /* The input devices and the radio send their events to the screen */

@@ -477,7 +477,10 @@ given "Frequency lock on/off" in Settings > Keys (a long press of GEN, APP,
 KEY, MSG, DFN, DFL or FST, a hand mic F key) turn it on and off. The X6200
 has no LOCK key: give it to FST's long press, as on the stock firmware, or
 to another of those. Each turn says "Dial locked" or "Dial unlocked" on the
-screen.
+screen. The lock is kept with the settings: a radio switched off locked
+starts locked, with LOCK in the frequency strip (up to v0.3.13 every start
+was unlocked, issue #342). Only your own lock is kept, not the hold an app
+has on the dial while it is open.
 Held, the X6100's LOCK key restarts the radio's base board instead, a way
 out when the base stops answering: after the long press the screen counts
 down "Keep holding LOCK to restart: 4 s", and the restart comes 5 s after
