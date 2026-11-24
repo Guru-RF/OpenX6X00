@@ -115,6 +115,19 @@
 #define BOARD_BAT_LOW       60
 #endif
 
+/* Near the end of the battery the % shown is no more than 10 % from BOARD_BAT_END down and 3 % from BOARD_BAT_LAST
+ * down, whatever the base says (bat_watch.h). The X6100: 6.5 and 6.3 V, measured on a worn pack that ended at 6.1 V
+ * (CX8ANM's fork). The X6200 never gets there, its power-off is at 7.0 V: 7.2 and 7.1 V, not measured on a worn
+ * pack. In #160's run on a good one 7.2 V came half an hour before the power-off, of 4 h 15 min, and the voltage's
+ * own % there is 9 and 3 */
+#ifdef BOARD_X6200
+#define BOARD_BAT_END       72
+#define BOARD_BAT_LAST      71
+#else
+#define BOARD_BAT_END       65
+#define BOARD_BAT_LAST      63
+#endif
+
 #ifdef HOST_BUILD
 /* The GUI on a PC (cmake -DHOST_BUILD=ON): an SDL window for the panel, the stub radio, and the
  * front keys and knobs as FIFOs under the data directory that host/host_panel.c writes the PC's
