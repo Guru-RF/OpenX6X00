@@ -234,11 +234,14 @@ static void inputs_open(void) {
 
 #ifdef BOARD_DEV_MFK_INNER
     /* The inner ring of the MFK knob chooses what the MFK controls, in every state (the stock
-     * X6200 GUI's use of it); the outer knob then changes the value */
+     * X6200 GUI's use of it); the outer knob then changes the value. With MFK rings: Swapped the two rings change
+     * places (mfk_rings.h, #354): this knob sends the keys of whichever ring steps the control */
     rotary_t *inner = rotary_init(BOARD_DEV_MFK_INNER);
 
     if (inner) {
         gui_wake_add_fd(inner->fd);
+        mfk_rings_inner(inner->fd);
+        inner->mfk_step = true;
         for (int i = 0; i < 3; i++) {
             inner->left[i]  = KEY_MFK_PREV;
             inner->right[i] = KEY_MFK_NEXT;

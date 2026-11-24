@@ -867,6 +867,7 @@ static const key_action_t front_actions[] = {
     {" RX recorder on/off ", ACTION_RECORDER},
     {" Screen rec on/off ", ACTION_SCREEN_REC},
     {" Mute ", ACTION_MUTE},
+    {" Charger Off/On/Shadow ", ACTION_CHARGER},    /* General > CONTROLS > Charger to its next state (#276) */
     {" Frequency lock on/off ", ACTION_FREQ_LOCK},
     {" Speech mode ", ACTION_VOICE_MODE},
     {" Step up ", ACTION_STEP_UP},
@@ -922,6 +923,7 @@ static const key_action_t mic_actions[] = {
     {" RX recorder on/off ", ACTION_RECORDER},
     {" Screen rec on/off ", ACTION_SCREEN_REC},
     {" Mute ", ACTION_MUTE},
+    {" Charger Off/On/Shadow ", ACTION_CHARGER},
     {" Step up ", ACTION_STEP_UP},
     {" Step down ", ACTION_STEP_DOWN},
     {" Frequency lock on/off ", ACTION_FREQ_LOCK},
@@ -4755,6 +4757,11 @@ static void make_display_page() {
     row = make_param_switch(row, "Keep knob lines", cfg_sm.p_knob_lines_stay);   /* not hidden with the buttons */
     /* A short press of VOL or the MFK: the next control on its list, as the stock firmware does (#282) */
     row = make_param_switch(row, "Knob press: next control", cfg_sm.p_knob_press_next);
+#ifdef BOARD_X6200
+    /* The lower knob's two rings: Stock, the outer one is the MFK and the inner one steps its control; Swapped, the
+     * other way round, at once (mfk_rings.h, #354). The X6100's MFK has one ring */
+    row = make_param_choice(row, "MFK rings", " Stock \n Swapped ", cfg_sm.p_mfk_rings);
+#endif
     row = make_theme(row);
     row = make_font(row);
     row = make_language(row);

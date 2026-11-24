@@ -340,6 +340,16 @@ line, unless Keep knob lines is on).
 - X6200: the MFK has an inner ring. The inner ring chooses the MFK's control,
   the next one or the one before on its list, and the outer ring changes its
   value, with no press. The X6100's MFK has no inner ring: it uses the press.
+- X6200, MFK rings (Settings > Display > INTERFACE, Stock by default; also on
+  the web configurator's Display page): which of the lower knob's two rings
+  is which. Stock, as the maker's firmware: the outer ring is the MFK, it
+  changes the value while the value is lit and chooses the control while the
+  name is lit, and it walks the items of apps, lists, menus and Settings; the
+  inner ring steps the MFK's control on the main screen and does nothing
+  elsewhere. Swapped: the inner ring is the MFK and the outer ring steps the
+  control. It changes at once, without a restart, and the MFK of the Remote
+  and Panel pages stays the MFK in both. The X6100 has no such row
+  (issue #354).
 - A keyboard (USB or Bluetooth) on the main screen: the left and right
   arrows turn the MFK and Enter is its press (while the CW line is open,
   Enter sends it); { and } choose VOL's control, [ and ] turn it (in CW
@@ -444,7 +454,7 @@ press time counted as held: a tap of F1 did its long action (#233).
 
 | Kind | Actions |
 |---|---|
-| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, WF full screen on/off (the waterfall over the whole screen, and back: see [Waterfall](#waterfall)), CW decoder on/off, CW ZAP (in CW and CW-R, the dial onto the signal the CW Tuner hears, as the CW 1:2 ZAP button; up to v0.3.9 neither was a key action, #196), SWL panel (as the X6100 hand mic's GENE: the broadcast stations on the air within 2 kHz, again the next one), SWL: save channel (as its NW: the station shown saved as a channel; up to v0.3.11 neither was a key action, so an X6200 could not open the panel, #155), ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
+| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, Charger Off/On/Shadow (the [Charger](#general-tab) setting to its next state, shown on the screen, #276), frequency lock on/off, step up, step down, WF mode, WF 3D on/off, WF full screen on/off (the waterfall over the whole screen, and back: see [Waterfall](#waterfall)), CW decoder on/off, CW ZAP (in CW and CW-R, the dial onto the signal the CW Tuner hears, as the CW 1:2 ZAP button; up to v0.3.9 neither was a key action, #196), SWL panel (as the X6100 hand mic's GENE: the broadcast stations on the air within 2 kHz, again the next one), SWL: save channel (as its NW: the station shown saved as a channel; up to v0.3.11 neither was a key action, so an X6200 could not open the panel, #155), ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex, RADE |
 | Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Propagation, Channels, Scanner, Internet radio, RX recorder, SWR Scan, GPS / Clock, QTH grid, Settings |
 
@@ -467,7 +477,10 @@ given "Frequency lock on/off" in Settings > Keys (a long press of GEN, APP,
 KEY, MSG, DFN, DFL or FST, a hand mic F key) turn it on and off. The X6200
 has no LOCK key: give it to FST's long press, as on the stock firmware, or
 to another of those. Each turn says "Dial locked" or "Dial unlocked" on the
-screen.
+screen. The lock is kept with the settings: a radio switched off locked
+starts locked, with LOCK in the frequency strip (up to v0.3.13 every start
+was unlocked, issue #342). Only your own lock is kept, not the hold an app
+has on the dial while it is open.
 Held, the X6100's LOCK key restarts the radio's base board instead, a way
 out when the base stops answering: after the long press the screen counts
 down "Keep holding LOCK to restart: 4 s", and the restart comes 5 s after
@@ -1912,6 +1925,12 @@ the base's settings (every 3 s in receive on the X6100, every second on the
 X6200). A power-off for a low battery asks for charging whatever the setting.
 Whether the base charges: External on the [Info tab](#info-tab), for example
 "12.1 V  charging".
+
+From a key, without opening Settings: give a key "Charger Off/On/Shadow" in
+Settings > Keys (the long press of GEN, APP, KEY, MSG, DFN, DFL or FST, or a
+hand mic F key). Each use takes the setting to its next state, Off, On,
+Shadow and round to Off, tells the base at once as the row in Settings does,
+and says the new state on the screen, "Charger: Shadow" (issue #276).
 
 The X6200 with base 1.0.8 goes on reporting "charging" while the radio is on
 and a supply is connected, whatever the setting (#33). The setting works all

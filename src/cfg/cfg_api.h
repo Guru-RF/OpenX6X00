@@ -66,6 +66,7 @@ extern ParamFloat       *cfg_auto_level_offset;  // p_auto_level_offset
 extern ParamInt         *cfg_knob_info;          // p_knob_info
 extern ParamInt         *cfg_buttons_hide;       // p_buttons_hide
 extern ParamInt         *cfg_knob_press_next;    // p_knob_press_next
+extern ParamInt         *cfg_mfk_rings;          // p_mfk_rings
 extern ParamInt         *cfg_panel_stripes;      // p_panel_stripes
 extern ParamInt         *cfg_mode_from_plan;     // p_mode_from_plan
 extern ParamInt         *cfg_band_region;        // p_band_region
@@ -82,6 +83,7 @@ extern ParamInt         *cfg_walkie_wf;          // p_walkie_wf
 extern ParamInt         *cfg_band_plan;          // p_band_plan
 extern ParamInt         *cfg_wr12;               // p_wr12 (the X6200: the WR12 on HOST)
 extern ParamInt         *cfg_speaker_off;        // p_speaker_off
+extern ParamInt         *cfg_dial_lock;          // p_dial_lock: the user's frequency lock, kept across a restart
 extern ParamInt         *cfg_kbd_layout;         // p_kbd_layout
 extern ParamInt         *cfg_mic_updown;         // p_mic_updown: what the hand mic's UP/DOWN do (mic_updown.h)
 extern ParamInt         *cfg_smeter_needle;      // p_smeter_needle
