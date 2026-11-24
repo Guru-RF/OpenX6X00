@@ -66,7 +66,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     navtex_window.c navtex/sitorb.c navtex/dsc.c
     dialog_freedv.c freedv_rx.c freedv_text.c freedv_tx.c
     channel_list.c broadcast_db.c cJSON.c
-    text_popup.c cw_encoder.c image_level.c start_trace.c
+    text_popup.c cw_encoder.c image_level.c start_trace.c card_space.c card_space_notice.c
     cw_beacon.c
     button_bar.cpp button_page.c vol_control.cpp recorder.c
     cw_tune_view.c adif.c qso_log.c scheduler.cpp

@@ -49,6 +49,7 @@ extern "C" {
     #include "cfg/kbd_devices.h"
     #include "clock.h"
     #include "bat_est.h"
+    #include "card_space.h"
     #include "audio.h"
     #include "smeter.h"
     #include "main.h"
@@ -5992,7 +5993,6 @@ static uint8_t make_base_update(uint8_t row) {
 /* Info: cards and rows as the other tabs, in the same font */
 static void make_info_page() {
     grid_create();
-    lv_obj_set_style_pad_bottom(page, 6, 0);   /* short page: it fits, no scrolling */
     uint8_t row;
 
     row = card_begin("FIRMWARE");
@@ -6042,6 +6042,26 @@ static void make_info_page() {
         snprintf(s, sizeof(s), "starting values, learning");
     }
     row = info_row(row, "Time left", s);
+    card_end(row);
+
+    /* The room left where the recordings, pictures and logs go, and on the system's own partition (#341) */
+    uint64_t room, size;
+
+    row = card_begin("STORAGE");
+    if (card_space_read(BOARD_DATA, &room, &size)) {
+        card_space_line(room, size, s, sizeof(s));
+    } else {
+        snprintf(s, sizeof(s), "not known");
+    }
+    row = info_row(row, "DATA partition", s);
+    if (card_space_read("/", &room, &size)) {
+        card_space_line(room, size, s, sizeof(s));
+        row = info_row(row, "System", s);
+    }
+    /* A start with less room on DATA says so once. Four columns: "Under 100 MB" ran over the arrow at three */
+    wl_row_label(row, "Low space warning");
+    row_choice(row++, 1, 4, SMALL_4, CARD_WARN_CHOICES, cfg_sm.p_card_space_warn.get(), int_choice_cb,
+               &cfg_sm.p_card_space_warn);
     card_end(row);
 }
 

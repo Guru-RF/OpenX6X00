@@ -69,6 +69,7 @@
 #include "bt_dev.h"
 #include "usb_devices.h"
 #include "image_level.h"
+#include "card_space.h"
 #include "ghostnet.h"
 #ifdef BOARD_X6200
 #include "dialog_base_update.h"
@@ -355,6 +356,7 @@ static void services_start(void) {
     start_trace("services: QSO log read");
     dialog_cluster_start_client();
     image_level_notice_init();   /* a newer card image wanted: said once per version */
+    card_space_notice_init();    /* the card almost full (Settings > Info > STORAGE): said once per start (#341) */
     ghostnet_init();             /* the reminder before a GhostNet net, when the operator turned it on */
     meteo_alerts_init();         /* APP > Weather > Notices: off by default */
 #ifdef BOARD_X6200

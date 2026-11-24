@@ -718,6 +718,10 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_textlog_mb{"textlog_mb", 10, 1, 100,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Settings > Info > STORAGE > Low space warning (card_space.h, #341): a start with less room on the DATA
+    // partition says so once. A card_warn_t: 0 Off, 1 under 100 MB (the default), 2 250 MB, 3 500 MB, 4 1 GB
+    Parameter<int32_t> p_card_space_warn{"card_space_warn", 1, 0, 4,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // The first-start guide had (first_start.c): finished, skipped or left once. No row on a new card or after a
     // settings reset, nor on a radio updated from before the guide: there the callsign decides (first_start_rule.h)

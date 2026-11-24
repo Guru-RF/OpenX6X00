@@ -2650,6 +2650,29 @@ POWER, below Factory reset, has three lines:
 
 <!-- IMG settings_power.png: Settings > Info, POWER box -->
 
+STORAGE, below POWER (issue #341):
+- DATA partition: the room left on the part of the card where the recordings,
+  screen recordings, screenshots, SSTV and WeFax pictures, logs and backups
+  go, and its size, for example "11 GB free of 29 GB" ("not known" when it
+  cannot be read).
+- System: the same for the partition the radio software is on. Updates need
+  room there; your files do not go there.
+- Low space warning (Off, Under 100 MB, Under 250 MB, Under 500 MB, Under
+  1 GB; default Under 100 MB): when a start finds less room than that on the
+  DATA partition, a message says so once, some 15 seconds after the start:
+  "Card almost full: 85 MB free / Delete recordings or pictures / on the web
+  Gallery page". It goes by itself after 8 seconds, needs no key and holds
+  nothing up; the next start says it again while the room is still short.
+  The web configurator's Gallery deletes recordings and pictures, or
+  downloads them as a ZIP first (see [Web configurator](#web-configurator));
+  the Files page downloads anything else on the partition.
+
+The warning counts megabytes free, not a part of the card, so a small card
+that is simply small does not warn while it still has room. On a DATA
+partition smaller than four times the choice it warns under a quarter of the
+partition instead (a 200 MB partition at Under 100 MB: under 50 MB). The
+default is twice the room under which a screen recording stops (50 MB).
+
 ### Walkie tab
 
 | Card | Options |

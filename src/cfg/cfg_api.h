@@ -248,6 +248,7 @@ extern ParamFloat *cfg_cessb_power_up;       // p_cessb_power_up
 // Text log of the keyboard modes
 extern ParamInt   *cfg_textlog;              // p_textlog
 extern ParamInt   *cfg_textlog_mb;           // p_textlog_mb
+extern ParamInt   *cfg_card_space_warn;      // p_card_space_warn
 
 // The first-start guide had
 extern ParamInt   *cfg_first_start_done;     // p_first_start_done
