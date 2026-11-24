@@ -5,12 +5,15 @@
  *  show, and a subject that changes with it. The callsign of Settings > General > STATION, a CB one too (it is the
  *  user's call all the same); nothing with the switch off or no callsign set. Each layout puts it where it has the
  *  room: beside the locator in the frequency strip (freq_strip.c), on the second row of the top bar in Black Metal
- *  and Total Black (info_bar.c), on the line under Amber Trey's display (lcd_panel.c).
+ *  and Total Black (info_bar.c), on the line under Amber Trey's display (lcd_panel.c). With it, for the layouts whose
+ *  frequency strip has no locator (Black Metal, Total Black, #343), the locator the radio uses.
  */
 
 #pragma once
 
 #include "cfg/subject_api.h"
+
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,7 +26,11 @@ void main_call_init(void);
 /* The callsign to show, "" with the switch off or none set */
 const char *main_call(void);
 
-/* Set (to a new number) when main_call() changed: the layouts subscribe to it */
+/* The locator to show beside it, "" with the switch off: the GPS's while it has a fix (*gps true: the green dot),
+ * else the QTH of Settings > General > STATION, as the frequency strip of the other layouts has it */
+const char *main_locator(bool *gps);
+
+/* Set (to a new number) when main_call() or main_locator() changed: the layouts subscribe to it */
 extern SubjectInt *main_call_subject;
 
 #ifdef __cplusplus

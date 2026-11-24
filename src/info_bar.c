@@ -166,11 +166,12 @@ lv_obj_t *info_init(lv_obj_t *parent) {
 
 /* Deck (Black Metal, Total Black): the box is the two rows on top. First row: ATT PRE | NR NB DNF |
  * AGC | SPL ATU | RIT XIT, grey when off, white when on, then the status icons (the clock is over
- * the box at the right). Second row: the mode, the filter, BW IF STEP, the callsign (#292), the voltages (clock.c)
- * and the scope span at the right */
+ * the box at the right). Second row: the mode, the filter, BW IF STEP, the callsign and the locator (#292, #343),
+ * the voltages (clock.c) and the scope span at the right */
 enum { D_ATT, D_PRE, D_NR, D_NB, D_DNF, D_AGC, D_SPL, D_ATU, D_RIT, D_XIT, D_NUM };
 
-static lv_obj_t *deck_ind[D_NUM], *deck_mode, *deck_info, *deck_scope, *deck_call;
+static lv_obj_t *deck_ind[D_NUM], *deck_mode, *deck_info, *deck_scope;
+static lv_obj_t *deck_sep, *deck_call, *deck_dot, *deck_loc;    /* a bar, the callsign, the GPS dot, the locator */
 static lv_font_t scope_font;     /* the plus-minus sign, the rest from sony_24 */
 
 static void deck_set(int i, bool on) {
@@ -218,35 +219,77 @@ static void deck_update(Subject *subj, void *user_data) {
     deck_call_fit();
 }
 
-/* The callsign in the second row, after BW IF STEP and before the battery: clock.c puts the voltages at the left of
- * its box, which is CLOCK_W wide 10 px from the right (gui_styles.c, deck_layout()). Not the box itself: on a theme
- * change this row is built before the clock. Hidden while BW IF STEP leave it no room (a wide filter, a big step, a
- * long callsign) */
+/* The callsign and the locator (#292, #343) in the second row, after BW IF STEP behind a thin bar as between the
+ * groups of the first row: "ON6URE", a green dot while the locator is the GPS's, the locator. The battery follows
+ * at the right: clock.c has it at the left of its box, CLOCK_W wide 10 px from the right (gui_styles.c,
+ * deck_layout()), and moves it up to SCOPE while there is something to show here, which leaves this row the room
+ * (the callsign was against the battery, #292). Where the row still does not fit (a wide filter, a big step, a long
+ * callsign): the locator alone, then neither */
 #define DECK_POWER_X    (BOARD_DISP_W - 10 - CLOCK_W)
 #define DECK_CALL_GAP   16      /* as between BW, IF and STEP */
 
+static lv_coord_t deck_power_x;     /* where the battery starts, as clock.c last said */
+
+static void deck_show(lv_obj_t *o, bool show) {
+    if (show) lv_obj_clear_flag(o, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+}
+
+static bool deck_row_fits(void) {
+    lv_obj_t *row = lv_obj_get_parent(deck_info);
+
+    lv_obj_update_layout(obj);
+    return lv_obj_get_x(row) + lv_obj_get_width(row) + DECK_CALL_GAP <= deck_power_x;
+}
+
 static void deck_call_fit(void) {
     const char *call = main_call();
+    bool        gps;
+    const char *loc = main_locator(&gps);
 
     if (!theme_shape.deck || !deck_call) return;
     if (strcmp(lv_label_get_text(deck_call), call)) (lv_label_set_text)(deck_call, call);   /* not translated */
-    if (!call[0]) {
-        lv_obj_add_flag(deck_call, LV_OBJ_FLAG_HIDDEN);
-        return;
+    if (strcmp(lv_label_get_text(deck_loc), loc)) (lv_label_set_text)(deck_loc, loc);
+    deck_show(deck_dot, gps);
+    deck_show(deck_sep, call[0] || loc[0]);
+    deck_show(deck_call, call[0]);
+    deck_show(lv_obj_get_parent(deck_loc), loc[0]);
+    if (!call[0] && !loc[0]) return;
+    if (deck_row_fits()) return;
+    if (call[0] && loc[0]) {
+        deck_show(deck_call, false);
+        if (deck_row_fits()) return;
     }
-    lv_obj_clear_flag(deck_call, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_update_layout(obj);
-
-    lv_obj_t *row = lv_obj_get_parent(deck_info);
-    lv_coord_t x  = DECK_POWER_X - DECK_CALL_GAP - lv_obj_get_width(deck_call);
-
-    lv_obj_align_to(deck_call, deck_scope, LV_ALIGN_OUT_LEFT_MID, 0, 0);     /* its row's middle */
-    lv_obj_set_x(deck_call, x);
-    if (lv_obj_get_x(row) + lv_obj_get_width(row) + DECK_CALL_GAP > x) lv_obj_add_flag(deck_call, LV_OBJ_FLAG_HIDDEN);
+    deck_show(deck_sep, false);
+    deck_show(deck_call, false);
+    deck_show(lv_obj_get_parent(deck_loc), false);
 }
 
 static void deck_call_cb(Subject *subj, void *user_data) {
     deck_call_fit();
+}
+
+lv_coord_t info_deck_power_end(void) {
+    if (!theme_shape.deck || !deck_scope || !(main_call()[0] || main_locator(NULL)[0])) return 0;
+    lv_obj_update_layout(obj);
+    return lv_obj_get_x(deck_scope) - DECK_CALL_GAP;
+}
+
+void info_deck_power_at(lv_coord_t x) {
+    if (x == deck_power_x) return;
+    deck_power_x = x;
+    deck_call_fit();
+}
+
+/* A thin bar between the groups of a row */
+static lv_obj_t *deck_bar(lv_obj_t *row) {
+    lv_obj_t *bar = lv_obj_create(row);
+
+    lv_obj_remove_style_all(bar);
+    lv_obj_set_size(bar, 1, 14);
+    lv_obj_set_style_bg_color(bar, TC(btn_off_text), 0);
+    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
+    return bar;
 }
 
 static lv_obj_t *deck_row(lv_coord_t y) {
@@ -281,12 +324,7 @@ static void deck_init(void) {
 
     for (int i = 0; i < D_NUM; i++) {
         if (i == D_NR || i == D_AGC || i == D_SPL || i == D_RIT) {
-            lv_obj_t *bar = lv_obj_create(row);   /* a thin bar between the groups */
-
-            lv_obj_remove_style_all(bar);
-            lv_obj_set_size(bar, 1, 14);
-            lv_obj_set_style_bg_color(bar, TC(btn_off_text), 0);
-            lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
+            deck_bar(row);
         }
         deck_ind[i] = lv_label_create(row);
         lv_label_set_text(deck_ind[i], names[i]);
@@ -320,11 +358,33 @@ static void deck_init(void) {
     lv_obj_set_style_text_font(deck_scope, &scope_font, 0);
     lv_obj_set_style_text_color(deck_scope, TC(text), 0);
     lv_obj_align(deck_scope, LV_ALIGN_TOP_RIGHT, -10, 30);
-    deck_call = lv_label_create(obj);
-    lv_obj_set_style_text_font(deck_call, &sony_20, 0);     /* as the voltages beside it */
+
+    /* The callsign and the locator, after a bar: smaller than the row's values and in the theme's dim colour, as the
+     * voltages after them; the dot as the other themes' frequency strip has it */
+    deck_sep  = deck_bar(row);
+    deck_call = lv_label_create(row);
+    lv_obj_set_style_text_font(deck_call, &sony_20, 0);
     lv_obj_set_style_text_color(deck_call, TC(text_dim), 0);
     lv_label_set_text(deck_call, "");
-    lv_obj_add_flag(deck_call, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t *loc = lv_obj_create(row);
+
+    lv_obj_remove_style_all(loc);
+    lv_obj_set_size(loc, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(loc, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(loc, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(loc, 5, 0);
+    deck_dot = lv_obj_create(loc);
+    lv_obj_remove_style_all(deck_dot);
+    lv_obj_set_size(deck_dot, 8, 8);
+    lv_obj_set_style_radius(deck_dot, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(deck_dot, TC(ok), 0);
+    lv_obj_set_style_bg_opa(deck_dot, LV_OPA_COVER, 0);
+    deck_loc = lv_label_create(loc);
+    lv_obj_set_style_text_font(deck_loc, &sony_20, 0);
+    lv_obj_set_style_text_color(deck_loc, TC(text_dim), 0);
+    lv_label_set_text(deck_loc, "");
+    deck_power_x = DECK_POWER_X;
 
     Subject *subj[] = {(Subject *)cfg_cur_att, (Subject *)cfg_cur_pre, (Subject *)cfg_nr, (Subject *)cfg_nb,
                        (Subject *)cfg_dnf, (Subject *)cfg_cur_agc, (Subject *)cfg_band_split, (Subject *)cfg_rit,

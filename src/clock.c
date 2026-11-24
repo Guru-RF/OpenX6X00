@@ -7,6 +7,7 @@
  */
 
 #include "clock.h"
+#include "info_bar.h"
 #include "ops_room.h"
 #include "board.h"
 
@@ -137,6 +138,22 @@ const char *clock_hm(const struct tm *tm, char *buf, size_t size) {
     return buf;
 }
 
+/* Black Metal, Total Black: the battery in the second row at the left of the box, or, while that row shows the
+ * callsign and the locator (#343), up against SCOPE at its right, which leaves them the room (info_bar.c) */
+static void deck_power_place(void) {
+    if (!theme_shape.deck) return;
+
+    lv_obj_t  *row = lv_obj_get_parent(power_labels[0]);
+    lv_coord_t end = info_deck_power_end();
+
+    lv_obj_update_layout(row);
+
+    lv_coord_t x = end ? LV_MAX(0, end - lv_obj_get_x(obj) - lv_obj_get_width(row)) : 0;
+
+    lv_obj_align(row, LV_ALIGN_BOTTOM_LEFT, x, -3);
+    info_deck_power_at(lv_obj_get_x(obj) + x);
+}
+
 /* Time on top (seconds smaller), voltages below, both always shown. */
 static void show_time() {
     time_t      now;
@@ -258,6 +275,7 @@ static void show_time() {
     power_gaps(fit);
 
     pthread_mutex_unlock(&power_mux);
+    deck_power_place();
 }
 
 /* Ops Room: the time in 7-segment digits between INTERNAL / EXTERNAL and the charge, and the time

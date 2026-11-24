@@ -2004,16 +2004,24 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
     locator. When the strip needs the room (a split, with its second
     frequency) it hides until the room is back. VISION moves its big digits
     a little left for it, as far as the band name keeps its room.
-  - Black Metal and Total Black: in the second row at the top, between
-    BW IF STEP and the battery; it hides while that row leaves it no room
-    (a wide filter, a big step, a long callsign).
+  - Black Metal and Total Black: in the second row at the top, after
+    BW IF STEP behind a thin bar, with the locator beside it (from v0.3.14;
+    issue #343): the frequency strip of these two themes has no locator.
+    It is the locator the radio uses: the GPS's, with a green dot in front,
+    while the GPS has a fix, else the QTH locator of Settings > General >
+    STATION, as in the other themes' strip. While they are shown the battery
+    sits further right, against SCOPE (up to v0.3.13 the callsign stood
+    against the battery). Where the row still has no room for both (a wide
+    filter, a big step, a long callsign) the locator stays alone, and with
+    no room for that neither is shown.
   - Amber Trey: under the display, in the middle of the bottom line.
   - With it on, the built-in boot logo also shows the callsign over its
     ring, the last thing to come in, from the next start (after the CX8ANM
     edition, condoruy). A picture of your own (see
     [Boot picture](#boot-picture)) is shown as it is.
 
-  No callsign set: nothing is shown.
+  No callsign set: nothing is shown (Black Metal and Total Black: the
+  locator alone).
 - CW tune and WPM (Spectrum by default, from v0.3.14; issue #308): where
   the CW Tuner's bars and the decoder's speed are in CW and CW-R. Spectrum
   keeps them over the spectrum or the waterfall, as before. Frequency strip

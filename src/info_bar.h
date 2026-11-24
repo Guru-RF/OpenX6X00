@@ -25,5 +25,11 @@ const char *info_params_tx_shift_label(void);
  * amateur bands, cfg_tx_refusal): shown in the error colour */
 bool info_tx_blocked(void);
 
+/* Black Metal, Total Black, for clock.c, which draws the battery in the second row: where the battery has to end to
+ * leave the row the room for the callsign and the locator (#343), 0 its usual place at the left of the clock's box;
+ * and where it starts now, which the row is fitted to */
+lv_coord_t info_deck_power_end(void);
+void info_deck_power_at(lv_coord_t x);
+
 /* An app holds the mode (FT8, CW trainer, ...): the mode shown soft */
 void info_lock_mode(bool lock);
