@@ -31,6 +31,7 @@
 extern "C" {
 
     #include "app_window.h"
+    #include "settings_place.h"
 #ifdef BOARD_X6200
     #include "dialog_base_update.h"
 #endif
@@ -146,7 +147,7 @@ static void key_cb(lv_event_t *e);
 static bool tabs_said;      /* a hint naming the tabs is on its way: tab_press() leaves it */
 
 /* "Settings tabs, page 2: F2 Bluetooth, F3 Keys, F4 Cluster, F5 TX Cal. F1 more tabs" */
-static void tabs_hint(const char *head, buttons_page_t *pg, int num) {
+static void tabs_hint(const char *head, buttons_page_t *pg, int num, button_data_t *open) {
     char   s[300];
     size_t n = (size_t)snprintf(s, sizeof(s), "%s, page %d of 3:", head, num);
 
@@ -155,9 +156,9 @@ static void tabs_hint(const char *head, buttons_page_t *pg, int num) {
             n += snprintf(s + n, sizeof(s) - n, "%s F%d %s", i == 1 ? "" : ",", i + 1, pg->items[i]->label);
         }
     }
-    /* the page's first tab opens with it: named, then its first row ("... F1 more tabs. Info tab. Version, ...") */
-    if (pg->items[1] && pg->items[1]->label)
-        snprintf(s + n, sizeof(s) - n, ". F1 more tabs. %s tab", pg->items[1]->label);
+    /* the tab that opens with it: named, then its row ("... F1 more tabs. Info tab. Version, ...") */
+    if (open && open->label)
+        snprintf(s + n, sizeof(s) - n, ". F1 more tabs. %s tab", open->label);
     else
         snprintf(s + n, sizeof(s) - n, ". F1 more tabs");
     voice_focus_hint(s);
@@ -169,7 +170,7 @@ static void page_press(button_data_t *btn) {
     if (btn->next && btn->next->items[1]) {
         int num = btn->next->items[0] && btn->next->items[0]->label ? btn->next->items[0]->label[10] - '0' : 0;
 
-        tabs_hint("Settings tabs", btn->next, num);
+        tabs_hint("Settings tabs", btn->next, num, btn->next->items[1]);
         tab_press(btn->next->items[1]);
     }
 }
@@ -334,13 +335,19 @@ static void mark_tab(button_data_t *btn_data) {
     rail_mark(btn_data);
 }
 
+static button_data_t *cur_tab;     /* the tab shown: Settings opens on it again (#362) */
+
+/* A tab chosen (its button, its line on the rail, a page turned) opens at its top */
 static void tab_press(button_data_t *btn) {
     if (!tabs_said && btn->label) {
         voice_focus_hint(btn->label);   /* "Wireless", then its first row */
     }
     tabs_said = false;
     for (auto &t : tabs) {
-        if (t.btn == btn) t.make();
+        if (t.btn == btn) {
+            cur_tab = btn;
+            t.make();
+        }
     }
     mark_tab(btn);
 }
@@ -1615,7 +1622,7 @@ static void wl_pill(lv_obj_t *obj, const char *text, uint32_t bg, uint32_t fg) {
  * their own grid. `grid` is the section being filled, the rows go from row 1. */
 
 #define CARD_HEAD_H     30
-#define ROW_LABEL       LV_OBJ_FLAG_USER_1     /* a row's label, with a dotted leader to its control */
+#define ROW_LABEL       SETTINGS_ROW_LABEL     /* a row's label, with a dotted leader to its control */
 
 static lv_coord_t *card_cols;
 
@@ -3110,22 +3117,9 @@ static void focus_row_label(lv_obj_t *obj) {
         lv_obj_set_style_text_color(focus_label, TC(text_value), 0);
         focus_label = NULL;
     }
-    while (obj && lv_obj_get_parent(obj) && lv_obj_get_style_layout(lv_obj_get_parent(obj), 0) != LV_LAYOUT_GRID) {
-        obj = lv_obj_get_parent(obj);
-    }
-    if (!obj || !lv_obj_get_parent(obj)) return;
-
-    lv_obj_t *g = lv_obj_get_parent(obj);
-    int       r = lv_obj_get_style_grid_cell_row_pos(obj, 0);
-
-    for (uint32_t i = 0; i < lv_obj_get_child_cnt(g); i++) {
-        lv_obj_t *c = lv_obj_get_child(g, i);
-
-        if (lv_obj_has_flag(c, ROW_LABEL) && lv_obj_get_style_grid_cell_row_pos(c, 0) == r) {
-            focus_label = c;
-            lv_obj_set_style_text_color(c, TC(text), 0);
-            break;
-        }
+    focus_label = settings_row_label(obj);
+    if (focus_label) {
+        lv_obj_set_style_text_color(focus_label, TC(text), 0);
     }
 }
 
@@ -3134,10 +3128,7 @@ static void focus_row_label(lv_obj_t *obj) {
 static lv_obj_t *reachable_end(lv_group_t *g, bool last) {
     for (lv_obj_t **o = (lv_obj_t **)(last ? _lv_ll_get_tail(&g->obj_ll) : _lv_ll_get_head(&g->obj_ll)); o;
          o = (lv_obj_t **)(last ? _lv_ll_get_prev(&g->obj_ll, o) : _lv_ll_get_next(&g->obj_ll, o))) {
-        lv_obj_t *p = *o;
-
-        while (p && !lv_obj_has_flag(p, LV_OBJ_FLAG_HIDDEN)) p = lv_obj_get_parent(p);
-        if (!p && !lv_obj_has_state(*o, LV_STATE_DISABLED)) {
+        if (settings_reachable(*o)) {
             return *o;
         }
     }
@@ -6126,18 +6117,65 @@ static void make_info_page() {
 }
 
 /* Update: version, the new-release alert, the app update */
+
+/* Where Settings was closed: its tab, the row the knob was on (settings_place.h, #362). Until the radio is off */
+static button_data_t   *last_tab = &btn_general;
+static settings_place_t last_place;
+
+/* The tab opens on the row kept, scrolled as it was and the knob on it as if turned there; a row not found (gone,
+ * hidden, disabled now) leaves the tab at its top */
+static void place_restore() {
+    lv_obj_t *obj = settings_place_find(&last_place, page, keyboard_group);
+
+    if (obj) {
+        lv_obj_update_layout(page);
+        lv_obj_scroll_to_y(page, last_place.scroll_y, LV_ANIM_OFF);
+        if (obj != lv_group_get_focused(keyboard_group)) {
+            /* focus_cb() brings the row into view as for a knob's step. lv_group_focus_obj() runs it before the
+             * FOCUSED event, whose scroll-on-focus then moved the page on by the page's bottom room (16 px under
+             * Display's Spectrum); a step of the knob runs it after, and it has the last word */
+            bool on_focus = lv_obj_has_flag(obj, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+
+            lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+            lv_group_focus_obj(obj);
+            if (on_focus) lv_obj_add_flag(obj, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+            return;
+        }
+    }
+    if (lv_group_get_focused(keyboard_group)) {
+        focus_cb(keyboard_group);
+    }
+}
+
 static void construct_cb(lv_obj_t *parent) {
+    int t = RAIL_N - 1;
+
+    while (t > 0 && tabs[t].btn != last_tab) t--;     /* General when not found */
+
+    buttons_page_t *pg = btn_pages[t / 4];
+
     dialog.obj = dialog_init(parent);
     for (int i = 0; i < 3; i++) {
         btn_pages[i]->items[0]->next = btn_pages[(i + 1) % 3];
     }
     rail_create();
-    tabs_hint("Settings. Tabs on the F-keys", &btn_page, 1);
-    tab_press(&btn_general);
+    if (buttons_get_cur_page() != pg) {     /* the tab's own F-keys: open_window() gave the first page's */
+        buttons_unload_page();
+        buttons_load_page(pg);
+    }
+    tabs_hint("Settings. Tabs on the F-keys", pg, t / 4 + 1, tabs[t].btn);
+    /* Built with no focus callback: the first row is not said, or scrolled to, on its way to the row kept */
+    lv_group_set_focus_cb(keyboard_group, NULL);
+    tab_press(tabs[t].btn);
     lv_group_set_focus_cb(keyboard_group, focus_cb);
+    place_restore();
 }
 
+/* The tab and the row kept before the page goes: the knob's row, or the tab's top while something over the page (the
+ * keyboard, a menu) has the knob */
 static void destruct_cb() {
+    last_tab = cur_tab ? cur_tab : &btn_general;
+    settings_place_get(&last_place, page, keyboard_group, lv_group_get_focused(keyboard_group));
     lv_group_set_focus_cb(keyboard_group, NULL);
     grid_delete();
     lv_group_set_focus_cb(keyboard_group, voice_focus_cb);     /* the group's own again (key_input.c) */

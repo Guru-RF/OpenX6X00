@@ -1929,6 +1929,15 @@ always in view. Some cards depend on the base firmware revision (TX AUDIO,
 band output gain, TX filter, CESSB, FM emphasis): they are hidden when the
 base is too old.
 
+Settings opens again on the tab and the row it was closed on, the page
+scrolled as it was and the MFK on that row: going back and forth between a
+setting and the screen it changes, the row is there each time (issue #362).
+However Settings is opened (APP, a key, the touch screen), until the radio is
+switched off; after a power-on it opens on General. A tab's button, its line
+on the left or the page button opens a tab at its top as before, and so does
+the next opening when the row is gone: hidden by another setting, the TX
+shift row after a band change, the labels in another language.
+
 ### General tab
 
 | Card | Options |
