@@ -1275,14 +1275,20 @@ charge (a pack charged with the radio off) said 3 % at 8.2 V, in Xiegu's own
 firmware too (issue #49). So on battery, while receiving, the radio checks it
 against what the voltage says (measured on an X6100: 8.2 V 98 %, 7.8 V 80 %,
 7.5 V 56 %, 7.4 V 42 %, 7.3 V 24 %, 7.2 V 9 %, 7.1 V 3 %, 6.9 V 1 %, 6.8 V
-0 %). When the two are
-more than 25 points apart it shows the voltage's, until they agree within 10
+0 %). When the voltage's is
+more than 25 points over the base's it shows the voltage's, until they agree within 10
 again, but not from 7.3 V down: on its way to 0 there the voltage's agrees with
 a base stuck at 0 % too. A base at 0 % with the pack at 7.2 V or more has lost
 count as well: the radio shows the voltage's then too, also when it is switched
 on that low. (In v0.3.7 the radio went back to such a base's 0 % at 7.2 V, or
 showed it from the start when switched on at 7.3 or 7.2 V, and said "connect
 power" every minute while the pack still had half an hour or more.) The
+other way round the radio shows the base's: a worn pack sags under the radio's
+own load, and on one the voltage's % said 0 % for the last 39 minutes of a
+66 minute run while the base's said 70 % (CX8ANM's finding; up to v0.3.13 the
+radio showed the voltage's there too). Near the end it shows no more than 10 %
+from 6.5 V down and 3 % from 6.3 V down (the X6200: 7.2 and 7.1 V, as its
+power-off comes at 7.0 V), whatever the base says. The
 voltage comes in 0.1 V steps and goes back and forth on a step, so the % from
 the voltage goes down at once and back up a step only after about a minute
 there, or at once for 0.2 V more (up to v0.3.8 it went 24 % and 9 % in turn at
@@ -3671,7 +3677,8 @@ Buttons:
 The lane. Over the waterfall, each station on the tiles (heard in the last
 2 minutes, as Show lets it) has its call written over its offset, on two
 lines where calls would meet; a call with no room on either is left out
-(its tile has it). Red: a station that called you in the last 3 minutes.
+(its tile has it). Red: a station that called you in the last minute, until
+you select its tile.
 White: a CQ. Grey: the others. Yellow: your TX offset ("TX") and, in the
 tiles, the station selected.
 
@@ -3714,12 +3721,15 @@ has a heavy left border instead of the edge.
 
 The tiles (View: Tiles). One tile a station heard in the last 2 minutes:
 flag, call, signal (one to five bars, -24 to -4 dB), country and distance,
-and a tag: "calls you" with its report (the tile red for 3 minutes after its
-call, the text white on it), NEW (a CQ from a country not in your log), CQ
-(or CQ POTA), worked (a CQ of a station worked before), called you (once
-red, or logged since), QSO (in a QSO with someone else). The stations that
-call you come first, the newest call first, then the NEW CQs, the CQs, the
-CQs worked, the others; the strongest first in each. A QSO logged ends its
+and a tag: "calls you" with its report (for 3 minutes after its call; the
+tile red for the first minute or until the MFK or a touch selects it, the
+text white on it, then plain with the tag in grey), NEW (a CQ from a country not in your log), CQ
+(or CQ POTA), worked (a CQ of a station worked before), called you (longer
+ago, or logged since), QSO (in a QSO with someone else). The stations that
+called you in the last 3 minutes come first, red or not, the newest call first, then the NEW CQs, the CQs, the
+CQs worked, the others; the strongest first in each. So a tile does not
+jump pages as its red goes, and with Show: CQ a station that called you
+stays on the tiles for those 3 minutes, also once selected (F4OLI). A QSO logged ends its
 station's red. Nine a page, the page under them (1/2) when there are more.
 The MFK goes from tile to tile, its station's offset marked on the
 waterfall; a press calls the selected station as a press on its last row
@@ -3967,8 +3977,8 @@ First steps:
    reduction, noise blanker and notch are off, and power is capped at 7 W;
    all go back when you leave.
 4. The board shows the stations of the band as cards. Heartbeat (page 1)
-   tells them you are here; those that hear you answer and come first, in
-   red for 3 minutes, "heard you" with their report. Turn the MFK onto a card and press:
+   tells them you are here; those that hear you answer and come first,
+   "heard you" with their report. A card turns red only for a message to you. Turn the MFK onto a card and press:
    the conversations open on that station.
 5. ESC or the top knob stops sending; the next ESC leaves the app.
 
@@ -3988,9 +3998,12 @@ The board, the main view: a card for each station of the band, nine a page,
 those that heard you first (a heartbeat answered, a call), then the others,
 newest first. A card shows the flag, the call, the signal as you hear it,
 the country and distance (from their locator, else from their country's
-middle, "~"), and a tag: "2 new" (messages for you not read), "heard you
--12" (their report; the card red for 3 minutes after their answer, then
-plain with the tag in grey), else what they sent last (CQ, HB, X6100). The selected
+middle, "~"), and a tag: "2 new" (messages for you not read; a heartbeat's
+answer, the SNR report, is not one), "heard you
+-12" (their report, in grey), else what they sent last (CQ, HB, X6100). A card is red for a
+minute after a message to you, or until the MFK selects it or you open its
+conversation; a heartbeat's answer alone does not light it (F4OLI; up to
+v0.3.13 every answer made it red for 3 minutes and counted as new). The selected
 card is framed; the MFK goes from card to card, its press opens the
 conversations. On the right of the TX line: the stations heard and "HB:
 say you're here", then after a heartbeat its time and how many heard it,
@@ -4031,7 +4044,7 @@ list. A switch shows its new value on its row; ESC or Settings... closes it.
 
 The screen: over the waterfall a lane of the calls heard in the last 3
 minutes, each over its offset (the one selected in the warning colour,
-those that called you in red, TX where you send); the newest rows of the
+those with a message to you in the last minute in red, as their card, TX where you send); the newest rows of the
 waterfall; the TX line; the list. Each message shows its sender's flag,
 country and distance on the right where it fits (the distance from the
 locator they sent, else from their country's middle, "~"); the Stations view

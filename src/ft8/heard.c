@@ -20,18 +20,22 @@ static uint32_t since(uint32_t now, uint32_t then) {
 }
 
 bool ft8_heard_calls_you(const ft8_heard_t *st, uint32_t now_ms) {
-    return st->called && !st->logged && since(now_ms, st->called_ms) < FT8_CALLS_YOU_MS;
+    return st->called && !st->logged && !st->seen && since(now_ms, st->called_ms) < FT8_RED_MS;
+}
+
+bool ft8_heard_called_lately(const ft8_heard_t *st, uint32_t now_ms) {
+    return st->called && since(now_ms, st->called_ms) < FT8_CALLS_YOU_MS;
 }
 
 bool ft8_heard_shown(const ft8_heard_t *st, bool show_all, uint32_t now_ms) {
-    return show_all || st->cd.cell_type == CELL_RX_CQ || ft8_heard_calls_you(st, now_ms);
+    return show_all || st->cd.cell_type == CELL_RX_CQ || ft8_heard_called_lately(st, now_ms);
 }
 
 static void drop_old(uint32_t now_ms) {
     int kept = 0;
 
     for (int i = 0; i < heard_n; i++)
-        if (since(now_ms, heard[i].heard_ms) < FT8_HEARD_KEEP_MS || ft8_heard_calls_you(&heard[i], now_ms))
+        if (since(now_ms, heard[i].heard_ms) < FT8_HEARD_KEEP_MS || ft8_heard_called_lately(&heard[i], now_ms))
             heard[kept++] = heard[i];
     heard_n = kept;
 }
@@ -67,6 +71,7 @@ void ft8_heard_add(const cell_data_t *cd, uint32_t now_ms) {
     if (cd->cell_type == CELL_RX_TO_ME && cd->meta.type != FTX_MSG_TYPE_RR73 && cd->meta.type != FTX_MSG_TYPE_73) {
         st->called    = true;
         st->logged    = false;
+        st->seen      = false;      /* the window says so again when its tile is the one selected */
         st->called_ms = now_ms;
         if (cd->meta.type == FTX_MSG_TYPE_REPORT || cd->meta.type == FTX_MSG_TYPE_R_REPORT) {
             st->has_report = true;
@@ -80,9 +85,14 @@ void ft8_heard_logged(const char *call) {
         if (!strcmp(heard[i].cd.meta.call_de, call)) heard[i].logged = true;
 }
 
-/* 0 calling us, 1 a CQ of a new country, 2 a CQ not worked, 3 a CQ worked, 4 the others */
+void ft8_heard_seen(const char *call) {
+    for (int i = 0; i < heard_n; i++)
+        if (!strcmp(heard[i].cd.meta.call_de, call)) heard[i].seen = true;
+}
+
+/* 0 called us lately, 1 a CQ of a new country, 2 a CQ not worked, 3 a CQ worked, 4 the others */
 static int rank(const ft8_heard_t *st, uint32_t now_ms) {
-    if (ft8_heard_calls_you(st, now_ms)) return 0;
+    if (ft8_heard_called_lately(st, now_ms)) return 0;
     if (st->cd.cell_type != CELL_RX_CQ) return 4;
     if (st->cd.new_dxcc) return 1;
     return st->cd.worked_type == SEARCH_WORKED_NO ? 2 : 3;
@@ -113,7 +123,7 @@ int ft8_heard_list(const ft8_heard_t **out, int max, bool show_all, uint32_t now
 }
 
 ft8_tag_t ft8_heard_tag(const ft8_heard_t *st, uint32_t now_ms) {
-    if (ft8_heard_calls_you(st, now_ms)) return FT8_TAG_CALLS_YOU;
+    if (ft8_heard_called_lately(st, now_ms) && !st->logged) return FT8_TAG_CALLS_YOU;
     if (st->cd.cell_type == CELL_RX_CQ) {       /* calling CQ now: what an answer would get */
         if (st->cd.new_dxcc) return FT8_TAG_NEW;
         return st->cd.worked_type == SEARCH_WORKED_NO ? FT8_TAG_CQ : FT8_TAG_WORKED;

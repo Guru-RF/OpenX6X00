@@ -10,6 +10,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <strings.h>
 
 #include "js8_receive.h"
 
@@ -66,12 +68,53 @@ typedef struct {
     bool    x6100;                    /* they have sent something to @X6100 */
 } js8_station_t;
 
-/* The board's card of a station that heard us is red this long after their last answer, then plain with "heard you"
- * in grey; they still come first (F4OLI: red for as long as they stayed in the list was far too long) */
-#define JS8_HEARD_FRESH_MS (3 * 60 * 1000)
+/* The board's red: a message to us lights its sender's card, and its call over the waterfall, for JS8_RED_MS or
+ * until the MFK selects the card (seen), whichever comes first. A heartbeat's answer, the SNR report, is no message:
+ * its card says "heard you -12" in grey and still comes first. After OlivLoze's fork (F4OLI, 0d1875b4, 55e3bc5c):
+ * red for as long as "heard you" was fresh, 3 minutes after each answer, lit half the board after one heartbeat */
+#define JS8_RED_MS (60 * 1000)
+#define JS8_RED_N  32
 
-static inline bool js8_heard_me_fresh(const js8_station_t *st, int64_t now_ms) {
-    return st->heard_me && now_ms - st->heard_me_ms < JS8_HEARD_FRESH_MS;
+typedef struct {
+    char    call[JS8_RX_CALL_LEN]; /* "" free */
+    int64_t at_ms;                 /* their message, wall clock */
+} js8_red_t;                       /* the board keeps JS8_RED_N of them, all zero at first */
+
+/* A whole message to our call from someone else, that is not a heartbeat's answer nor a heartbeat: what counts as
+ * "1 new" on its sender's card and lights it red */
+static inline bool js8_msg_is_new(const js8_rx_msg_t *m) {
+    return !m->partial && !m->tx && m->to_me && m->from[0] && !m->snr_report && !m->heartbeat;
+}
+
+/* A message of call at now_ms: red from now. Full: the oldest goes */
+static inline void js8_red_mark(js8_red_t *reds, const char *call, int64_t now_ms) {
+    int k = -1;
+
+    for (int i = 0; i < JS8_RED_N && k < 0; i++)
+        if (reds[i].call[0] && !strcasecmp(reds[i].call, call)) k = i;
+    for (int i = 0; i < JS8_RED_N && k < 0; i++)
+        if (!reds[i].call[0]) k = i;
+    if (k < 0) {
+        k = 0;
+        for (int i = 1; i < JS8_RED_N; i++)
+            if (reds[i].at_ms < reds[k].at_ms) k = i;
+    }
+    snprintf(reds[k].call, sizeof(reds[k].call), "%s", call);
+    reds[k].at_ms = now_ms;
+}
+
+/* The card of call selected: seen, its red ends */
+static inline void js8_red_seen(js8_red_t *reds, const char *call) {
+    for (int i = 0; i < JS8_RED_N; i++)
+        if (reds[i].call[0] && !strcasecmp(reds[i].call, call)) reds[i].call[0] = '\0';
+}
+
+/* Wall clock: one set back (GPS, NTP) leaves no card red for longer than JS8_RED_MS from then */
+static inline bool js8_red_on(const js8_red_t *reds, const char *call, int64_t now_ms) {
+    for (int i = 0; i < JS8_RED_N; i++)
+        if (reds[i].call[0] && !strcasecmp(reds[i].call, call))
+            return now_ms >= reds[i].at_ms && now_ms - reds[i].at_ms < JS8_RED_MS;
+    return false;
 }
 
 typedef struct js8_stations js8_stations_t; /* opaque */

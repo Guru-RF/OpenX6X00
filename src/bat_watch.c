@@ -109,9 +109,22 @@ uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
      * 0 % and "connect power" every minute for the 35 to 42 minutes the pack still had. Switched on at 7.3 or
      * 7.2 V, the two were never 25 apart and it said that from the first reading: a base at 0 % there has lost
      * count */
-    if (apart > BAT_CAP_APART || (batcap == 0 && v >= BAT_CAP_AT_ZERO)) w->by_volts = true;
+    /* Only when the voltage's is the higher one (CX8ANM's fork, 26ba3086). A worn pack sags under the radio's own
+     * load: his was at once 0.7 V under the 8.3 V it rests at, at 7.2 V after 17 of the 66 minutes it lasted, and
+     * the voltage's said 0 % 39 minutes before the end with the base's at 70 %. There the base's, under
+     * BAT_CAP_END_V's caps near the end */
+    if ((v > batcap && apart > BAT_CAP_APART) || (batcap == 0 && v >= BAT_CAP_AT_ZERO)) w->by_volts = true;
     else if (apart <= BAT_CAP_MET && v >= BAT_CAP_STEEP) w->by_volts = false;
-    return w->by_volts ? v : batcap;
+    else if (v < batcap) w->by_volts = false;
+    if (w->by_volts) return v;
+
+    /* The caps by the voltage the voltage's % is of (down at once, back up after a minute), not by each reading:
+     * on a 0.1 V step the % would go between the base's and the cap as it went 24 and 9 % in turn (#160) */
+    uint8_t cap = batcap;
+
+    if (w->cap_vbat <= BAT_CAP_END_V && cap > BAT_CAP_END_MAX) cap = BAT_CAP_END_MAX;
+    if (w->cap_vbat <= BAT_CAP_LAST_V && cap > BAT_CAP_LAST_MAX) cap = BAT_CAP_LAST_MAX;
+    return cap;
 }
 
 int bat_row_cap(bat_row_t *r, uint8_t vbat, int cap, bool supply) {

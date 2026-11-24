@@ -73,8 +73,8 @@ bool bat_supply_reading(bat_supply_t *s, const bat_watch_t *w, uint64_t now_ms);
  * from its discharge 8.3 to 6.4 V on the bench */
 uint8_t bat_cap_of_volts(uint8_t vbat);
 
-/* The % to show on battery, on receive: the base's, and the voltage's while the two are more than
- * BAT_CAP_APART apart, until they meet within BAT_CAP_MET with the voltage's at BAT_CAP_STEEP or more.
+/* The % to show on battery, on receive: the base's, and the voltage's while that is more than
+ * BAT_CAP_APART over it, until they meet within BAT_CAP_MET with the voltage's at BAT_CAP_STEEP or more.
  * The base counts the charge it sees: a pack charged with the radio off stayed near empty at 8.2 V,
  * in Xiegu's firmware too (#49). From 7.3 V down the voltage's falls through 24, 9 and 3 to 0, where
  * it meets a base stuck at 0 as well as one that counts right: there it does not go back to the base's.
@@ -84,6 +84,16 @@ uint8_t bat_cap_of_volts(uint8_t vbat);
 #define BAT_CAP_MET     10
 #define BAT_CAP_STEEP   25
 #define BAT_CAP_AT_ZERO 9
+
+/* The voltage's only when it is the higher one, the base that has lost count downwards (#49). A base higher than the
+ * voltage's is shown: that is a worn pack's sag under load (CX8ANM's fork, 26ba3086, bat_watch.c), where the
+ * voltage's said 0 % for the last 39 minutes. But no more than BAT_CAP_END_MAX % from BAT_CAP_END_V down and
+ * BAT_CAP_LAST_MAX % from BAT_CAP_LAST_V down, the voltages by the board as the power-off's (board.h): his X6100's
+ * worn pack went from 6.5 V to its end at 6.1 V in 18 minutes with the base still at 34 % */
+#define BAT_CAP_END_V    BOARD_BAT_END
+#define BAT_CAP_END_MAX  10
+#define BAT_CAP_LAST_V   BOARD_BAT_LAST
+#define BAT_CAP_LAST_MAX 3
 
 /* The voltage's % follows a voltage down at once, back up 0.1 V only after BAT_CAP_UP_READS readings in a row over
  * it (about 1 min), 0.2 V or more at once: on a 0.1 V step the readings go back and forth, and the % with them,

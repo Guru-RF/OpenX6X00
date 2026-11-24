@@ -289,8 +289,49 @@ int main(void) {
 
     /* A base that counts right (the bench X6100, 1.1.8) is shown as it is, on the step too */
     settled(73, 0);
+#ifdef BOARD_X6200
+    /* the X6200: from 7.2 V down no more than 10 %, its power-off is at 7.0 V (BOARD_BAT_END) */
+    check(bat_watch_cap(&w, 73, 26) == 26 && bat_watch_cap(&w, 72, 20) == 10 && bat_watch_cap(&w, 73, 19) == 10,
+          "a base that counts right: its own %, 10 % at the most from 7.2 V down", 0);
+#else
     check(bat_watch_cap(&w, 73, 26) == 26 && bat_watch_cap(&w, 72, 20) == 20 && bat_watch_cap(&w, 73, 19) == 19,
           "a base that counts right: its own %", 0);
+#endif
+
+    /* A worn pack (CX8ANM's fork, 26ba3086, his X6100's battery log of 23 November): it sags under the radio's load,
+     * and the base's 99 % at 7.6 V is shown, not the voltage's 65 %; near the end no more than 10 %, then 3 % */
+    memset(&w, 0, sizeof(w));
+    check(bat_watch_cap(&w, 76, 99) == 99, "a worn pack, 7.6 V, the base at 99 %: 99 %", 0);
+#ifndef BOARD_X6200
+    check(bat_watch_cap(&w, 72, 88) == 88, "7.2 V, the base at 88 %: 88 %, not 9", 0);
+    check(bat_watch_cap(&w, 69, 70) == 70, "6.9 V, the base at 70 %: 70 %, not 1", 0);
+    check(bat_watch_cap(&w, 65, 34) == 10, "6.5 V, the base at 34 %: 10 %", 0);
+    check(bat_watch_cap(&w, 63, 20) == 3, "6.3 V, the base at 20 %: 3 %", 0);
+#else
+    check(bat_watch_cap(&w, 73, 88) == 88, "7.3 V, the base at 88 %: 88 %, not 24", 0);
+    check(bat_watch_cap(&w, 72, 70) == 10, "the X6200 at 7.2 V, the base at 70 %: 10 %", 0);
+    check(bat_watch_cap(&w, 71, 34) == 3, "the X6200 at 7.1 V, the base at 34 %: 3 %", 0);
+#endif
+    check(BAT_CAP_END_V == BAT_LOW + (BAT_LOW == 60 ? 5 : 2) && BAT_CAP_LAST_V > BAT_LOW && BAT_CAP_LAST_V < BAT_CAP_END_V,
+          "the caps over the board's power-off", BAT_CAP_END_V);
+    /* the caps by the voltage the % is of: on the 0.1 V step over the cap the lower one's, as #160's 24 and 9 % */
+    memset(&w, 0, sizeof(w));
+    flips = 0;
+    bat_watch_cap(&w, BAT_CAP_END_V, 40);
+    for (int i = 0; i < BAT_CAP_UP_READS * 2; i++) {
+        flips += bat_watch_cap(&w, BAT_CAP_END_V + (i % 3 != 1), 40) != BAT_CAP_END_MAX;
+    }
+    check(flips == 0, "on the step over the first cap: 10 % throughout", flips);
+    check(bat_watch_cap(&w, BAT_CAP_END_V + 2, 40) == 40, "0.2 V over it: the base's again at once", 0);
+    check(bat_watch_cap(&w, BAT_CAP_END_V, 8) == 8 && bat_watch_cap(&w, BAT_CAP_LAST_V, 2) == 2,
+          "a base under the caps: its own %", 0);
+    /* #49 as before: the voltage's when it is the higher one, and the base's once that is the higher */
+    memset(&w, 0, sizeof(w));
+    check(bat_watch_cap(&w, 82, 2) == 98, "#49 still: 8.2 V, the base at 2 %: the voltage's 98 %", 0);
+    check(bat_watch_cap(&w, 74, 2) == 42 && w.by_volts, "down to 7.4 V: the voltage's 42 %", 0);
+    memset(&w, 0, sizeof(w));
+    check(bat_watch_cap(&w, 78, 40) == 80 && bat_watch_cap(&w, 74, 90) == 90 && !w.by_volts,
+          "the voltage's, then a base that is the higher one: the base's", 0);
 
     /* #223: a full pack charged with the radio off, the radio started on its supply (11.9 V) with the base at 2 %:
      * from 8.2 V up the voltage's. Charging there the pack reads 8.3 V, now and then 8.2: the % of the lower one, as on
