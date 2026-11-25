@@ -8,10 +8,13 @@
  *    opacity and strike-through, in the list's own text colour, and no edge.
  *  - The other rows look the same with either: notes, slot lines, the other QSOs grey, to us red, ours blue.
  *  - 1bit: Filled changes nothing (its green rows are paper, theme.c), no edge (its frame instead).
+ *  - The MFK's row (#355, #371): solid and framed in the theme's selected-row colours; v0.3.13's row colour 20 lighter,
+ *    see-through, was a ghost of a highlight. Contrast is checked for the four palettes in theme.h's colour table.
  */
 
 #include "ft8/row_look.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -120,11 +123,90 @@ static void onebit(void) {
     check(look(CELL_RX_CQ, SEARCH_WORKED_SAME_MODE, FT8_CQ_ROWS_FILLED, true).strike, "1bit: worked here struck through");
 }
 
+/* The built-in themes' values (theme.h): RF.Guru, Legacy, Outdoor, Classic */
+#define HEX4(role, a, b, c, d, ...) static const uint32_t hex_##role[4] __attribute__((unused)) = {a, b, c, d};
+THEME_COLORS(HEX4)
+#undef HEX4
+
+static double channel(uint32_t c, int shift) {
+    double v = ((c >> shift) & 0xff) / 255.0;
+
+    return v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4);
+}
+
+static double luminance(uint32_t c) {
+    return 0.2126 * channel(c, 16) + 0.7152 * channel(c, 8) + 0.0722 * channel(c, 0);
+}
+
+/* WCAG's contrast ratio, 1 the same, 21 black on white */
+static double contrast(uint32_t a, uint32_t b) {
+    double la = luminance(a), lb = luminance(b);
+
+    return la > lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05);
+}
+
+/* LVGL's lv_color_lighten() and an opacity over a ground, per channel */
+static uint32_t mix(uint32_t fg, uint32_t bg, unsigned opa) {
+    uint32_t out = 0;
+
+    for (int shift = 0; shift < 24; shift += 8) {
+        unsigned f = (fg >> shift) & 0xff, b = (bg >> shift) & 0xff;
+
+        out |= ((f * opa + b * (255 - opa)) / 255) << shift;
+    }
+    return out;
+}
+
+static void mfk(void) {
+    static const ft8_cell_type_t plain[] = {CELL_RX_INFO, CELL_START_QSO, CELL_RX_MSG, CELL_RX_CQ, CELL_SLOT_SEP};
+    static const char           *names[] = {"RF.Guru", "Legacy", "Outdoor", "Classic"};
+    char what[96];
+
+    for (size_t i = 0; i < sizeof(plain) / sizeof(plain[0]); i++) {
+        cell_data_t    cd = row(plain[i], SEARCH_WORKED_NO);
+        ft8_mfk_look_t m  = ft8_row_mfk_look(&cd);
+
+        snprintf(what, sizeof(what), "MFK on row type %d: the theme's selected row, solid and framed", plain[i]);
+        check(m.bg == TC_sel_bg && m.text == TC_sel_text && m.border == TC_sel_border && m.border_width >= 2 &&
+                  m.bg_opa == LV_OPA_COVER,
+              what);
+    }
+    check(ft8_row_mfk_look(NULL).bg == TC_sel_bg, "MFK on the \"Wait sync\" row: the theme's selected row");
+
+    static const ft8_cell_type_t own[] = {CELL_RX_TO_ME, CELL_TX_MSG};
+    for (size_t i = 0; i < 2; i++) {
+        cell_data_t    cd = row(own[i], SEARCH_WORKED_NO);
+        ft8_mfk_look_t m  = ft8_row_mfk_look(&cd);
+
+        snprintf(what, sizeof(what), "MFK on row type %d: its red or blue lightened, solid, framed", own[i]);
+        check(m.bg == TC_COUNT && m.lighten > 0 && m.border == TC_sel_border && m.border_width >= 2 &&
+                  m.bg_opa == LV_OPA_COVER,
+              what);
+    }
+    check(ft8_row_mfk_look(NULL).bg_opa > FT8_ROW_BG_OPA, "MFK row more solid than the rows around it");
+
+    /* The traffic and Edge's CQs lie on the panel: check the MFK row against each palette in theme.h's colour table */
+    for (int t = 0; t < 4; t++) {
+        uint32_t rowc  = mix(hex_panel[t], hex_panel[t], FT8_ROW_BG_OPA);
+        uint32_t ghost = mix(mix(0xffffff, hex_panel[t], 20), hex_panel[t], FT8_ROW_BG_OPA);   /* v0.3.13 */
+
+        snprintf(what, sizeof(what), "%s: v0.3.13's MFK row a ghost (%.2f)", names[t], contrast(ghost, rowc));
+        check(contrast(ghost, rowc) < 1.5, what);
+        snprintf(what, sizeof(what), "%s: the MFK row's frame stands out (%.2f)", names[t],
+                 contrast(hex_sel_border[t], rowc));
+        check(contrast(hex_sel_border[t], rowc) >= 3.0, what);
+        snprintf(what, sizeof(what), "%s: the MFK row's text readable on it (%.2f)", names[t],
+                 contrast(hex_sel_text[t], hex_sel_bg[t]));
+        check(contrast(hex_sel_text[t], hex_sel_bg[t]) >= 4.5, what);
+    }
+}
+
 int main(void) {
     edge();
     filled();
     others();
     onebit();
+    mfk();
     printf("ft8_rows: %d cases, %d wrong\n", cases, bad);
     return bad != 0;
 }

@@ -47,3 +47,18 @@ ft8_row_look_t ft8_row_look(const cell_data_t *cd, ft8_cq_rows_t cq_rows, bool m
     }
     return look;
 }
+
+ft8_mfk_look_t ft8_row_mfk_look(const cell_data_t *cd) {
+    ft8_mfk_look_t mfk = {.bg           = TC_sel_bg,
+                          .text         = TC_sel_text,
+                          .border       = TC_sel_border,
+                          .border_width = 2,
+                          .bg_opa       = LV_OPA_COVER};
+
+    if (cd && (cd->cell_type == CELL_RX_TO_ME || cd->cell_type == CELL_TX_MSG)) {
+        mfk.bg      = TC_COUNT;
+        mfk.lighten = 20;
+        mfk.text    = TC_COUNT;
+    }
+    return mfk;
+}

@@ -38,6 +38,24 @@ typedef struct {
  * by a frame: it keeps the redesign's look whatever cq_rows says */
 ft8_row_look_t ft8_row_look(const cell_data_t *cd, ft8_cq_rows_t cq_rows, bool mono);
 
+/* A row's ground is see-through over the list: the list's rows and the pin table's */
+#define FT8_ROW_BG_OPA 115
+#define FT8_PIN_BG_OPA LV_OPA_80
+
+/* The row the MFK is on, in colour (not 1bit, whose frames stay decode_list.c's): the theme's selected-row colours,
+ * solid and framed (#355). Up to v0.3.13 it was the row's own colour 20 lighter at FT8_ROW_BG_OPA, a ghost on the
+ * near-black rows (#371). A call to us and our own TX keep their red and blue, lightened, under the frame */
+typedef struct {
+    theme_color_t bg;           /* TC_COUNT: the row's own look.bg lightened by lighten */
+    uint8_t       lighten;
+    theme_color_t text;         /* TC_COUNT: the row's own text colour */
+    theme_color_t border;
+    uint8_t       border_width; /* all sides */
+    lv_opa_t      bg_opa;
+} ft8_mfk_look_t;
+
+ft8_mfk_look_t ft8_row_mfk_look(const cell_data_t *cd);
+
 #ifdef __cplusplus
 }
 #endif

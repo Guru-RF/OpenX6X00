@@ -414,7 +414,7 @@ static void draw_row_cb(lv_event_t *e) {
     lv_draw_label_dsc_t *label = dsc->label_dsc;
     ft8_row_look_t       look  = ft8_row_look(cd, param_i_get(cfg_ft8_cq_rows), theme_shape.mono);
 
-    rect->bg_opa   = obj == pin.obj ? LV_OPA_80 : 115;
+    rect->bg_opa   = obj == pin.obj ? FT8_PIN_BG_OPA : FT8_ROW_BG_OPA;
     rect->bg_color = lv_color_hex(theme_hex(look.bg));
     if (look.text != TC_COUNT) label->color = lv_color_hex(theme_hex(look.text));
     if (look.text_opa != LV_OPA_COVER) label->opa = look.text_opa;
@@ -444,21 +444,19 @@ static void draw_row_cb(lv_event_t *e) {
             rect->border_width = 1;
         }
     } else if (mfk_here) {
-        /* The MFK's row in the theme's colours of a selected row, solid and framed (#355). It was the row's own colour
-         * a little lighter, half see-through: on a green CQ row that showed (v0.3.12), on the near-black rows the
-         * redesign gave the CQs and the traffic (v0.3.13) it hardly did, on a pure black theme not at all. A call to
-         * us and our own TX keep their red and blue under the frame */
-        rect->border_color = TC(sel_border);
+        /* The MFK's row in the theme's colours of a selected row, solid and framed (#355, #371). It was the row's own
+         * colour a little lighter, half see-through: on a green CQ row that showed (v0.3.12), on the near-black rows
+         * the redesign gave the CQs and the traffic (v0.3.13) it hardly did, on a pure black theme not at all */
+        ft8_mfk_look_t mfk = ft8_row_mfk_look(cd);
+
+        rect->border_color = lv_color_hex(theme_hex(mfk.border));
         rect->border_opa   = LV_OPA_COVER;
         rect->border_side  = LV_BORDER_SIDE_FULL;
-        rect->border_width = 2;
-        rect->bg_opa       = LV_OPA_COVER;
-        if (cd && (cd->cell_type == CELL_RX_TO_ME || cd->cell_type == CELL_TX_MSG)) {
-            rect->bg_color = lv_color_lighten(rect->bg_color, 20);
-        } else {
-            rect->bg_color = TC(sel_bg);
-            label->color   = TC(sel_text);
-        }
+        rect->border_width = mfk.border_width;
+        rect->bg_opa       = mfk.bg_opa;
+        rect->bg_color     = mfk.bg == TC_COUNT ? lv_color_lighten(rect->bg_color, mfk.lighten)
+                                                : lv_color_hex(theme_hex(mfk.bg));
+        if (mfk.text != TC_COUNT) label->color = lv_color_hex(theme_hex(mfk.text));
     }
 }
 

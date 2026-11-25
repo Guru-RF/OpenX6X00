@@ -10,7 +10,7 @@ CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -DLV_CONF_INCLUDE_SIMPLE -DLV_LVGL_H_I
 all: test
 
 ft8_rows_test: ft8_rows_test.c $(SRC)/ft8/row_look.c $(SRC)/ft8/row_look.h $(SRC)/ft8/decode_list.h $(SRC)/theme.h
-	$(CC) $(CFLAGS) -o $@ ft8_rows_test.c $(SRC)/ft8/row_look.c
+	$(CC) $(CFLAGS) -o $@ ft8_rows_test.c $(SRC)/ft8/row_look.c -lm
 
 test: ft8_rows_test
 	./ft8_rows_test
