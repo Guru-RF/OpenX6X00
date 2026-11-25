@@ -8,8 +8,8 @@
  *    opacity and strike-through, in the list's own text colour, and no edge.
  *  - The other rows look the same with either: notes, slot lines, the other QSOs grey, to us red, ours blue.
  *  - 1bit: Filled changes nothing (its green rows are paper, theme.c), no edge (its frame instead).
- *  - The MFK's row (#355, #371): solid and framed in the theme's selected-row colours, which stand out of the list's
- *    ground in every built-in theme; v0.3.13's row colour 20 lighter, see-through, was a ghost of a highlight.
+ *  - The MFK's row (#355, #371): solid and framed in the theme's selected-row colours; v0.3.13's row colour 20 lighter,
+ *    see-through, was a ghost of a highlight. Contrast is checked for the four palettes in theme.h's colour table.
  */
 
 #include "ft8/row_look.h"
@@ -185,7 +185,7 @@ static void mfk(void) {
     }
     check(ft8_row_mfk_look(NULL).bg_opa > FT8_ROW_BG_OPA, "MFK row more solid than the rows around it");
 
-    /* The traffic and Edge's CQs lie on the panel: the MFK's row must stand out of them in every built-in theme */
+    /* The traffic and Edge's CQs lie on the panel: check the MFK row against each palette in theme.h's colour table */
     for (int t = 0; t < 4; t++) {
         uint32_t rowc  = mix(hex_panel[t], hex_panel[t], FT8_ROW_BG_OPA);
         uint32_t ghost = mix(mix(0xffffff, hex_panel[t], 20), hex_panel[t], FT8_ROW_BG_OPA);   /* v0.3.13 */
