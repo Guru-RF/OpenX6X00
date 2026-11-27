@@ -20,8 +20,9 @@ uint32_t closeup_span(void);
 
 /* DSP thread: one row, n (CLOSEUP_BINS) dB bins, the lowest frequency first, over width_hz centred on center_hz (an
  * absolute frequency: the rows of a retune stay where they were received); pb_half_hz the passband's half width
- * around that centre */
-void closeup_data(const float *db, uint16_t n, uint32_t width_hz, int64_t center_hz, int32_t pb_half_hz);
+ * around that centre, dial_hz the dial from it, sideband 1 USB, -1 LSB, 0 another mode (closeup_est_update()) */
+void closeup_data(const float *db, uint16_t n, uint32_t width_hz, int64_t center_hz, int32_t pb_half_hz,
+                  int32_t dial_hz, int sideband);
 
 /* LVGL thread */
 void       closeup_init(lv_obj_t *parent);      /* its labels, children of the waterfall */

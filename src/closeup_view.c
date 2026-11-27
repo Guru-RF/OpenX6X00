@@ -5,6 +5,7 @@
  */
 
 #include "closeup_view.h"
+#include "closeup_est.h"
 
 #include "cfg/cfg_api.h"
 #include "gui_styles.h"
@@ -13,6 +14,7 @@
 #include "theme.h"
 #include "waterfall_view.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -25,6 +27,8 @@ typedef struct {
     int64_t  center;            /* Hz, absolute */
     uint32_t width;             /* Hz the bins cover; 0: empty */
     int32_t  pb_half;
+    int32_t  dial;              /* the dial from the centre, Hz */
+    int8_t   sideband;          /* 1 USB, -1 LSB, 0 another mode */
 } cu_row_t;
 
 static cu_row_t  rows[CU_ROWS];
@@ -41,6 +45,11 @@ static const uint32_t *img_pal;
 static bool      img_mono;
 
 static lv_obj_t *span_label;
+static lv_obj_t *off_label;             /* "off -150 Hz", "centred" */
+static closeup_est_t est;
+static uint32_t  est_tick;              /* when the last row came (lv_tick_get()) */
+#define CU_LABEL_MS 500                 /* no rows for this long (TX, a pause): the label away */
+#define CU_VOICE_EDGE 300               /* Hz from the dial where a voice begins, SSB tuned right */
 static lv_obj_t *parent_obj;
 
 /* ---- DSP thread ---- */
@@ -49,7 +58,8 @@ uint32_t closeup_span(void) {
     return __atomic_load_n(&span_now, __ATOMIC_ACQUIRE);
 }
 
-void closeup_data(const float *db, uint16_t n, uint32_t width_hz, int64_t center_hz, int32_t pb_half_hz) {
+void closeup_data(const float *db, uint16_t n, uint32_t width_hz, int64_t center_hz, int32_t pb_half_hz,
+                  int32_t dial_hz, int sideband) {
     uint16_t  next = (__atomic_load_n(&newest, __ATOMIC_ACQUIRE) + 1) % CU_ROWS;
     cu_row_t *r = &rows[next];
 
@@ -60,6 +70,8 @@ void closeup_data(const float *db, uint16_t n, uint32_t width_hz, int64_t center
     r->center = center_hz;
     r->width = width_hz;
     r->pb_half = pb_half_hz;
+    r->dial = dial_hz;
+    r->sideband = sideband;
     __atomic_store_n(&newest, next, __ATOMIC_RELEASE);
     __atomic_add_fetch(&written, 1, __ATOMIC_RELEASE);
 }
@@ -90,6 +102,46 @@ void closeup_init(lv_obj_t *parent) {
     lv_obj_set_style_text_color(span_label, TC(text_dim), 0);
     lv_obj_clear_flag(span_label, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(span_label, LV_OBJ_FLAG_HIDDEN);
+
+    off_label = lv_label_create(parent);
+    lv_obj_set_style_text_font(off_label, &sony_16, 0);
+    lv_obj_set_style_bg_color(off_label, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(off_label, LV_OPA_60, 0);
+    lv_obj_set_style_pad_hor(off_label, 4, 0);
+    lv_obj_clear_flag(off_label, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(off_label, LV_OBJ_FLAG_HIDDEN);
+    closeup_est_reset(&est);
+}
+
+/* The label: how far the strongest signal in the passband is from the strip's middle (where it should be: the
+ * passband's middle, the CW signal's own frequency in CW), green when centred; away without a signal or rows */
+static void off_label_update(int32_t strip_h) {
+    if (!off_label) {
+        return;
+    }
+    if (!strip_h || !est.valid || lv_tick_elaps(est_tick) > CU_LABEL_MS) {
+        lv_obj_add_flag(off_label, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    int32_t off = (int32_t) lroundf(est.off_hz);
+    bool    centred = LV_ABS(off) <= CLOSEUP_GREEN_HZ;
+    char    s[24];
+
+    if (centred) {
+        lv_snprintf(s, sizeof(s), "centred");
+    } else {
+        lv_snprintf(s, sizeof(s), "off %+d Hz", (int) off);
+    }
+    lv_label_set_text(off_label, s);
+    if (theme_shape.mono) {
+        lv_obj_set_style_text_color(off_label, lv_color_hex(theme_shape.paper), 0);
+        lv_obj_set_style_bg_color(off_label, lv_color_hex(theme_shape.ink), 0);
+        lv_obj_set_style_bg_opa(off_label, LV_OPA_COVER, 0);
+    } else {
+        lv_obj_set_style_text_color(off_label, lv_color_hex(centred ? 0x40e070 : 0xffcf4a), 0);
+    }
+    lv_obj_set_pos(off_label, WIDTH / 2 + 8, LV_MAX(0, strip_h - 22));
+    lv_obj_clear_flag(off_label, LV_OBJ_FLAG_HIDDEN);
 }
 
 static inline const cu_row_t *row_at(uint16_t top, int32_t age) {
@@ -181,6 +233,7 @@ static void copy_out(uint32_t *buf, bool portrait, int32_t stride, int32_t h, in
 void closeup_paint(uint32_t *buf, bool portrait, int32_t stride, int32_t strip_h, bool fresh) {
     if (!strip_h) {
         if (span_label) lv_obj_add_flag(span_label, LV_OBJ_FLAG_HIDDEN);
+        off_label_update(0);
         img_h = 0;
         return;
     }
@@ -196,6 +249,24 @@ void closeup_paint(uint32_t *buf, bool portrait, int32_t stride, int32_t strip_h
     if (!span) {
         return;
     }
+    /* The estimate from the new rows; again from the start on another frequency */
+    if (center != img_center) {
+        closeup_est_reset(&est);
+    }
+    for (int32_t a = (int32_t) LV_MIN(news, (uint32_t) CU_ROWS - 1) - 1; a >= 0; a--) {
+        const cu_row_t *r = row_at(top, a);
+
+        if (r->width && r->center == center) {
+            /* CW, AM, a carrier: its middle on the strip's (the passband's middle, a CW signal's own frequency);
+             * SSB: the voice's edge 300 Hz from the dial (its energy lies low: the middle read hundreds of Hz off
+             * when tuned right) */
+            int32_t want = r->sideband ? r->dial + r->sideband * CU_VOICE_EDGE : 0;
+
+            closeup_est_update(&est, r->db, CLOSEUP_BINS, r->width, -r->pb_half, r->pb_half, want, r->sideband);
+            est_tick = lv_tick_get();
+        }
+    }
+    off_label_update(strip_h);
     if (!whole && !news && !fresh) {
         return;
     }

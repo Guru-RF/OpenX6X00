@@ -309,6 +309,7 @@ static std::atomic<bool> floor_reset{true};
 
 static int32_t      filter_from = 0;
 static int32_t      filter_to   = 3000;
+static int32_t      dial_at     = 0;     /* the dial from the IQ's centre: the IF shift */
 static radio_mode_t cur_mode;
 #ifdef BOARD_X6200
 static std::atomic<float> own_tone_gain{1.0f};  /* cw_own_tone_gain() at the KEY Volume, for the audio thread */
@@ -555,7 +556,10 @@ void dsp_samples(cfloat *buf_samples, uint16_t size, bool tx, uint32_t base_freq
     if (cu_span && closeup->ready()) {
         int64_t center = (int64_t)(base_freq ? base_freq : cur_freq) + closeup->middle();
 
-        closeup_data(closeup->take(zoom_db), CLOSEUP_BINS, closeup->rate(), center, (filter_to - filter_from) / 2);
+        int sideband = cur_mode == radio_mode_usb ? 1 : cur_mode == radio_mode_lsb ? -1 : 0;
+
+        closeup_data(closeup->take(zoom_db), CLOSEUP_BINS, closeup->rate(), center, (filter_to - filter_from) / 2,
+                     dial_at - closeup->middle(), sideband);
     }
 }
 
@@ -672,6 +676,8 @@ static void on_filter_change(Subject *subj, void *user_data) {
     int32_t low   = cfg_sm.cp_cur_filter_low.get();
     int32_t high  = cfg_sm.cp_cur_filter_high.get();
     int32_t shift = cfg_sm.p_band_if_shift.get();
+
+    dial_at = shift;
 
     switch (cfg_sm.cp_cur_mode.get()) {
         case radio_mode_lsb:

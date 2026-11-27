@@ -1540,9 +1540,13 @@ Close-up (X6100) splits the area: a quarter at the top shows a fine 2D
 waterfall of 2, 5 or 10 kHz around the VFO, the 3D below it. It shows how
 well you are centred on a signal: the centre line and the passband are marked
 on it, and a small label says how far the strongest signal in the passband is
-from where it should be (the CW pitch in CW, the middle of the filter in SSB),
-"off −150 Hz", green when within 20 Hz. It is exact for CW and carriers and a
-rough guide for SSB, where a voice has no clear centre. Close-up Off gives the
+from where it should be, "off -150 Hz", or "centred" in green within 20 Hz. In
+CW, AM and on a carrier it is the signal's middle against the passband's (in CW
+the signal's own frequency); in USB and LSB it is the voice's edge against
+300 Hz from the dial, where a voice tuned right begins (its energy lies low in
+the passband: its middle would read hundreds of Hz off): there it is a guide,
+as a voice has no sharp edge. It reads to a bin of the close-up: 12 Hz at
+2 kHz, 49 Hz at 10 kHz, so 2 kHz is the one to tune with. Close-up Off gives the
 whole area to the 3D. The X6200 sends no IQ, only its own spectrum, too coarse
 for it: there the setting is not shown.
 
