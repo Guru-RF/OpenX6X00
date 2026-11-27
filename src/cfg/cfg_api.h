@@ -127,6 +127,10 @@ extern ParamInt         *cfg_wf_3d_floor;        // p_wf_3d_floor
 extern ParamInt         *cfg_wf_3d_peak;         // p_wf_3d_peak
 extern ParamInt         *cfg_wf_3d_glide;        // p_wf_3d_glide
 extern ParamInt         *cfg_wf_3d_range;        // p_wf_3d_range
+extern ParamInt         *cfg_wf_closeup;         // p_wf_closeup
+
+/* The close-up's span for a p_wf_closeup value: 0 (off), 2000, 5000, 10000 Hz */
+uint32_t wf_closeup_span_hz(int32_t v);
 extern ParamText        *cfg_encoder_bind;       // p_encoder_bind
 extern ParamInt         *cfg_power_display;      // p_power_display
 extern ParamInt         *cfg_callsign_show;      // p_callsign_show: the callsign on the main screen (#292)

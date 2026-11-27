@@ -13,7 +13,8 @@
  *  picture to the next). With bench, the time of a picture after them. The cases: five heights, colour and 1bit,
  *  the three 3D colours, and for each a sequence of 8 pictures: whole, the same scene again (only what the last one
  *  drew is put back), new rows, a reference line moved, the target buffer changed (2D drew in it); and a portrait
- *  target (what the planes get), which never takes the turn.
+ *  target (what the planes get), which never takes the turn. Two of the heights with the close-up's strip over the
+ *  3D (a stand-in pattern for it): the 3D drawn under it, in rows and in columns alike.
  *
  *  From cjlawson02's fork (cjlawson02/OpenX6X00, wf3d/colmajor f3ce5f5a), there a script against the commit before.
  */
@@ -87,6 +88,16 @@ static void row_pixels(const wf_row_t *row, uint32_t center, uint32_t span, size
     for (size_t i = i0; i < i1; i++) out[i - i0] = row->values[DATA_AT + (i * WATERFALL_NFFT / WIDTH) % WATERFALL_NFFT];
 }
 
+#include "wf3d_shape.h"
+/* the 3D's shaping as it is (Makefile: src/wf3d_shape.c built in); the close-up's strip a stand-in: a pattern by
+ * its pixel, at the place closeup_view.c's copy puts the strip (portrait: x at column WIDTH - 1 - x) */
+static void closeup_paint(uint32_t *buf, bool portrait, int32_t stride, int32_t strip_h, bool fresh) {
+    (void) fresh;
+    for (int32_t y = 0; y < strip_h; y++)
+        for (int32_t x = 0; x < WIDTH; x++)
+            *(portrait ? &buf[(WIDTH - 1 - x) * stride + y] : &buf[y * WIDTH + x]) = 0xff000000u | (x * 31 + y * 7);
+}
+
 #include "d3_extract.inc"
 
 static uint64_t fnv(const void *p, size_t n) {
@@ -143,8 +154,10 @@ int main(int argc, char **argv) {
             memset(dst, 0x5a, sizeof(uint32_t) * WIDTH * height);   /* what was in the buffer before is not kept */
             if (step == 7) memset(dst, 0, 4);
             pic.cx = d3_vanish;
+            pic.strip = hi % 2 ? LV_CLAMP(24, height / 4, 120) : 0;   /* the close-up's strip over the 3D */
             render(dst, false, &pic, ref_x, 3);
-            fprintf(out, "h%d mono%d col%d step%d %016llx\n", height, mono, colors, step,
+            if (rows_only) closeup_paint(dst, false, height, pic.strip, true);  /* d3_draw() leaves it to the caller */
+            fprintf(out, "h%d strip%d mono%d col%d step%d %016llx\n", height, pic.strip, mono, colors, step,
                     (unsigned long long) fnv(dst, sizeof(uint32_t) * WIDTH * height));
             pics++;
         }

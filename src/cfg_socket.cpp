@@ -92,6 +92,7 @@ static const struct {
     {"wf_3d_peak", &cfg_sm.p_wf_3d_peak, 0, 1},
     {"wf_3d_glide", &cfg_sm.p_wf_3d_glide, 0, 3},
     {"wf_3d_range", &cfg_sm.p_wf_3d_range, 20, 60},
+    {"wf_closeup", &cfg_sm.p_wf_closeup, 0, 3},     /* not on bases without IQ (closeup_shown()) */
     {"wf_fixed_jump", &cfg_sm.p_wf_fixed_jump, 0, 2},  /* Fixed mode: live, waterfall_view.c reads them */
     {"wf_fixed_after", &cfg_sm.p_wf_fixed_after, 0, 2},
     {"auto_level", &cfg_sm.p_auto_level_enabled, 0, 1},
@@ -182,6 +183,11 @@ static bool get_int(cJSON *req, int32_t min, int32_t max, int32_t *out) {
         return false;
     *out = (int32_t)v->valuedouble;
     return true;
+}
+
+/* The close-up only where the base sends IQ: on the X6200 (HW_CAP_PSD) the page gets no row and may not set it */
+static bool closeup_shown(const char *name) {
+    return strcmp(name, "wf_closeup") || !(radio_caps() & HW_CAP_PSD);
 }
 
 /* LVGL thread */
@@ -288,7 +294,7 @@ static const char *disp_set(cJSON *req, disp_set_t *d) {
     if (!strcmp(d->name, "apps_show_all"))
         min = 1, known = true;
     for (auto &o : disp_ints)
-        if (!strcmp(d->name, o.name)) {
+        if (!strcmp(d->name, o.name) && closeup_shown(o.name)) {
             min = o.min, max = o.max, known = true;
         }
     for (auto &o : disp_bools)
@@ -359,7 +365,8 @@ static int disp_get(char *buf, size_t size) {
     int  count = theme_list(names, 32);
 
     for (auto &o : disp_ints)
-        l += snprintf(buf + l, size - l, ",\"%s\":%d", o.name, (int)o.p->get());
+        if (closeup_shown(o.name))
+            l += snprintf(buf + l, size - l, ",\"%s\":%d", o.name, (int)o.p->get());
     for (auto &o : disp_bools)
         l += snprintf(buf + l, size - l, ",\"%s\":%d", o.name, o.b->x ? 1 : 0);
     l += snprintf(buf + l, size - l,

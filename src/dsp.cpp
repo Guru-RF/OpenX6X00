@@ -32,6 +32,7 @@
 
 extern "C" {
     #include "audio.h"
+    #include "closeup_view.h"
     #include "meter.h"
     #include "radio.h"
     #include "recorder.h"
@@ -71,9 +72,11 @@ class Panorama {
     std::vector<float> acc;
     size_t             filled = 0;
     size_t             count  = 0;
+    size_t             hop    = 0;      /* new samples between two FFTs; 0: one at every push */
+    size_t             since  = 0;
 
   public:
-    explicit Panorama(size_t n) : nfft(n), win(n), acc(n, 0.0f) {
+    explicit Panorama(size_t n, size_t hop_n = 0) : nfft(n), win(n), acc(n, 0.0f), hop(hop_n) {
         hist = windowcf_create(n);
         t    = (cfloat *)calloc(n, sizeof(cfloat));
         f    = (cfloat *)calloc(n, sizeof(cfloat));
@@ -84,6 +87,7 @@ class Panorama {
     void reset() {
         windowcf_reset(hist);
         filled = 0;
+        since = 0;
         count = 0;
         std::fill(acc.begin(), acc.end(), 0.0f);
     }
@@ -95,8 +99,10 @@ class Panorama {
     void push(cfloat *x, size_t n) {
         windowcf_write(hist, x, n);
         filled += n;
-        if (filled < nfft)
+        since += n;
+        if (filled < nfft || since < hop)
             return;
+        since = 0;
 
         cfloat *r;
 
@@ -166,6 +172,99 @@ class PsdFrames {
     }
 };
 
+/* The 3D waterfall's close-up (closeup_view.h): the IQ moved so the passband's middle is at 0, decimated to about
+ * 1.5 times the strip's span (2 kHz: 3125 S/s, 12 Hz a bin; 5 kHz: 6250 S/s; 10 kHz: 12.5 kS/s), its own FFT of
+ * CLOSEUP_BINS; its rows go out with the waterfall's. Only on RX, while the strip is shown */
+#define CLOSEUP_CAL_DB  (-7.5f)     /* measured: the noise 7.5 dB over the waterfall's at every span without it (the
+                                     * decimator's and the floor tracker's own ways with noise) */
+class Closeup {
+    uint32_t      span = 0, fs_in = 0;
+    int32_t       mid = 0;
+    uint32_t      dec = 1;
+    cfloat        phase = 1.0f, step = 1.0f;    /* the mixer: a phasor turned by step a sample (a sine at each was most
+                                                 * of the work) */
+    bool          on = false;
+    firdecim_crcf decim = nullptr;
+    Panorama      pan{CLOSEUP_BINS, CLOSEUP_BINS / 2};  /* an FFT at each half of it new: 24 a second at 2 kHz */
+    cfloat        mixed[RADIO_SAMPLES * 2];
+    float         lin[CLOSEUP_BINS];
+    float         db[CLOSEUP_BINS];
+
+  public:
+    uint32_t rate() const {
+        return fs_in / dec;
+    }
+
+    int32_t middle() const {
+        return mid;
+    }
+
+    void reset() {
+        pan.reset();
+    }
+
+    /* For this span, IQ rate and passband middle (Hz from the IQ's centre); again from the start when one moved */
+    void set(uint32_t s, uint32_t in, int32_t m) {
+        if (s == span && in == fs_in && m == mid)
+            return;
+        if (s != span || in != fs_in) {
+            uint32_t d = std::max<uint32_t>(1, in / (s * 25 / 16));
+
+            while (d > 1 && RADIO_SAMPLES % d)
+                d--;
+            if (decim)
+                firdecim_crcf_destroy(decim);
+            /* short (5 taps a side a sample out): only the middle two thirds of what comes out are shown */
+            decim = d > 1 ? firdecim_crcf_create_kaiser(d, 5, 60.0f) : nullptr;
+            if (decim)
+                firdecim_crcf_set_scale(decim, 1.0f / d);
+            dec = d;
+        }
+        float w = -2.0f * (float)M_PI * m / in;    /* down by m */
+
+        step = cfloat(cosf(w), sinf(w));
+        on = true;
+        span = s;
+        fs_in = in;
+        mid = m;
+        pan.reset();
+    }
+
+    void push(const cfloat *x, size_t n) {
+        if (!on || n > RADIO_SAMPLES * 2 || n % dec)
+            return;
+        for (size_t i = 0; i < n; i++) {
+            mixed[i] = x[i] * phase;
+            phase *= step;
+        }
+        phase /= std::abs(phase);               /* its length kept at 1 */
+        if (decim) {
+            firdecim_crcf_execute_block(decim, mixed, n / dec, mixed);
+            n /= dec;
+        }
+        pan.push(mixed, n);
+    }
+
+    bool ready() const {
+        return pan.ready();
+    }
+
+    /* The row in dB on the waterfall's scale (lift: its zoom's), DC (the passband's middle) in the middle. A bin
+     * here holds 4 * dec times less noise than one of the waterfall's (a quarter of the FFT, decimated by dec at
+     * unity gain): lifted by that, the noise has the waterfall's colour and a narrow signal stands out of it by
+     * the narrower bins */
+    const float *take(float lift) {
+        float k = 10.0f * log10f(4.0f * dec) + CLOSEUP_CAL_DB + LEVEL_DB + lift;
+
+        pan.take(lin);
+        for (size_t i = 0; i < CLOSEUP_BINS; i++)
+            db[i] = 10.0f * log10f(lin[i]) + k;
+        return db;
+    }
+};
+
+static Closeup *closeup;
+
 static pthread_mutex_t mux = PTHREAD_MUTEX_INITIALIZER;
 static bool            ready;
 
@@ -210,6 +309,7 @@ static std::atomic<bool> floor_reset{true};
 
 static int32_t      filter_from = 0;
 static int32_t      filter_to   = 3000;
+static int32_t      dial_at     = 0;     /* the dial from the IQ's centre: the IF shift */
 static radio_mode_t cur_mode;
 #ifdef BOARD_X6200
 static std::atomic<float> own_tone_gain{1.0f};  /* cw_own_tone_gain() at the KEY Volume, for the audio thread */
@@ -423,6 +523,7 @@ void dsp_samples(cfloat *buf_samples, uint16_t size, bool tx, uint32_t base_freq
         cur_freq = base_freq;
         wf_rx->reset();
         sp_rx->reset();
+        closeup->reset();
     }
     if (fft_dec && fft_dec != zoom)
         set_zoom(fft_dec);
@@ -441,11 +542,33 @@ void dsp_samples(cfloat *buf_samples, uint16_t size, bool tx, uint32_t base_freq
         spectrum_frame(sp, now, tx, base_freq, fft_dec);
     pthread_mutex_unlock(&mux);
 
+    uint32_t cu_span = tx || !waterfall_enabled.load(std::memory_order_relaxed) ? 0 : closeup_span();
+
+    static int64_t cu_center;       /* the rows' centre: on another, the close-up again from new samples */
+
+    if (cu_span) {
+        closeup->set(cu_span, wf_span(), (filter_from + filter_to) / 2);
+
+        int64_t center = (int64_t)(base_freq ? base_freq : cur_freq) + closeup->middle();
+
+        if (center != cu_center) {
+            closeup->reset();       /* the OEM base (no frequency with the samples) included: its FFTs of before */
+            cu_center = center;
+        }
+        if (!settle)                /* the frames after a retune may be of the frequency before */
+            closeup->push(iq, size);
+    }
     if (!wf || !waterfall_frame(wf, now))
         return;
 
     s_meter();   /* on every frame, also with the waterfall hidden */
     frame_out(now, tx, base_freq);
+    if (cu_span && closeup->ready()) {
+        int sideband = cur_mode == radio_mode_usb ? 1 : cur_mode == radio_mode_lsb ? -1 : 0;
+
+        closeup_data(closeup->take(zoom_db), CLOSEUP_BINS, closeup->rate(), cu_center, (filter_to - filter_from) / 2,
+                     dial_at - closeup->middle(), sideband);
+    }
 }
 
 /* The base's own spectrum (HW_CAP_PSD, the X6200): n bins in dB over span_hz around the tuned
@@ -562,6 +685,8 @@ static void on_filter_change(Subject *subj, void *user_data) {
     int32_t high  = cfg_sm.cp_cur_filter_high.get();
     int32_t shift = cfg_sm.p_band_if_shift.get();
 
+    dial_at = shift;
+
     switch (cfg_sm.cp_cur_mode.get()) {
         case radio_mode_lsb:
         case radio_mode_lsb_dig:
@@ -624,6 +749,7 @@ void dsp_init() {
     sp_tx = new Panorama(SPECTRUM_NFFT);
     wf_rx = new Panorama(WATERFALL_NFFT);
     wf_tx = new Panorama(WATERFALL_NFFT);
+    closeup = new Closeup();
     psd_sp_rx = new PsdFrames(RADIO_SAMPLES);
     psd_sp_tx = new PsdFrames(RADIO_SAMPLES);
     psd_wf_rx = new PsdFrames(RADIO_SAMPLES);

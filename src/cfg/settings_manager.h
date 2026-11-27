@@ -373,8 +373,8 @@ class SettingsManager {
     // 3D tilt: 0 seen from the front (tall traces, little depth) to 10 from above
     Parameter<int32_t> p_wf_3d_tilt{"wf_3d_tilt", 5, 0, 10,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    // 3D floor: levels (of 255) above each row's noise floor cut away with it
-    Parameter<int32_t> p_wf_3d_floor{"wf_3d_floor", 6, 0, 40,
+    // 3D floor: the noise base's height, 2 levels (of 255) a step; 0 no base: the noise cut away
+    Parameter<int32_t> p_wf_3d_floor{"wf_3d_floor", 12, 0, 40,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // 3D range: the dB above the noise floor a trace's full height is (weak signals taller with less)
     Parameter<int32_t> p_wf_3d_range{"wf_3d_range", 40, 20, 60,
@@ -385,6 +385,10 @@ class SettingsManager {
     // 3D glide: the traces move back between rows, 1: 30 pictures a second (the old switch's on), 2: 20, 3: 15;
     // 0 off: a step at each new row, the least CPU
     Parameter<int32_t> p_wf_3d_glide{"wf_3d_glide", 2, 0, 3,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // 3D close-up: a fine waterfall around the VFO above the 3D, 0 off, 1-3 2, 5, 10 kHz across
+    // (wf_closeup_span_hz()); not on bases without IQ (HW_CAP_PSD)
+    Parameter<int32_t> p_wf_closeup{"wf_closeup", 2, 0, 3,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // String mapping encoder (cfg_ctrl_t) positions to bind values
     // (ENCODER_BIND_VOL/ENCODER_BIND_MFK/ENCODER_BIND_NONE). GLOBAL: persisted in the flat `params` table under key

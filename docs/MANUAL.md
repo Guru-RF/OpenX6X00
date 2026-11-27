@@ -1493,10 +1493,11 @@ Where: Settings > Display > WATERFALL.
 | Speed | 3 = 15 lines/s (default), 4 = 20, 5 = 30; 2 = 7.5 and 1 = 5 average the frames into a line: less noise and less CPU |
 | 3D | the last 6 seconds as traces one behind the other, the newest in front (below); on by default, off for the flat waterfall; off and greyed under Amber Trey, which draws no 3D |
 | 3D colours | shown with 3D: Strength (blue, green, yellow, red as the signal grows), Waterfall (the waterfall's colours), Blue |
-| 3D depth, tilt, floor | shown with 3D: the traces (8-64, every third line), the view from the front (0) to from above (10), how much above the noise floor is cut away |
+| 3D depth, tilt, floor | shown with 3D: the traces (8-64, every third line), the view from the front (0) to from above (10), how high the noise sits as a low base (0: none, the noise cut away) |
 | 3D range | shown with 3D: the dB above the noise floor at a trace's full height (20-60, 40 by default); less makes weak signals taller |
 | 3D peaks | shown with 3D: the newest trace's peaks held a moment |
 | 3D glide | shown with 3D: the traces move back smoothly, 30, 20 (default) or 15 pictures a second, fewer for less CPU; Off, a step at each new line: the least CPU. With 10 or more new lines a second (the default waterfall speed) the lines are smooth as they are and no pictures are drawn between them |
+| Close-up | shown with 3D, X6100 only: Off, or a fine waterfall 2, 5 or 10 kHz across around the VFO above the 3D (5 kHz by default) |
 
 With 3D on, the waterfall area shows the spectrum in perspective, as on
 some other makers' radios: the newest trace at the bottom, every third line
@@ -1506,14 +1507,17 @@ stays straight through them all, and move back smoothly, a little at every
 picture (3D glide: 30, 20 or 15 a second), not a step at each new line (3D
 glide Off: a step at each line, for the least CPU). A picture that would not
 change is not drawn.
-The noise floor is cut away (3D floor sets how much above it goes too): only
-signals stand up, and a trace shows only where it rises above those in front
-of it. Each point has the colour of its height on the 3D colours scale
+The noise stays as a low, smooth base across the band, drawn as a mesh of thin
+lines on every other trace (3D floor sets how high; 0 cuts it away), so a busy
+band looks busy; the signals stand up out of it,
+smoothed into rounded ridges while a narrow CW signal keeps its height, and a
+trace shows only where it rises above those in front of it. Each point has the colour of its height on the 3D colours scale
 (Strength: from blue at the floor through green and yellow to red for the
 strongest), the ridges lighter, the older traces darker. The newest trace is
-drawn over it all as a line of its own (red; white with Waterfall or Blue),
-along the front edge where there is no signal, its peaks held a moment above it
-(3D peaks). The floor has a grid, the back and side walls a line at each
+drawn over it all as a line of its own (red; white with Waterfall or Blue)
+with a soft glow, along the front edge where there is no signal, its peaks held
+a moment above it (3D peaks). The signals' bodies are a little see-through.
+The floor has a grid fading into the distance, the back and side walls a line at each
 quarter of the level scale, and the reference frequencies of the scale above
 run back to the VFO line, labelled at the front edge. 3D tilt goes from the
 front (0: tall traces, little depth) to from above (10). A trace's height is
@@ -1531,6 +1535,20 @@ MFK 4:4 page (3D on/off, and Depth, Tilt and Floor on the knob), or a front
 key's long press or a hand mic F key set to "WF 3D on/off" (Settings > Keys).
 3D is on by default: a radio updated from v0.3.8, which had no 3D, starts
 with it. Once switched off it stays off, over later updates too.
+
+Close-up (X6100) splits the area: a quarter at the top shows a fine 2D
+waterfall of 2, 5 or 10 kHz around the VFO, the 3D below it. It shows how
+well you are centred on a signal: the centre line and the passband are marked
+on it, and a small label says how far the strongest signal in the passband is
+from where it should be, "off -150 Hz", or "centred" in green within 20 Hz. In
+CW, AM and on a carrier it is the signal's middle against the passband's (in CW
+the signal's own frequency); in USB and LSB it is the voice's edge against
+300 Hz from the dial, where a voice tuned right begins (its energy lies low in
+the passband: its middle would read hundreds of Hz off): there it is a guide,
+as a voice has no sharp edge. It reads to a bin of the close-up: 12 Hz at
+2 kHz, 49 Hz at 10 kHz, so 2 kHz is the one to tune with. Close-up Off gives the
+whole area to the 3D. The X6200 sends no IQ, only its own spectrum, too coarse
+for it: there the setting is not shown.
 
 In Fixed mode the span stays still and the VFO line moves across it. The
 spectrum comes in only for the span around where the radio listens (the
