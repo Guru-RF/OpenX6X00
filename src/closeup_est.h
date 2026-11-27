@@ -12,12 +12,15 @@
 
 #define CLOSEUP_GREEN_HZ    20      /* this close: centred */
 #define CLOSEUP_EST_BINS    256     /* a row's bins at most */
+#define CLOSEUP_EST_WARMUP  4       /* rows averaged before an estimate */
 
 typedef struct {
     float   off_hz;     /* smoothed */
     bool    valid;      /* a signal seen lately */
     uint8_t quiet;      /* rows since the last one with a signal */
     int     n;          /* the rows' bins averaged in avg; 0: none yet */
+    uint32_t span;      /* and their width: rows of another (the span switched) start the average again */
+    uint8_t rows;       /* rows in it, to CLOSEUP_EST_WARMUP: no estimate before (one row's noise peaks passed) */
     float   avg[CLOSEUP_EST_BINS];  /* the rows' power, averaged (0.2 new): a row alone is a few FFTs, its noise
                                      * reached 10 dB over its median here and there */
 } closeup_est_t;

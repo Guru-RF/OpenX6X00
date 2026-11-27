@@ -91,8 +91,8 @@ lv_coord_t closeup_height(lv_coord_t wf_height) {
     return h;
 }
 
-bool closeup_new_rows(void) {
-    return __atomic_load_n(&written, __ATOMIC_ACQUIRE) != img_written;
+void closeup_pause(void) {
+    __atomic_store_n(&span_now, 0, __ATOMIC_RELEASE);
 }
 
 void closeup_init(lv_obj_t *parent) {

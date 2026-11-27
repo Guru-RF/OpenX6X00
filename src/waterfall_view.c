@@ -1686,6 +1686,7 @@ static void d3_redraw(void) {
     if (!shown(obj) || walkie_on() || !backlight_seen()) {
         d3_wait();
         d3_drawn_buf = NULL;        /* the plane may have been drawn over: the whole background again */
+        closeup_pause();            /* not seen: no close-up computed */
         return;
     }
     /* Tuning asks at each step of the scroll, 50 a second: the whole picture each time was a third of a core. At

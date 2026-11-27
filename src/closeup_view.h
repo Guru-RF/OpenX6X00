@@ -27,7 +27,8 @@ void closeup_data(const float *db, uint16_t n, uint32_t width_hz, int64_t center
 /* LVGL thread */
 void       closeup_init(lv_obj_t *parent);      /* its labels, children of the waterfall */
 lv_coord_t closeup_height(lv_coord_t wf_height); /* the strip's height in the waterfall area; 0 when not shown */
-bool       closeup_new_rows(void);              /* rows came since the last paint */
+void       closeup_pause(void);                 /* the 3D not drawn (a window over it, the screen dark): the DSP stops
+                                                 * until closeup_height() again */
 
 /* LVGL thread: the strip into the top strip_h pixels of the 3D's buffer: portrait as wfp (x at column WIDTH - 1 -
  * x, stride pixels a column), else landscape rows of WIDTH; whole when fresh (the buffer was drawn over), else

@@ -115,6 +115,49 @@ static void lsb_edge(void) {
     check(e.valid && fabsf(e.off_hz + 150) <= 40, "lsb_edge", e.off_hz);
 }
 
+/* Noise as a row of the close-up has it: 1 or 2 FFTs, a bin's power exponential (peaks 10 dB and more) */
+static void raw_noise(void) {
+    for (int i = 0; i < N; i++) {
+        float u = (rand() + 1.0f) / ((float) RAND_MAX + 2.0f), v = (rand() + 1.0f) / ((float) RAND_MAX + 2.0f);
+
+        row[i] = -100.0f + 10.0f * log10f((-logf(u) - logf(v)) / 2.0f);
+    }
+}
+
+/* After a retune, an empty band: no label on the first rows either (they were valid on most of them) */
+static void raw_noise_after_reset(void) {
+    closeup_est_t e;
+    int           shown = 0;
+
+    for (int t = 0; t < 50; t++) {
+        closeup_est_reset(&e);
+        for (int k = 0; k < 5; k++) {
+            raw_noise();
+            closeup_est_update(&e, row, N, SPAN, -1000, 1000, 0, 0);
+            shown += e.valid;
+        }
+    }
+    check(shown == 0, "raw_noise_after_reset", shown);
+}
+
+/* Rows of another width (the span switched live): the average from them alone, not mixed with the old bins */
+static void span_change_restarts(void) {
+    closeup_est_t e;
+
+    closeup_est_reset(&e);
+    for (int k = 0; k < 10; k++) {
+        noise();
+        carrier(-150, -60);
+        closeup_est_update(&e, row, N, SPAN, -1000, 1000, 0, 0);
+    }
+    for (int k = 0; k < 4; k++) {   /* the same carrier in rows of twice the width: at -150 Hz still */
+        noise();
+        row[(int) lroundf(-150.0f * N / (2 * SPAN) + N / 2)] = -60.0f;
+        closeup_est_update(&e, row, N, 2 * SPAN, -1000, 1000, 0, 0);
+    }
+    check(e.valid && fabsf(e.off_hz + 150) <= 20, "span_change_restarts", e.off_hz);
+}
+
 static void carrier_offset(void) {
     closeup_est_t e;
 
@@ -198,6 +241,8 @@ int main(void) {
     lsb_mirror();
     reset_on_retune();
     outside_passband_ignored();
+    raw_noise_after_reset();
+    span_change_restarts();
     usb_edge();
     usb_edge_smeared();
     lsb_edge();

@@ -31,6 +31,8 @@ void closeup_est_reset(closeup_est_t *e) {
     e->valid = false;
     e->quiet = EST_QUIET_ROWS;
     e->n = 0;
+    e->span = 0;
+    e->rows = 0;
 }
 
 static void quiet_row(closeup_est_t *e) {
@@ -45,14 +47,25 @@ void closeup_est_update(closeup_est_t *e, const float *db, int n, uint32_t span_
     if (n <= 1 || n > EST_MAX_BINS || !span_hz) {
         return;
     }
-    /* The rows averaged in power; from here on db is the average's */
+    /* The rows averaged in power: their mean to 1 / EST_AVG_NEW rows, then EST_AVG_NEW new (the first row alone
+     * weighed most for long); again from this row on rows of another width. From here on db is the average's */
+    if (e->n != n || e->span != span_hz) {
+        closeup_est_reset(e);
+    }
+    if (e->rows < 255) e->rows++;
+    float k = e->rows < 1.0f / EST_AVG_NEW ? 1.0f / e->rows : EST_AVG_NEW;
+
     for (int i = 0; i < n; i++) {
         float p = powf(10.0f, db[i] * 0.1f);
 
-        e->avg[i] = e->n == n ? e->avg[i] + (p - e->avg[i]) * EST_AVG_NEW : p;
+        e->avg[i] = e->rows > 1 ? e->avg[i] + (p - e->avg[i]) * k : p;
         a[i] = 10.0f * log10f(e->avg[i] > 1e-30f ? e->avg[i] : 1e-30f);
     }
     e->n = n;
+    e->span = span_hz;
+    if (e->rows < CLOSEUP_EST_WARMUP) {
+        return;                             /* too few rows: their noise peaks read as signals */
+    }
     db = a;
     memcpy(s, db, n * sizeof(float));
     qsort(s, n, sizeof(float), cmp_float);

@@ -544,9 +544,19 @@ void dsp_samples(cfloat *buf_samples, uint16_t size, bool tx, uint32_t base_freq
 
     uint32_t cu_span = tx || !waterfall_enabled.load(std::memory_order_relaxed) ? 0 : closeup_span();
 
+    static int64_t cu_center;       /* the rows' centre: on another, the close-up again from new samples */
+
     if (cu_span) {
         closeup->set(cu_span, wf_span(), (filter_from + filter_to) / 2);
-        closeup->push(iq, size);
+
+        int64_t center = (int64_t)(base_freq ? base_freq : cur_freq) + closeup->middle();
+
+        if (center != cu_center) {
+            closeup->reset();       /* the OEM base (no frequency with the samples) included: its FFTs of before */
+            cu_center = center;
+        }
+        if (!settle)                /* the frames after a retune may be of the frequency before */
+            closeup->push(iq, size);
     }
     if (!wf || !waterfall_frame(wf, now))
         return;
@@ -554,11 +564,9 @@ void dsp_samples(cfloat *buf_samples, uint16_t size, bool tx, uint32_t base_freq
     s_meter();   /* on every frame, also with the waterfall hidden */
     frame_out(now, tx, base_freq);
     if (cu_span && closeup->ready()) {
-        int64_t center = (int64_t)(base_freq ? base_freq : cur_freq) + closeup->middle();
-
         int sideband = cur_mode == radio_mode_usb ? 1 : cur_mode == radio_mode_lsb ? -1 : 0;
 
-        closeup_data(closeup->take(zoom_db), CLOSEUP_BINS, closeup->rate(), center, (filter_to - filter_from) / 2,
+        closeup_data(closeup->take(zoom_db), CLOSEUP_BINS, closeup->rate(), cu_center, (filter_to - filter_from) / 2,
                      dial_at - closeup->middle(), sideband);
     }
 }
