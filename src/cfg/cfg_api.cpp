@@ -97,6 +97,7 @@ ParamInt         *cfg_wf_3d_floor         = nullptr;
 ParamInt         *cfg_wf_3d_peak          = nullptr;
 ParamInt         *cfg_wf_3d_glide         = nullptr;
 ParamInt         *cfg_wf_3d_range         = nullptr;
+ParamInt         *cfg_wf_closeup          = nullptr;
 ParamText        *cfg_encoder_bind        = nullptr;
 ParamInt         *cfg_power_display       = nullptr;
 ParamInt         *cfg_callsign_show       = nullptr;
@@ -360,6 +361,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_wf_3d_peak       = &cfg_sm.p_wf_3d_peak;
     cfg_wf_3d_glide      = &cfg_sm.p_wf_3d_glide;
     cfg_wf_3d_range      = &cfg_sm.p_wf_3d_range;
+    cfg_wf_closeup       = &cfg_sm.p_wf_closeup;
     cfg_encoder_bind     = &cfg_sm.p_encoder_bind;
     cfg_power_display    = &cfg_sm.p_power_display;
     cfg_callsign_show    = &cfg_sm.p_callsign_show;
@@ -551,4 +553,10 @@ int cfg_smeter_cal_bands(int *start, char (*names)[16], int *vals, int max) {
         vals[n++] = val;
     }
     return n;
+}
+
+uint32_t wf_closeup_span_hz(int32_t v) {
+    static const uint32_t span[] = {0, 2000, 5000, 10000};
+
+    return v >= 1 && v <= 3 ? span[v] : 0;
 }

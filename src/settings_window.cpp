@@ -3667,6 +3667,9 @@ static uint8_t make_wf_3d(uint8_t row) {
         row = make_param_slider(row, "3D range", &wf_3d_range_slider);
         row = make_param_switch(row, "3D peaks", cfg_sm.p_wf_3d_peak);
         row = make_param_choice(row, "3D glide", " Off \n 30/s \n 20/s \n 15/s ", cfg_sm.p_wf_3d_glide);
+        if (!(radio_caps() & HW_CAP_PSD)) {     /* the close-up needs the IQ: not on the X6200 */
+            row = make_param_choice(row, "Close-up", " Off \n 2 kHz \n 5 kHz \n 10 kHz ", cfg_sm.p_wf_closeup);
+        }
     }
     return row;
 }

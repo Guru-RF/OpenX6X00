@@ -1497,6 +1497,7 @@ Where: Settings > Display > WATERFALL.
 | 3D range | shown with 3D: the dB above the noise floor at a trace's full height (20-60, 40 by default); less makes weak signals taller |
 | 3D peaks | shown with 3D: the newest trace's peaks held a moment |
 | 3D glide | shown with 3D: the traces move back smoothly, 30, 20 (default) or 15 pictures a second, fewer for less CPU; Off, a step at each new line: the least CPU. With 10 or more new lines a second (the default waterfall speed) the lines are smooth as they are and no pictures are drawn between them |
+| Close-up | shown with 3D, X6100 only: Off, or a fine waterfall 2, 5 or 10 kHz across around the VFO above the 3D (5 kHz by default) |
 
 With 3D on, the waterfall area shows the spectrum in perspective, as on
 some other makers' radios: the newest trace at the bottom, every third line
@@ -1531,6 +1532,16 @@ MFK 4:4 page (3D on/off, and Depth, Tilt and Floor on the knob), or a front
 key's long press or a hand mic F key set to "WF 3D on/off" (Settings > Keys).
 3D is on by default: a radio updated from v0.3.8, which had no 3D, starts
 with it. Once switched off it stays off, over later updates too.
+
+Close-up (X6100) splits the area: a quarter at the top shows a fine 2D
+waterfall of 2, 5 or 10 kHz around the VFO, the 3D below it. It shows how
+well you are centred on a signal: the centre line and the passband are marked
+on it, and a small label says how far the strongest signal in the passband is
+from where it should be (the CW pitch in CW, the middle of the filter in SSB),
+"off −150 Hz", green when within 20 Hz. It is exact for CW and carriers and a
+rough guide for SSB, where a voice has no clear centre. Close-up Off gives the
+whole area to the 3D. The X6200 sends no IQ, only its own spectrum, too coarse
+for it: there the setting is not shown.
 
 In Fixed mode the span stays still and the VFO line moves across it. The
 spectrum comes in only for the span around where the radio listens (the
