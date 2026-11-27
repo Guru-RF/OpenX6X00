@@ -35,6 +35,7 @@
 #include "button_bar.h"
 #include "walkie.h"
 #include "wf3d_shape.h"
+#include "closeup_view.h"
 #include "lv_drivers/display/drm.h"
 
 #include <math.h>
@@ -636,6 +637,9 @@ static struct {
  * back only that from the background, not all of it (its copy was a third of a picture) */
 static int16_t      d3_dirty_lo[WIDTH], d3_dirty_hi[WIDTH];
 static uint32_t    *d3_drawn_buf;           /* the buffer they are of; NULL: not known (2D drew in it) */
+static uint32_t    *d3_drawn_base;          /* the whole buffer the 3D is drawn in (d3_render()): its background's
+                                             * offset in d3_bg is the 3D's in it */
+static lv_coord_t   d3_strip;               /* the close-up's strip over the 3D, px (closeup_height()) */
 /* Column x drawn from lo to hi over the background */
 static inline void d3_dirty(int32_t x, int32_t lo, int32_t hi) {
     if (lo < d3_dirty_lo[x]) d3_dirty_lo[x] = lo;
@@ -647,7 +651,7 @@ static inline void d3_dirty(int32_t x, int32_t lo, int32_t hi) {
  * (its antialiased lines, at every picture, were most of the work) */
 static uint32_t    *d3_bg;
 static struct {
-    int32_t  h, hv, cx, tilt, n_refs, ref_x[MAX_D3_REFS];
+    int32_t  h, stride, hv, cx, tilt, n_refs, ref_x[MAX_D3_REFS];
     uint32_t panel;
     bool     portrait, mono;
 } d3_bg_of;
@@ -659,6 +663,8 @@ typedef struct {
     int32_t  center;        /* the frequency at the centre of the picture (wf_center_freq) */
     uint32_t span;          /* the span it shows (shown_span()) */
     int32_t  cx;            /* the vanishing point (d3_vanish) */
+    int32_t  strip;         /* the close-up's strip over the 3D, px (d3_strip): the 3D drawn under it */
+    bool     fresh;         /* the strip painted whole when shown (the buffer drawn over: 2D, new) */
     float    phase;         /* out: the phase it was drawn at (d3_phase()) */
     uint32_t num;           /* out: the number of its newest row */
 } d3_pic_t;
@@ -722,14 +728,15 @@ static inline uint32_t d3_blend(uint32_t dst, uint32_t src, uint32_t a) {
 }
 
 typedef struct {
-    uint32_t *buf;
+    uint32_t *buf;          /* the 3D's first pixel: under the close-up's strip, if any */
     bool      portrait;     /* as wfp: landscape x at row WIDTH - 1 - x, y at its column; else the LVGL image */
-    int32_t   h;
+    int32_t   h;            /* the 3D's height */
     bool      mono;         /* 1bit: no partial pixels, the lines dotted */
+    int32_t   stride;       /* portrait: pixels from one column to the next (the whole area's height) */
 } d3_target_t;
 
 static inline uint32_t *d3_at(const d3_target_t *o, int32_t x, int32_t y) {
-    return o->portrait ? &o->buf[(WIDTH - 1 - x) * o->h + y] : &o->buf[y * WIDTH + x];
+    return o->portrait ? &o->buf[(WIDTH - 1 - x) * o->stride + y] : &o->buf[y * WIDTH + x];
 }
 
 /* A pixel at coverage a (0..1) */
@@ -1151,7 +1158,7 @@ static const uint8_t *d3_levels_of(const wf_row_t *row, int32_t center, uint32_t
 static void d3_background(const d3_target_t *o, const d3_scene_t *sc, uint32_t bg, int32_t tilt,
                           const int32_t *ref_x, int n_refs) {
     size_t n = (size_t) WIDTH * o->h;
-    bool   same = d3_bg && d3_bg_of.h == o->h && d3_bg_of.hv == (int32_t) sc->hv &&
+    bool   same = d3_bg && d3_bg_of.h == o->h && d3_bg_of.stride == o->stride && d3_bg_of.hv == (int32_t) sc->hv &&
                   d3_bg_of.cx == (int32_t) sc->cx && d3_bg_of.tilt == tilt && d3_bg_of.panel == bg &&
                   d3_bg_of.portrait == o->portrait && d3_bg_of.mono == o->mono &&
                   d3_bg_of.n_refs == n_refs && !memcmp(d3_bg_of.ref_x, ref_x, n_refs * sizeof(int32_t));
@@ -1159,15 +1166,19 @@ static void d3_background(const d3_target_t *o, const d3_scene_t *sc, uint32_t b
     if (!d3_bg) {
         d3_bg = malloc(sizeof(uint32_t) * WIDTH * MAX_HEIGHT);
     }
+    /* The background at the same place in its buffer as the picture in its own (under the close-up's strip) */
+    uint32_t *bgbuf = d3_bg ? d3_bg + (o->buf - d3_drawn_base) : NULL;
+
     if (!same && d3_bg) {
         d3_target_t b = *o;
 
-        b.buf = d3_bg;
-        for (size_t i = 0; i < n; i++) {
+        b.buf = bgbuf;
+        for (size_t i = 0; i < (size_t) WIDTH * MAX_HEIGHT; i++) {
             d3_bg[i] = bg;
         }
         d3_grid(&b, sc, ref_x, n_refs);
         d3_bg_of.h = o->h;
+        d3_bg_of.stride = o->stride;
         d3_bg_of.hv = sc->hv;
         d3_bg_of.cx = sc->cx;
         d3_bg_of.tilt = tilt;
@@ -1186,20 +1197,28 @@ static void d3_background(const d3_target_t *o, const d3_scene_t *sc, uint32_t b
                 continue;
             }
             if (o->portrait) {
-                size_t at = (size_t)(WIDTH - 1 - x) * o->h + lo;
+                size_t at = (size_t)(WIDTH - 1 - x) * o->stride + lo;
 
-                memcpy(o->buf + at, d3_bg + at, (hi - lo + 1) * sizeof(uint32_t));
+                memcpy(o->buf + at, bgbuf + at, (hi - lo + 1) * sizeof(uint32_t));
             } else {
                 for (int32_t y = lo; y <= hi; y++) {
-                    o->buf[y * WIDTH + x] = d3_bg[y * WIDTH + x];
+                    o->buf[y * WIDTH + x] = bgbuf[y * WIDTH + x];
                 }
             }
         }
-    } else if (d3_bg) {
-        memcpy(o->buf, d3_bg, n * sizeof(uint32_t));
+    } else if (d3_bg && (!o->portrait || o->stride == o->h)) {
+        memcpy(o->buf, bgbuf, n * sizeof(uint32_t));
+    } else if (d3_bg) {                     /* portrait under the strip: a column at a time */
+        for (int32_t x = 0; x < WIDTH; x++) {
+            size_t at = (size_t) x * o->stride;
+
+            memcpy(o->buf + at, bgbuf + at, o->h * sizeof(uint32_t));
+        }
     } else {                                /* no memory for it: drawn here */
-        for (size_t i = 0; i < n; i++) {
-            o->buf[i] = bg;
+        for (int32_t x = 0; x < WIDTH; x++) {
+            for (int32_t y = 0; y < o->h; y++) {
+                *d3_at(o, x, y) = bg;
+            }
         }
         d3_grid(o, sc, ref_x, n_refs);
     }
@@ -1211,13 +1230,18 @@ static void d3_background(const d3_target_t *o, const d3_scene_t *sc, uint32_t b
 }
 
 
-/* One picture of pic's view into buf. The GUI thread's, or the 3D thread's while the GUI thread waits for nothing
- * of it (d3_job): what it keeps from one picture to the next (the background, the levels, the peaks, what was
- * drawn) is of the thread that draws */
+/* One picture of pic's view into buf, under the close-up's strip (pic->strip px; the GUI thread paints the strip,
+ * closeup_paint()). The GUI thread's, or the 3D thread's while the GUI thread waits for nothing of it (d3_job): what
+ * it keeps from one picture to the next (the background, the levels, the peaks, what was drawn) is of the thread
+ * that draws */
 __attribute__((noinline))
 static void d3_draw(uint32_t *buf, bool portrait, d3_pic_t *pic, const int32_t *ref_x, int n_refs) {
-    d3_target_t     o = {buf, portrait, height, theme_shape.mono};
-    int32_t         h = height;
+    /* Under the strip, if any: the 3D's own height, from its first pixel */
+    d3_target_t     o = {buf + (portrait ? pic->strip : pic->strip * WIDTH), portrait, height - pic->strip,
+                         theme_shape.mono, height};
+    int32_t         h = o.h;
+
+    d3_drawn_base = buf;
     uint32_t        span = pic->span;
     uint32_t        accent;
     const uint32_t *pal = d3_palette(&accent);
@@ -1318,7 +1342,7 @@ static void d3_draw(uint32_t *buf, bool portrait, d3_pic_t *pic, const int32_t *
             /* From above the higher of the two tops to under the lower one: plain, a glow needs no antialiasing */
             float   ya = x > 0 && !isnan(front[x - 1]) ? front[x - 1] : front[x];
             int32_t y0 = LV_MAX(0, (int32_t) LV_MIN(ya, front[x]) - D3_GLOW_PX);
-            int32_t y1 = LV_MIN(o.h - 1, (int32_t) LV_MAX(ya, front[x]) + 2 + D3_GLOW_PX);
+            int32_t y1 = LV_MIN(o.h - 1, (int32_t) LV_MAX(ya, front[x]) + 2 + D3_GLOW_PX);   /* the 3D's own */
 
             for (int32_t y = y0; y <= y1; y++) {
                 uint32_t *p = d3_at(&o, x, y);
@@ -1408,9 +1432,11 @@ __attribute__((noinline))   /* measurable on its own */
 static void d3_render(uint32_t *buf, bool portrait, d3_pic_t *pic, const int32_t *ref_x, int n_refs) {
     if (portrait || !d3_columns_get()) {    /* (no memory for them: drawn in rows) */
         d3_draw(buf, portrait, pic, ref_x, n_refs);
+        closeup_paint(buf, portrait, height, pic->strip, pic->fresh);
         return;
     }
     d3_draw(d3_columns, true, pic, ref_x, n_refs);
+    closeup_paint(d3_columns, true, height, pic->strip, pic->fresh);
     d3_transpose(buf, d3_columns, height);
 }
 
@@ -1523,7 +1549,10 @@ static void d3_job_show(void) {
     pthread_mutex_lock(&d3_mx);
     d3_drawn_phase = d3_job.pic.phase;
     d3_drawn_num = d3_job.pic.num;
+    d3_pic_t pic = d3_job.pic;
     pthread_mutex_unlock(&d3_mx);
+    /* The close-up's strip over the 3D, here on the GUI thread: the 3D thread leaves those pixels alone */
+    closeup_paint(direct ? wfp : d3_columns, true, height, pic.strip, pic.fresh);
     if (direct) {
 #if USE_DRM
         drm_wf_present_ring(wfp, d3_job_y, height, wfp_head);
@@ -1629,6 +1658,25 @@ static void d3_frames_cb(lv_timer_t *t) {
     }
 }
 
+/* The close-up's strip over the 3D, h px (0 none): the VFO line and the passband start under it (the strip is
+ * centred on the passband's middle, at a scale of its own) */
+static void strip_set(lv_coord_t h) {
+    if (h == d3_strip) {
+        return;
+    }
+    d3_wait();                      /* a picture being drawn under the old strip: dropped */
+    d3_strip = h;
+    d3_drawn_buf = NULL;            /* the 3D at another place: from the whole background */
+    lv_obj_set_y(vfo_line, h);
+    vfo_line_points[1].y = height - h;
+    lv_line_set_points(vfo_line, vfo_line_points, 2);
+    lv_obj_set_y(filter_band, h);
+    lv_obj_set_height(filter_band, height - h);
+    if (!h) {
+        closeup_paint(NULL, false, 0, 0, false);    /* its labels away */
+    }
+}
+
 static void d3_redraw(void) {
     int32_t  ref_x[MAX_D3_REFS], ref_hz[MAX_D3_REFS];
     uint32_t since = lv_tick_elaps(d3_last_ms);
@@ -1669,8 +1717,10 @@ static void d3_redraw(void) {
         }
     }
     __atomic_store_n(&new_rows, 0, __ATOMIC_RELEASE);
+    strip_set(closeup_height(height));     /* (the 3D thread idle here: d3_busy is done with above) */
     wfp_full = true;                /* the waterfall again whole when 3D is switched off: the plane, or the image */
-    d3_pic_t  pic = {.center = wf_center_freq, .span = shown_span(), .cx = d3_vanish};
+    d3_pic_t  pic = {.center = wf_center_freq, .span = shown_span(), .cx = d3_vanish, .strip = d3_strip,
+                     .fresh = d3_drawn_buf == NULL};    /* drawn over by the 2D, or new: the strip whole too */
     lv_area_t a;
 
     lv_obj_get_coords(obj, &a);
@@ -1690,7 +1740,7 @@ static void d3_redraw(void) {
         d3_drawn_phase = pic.phase;
         d3_drawn_num = pic.num;
     }
-    lv_coord_t hv = d3_front(height);
+    lv_coord_t hv = d3_strip + d3_front(height - d3_strip);
 
     d3_labels_update(true, ref_x, ref_hz, n, hv);
 }
@@ -1872,6 +1922,7 @@ static void refresh_waterfall(void *arg) {
         d3_label_y = -1;
     }
     d3_wait();                      /* a 3D picture still being drawn: dropped */
+    strip_set(closeup_height(height));  /* 0 out of 3D: the DSP stops the close-up */
     d3_drawn_buf = NULL;            /* 2D draws over it: 3D again from the whole background */
     {
         int n = __atomic_exchange_n(&new_rows, 0, __ATOMIC_ACQUIRE);
@@ -2107,7 +2158,7 @@ static void update_middle_line(void) {
     lv_coord_t width = theme_shape.mono ? 3 : line_zoom / 2 + 3;     /* 1bit: the paper halo of vfo_core_cb() */
     lv_coord_t vfo_x = (if_shift + waterfall_view_shift()) * line_zoom * WIDTH / SPAN_HZ;
 
-    lv_obj_set_pos(vfo_line, vfo_x + width / 2, 0);
+    lv_obj_set_pos(vfo_line, vfo_x + width / 2, d3_strip);
     /* 3D: towards the VFO line, straight through the stack; in Fixed mode the line moves across a still view, and
      * the stack with it at every step: there the view's centre */
     d3_vanish = param_i_get(cfg_wf_mode) ? WIDTH / 2 : LV_CLAMP(0, WIDTH / 2 + vfo_x, WIDTH - 1);
@@ -2120,7 +2171,7 @@ static void update_middle_line(void) {
     lv_coord_t x1 = WIDTH / 2 + vfo_x + from * line_zoom * WIDTH / SPAN_HZ;
     lv_coord_t x2 = WIDTH / 2 + vfo_x + to * line_zoom * WIDTH / SPAN_HZ;
 
-    lv_obj_set_pos(filter_band, x1, 0);
+    lv_obj_set_pos(filter_band, x1, d3_strip);
     lv_obj_set_width(filter_band, LV_MAX(x2 - x1, 1));
     filter_out_move(x1, x1 + LV_MAX(x2 - x1, 1) - 1);
 }
@@ -2151,8 +2202,9 @@ static void vfo_core_cb(lv_event_t *e) {
 }
 
 static void set_line_height(void) {
-    vfo_line_points[1].y = height;
+    vfo_line_points[1].y = height - d3_strip;
     lv_line_set_points(vfo_line, vfo_line_points, 2);
+    lv_obj_set_height(filter_band, height - d3_strip);
 }
 
 /* ---- Settings ---- */
@@ -2296,6 +2348,7 @@ lv_obj_t * waterfall_init(lv_obj_t * parent) {
     subject_subscribe_delayed((Subject *)cfg_wf_3d_tilt, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_3d_floor, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_3d_peak, on_view_changed, NULL);
+    subject_subscribe_delayed((Subject *)cfg_wf_closeup, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_3d_glide, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_3d_range, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_fixed_jump, on_view_changed, NULL);
@@ -2328,6 +2381,7 @@ static void make_objs(void) {
         lv_obj_move_background(img);
     }
     band_info_init(obj);
+    closeup_init(obj);
 }
 
 /* The ring from was + 1 rows to now + 1: the newest rows that fit kept, oldest first from rows[0], the newest the
