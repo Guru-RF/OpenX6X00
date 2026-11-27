@@ -373,8 +373,8 @@ class SettingsManager {
     // 3D tilt: 0 seen from the front (tall traces, little depth) to 10 from above
     Parameter<int32_t> p_wf_3d_tilt{"wf_3d_tilt", 5, 0, 10,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    // 3D floor: levels (of 255) above each row's noise floor cut away with it
-    Parameter<int32_t> p_wf_3d_floor{"wf_3d_floor", 6, 0, 40,
+    // 3D floor: the noise base's height, 2 levels (of 255) a step; 0 no base: the noise cut away
+    Parameter<int32_t> p_wf_3d_floor{"wf_3d_floor", 12, 0, 40,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // 3D range: the dB above the noise floor a trace's full height is (weak signals taller with less)
     Parameter<int32_t> p_wf_3d_range{"wf_3d_range", 40, 20, 60,

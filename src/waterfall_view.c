@@ -34,6 +34,7 @@
 #include "screen_light.h"
 #include "button_bar.h"
 #include "walkie.h"
+#include "wf3d_shape.h"
 #include "lv_drivers/display/drm.h"
 
 #include <math.h>
@@ -564,9 +565,10 @@ static void direct_redraw(int new_row) {
  *
  * Drawn front to back with a horizon per column (the floating horizon of the old surface plots): a
  * trace shows only where it rises above all those in front of it, down to its own foot. The noise
- * floor is cut away (each row's floor, its 75th percentile, and Floor levels above it): only signals
- * stand up, over a black floor with a grid, a back wall and side walls of the level scale, and lines
- * from the frequency scale's reference frequencies to the vanishing point, labelled at the front.
+ * stays as a low smooth base (each row's floor, its 75th percentile, at Floor's height; wf3d_shape()),
+ * the signals standing up out of it, over a black floor with a grid, a back wall and side walls of
+ * the level scale, and lines from the frequency scale's reference frequencies to the vanishing point,
+ * labelled at the front.
  * Each pixel has the colour of its height on the strength scale (3D colours), the ridges lighter
  * with their top pixel antialiased, the back darker. The newest trace is drawn over it all as an
  * antialiased line of its own colour, along the front edge where there is nothing, and its peaks
@@ -585,9 +587,17 @@ static void direct_redraw(int new_row) {
 #define D3_FAST_MS  100     /* rows at least this often (10 a second) are smooth as they are: no glide pictures between
                              * them, a picture a row (about half the pictures at the default waterfall speed) */
 #define D3_PHASE_Q  16      /* a glide picture is drawn when the phase moved to another 1/16 of a row, or a row came */
+#define D3_RIBBON   3       /* px under a noise column's top: the base a mesh of ribbons */
 #define D3_CACHE    72      /* rows whose levels are kept (every D3_STEP-th: up to 64 traces and a few) */
 
 enum { D3_STRENGTH, D3_WATERFALL, D3_BLUE };    /* Settings, 3D colours */
+enum { D3_NONE, D3_NOISE, D3_SIGNAL };          /* an 8 px block of a trace (d3_shape()) */
+
+/* Heights at or below this are the noise base (d3_quiet()), drawn as a mesh of thin ribbons */
+static inline int32_t d3_quiet(int32_t base) {
+    return base ? base + 4 : 0;
+}
+
 
 static int32_t      d3_vanish = WIDTH / 2;  /* the vanishing point, x: the VFO line (update_middle_line()) */
 static uint32_t     d3_ramp[256];
@@ -611,10 +621,10 @@ static struct {
     uint32_t num;           /* the row's number; 0: none */
     int32_t  center;        /* the view they are of */
     uint32_t span;
-    int32_t  cut;           /* the floor cut they are above */
-    int32_t  scale;         /* their height a level above it, in 1/256 (d3_scale()) */
-    uint8_t  lv[WIDTH];     /* above the cut, to the whole scale; 0: the floor */
-    uint8_t  blk[WIDTH / 8 + 1];    /* an 8 px block has something above the floor (or its next pixel has) */
+    int32_t  base;          /* the noise base's height they are of (3D floor) */
+    int32_t  scale;         /* their height a level above the floor, in 1/256 (d3_scale()) */
+    uint8_t  lv[WIDTH];     /* heights (wf3d_shape()); 0: nothing */
+    uint8_t  blk[WIDTH / 8 + 1];    /* by 8 px block: D3_NONE, D3_NOISE or D3_SIGNAL (d3_shape()) */
 } d3_cache[D3_CACHE];
 
 /* What the last picture drew over the background in the buffer, by column (lo > hi: nothing): the next one puts
@@ -843,9 +853,10 @@ static void d3_grid(const d3_target_t *o, const d3_scene_t *sc, const int32_t *r
 }
 
 /* One trace: lv (levels by the view's pixel) at depth t, its horizon kept; the top of each column
- * into tops (the newest), NAN where it is not drawn */
+ * into tops (the newest), NAN where it is not drawn. quiet: the noise base's heights (d3_quiet()), its blocks
+ * (D3_NOISE) drawn as thin ribbons; 0: passed over as the empty floor */
 static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *lv, const uint8_t *blk, float t,
-                     const uint32_t *pal, int16_t *horizon, float *tops) {
+                     const uint32_t *pal, int16_t *horizon, float *tops, int32_t quiet) {
     float    s, foot;
 
     d3_place(sc, t, &s, &foot);
@@ -870,6 +881,8 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
     int32_t  step = o->portrait ? 1 : WIDTH;    /* buf from one landscape y to the next */
     uint32_t ink = theme_shape.ink | 0xff000000u, paper = theme_shape.paper | 0xff000000u;
     int32_t  prev = -1;                     /* the top drawn in the column before; -1: none */
+    uint32_t noise_fill = d3_dim(pal[LV_CLAMP(0, quiet / 2, 255)], fog * 3 / 4);   /* the noise ribbons' body */
+    uint8_t  skip = quiet ? D3_NONE : D3_NOISE;     /* the blocks passed over: quiet 0, the noise too */
 
     float    u0 = cx + (x0 - cx) * inv_s;  /* the view's pixel under column x, moved on a column at a time */
 
@@ -879,7 +892,7 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
         int32_t i1 = LV_CLAMP(i0, (int32_t)(u0 + inv_s), WIDTH - 1);
         int32_t v;
 
-        if (!blk[i0 >> 3] && !blk[i1 >> 3]) {
+        if (blk[i0 >> 3] <= skip && blk[i1 >> 3] <= skip) {
             /* Nothing above the floor there (most of a quiet band): on to the column whose pixels reach the next
              * block with something, all of it the floor (a column at a time, that was most of a trace's work) */
             int32_t b = (i1 >> 3) + 1;
@@ -899,6 +912,39 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
             continue;
         }
 
+        if (quiet && !o->mono && blk[i0 >> 3] == D3_NOISE && blk[i1 >> 3] == D3_NOISE) {
+            /* The noise base, most columns of a busy band (a column's whole work there was half a picture): the
+             * nearest pixel, a plain top in the colour of its height and a ribbon D3_RIBBON px deep under it in
+             * the fill's, no joins to the column before (the columns differ by a pixel or two). The floor shows
+             * between the traces' ribbons, a mesh; still a horizon: what is behind stays hidden */
+            v = LV_MAX(lv[i0], lv[i1]);
+            int32_t top = (int32_t)(foot - v * a);
+
+            if (tops) {
+                tops[x] = foot - v * a;
+            }
+            if (top >= horizon[x]) {
+                prev = -1;
+                continue;
+            }
+            top = LV_MAX(0, top);
+            int32_t   bottom = LV_MIN(LV_MIN(horizon[x], bottom_max), top + D3_RIBBON);
+            uint32_t *p = d3_at(o, x, top);
+
+            if (!ridge_have[v]) {
+                ridge_lut[v] = d3_dim(d3_light(pal[v]), fog);
+                ridge_have[v] = 1;
+            }
+            *p = ridge_lut[v];
+            for (int32_t y = top + 1; y < bottom; y++) {
+                p += step;
+                *p = noise_fill;
+            }
+            horizon[x] = top;
+            d3_dirty(x, top, bottom - 1);
+            prev = top + 1;
+            continue;
+        }
         if (i1 > i0 + 1) {
             v = lv[i0];
             for (int32_t i = i0 + 1; i < i1; i++) {
@@ -938,35 +984,40 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
             ridge = ridge_lut[v];
         }
 
+        uint32_t *p = d3_at(o, x, top);
+
         if (o->mono) {
             r0 = LV_MIN(r0, top);
-            *d3_at(o, x, top) = ink;
+            *p = ink;
         } else {
             d3_px(o, x, top, ridge, 1.0f - (topf - top));
         }
-        uint32_t *p = d3_at(o, x, top);
-
         for (int32_t y = r0; y < top; y++) {     /* up to the column before (its top pixel antialiased) */
             *d3_at(o, x, y) = ridge;
         }
-        for (int32_t y = top + 1; y < bottom; y++) {
+        int32_t y = top + 1;
+        int32_t ridge_end = LV_MIN(r1 + 1, bottom);
+
+        for (; y < ridge_end; y++) {
             p += step;
-            if (y <= r1) {
-                *p = ridge;
-            } else if (o->mono) {
+            *p = ridge;
+        }
+        if (o->mono) {
+            for (; y < bottom; y++) {
+                p += step;
                 *p = paper;
-            } else {
-                int32_t k = foot_px - y;            /* px above the foot */
+            }
+        } else if (y < bottom) {
+            int32_t k = foot_px - y;                /* px above the foot, down to 0 at it */
 
-                if (k < 0) {
-                    k = 0;
-                }
-                while (fill_n <= k) {               /* the colour of the level at that height */
-                    int32_t l = (fill_n + foot_frac) * per_px;
+            while (fill_n <= k) {                   /* the colour of the level at that height */
+                int32_t l = (fill_n + foot_frac) * per_px;
 
-                    fill_lut[fill_n++] = d3_dim(pal[LV_CLAMP(0, l, 255)], fog * 3 / 4);
-                }
-                *p = fill_lut[k];
+                fill_lut[fill_n++] = d3_dim(pal[LV_CLAMP(0, l, 255)], fog * 3 / 4);
+            }
+            for (; y < bottom; y++, k--) {
+                p += step;
+                *p = fill_lut[k > 0 ? k : 0];
             }
         }
         horizon[x] = LV_MIN(r0, top);
@@ -975,18 +1026,23 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
     }
 }
 
-/* The view's pixels of a row, smoothed 1 4 6 4 1 but never below the pixel itself: the noise a surface, not
- * grains, and a signal of a pixel or two (CW and FT8 at 50 kHz and wider: 62 Hz and more a pixel) at its own
- * height; smoothed alone, a recording of real traffic showed them at four tenths of it */
-static void d3_levels(const wf_row_t *row, int32_t center, uint32_t span, uint8_t *lv) {
+/* A row's trace heights (wf3d_shape()): the view's pixels smoothed, the noise kept as a low base (3D floor: its
+ * height, 0 none: the floor cut away as before), the signals above it at their height, a CW signal of a pixel too.
+ * blk, by 8 px block (the pixel before a block counts in it too, it reads the block's first between them):
+ * D3_NONE nothing to draw, D3_NOISE only the noise base, D3_SIGNAL a signal */
+static void d3_shape(const wf_row_t *row, int32_t center, uint32_t span, int32_t base, int32_t scale, uint8_t *lv,
+                     uint8_t *blk) {
     uint8_t raw[WIDTH];
+    int32_t quiet = d3_quiet(base);
 
     row_pixels(row, center, span, 0, WIDTH, raw);
+    wf3d_shape(raw, WIDTH, row->floor, base, scale, lv);
+    memset(blk, D3_NONE, WIDTH / 8 + 1);
     for (int32_t i = 0; i < WIDTH; i++) {
-        int32_t a = raw[LV_MAX(i - 2, 0)], b = raw[LV_MAX(i - 1, 0)], c = raw[i];
-        int32_t d = raw[LV_MIN(i + 1, WIDTH - 1)], e = raw[LV_MIN(i + 2, WIDTH - 1)];
+        uint8_t k = !lv[i] ? D3_NONE : lv[i] <= quiet ? D3_NOISE : D3_SIGNAL;
 
-        lv[i] = LV_MAX(c, (a + 4 * b + 6 * c + 4 * d + e + 8) >> 4);
+        if (k > blk[i >> 3]) blk[i >> 3] = k;
+        if (i > 0 && k > blk[(i - 1) >> 3]) blk[(i - 1) >> 3] = k;
     }
 }
 
@@ -1054,40 +1110,22 @@ static int32_t d3_scale(void) {
     return held;
 }
 
-/* Levels to above the floor cut (cut and below: 0, the rest at scale/256 a level, to the whole height), and where
- * there is something */
-static void d3_cut(uint8_t *lv, int32_t cut, int32_t scale, uint8_t *blk) {
-    memset(blk, 0, WIDTH / 8 + 1);
-    for (int32_t i = 0; i < WIDTH; i++) {
-        int32_t v = lv[i] > cut ? LV_MIN(255, ((lv[i] - cut) * scale) >> 8) : 0;
-
-        lv[i] = v;
-        if (v) {
-            blk[i >> 3] = 1;
-            if (i > 0) blk[(i - 1) >> 3] = 1;   /* the pixel before reads this one between them */
-        }
-    }
-}
-
-/* A trace's levels above the floor and its blocks: kept for the rows of the stack (every D3_STEP-th), worked
- * out for the newest */
-static const uint8_t *d3_levels_of(const wf_row_t *row, int32_t center, uint32_t span, int32_t cut, int32_t scale,
+/* A trace's heights and its blocks: kept for the rows of the stack (every D3_STEP-th), worked out for the newest */
+static const uint8_t *d3_levels_of(const wf_row_t *row, int32_t center, uint32_t span, int32_t base, int32_t scale,
                                    uint8_t *scratch, uint8_t *scratch_blk, const uint8_t **blk) {
     if (row->num % D3_STEP) {
-        d3_levels(row, center, span, scratch);
-        d3_cut(scratch, cut, scale, scratch_blk);
+        d3_shape(row, center, span, base, scale, scratch, scratch_blk);
         *blk = scratch_blk;
         return scratch;
     }
     typeof(d3_cache[0]) *c = &d3_cache[row->num / D3_STEP % D3_CACHE];
 
-    if (c->num != row->num || c->center != center || c->span != span || c->cut != cut || c->scale != scale) {
-        d3_levels(row, center, span, c->lv);
-        d3_cut(c->lv, cut, scale, c->blk);
+    if (c->num != row->num || c->center != center || c->span != span || c->base != base || c->scale != scale) {
+        d3_shape(row, center, span, base, scale, c->lv, c->blk);
         c->num = row->num;
         c->center = center;
         c->span = span;
-        c->cut = cut;
+        c->base = base;
         c->scale = scale;
     }
     *blk = c->blk;
@@ -1170,7 +1208,7 @@ static void d3_draw(uint32_t *buf, bool portrait, d3_pic_t *pic, const int32_t *
     const uint32_t *pal = d3_palette(&accent);
     uint32_t        bg = o.mono ? theme_shape.paper | 0xff000000u : TC(panel).full | 0xff000000u;
     int32_t         tilt = param_i_get(cfg_wf_3d_tilt);   /* 0 flat on .. 10 seen from above */
-    int32_t         cut_add = param_i_get(cfg_wf_3d_floor);
+    int32_t         base = param_i_get(cfg_wf_3d_floor) * 2;   /* the noise base, of 255 */
     int32_t         scale = d3_scale();
     d3_scene_t      sc;
     int16_t         horizon[WIDTH];         /* the highest pixel drawn in each column: none, the bottom */
@@ -1204,10 +1242,14 @@ static void d3_draw(uint32_t *buf, bool portrait, d3_pic_t *pic, const int32_t *
             continue;
         }
         const uint8_t *blk;
-        const uint8_t *levels = d3_levels_of(row, pic->center, span, LV_MIN(row->floor + cut_add, 254), scale, lv,
-                                             lv_blk, &blk);
+        const uint8_t *levels = d3_levels_of(row, pic->center, span, base, scale, lv, lv_blk, &blk);
 
-        d3_trace(&o, &sc, levels, blk, t, pal, horizon, age == 0 ? front : NULL);
+        /* The noise base on every other trace by its number (it stays with the trace as it glides back), and on
+         * the newest: a mesh half as dense, half the work of the base (a picture with it on every trace was
+         * twice one without it) */
+        bool mesh = age == 0 || (row->num / D3_STEP) % 2 == 0;
+
+        d3_trace(&o, &sc, levels, blk, t, pal, horizon, age == 0 ? front : NULL, mesh ? d3_quiet(base) : 0);
     }
     pic->phase = phase;
     pic->num = newest_row->num;

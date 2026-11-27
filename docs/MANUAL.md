@@ -1493,7 +1493,7 @@ Where: Settings > Display > WATERFALL.
 | Speed | 3 = 15 lines/s (default), 4 = 20, 5 = 30; 2 = 7.5 and 1 = 5 average the frames into a line: less noise and less CPU |
 | 3D | the last 6 seconds as traces one behind the other, the newest in front (below); on by default, off for the flat waterfall; off and greyed under Amber Trey, which draws no 3D |
 | 3D colours | shown with 3D: Strength (blue, green, yellow, red as the signal grows), Waterfall (the waterfall's colours), Blue |
-| 3D depth, tilt, floor | shown with 3D: the traces (8-64, every third line), the view from the front (0) to from above (10), how much above the noise floor is cut away |
+| 3D depth, tilt, floor | shown with 3D: the traces (8-64, every third line), the view from the front (0) to from above (10), how high the noise sits as a low base (0: none, the noise cut away) |
 | 3D range | shown with 3D: the dB above the noise floor at a trace's full height (20-60, 40 by default); less makes weak signals taller |
 | 3D peaks | shown with 3D: the newest trace's peaks held a moment |
 | 3D glide | shown with 3D: the traces move back smoothly, 30, 20 (default) or 15 pictures a second, fewer for less CPU; Off, a step at each new line: the least CPU. With 10 or more new lines a second (the default waterfall speed) the lines are smooth as they are and no pictures are drawn between them |
@@ -1507,9 +1507,11 @@ stays straight through them all, and move back smoothly, a little at every
 picture (3D glide: 30, 20 or 15 a second), not a step at each new line (3D
 glide Off: a step at each line, for the least CPU). A picture that would not
 change is not drawn.
-The noise floor is cut away (3D floor sets how much above it goes too): only
-signals stand up, and a trace shows only where it rises above those in front
-of it. Each point has the colour of its height on the 3D colours scale
+The noise stays as a low, smooth base across the band, drawn as a mesh of thin
+lines on every other trace (3D floor sets how high; 0 cuts it away), so a busy
+band looks busy; the signals stand up out of it,
+smoothed into rounded ridges while a narrow CW signal keeps its height, and a
+trace shows only where it rises above those in front of it. Each point has the colour of its height on the 3D colours scale
 (Strength: from blue at the floor through green and yellow to red for the
 strongest), the ridges lighter, the older traces darker. The newest trace is
 drawn over it all as a line of its own (red; white with Waterfall or Blue),
