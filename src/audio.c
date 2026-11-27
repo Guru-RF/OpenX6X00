@@ -829,7 +829,12 @@ int audio_listen_play(audio_user_t u, const int16_t *buf, size_t samples, bool (
             pa_threaded_mainloop_lock(mloop);
             size_t room = pa_stream_writable_size(s);
 
-            if (room != (size_t)-1 && room >= n * 2) {
+            /* what fits of the piece: a stream whose room never reaches a whole piece (a small buffer PulseAudio fits
+             * to the headphones' latency) took nothing, never started, and the station stopped with "the speaker
+             * took no audio" (#353) */
+            if (room != (size_t)-1 && room >= 2) {
+                n = LV_MIN(n, room / 2);
+
                 int res = pa_stream_write(s, buf, n * 2, NULL, 0, PA_SEEK_RELATIVE);
 
                 pa_threaded_mainloop_unlock(mloop);
