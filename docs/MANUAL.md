@@ -1514,9 +1514,10 @@ smoothed into rounded ridges while a narrow CW signal keeps its height, and a
 trace shows only where it rises above those in front of it. Each point has the colour of its height on the 3D colours scale
 (Strength: from blue at the floor through green and yellow to red for the
 strongest), the ridges lighter, the older traces darker. The newest trace is
-drawn over it all as a line of its own (red; white with Waterfall or Blue),
-along the front edge where there is no signal, its peaks held a moment above it
-(3D peaks). The floor has a grid, the back and side walls a line at each
+drawn over it all as a line of its own (red; white with Waterfall or Blue)
+with a soft glow, along the front edge where there is no signal, its peaks held
+a moment above it (3D peaks). The signals' bodies are a little see-through.
+The floor has a grid fading into the distance, the back and side walls a line at each
 quarter of the level scale, and the reference frequencies of the scale above
 run back to the VFO line, labelled at the front edge. 3D tilt goes from the
 front (0: tall traces, little depth) to from above (10). A trace's height is

@@ -587,6 +587,10 @@ static void direct_redraw(int new_row) {
 #define D3_FAST_MS  100     /* rows at least this often (10 a second) are smooth as they are: no glide pictures between
                              * them, a picture a row (about half the pictures at the default waterfall speed) */
 #define D3_PHASE_Q  16      /* a glide picture is drawn when the phase moved to another 1/16 of a row, or a row came */
+#define D3_FADE(t)  (1.0f - 0.8f * (t))  /* the grid's opacity at depth t (0 front, 1 back): fading into the distance */
+#define D3_GLOW_PX  2       /* the newest trace's glow: px each side of its line */
+#define D3_GLOW_OP  0.40f   /* its opacity */
+#define D3_TINT     180     /* the signals' bodies over the panel, of 255: a little see-through */
 #define D3_RIBBON   3       /* px under a noise column's top: the base a mesh of ribbons */
 #define D3_CACHE    72      /* rows whose levels are kept (every D3_STEP-th: up to 64 traces and a few) */
 
@@ -599,6 +603,7 @@ static inline int32_t d3_quiet(int32_t base) {
 }
 
 
+static uint32_t     d3_panel;               /* the 3D's panel colour, the picture being drawn */
 static int32_t      d3_vanish = WIDTH / 2;  /* the vanishing point, x: the VFO line (update_middle_line()) */
 static uint32_t     d3_ramp[256];
 static int32_t      d3_ramp_of = -1;        /* the 3D colours d3_ramp was made for */
@@ -742,7 +747,9 @@ static inline void d3_px(const d3_target_t *o, int32_t x, int32_t y, uint32_t c,
 }
 
 /* An antialiased line (Wu's), at opacity op; 1bit: every other pixel of whole ones */
-static void d3_line(const d3_target_t *o, float x0, float y0, float x1, float y1, uint32_t c, float op) {
+/* A line from opacity op0 at (x0, y0) to op1 at (x1, y1): the floor's lines fade into the distance */
+static void d3_line_fade(const d3_target_t *o, float x0, float y0, float x1, float y1, uint32_t c, float op0,
+                         float op1) {
     bool  steep = fabsf(y1 - y0) > fabsf(x1 - x0);
     float t;
 
@@ -753,12 +760,15 @@ static void d3_line(const d3_target_t *o, float x0, float y0, float x1, float y1
     if (x0 > x1) {
         t = x0; x0 = x1; x1 = t;
         t = y0; y0 = y1; y1 = t;
+        t = op0; op0 = op1; op1 = t;
     }
     float dx = x1 - x0;
     float g = dx == 0.0f ? 0.0f : (y1 - y0) / dx;
     float y = y0 + g * (roundf(x0) - x0);
+    float dop = dx == 0.0f ? 0.0f : (op1 - op0) / dx;
+    float op = op0 + dop * (roundf(x0) - x0);
 
-    for (int32_t x = roundf(x0); x <= roundf(x1); x++, y += g) {
+    for (int32_t x = roundf(x0); x <= roundf(x1); x++, y += g, op += dop) {
         int32_t yi = floorf(y);
         float   f = y - yi;
 
@@ -775,6 +785,10 @@ static void d3_line(const d3_target_t *o, float x0, float y0, float x1, float y1
             d3_px(o, x, yi + 1, c, f * op);
         }
     }
+}
+
+static void d3_line(const d3_target_t *o, float x0, float y0, float x1, float y1, uint32_t c, float op) {
+    d3_line_fade(o, x0, y0, x1, y1, c, op, op);
 }
 
 /* Column x of a line from the column before: from ya (the column before) to yb, th px thick, its ends
@@ -830,13 +844,13 @@ static void d3_grid(const d3_target_t *o, const d3_scene_t *sc, const int32_t *r
         float s, f;
 
         d3_place(sc, k / 4.0f, &s, &f);
-        d3_line(o, d3_x(sc, 0, s), f, d3_x(sc, WIDTH - 1, s), f, grid, k == 0 ? 0.9f : 0.6f);
+        d3_line(o, d3_x(sc, 0, s), f, d3_x(sc, WIDTH - 1, s), f, grid, (k == 0 ? 0.9f : 0.6f) * D3_FADE(k / 4.0f));
     }
-    /* Along it: the floor's sides and the reference frequencies */
-    d3_line(o, 0, f0, l0, f1, grid, 0.8f);
-    d3_line(o, WIDTH - 1, f0, r0, f1, grid, 0.8f);
+    /* Along it: the floor's sides and the reference frequencies, fading towards the back */
+    d3_line_fade(o, 0, f0, l0, f1, grid, 0.8f, 0.8f * D3_FADE(1));
+    d3_line_fade(o, WIDTH - 1, f0, r0, f1, grid, 0.8f, 0.8f * D3_FADE(1));
     for (int i = 0; i < n_refs; i++) {
-        d3_line(o, ref_x[i], f0, d3_x(sc, ref_x[i], s1), f1, grid, 0.7f);
+        d3_line_fade(o, ref_x[i], f0, d3_x(sc, ref_x[i], s1), f1, grid, 0.7f, 0.7f * D3_FADE(1));
     }
     /* The back wall and the side walls: the level scale at quarters, the wall's edges */
     float top_b = f1 - sc->amp * s1;
@@ -844,12 +858,12 @@ static void d3_grid(const d3_target_t *o, const d3_scene_t *sc, const int32_t *r
     for (int k = 1; k <= 4; k++) {
         float yb = f1 - sc->amp * s1 * k / 4.0f, yf = f0 - sc->amp * k / 4.0f;
 
-        d3_line(o, l0, yb, r0, yb, wall, 0.8f);
-        d3_line(o, 0, yf, l0, yb, wall, 0.5f);
-        d3_line(o, WIDTH - 1, yf, r0, yb, wall, 0.5f);
+        d3_line(o, l0, yb, r0, yb, wall, 0.8f * D3_FADE(1));
+        d3_line_fade(o, 0, yf, l0, yb, wall, 0.5f, 0.5f * D3_FADE(1));
+        d3_line_fade(o, WIDTH - 1, yf, r0, yb, wall, 0.5f, 0.5f * D3_FADE(1));
     }
-    d3_line(o, l0, f1, l0, top_b, wall, 0.9f);
-    d3_line(o, r0, f1, r0, top_b, wall, 0.9f);
+    d3_line(o, l0, f1, l0, top_b, wall, 0.9f * D3_FADE(1));
+    d3_line(o, r0, f1, r0, top_b, wall, 0.9f * D3_FADE(1));
 }
 
 /* One trace: lv (levels by the view's pixel) at depth t, its horizon kept; the top of each column
@@ -1013,7 +1027,8 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
             while (fill_n <= k) {                   /* the colour of the level at that height */
                 int32_t l = (fill_n + foot_frac) * per_px;
 
-                fill_lut[fill_n++] = d3_dim(pal[LV_CLAMP(0, l, 255)], fog * 3 / 4);
+                /* a little see-through: blended over the panel once here, not over each pixel under it */
+                fill_lut[fill_n++] = d3_blend(d3_panel, d3_dim(pal[LV_CLAMP(0, l, 255)], fog * 3 / 4), D3_TINT);
             }
             for (; y < bottom; y++, k--) {
                 p += step;
@@ -1207,6 +1222,8 @@ static void d3_draw(uint32_t *buf, bool portrait, d3_pic_t *pic, const int32_t *
     uint32_t        accent;
     const uint32_t *pal = d3_palette(&accent);
     uint32_t        bg = o.mono ? theme_shape.paper | 0xff000000u : TC(panel).full | 0xff000000u;
+
+    d3_panel = bg;
     int32_t         tilt = param_i_get(cfg_wf_3d_tilt);   /* 0 flat on .. 10 seen from above */
     int32_t         base = param_i_get(cfg_wf_3d_floor) * 2;   /* the noise base, of 255 */
     int32_t         scale = d3_scale();
@@ -1287,9 +1304,32 @@ static void d3_draw(uint32_t *buf, bool portrait, d3_pic_t *pic, const int32_t *
         }
     }
 
-    /* The newest trace over it all: 2 px, antialiased, its columns joined */
+    /* The newest trace over it all: 2 px, antialiased, its columns joined; in colour over a soft glow of its own
+     * colour, so the trace of now stands out of the stack */
     uint32_t lc = o.mono ? theme_shape.ink : accent & 0xffffff;
 
+    if (!o.mono) {
+        uint32_t ga = (uint32_t)(D3_GLOW_OP * 255.0f);
+
+        for (int32_t x = 0; x < WIDTH; x++) {
+            if (isnan(front[x])) {
+                continue;
+            }
+            /* From above the higher of the two tops to under the lower one: plain, a glow needs no antialiasing */
+            float   ya = x > 0 && !isnan(front[x - 1]) ? front[x - 1] : front[x];
+            int32_t y0 = LV_MAX(0, (int32_t) LV_MIN(ya, front[x]) - D3_GLOW_PX);
+            int32_t y1 = LV_MIN(o.h - 1, (int32_t) LV_MAX(ya, front[x]) + 2 + D3_GLOW_PX);
+
+            for (int32_t y = y0; y <= y1; y++) {
+                uint32_t *p = d3_at(&o, x, y);
+
+                *p = d3_blend(*p, lc, ga);
+            }
+            if (y0 <= y1) {
+                d3_dirty(x, y0, y1);
+            }
+        }
+    }
     for (int32_t x = 0; x < WIDTH; x++) {
         if (isnan(front[x])) {
             continue;
