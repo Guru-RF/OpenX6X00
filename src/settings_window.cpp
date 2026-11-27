@@ -3637,7 +3637,7 @@ static uint8_t make_param_slider(uint8_t row, const char *label, param_slider_t 
 static lv_obj_t *wf_3d_sw;
 static param_slider_t wf_3d_depth_slider = {&cfg_sm.p_wf_3d_depth, 8, 64, 4, "%i traces"};
 static param_slider_t wf_3d_tilt_slider  = {&cfg_sm.p_wf_3d_tilt, 0, 10, 1, "%i"};
-static param_slider_t wf_3d_floor_slider = {&cfg_sm.p_wf_3d_floor, 0, 40, 2, "+%i"};
+static param_slider_t wf_3d_floor_slider = {&cfg_sm.p_wf_3d_floor, 0, 40, 2, "%i"};
 static param_slider_t wf_3d_range_slider = {&cfg_sm.p_wf_3d_range, 20, 60, 5, "%i dB"};
 
 static void wf_3d_page(void *arg) {
