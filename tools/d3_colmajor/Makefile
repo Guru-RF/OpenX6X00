@@ -24,8 +24,8 @@ build/d3_extract.inc: $(SRC)/waterfall_view.c
 	awk '/^#define D3_STEP/{p=1} /^\/\* The reference frequencies under the front edge/{p=0} p' $< > $@
 	grep -q 'static void d3_transpose' $@ && grep -q 'static void d3_render' $@
 
-d3_colmajor_test: d3_colmajor_test.c build/d3_extract.inc $(SRC)/board.h
-	$(CC) $(CFLAGS) -o $@ d3_colmajor_test.c -lm
+d3_colmajor_test: d3_colmajor_test.c build/d3_extract.inc $(SRC)/board.h $(SRC)/wf3d_shape.c
+	$(CC) $(CFLAGS) -o $@ d3_colmajor_test.c $(SRC)/wf3d_shape.c -lm
 
 test: d3_colmajor_test
 	./d3_colmajor_test build/rows.sums rows
@@ -37,8 +37,8 @@ bench: d3_colmajor_test
 	./d3_colmajor_test /dev/null rows bench
 	./d3_colmajor_test /dev/null turn bench
 
-arm: d3_colmajor_test.c build/d3_extract.inc $(SRC)/board.h
-	$(CROSS)gcc $(ARMFLAGS) -o d3_colmajor_test.arm d3_colmajor_test.c -lm
+arm: d3_colmajor_test.c build/d3_extract.inc $(SRC)/board.h $(SRC)/wf3d_shape.c
+	$(CROSS)gcc $(ARMFLAGS) -o d3_colmajor_test.arm d3_colmajor_test.c $(SRC)/wf3d_shape.c -lm
 ifneq ($(QEMU),)
 	$(QEMU) ./d3_colmajor_test.arm build/rows.arm.sums rows
 	$(QEMU) ./d3_colmajor_test.arm build/turn.arm.sums turn
